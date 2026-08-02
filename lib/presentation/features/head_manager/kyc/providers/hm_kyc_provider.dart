@@ -1,0 +1,112 @@
+// lib/presentation/features/head_manager/kyc/providers/hm_kyc_provider.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
+import '../../../../../data/models/kyc_document_model.dart';
+
+class HmKycState {
+  final List<KycDocumentModel> docs;
+  final bool isLoading;
+  final String? error;
+  final int currentPage;
+  final int totalPages;
+  final int totalCount;
+  final String statusFilter;
+  final String search;
+
+  const HmKycState({
+    this.docs = const [],
+    this.isLoading = false,
+    this.error,
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.totalCount = 0,
+    this.statusFilter = 'all',
+    this.search = '',
+  });
+
+  HmKycState copyWith({
+    List<KycDocumentModel>? docs,
+    bool? isLoading,
+    String? error,
+    int? currentPage,
+    int? totalPages,
+    int? totalCount,
+    String? statusFilter,
+    String? search,
+  }) =>
+      HmKycState(
+        docs: docs ?? this.docs,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+        currentPage: currentPage ?? this.currentPage,
+        totalPages: totalPages ?? this.totalPages,
+        totalCount: totalCount ?? this.totalCount,
+        statusFilter: statusFilter ?? this.statusFilter,
+        search: search ?? this.search,
+      );
+}
+
+class HmKycNotifier extends StateNotifier<HmKycState> {
+  final KycRemoteDataSource _ds;
+
+  HmKycNotifier(this._ds) : super(const HmKycState()) {
+    fetch();
+  }
+
+  Future<void> fetch({int page = 1}) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final res = await _ds.getKycList(
+        status: state.statusFilter == 'all' ? null : state.statusFilter,
+        page: page,
+        lenderName: state.search.isEmpty ? null : state.search,
+      );
+      final list = (res['data'] as List? ?? [])
+          .map((e) => KycDocumentModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final meta = res['meta'] as Map<String, dynamic>? ?? {};
+      state = state.copyWith(
+        docs: list,
+        isLoading: false,
+        currentPage: (meta['page'] as num?)?.toInt() ?? 1,
+        totalPages: (meta['total_pages'] as num?)?.toInt() ?? 1,
+        totalCount: (meta['total'] as num?)?.toInt() ?? list.length,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  void setStatus(String s) {
+    state = state.copyWith(statusFilter: s);
+    fetch();
+  }
+
+  void setSearch(String s) {
+    state = state.copyWith(search: s);
+    fetch();
+  }
+
+  Future<bool> verifyDoc({
+    required String kycDocId,
+    required String action,
+    String? rejectionNotes,
+  }) async {
+    try {
+      await _ds.verifyKyc(
+        kycDocId: kycDocId,
+        action: action,
+        rejectionNotes: rejectionNotes,
+      );
+      await fetch(page: state.currentPage);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+final hmKycProvider = StateNotifierProvider<HmKycNotifier, HmKycState>((ref) {
+  return HmKycNotifier(sl<KycRemoteDataSource>());
+});

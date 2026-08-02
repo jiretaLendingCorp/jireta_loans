@@ -1,0 +1,75 @@
+// supabase/functions/_shared/notifications.ts
+import { getAdminClient } from './db.ts';
+
+export async function sendPushNotification(params: {
+  userId: string;
+  title: string;
+  body: string;
+  type: string;
+  referenceId?: string;
+  sentBy?: string;
+}): Promise<void> {
+  try {
+    const db = getAdminClient();
+    const { data: user } = await db
+      .from('users')
+      .select('fcm_token')
+      .eq('id', params.userId)
+      .single();
+
+    await db.from('notifications').insert({
+      user_id: params.userId,
+      title: params.title,
+      body: params.body,
+      type: params.type,
+      reference_id: params.referenceId ?? null,
+      sent_by: params.sentBy ?? null,
+      is_read: false,
+    });
+
+    if (user?.fcm_token) {
+      const fcmKey = Deno.env.get('FCM_SERVER_KEY');
+      if (!fcmKey) return;
+
+      await fetch('https://fcm.googleapis.com/fcm/send', {
+        method: 'POST',
+        headers: {
+          Authorization: `key=${fcmKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: user.fcm_token,
+          notification: { title: params.title, body: params.body },
+          data: { type: params.type, reference_id: params.referenceId ?? '' },
+        }),
+      });
+    }
+  } catch (err) {
+    console.error('Push notification failed:', err);
+  }
+}
+
+export async function notifyStaff(params: {
+  title: string;
+  body: string;
+  type: string;
+  referenceId?: string;
+}): Promise<void> {
+  try {
+    const db = getAdminClient();
+    const { data: staff } = await db
+      .from('users')
+      .select('id')
+      .in('roles.name', ['head_manager', 'employee'])
+      .eq('account_status', 'active');
+
+    if (!staff) return;
+    await Promise.all(
+      staff.map((u: { id: string }) =>
+        sendPushNotification({ ...params, userId: u.id })
+      )
+    );
+  } catch (err) {
+    console.error('Notify staff failed:', err);
+  }
+}

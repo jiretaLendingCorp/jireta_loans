@@ -1,0 +1,74 @@
+// supabase/functions/sms-send-reminder/index.ts
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
+import { getAdminClient } from '../_shared/db.ts';
+import { sendSms } from '../_shared/sms.ts';
+
+serve(async (req) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  try {
+    const db = getAdminClient();
+
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + 2);
+    const targetDateStr = targetDate.toISOString().split('T')[0];
+
+    const { data: dueSchedules, error } = await db
+      .from('loan_schedules')
+      .select(
+        `id, due_date, amount_due,
+         loan:loans(
+           loan_number, status, outstanding_balance,
+           lender:users!loans_lender_id_fkey(
+             id, first_name, last_name, phone_number
+           )
+         )`
+      )
+      .eq('due_date', targetDateStr)
+      .eq('status', 'pending')
+      .in('loan.status', ['active', 'overdue']);
+
+    if (error) return errorResponse('Failed to fetch due schedules', 500, 'DB_ERROR');
+
+    const results: Record<string, string>[] = [];
+
+    for (const schedule of dueSchedules ?? []) {
+      const loan = (schedule as any).loan;
+      if (!loan) continue;
+      const lender = loan.lender;
+      if (!lender?.phone_number) continue;
+
+      const name = `${lender.first_name} ${lender.last_name}`;
+      const amount = new Intl.NumberFormat('en-PH', {
+        style: 'currency', currency: 'PHP',
+      }).format(Number(schedule.amount_due));
+      const message = `Hi ${name}, your Jireta Loans payment of ${amount} is due on ${targetDateStr} (Loan: ${loan.loan_number}). Pay on time to avoid penalties.`;
+
+      const smsResult = await sendSms(lender.phone_number, message);
+
+      await db.from('sms_logs').insert({
+        user_id: lender.id,
+        phone_number: lender.phone_number,
+        message_type: 'payment_reminder',
+        message_body: message,
+        status: smsResult.success ? 'sent' : 'failed',
+        provider_response: smsResult.response ?? null,
+        reference_id: schedule.id,
+      });
+
+      results.push({ phone: lender.phone_number, status: smsResult.success ? 'sent' : 'failed' });
+    }
+
+    return jsonResponse({
+      success: true,
+      reminders_sent: results.filter((r) => r.status === 'sent').length,
+      reminders_failed: results.filter((r) => r.status === 'failed').length,
+      target_date: targetDateStr,
+    });
+  } catch (err) {
+    console.error('sms-send-reminder error:', err);
+    return errorResponse('Internal server error', 500, 'SERVER_ERROR');
+  }
+});

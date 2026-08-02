@@ -1,0 +1,142 @@
+// lib/data/datasources/remote/user_remote_datasource.dart
+import '../../../core/network/dio_client.dart';
+import '../../../core/network/api_endpoints.dart';
+import '../../models/user_model.dart';
+
+class UserRemoteDataSource {
+  final DioClient _client;
+  UserRemoteDataSource(this._client);
+
+  Future<Map<String, dynamic>> createEmployee(Map<String, dynamic> data) async {
+    final res = await _client.post(
+      ApiEndpoints.usersCreateEmployee,
+      data: data,
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createRider(Map<String, dynamic> data) async {
+    final res = await _client.post(ApiEndpoints.usersCreateRider, data: data);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> createLender(Map<String, dynamic> data) async {
+    final res = await _client.post(ApiEndpoints.usersCreateLender, data: data);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<UserModel> getProfile({String? userId}) async {
+    final res = await _client.get(
+      ApiEndpoints.usersGetProfile,
+      queryParams: userId != null ? {'user_id': userId} : null,
+    );
+    return UserModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> getProfileMap({String? userId}) async {
+    final res = await _client.get(
+      ApiEndpoints.usersGetProfile,
+      queryParams: userId != null ? {'user_id': userId} : null,
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<List<UserModel>> getUsers({
+    String? role,
+    String? status,
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.usersGetList,
+      queryParams: {
+        if (role != null) 'role': role,
+        if (status != null) 'status': status,
+        'page': page,
+        'limit': limit,
+        if (search != null) 'search': search,
+      },
+    );
+    final list = (res.data['data'] as List?) ?? [];
+    return list
+        .map((e) => UserModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> updateProfile(Map<String, dynamic> data) async {
+    await _client.patch(ApiEndpoints.usersUpdateProfile, data: data);
+  }
+
+  Future<void> suspendActivate(String userId, String action) async {
+    await _client.patch(
+      ApiEndpoints.usersSuspendActivate,
+      data: {'user_id': userId, 'action': action},
+    );
+  }
+
+  Future<void> archive(String userId) async {
+    await _client.patch(ApiEndpoints.usersArchive, data: {'user_id': userId});
+  }
+
+  Future<Map<String, dynamic>> getList({
+    String? role,
+    String? status,
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.usersGetList,
+      queryParams: {
+        if (role != null) 'role': role,
+        if (status != null) 'status': status,
+        'page': page,
+        'limit': limit,
+        if (search != null) 'search': search,
+      },
+    );
+    final list = (res.data['data'] as List?) ?? [];
+    return {
+      'items': list,
+      'total': (res.data['total'] as num?)?.toInt() ?? list.length,
+    };
+  }
+
+  Future<Map<String, dynamic>> getUserList({
+    String? role,
+    String? status,
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.usersGetList,
+      queryParams: {
+        if (role != null) 'role': role,
+        if (status != null) 'status': status,
+        'page': page,
+        'limit': limit,
+        if (search != null) 'search': search,
+      },
+    );
+    final list = (res.data['data'] as List?) ?? [];
+    final total = (res.data['total'] as num?)?.toInt() ?? list.length;
+    final totalPages =
+        (res.data['totalPages'] as num?)?.toInt() ??
+        (limit == 0 ? 1 : (total / limit).ceil());
+    return {
+      'data': list,
+      'meta': {'page': page, 'total_pages': totalPages, 'total': total},
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableRiders() async {
+    final res = await _client.get(
+      ApiEndpoints.usersGetList,
+      queryParams: {'role': 'rider', 'status': 'active', 'page': 1, 'limit': 100},
+    );
+    final list = (res.data['data'] as List?) ?? [];
+    return list.cast<Map<String, dynamic>>();
+  }
+}

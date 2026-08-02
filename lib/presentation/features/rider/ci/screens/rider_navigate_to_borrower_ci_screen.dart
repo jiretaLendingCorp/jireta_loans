@@ -1,0 +1,238 @@
+// lib/presentation/features/rider/ci/screens/rider_navigate_to_borrower_ci_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../providers/rider_ci_provider.dart';
+
+class RiderNavigateToBorrowerCiScreen extends ConsumerStatefulWidget {
+  final String ciId;
+  const RiderNavigateToBorrowerCiScreen({super.key, required this.ciId});
+
+  @override
+  ConsumerState<RiderNavigateToBorrowerCiScreen> createState() =>
+      _RiderNavigateToBorrowerCiScreenState();
+}
+
+class _RiderNavigateToBorrowerCiScreenState
+    extends ConsumerState<RiderNavigateToBorrowerCiScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
+    });
+  }
+
+  Future<void> _openDirections(double lat, double lng) async {
+    final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _openSearch(String address) async {
+    final encoded = Uri.encodeComponent(address);
+    final uri =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(riderCiProvider);
+    final ci = state.selectedCi;
+
+    return MobileScaffold(
+      title: 'Navigate for CI',
+      accentColor: AppColors.riderGreen,
+      showBottomNav: false,
+      navItems: const [],
+      body: ci == null
+          ? state.isLoading
+              ? const ShimmerLoader()
+              : const Center(child: Text('CI not found'))
+          : _buildContent(ci),
+    );
+  }
+
+  Widget _buildContent(dynamic ci) {
+    final loan = ci.loan as Map<String, dynamic>?;
+    final lender = loan?['lender'] as Map<String, dynamic>?;
+    final user = lender?['user'] as Map<String, dynamic>?;
+    final borrowerName = user?['full_name'] as String? ?? 'Borrower';
+    final addresses = lender?['addresses'] as List? ?? [];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _HeaderCard(name: borrowerName),
+        const SizedBox(height: 16),
+        const _InstructionCard(),
+        const SizedBox(height: 16),
+        if (addresses.isEmpty)
+          const Center(
+              child: Text('No addresses available for navigation.',
+                  style: TextStyle(color: AppColors.textSecondary)))
+        else
+          ...addresses.map((addr) {
+            final a = addr as Map<String, dynamic>;
+            final type = (a['address_type'] as String? ?? '').toUpperCase();
+            final full = [a['street'], a['barangay'], a['city'], a['province']]
+                .where((e) => e != null && (e as String).isNotEmpty)
+                .join(', ');
+            final lat = (a['latitude'] as num?)?.toDouble();
+            final lng = (a['longitude'] as num?)?.toDouble();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2))
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.riderGreen.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(type,
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.riderGreen)),
+                        ),
+                        const Spacer(),
+                        const Icon(Icons.location_on,
+                            color: AppColors.riderGreen, size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(full.isEmpty ? '—' : full,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                            height: 1.4)),
+                    if (lat != null && lng != null) ...[
+                      const SizedBox(height: 6),
+                      Text('$lat, $lng',
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.textTertiary)),
+                    ],
+                    const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.riderGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        minimumSize: const Size(double.infinity, 44),
+                      ),
+                      onPressed: lat != null && lng != null
+                          ? () => _openDirections(lat, lng)
+                          : full.isNotEmpty
+                              ? () => _openSearch(full)
+                              : null,
+                      icon: const Icon(Icons.navigation, size: 18),
+                      label: Text(
+                        lat != null ? 'Open Directions' : 'Search in Maps',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _HeaderCard extends StatelessWidget {
+  final String name;
+  const _HeaderCard({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [AppColors.riderGreenDark, AppColors.riderGreen],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.assignment_ind_outlined,
+              color: Colors.white, size: 28),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('CI Investigation',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text(name,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InstructionCard extends StatelessWidget {
+  const _InstructionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.riderGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.info_outline, color: AppColors.riderGreen, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Navigate to the borrower\'s address to conduct the credit investigation. Visit all provided addresses.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

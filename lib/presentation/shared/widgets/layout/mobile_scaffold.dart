@@ -1,0 +1,298 @@
+// lib/presentation/shared/widgets/layout/mobile_scaffold.dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/constants/route_constants.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../features/auth/providers/auth_provider.dart';
+
+class MobileScaffold extends ConsumerWidget {
+  final String title;
+  final Widget body;
+  final List<MobileNavItem> navItems;
+  final Color accentColor;
+  final Widget? floatingActionButton;
+  final List<Widget>? appBarActions;
+  final bool showBackButton;
+  final bool resizeToAvoidBottomInset;
+  final bool showBottomNav;
+
+  const MobileScaffold({
+    super.key,
+    required this.title,
+    required this.body,
+    required this.navItems,
+    this.accentColor = AppColors.deepNavy,
+    this.floatingActionButton,
+    this.appBarActions,
+    this.showBackButton = false,
+    this.resizeToAvoidBottomInset = true,
+    this.showBottomNav = true,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final path = GoRouterState.of(context).uri.path;
+    final currentIndex = navItems.indexWhere(
+      (item) => path == item.route || path.startsWith('${item.route}/'),
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.white,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF0F2F5),
+        resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+        appBar: AppBar(
+          backgroundColor: accentColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          automaticallyImplyLeading: showBackButton,
+          actions: appBarActions ??
+              [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  onSelected: (val) async {
+                    if (val == 'logout') {
+                      await ref.read(authProvider.notifier).logout();
+                      if (context.mounted) {
+                        context.go(RouteConstants.mobileLogin);
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'logout',
+                      child: Row(children: [
+                        Icon(Icons.logout, size: 18, color: AppColors.error),
+                        SizedBox(width: 10),
+                        Text('Sign Out',
+                            style: TextStyle(color: AppColors.error)),
+                      ]),
+                    ),
+                  ],
+                ),
+              ],
+        ),
+        body: body,
+        floatingActionButton: floatingActionButton,
+        bottomNavigationBar: !showBottomNav || navItems.isEmpty
+            ? null
+            : _BottomNav(
+                items: navItems,
+                currentIndex: currentIndex < 0 ? 0 : currentIndex,
+                accentColor: accentColor,
+                onTap: (i) => context.go(navItems[i].route),
+              ),
+      ),
+    );
+  }
+}
+
+class MobileNavItem {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final String route;
+  final int? badgeCount;
+
+  const MobileNavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.route,
+    this.badgeCount,
+  });
+}
+
+class _BottomNav extends StatelessWidget {
+  final List<MobileNavItem> items;
+  final int currentIndex;
+  final Color accentColor;
+  final void Function(int) onTap;
+
+  const _BottomNav({
+    required this.items,
+    required this.currentIndex,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black12, blurRadius: 12, offset: Offset(0, -2)),
+        ],
+      ),
+      child: SafeArea(
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            children: items.asMap().entries.map((e) {
+              final i = e.key;
+              final item = e.value;
+              final isSelected = i == currentIndex;
+
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onTap(i),
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? accentColor.withValues(alpha: 0.12)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              isSelected ? item.activeIcon : item.icon,
+                              size: 22,
+                              color: isSelected
+                                  ? accentColor
+                                  : AppColors.textTertiary,
+                            ),
+                          ),
+                          if ((item.badgeCount ?? 0) > 0)
+                            Positioned(
+                              top: -2,
+                              right: -4,
+                              child: Container(
+                                width: 16,
+                                height: 16,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.error,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  '${item.badgeCount}',
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w400,
+                          color:
+                              isSelected ? accentColor : AppColors.textTertiary,
+                          fontFamily: 'Inter',
+                        ),
+                        child: Text(item.label),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Rider nav builder
+List<MobileNavItem> riderNavItems({int notifBadge = 0}) => [
+      const MobileNavItem(
+        icon: Icons.home_outlined,
+        activeIcon: Icons.home,
+        label: 'Home',
+        route: RouteConstants.riderDashboard,
+      ),
+      const MobileNavItem(
+        icon: Icons.local_shipping_outlined,
+        activeIcon: Icons.local_shipping,
+        label: 'Collections',
+        route: RouteConstants.riderCollections,
+      ),
+      const MobileNavItem(
+        icon: Icons.search_outlined,
+        activeIcon: Icons.search,
+        label: 'CI Tasks',
+        route: RouteConstants.riderCi,
+      ),
+      MobileNavItem(
+        icon: Icons.notifications_outlined,
+        activeIcon: Icons.notifications,
+        label: 'Alerts',
+        route: RouteConstants.riderNotifications,
+        badgeCount: notifBadge,
+      ),
+      const MobileNavItem(
+        icon: Icons.person_outlined,
+        activeIcon: Icons.person,
+        label: 'Profile',
+        route: RouteConstants.riderProfile,
+      ),
+    ];
+
+// Lender nav builder
+List<MobileNavItem> lenderNavItems({int notifBadge = 0}) => [
+      const MobileNavItem(
+        icon: Icons.home_outlined,
+        activeIcon: Icons.home,
+        label: 'Home',
+        route: RouteConstants.lenderDashboard,
+      ),
+      const MobileNavItem(
+        icon: Icons.description_outlined,
+        activeIcon: Icons.description,
+        label: 'My Loans',
+        route: RouteConstants.lenderLoans,
+      ),
+      const MobileNavItem(
+        icon: Icons.payments_outlined,
+        activeIcon: Icons.payments,
+        label: 'Payments',
+        route: RouteConstants.lenderPayments,
+      ),
+      MobileNavItem(
+        icon: Icons.notifications_outlined,
+        activeIcon: Icons.notifications,
+        label: 'Alerts',
+        route: RouteConstants.lenderNotifications,
+        badgeCount: notifBadge,
+      ),
+      const MobileNavItem(
+        icon: Icons.person_outlined,
+        activeIcon: Icons.person,
+        label: 'Profile',
+        route: RouteConstants.lenderProfile,
+      ),
+    ];

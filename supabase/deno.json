@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "lib": [
+      "deno.window"
+    ]
+  },
+  "imports": {
+    "std/http/server": "https://deno.land/std@0.168.0/http/server.ts"
+  },
+  "tasks": {
+    "check": "deno check functions/**/index.ts"
+  },
+  "lint": {
+    "include": [
+      "functions"
+    ]
+  },
+  "fmt": {
+    "include": [
+      "functions"
+    ]
+  }
+}

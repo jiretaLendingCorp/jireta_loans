@@ -1,0 +1,29 @@
+{
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit",
+        "source.organizeImports": "explicit"
+    },
+    "[dart]": {
+        "editor.formatOnSave": true,
+        "editor.rulers": [
+            80
+        ]
+    },
+    "dart.lineLength": 80,
+    "dart.showTodos": true,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "deno.enable": true,
+    "deno.enablePaths": [
+        "supabase/functions"
+    ],
+    "deno.lint": true,
+    "editor.defaultFormatter": "denoland.vscode-deno",
+    "[typescript]": {
+        "editor.defaultFormatter": "denoland.vscode-deno"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "denoland.vscode-deno"
+    }
+}

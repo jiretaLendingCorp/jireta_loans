@@ -1,0 +1,108 @@
+// lib/presentation/features/head_manager/lenders/providers/hm_lender_provider.dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../../../../data/datasources/remote/blacklist_remote_datasource.dart';
+import '../../../../../data/models/user_model.dart';
+
+class HmLenderState {
+  final List<UserModel> lenders;
+  final bool isLoading;
+  final String? error;
+  final String search;
+  final String statusFilter;
+
+  const HmLenderState({
+    this.lenders = const [],
+    this.isLoading = false,
+    this.error,
+    this.search = '',
+    this.statusFilter = 'all',
+  });
+
+  HmLenderState copyWith({
+    List<UserModel>? lenders,
+    bool? isLoading,
+    String? error,
+    String? search,
+    String? statusFilter,
+  }) => HmLenderState(
+    lenders: lenders ?? this.lenders,
+    isLoading: isLoading ?? this.isLoading,
+    error: error,
+    search: search ?? this.search,
+    statusFilter: statusFilter ?? this.statusFilter,
+  );
+}
+
+class HmLenderNotifier extends StateNotifier<HmLenderState> {
+  final UserRemoteDataSource _ds;
+  final BlacklistRemoteDataSource _blds;
+  HmLenderNotifier(this._ds, this._blds) : super(const HmLenderState()) {
+    load();
+  }
+
+  Future<void> load() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final list = await _ds.getUsers(
+        role: 'lender',
+        status: state.statusFilter == 'all' ? null : state.statusFilter,
+        search: state.search.isEmpty ? null : state.search,
+      );
+      state = state.copyWith(lenders: list, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  void setSearch(String v) {
+    state = state.copyWith(search: v);
+    load();
+  }
+
+  void setStatus(String v) {
+    state = state.copyWith(statusFilter: v);
+    load();
+  }
+
+  Future<void> createLender(Map<String, dynamic> data) async {
+    await _ds.createLender(data);
+    await load();
+  }
+
+  Future<void> suspendActivate(String userId, String action) async {
+    await _ds.suspendActivate(userId, action);
+    await load();
+  }
+
+  Future<void> archive(String userId) async {
+    await _ds.archive(userId);
+    await load();
+  }
+
+  Future<void> addBlacklist(String lenderId, String reason) async {
+    await _blds.addBlacklist(lenderId: lenderId, reason: reason);
+    await load();
+  }
+
+  Future<void> removeBlacklist(String lenderId) async {
+    await _blds.removeBlacklist(lenderId: lenderId);
+    await load();
+  }
+
+  Future<void> updateLender({
+    required String userId,
+    required Map<String, dynamic> data,
+  }) async {
+    await _ds.updateProfile({'user_id': userId, ...data});
+    await load();
+  }
+}
+
+final hmLenderProvider = StateNotifierProvider<HmLenderNotifier, HmLenderState>(
+  (ref) => HmLenderNotifier(
+    sl<UserRemoteDataSource>(),
+    sl<BlacklistRemoteDataSource>(),
+  ),
+);

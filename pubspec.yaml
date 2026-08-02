@@ -1,0 +1,139 @@
+name: jireta_loans
+description: "Jireta Loans & Credit Corp 1966 - Lending Management System"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.4.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Environment
+  flutter_dotenv: ^5.1.0
+
+  # Supabase
+  supabase_flutter: ^2.5.0
+
+  # Firebase
+  firebase_core: ^3.3.0
+  firebase_messaging: ^15.1.0
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # HTTP Client
+  dio: ^5.6.0
+
+  # Secure Storage
+  flutter_secure_storage: ^9.2.2
+
+  # UI Components
+  lucide_icons_flutter: ^3.0.3
+  shimmer: ^3.0.0
+  fl_chart: ^0.69.0
+  syncfusion_flutter_charts: ^31.1.20
+
+  # Forms & Input
+  intl: ^0.20.2
+  mask_text_input_formatter: ^2.9.0
+  image_picker: ^1.1.2
+  file_picker: ^8.1.2
+  signature: ^5.5.0
+
+  # Maps & Location
+  google_maps_flutter: ^2.9.0
+  geolocator: ^13.0.1
+  geocoding: ^3.0.0
+
+  # Google Sign In
+  google_sign_in: ^6.2.1
+
+  # Notifications
+  flutter_local_notifications: ^17.2.2
+
+  # Storage & Cache
+  shared_preferences: ^2.3.2
+  cached_network_image: ^3.4.1
+  path_provider: ^2.1.4
+
+  # Utility
+  uuid: ^4.4.2
+  equatable: ^2.0.5
+  dartz: ^0.10.1
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  collection: ^1.18.0
+  url_launcher: ^6.3.0
+  open_filex: ^4.5.0
+  percent_indicator: ^4.2.3
+
+  # PDF
+  pdf: ^3.11.1
+  printing: ^5.13.1
+  syncfusion_flutter_pdf: ^31.1.20
+
+  # Background services
+  flutter_background_service: ^5.0.5
+
+  # Date
+  table_calendar: ^3.1.2
+
+  # Animations
+  lottie: ^3.1.2
+  animated_text_kit: ^4.2.2
+
+  # Get_it for DI
+  get_it: ^7.7.0
+
+    # UI Components
+  
+  flutter_svg: ^2.0.10+1
+  dropdown_search: ^5.0.6
+  another_flushbar: ^1.12.30
+  timeago: ^3.7.0
+  json_serializable: ^6.8.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.11
+  riverpod_generator: ^2.4.3
+  freezed: ^2.5.7
+  
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/env/.env
+    - assets/images/
+    - assets/icons/
+    - assets/fonts/Inter/
+    - assets/fonts/Playfair_Display/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter/Inter-Bold.ttf
+          weight: 700
+    - family: PlayfairDisplay
+      fonts:
+        - asset: assets/fonts/Playfair_Display/PlayfairDisplay-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Playfair_Display/PlayfairDisplay-Bold.ttf
+          weight: 700

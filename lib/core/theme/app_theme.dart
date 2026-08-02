@@ -1,0 +1,127 @@
+// lib/core/theme/app_theme.dart
+import 'package:flutter/material.dart';
+import 'app_colors.dart';
+import 'app_typography.dart';
+
+class AppTheme {
+  AppTheme._();
+
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      fontFamily: 'Inter',
+      colorScheme: const ColorScheme.light(
+        primary: AppColors.deepNavy,
+        onPrimary: AppColors.textOnDark,
+        secondary: AppColors.gold,
+        onSecondary: AppColors.textOnGold,
+        surface: AppColors.surface,
+        onSurface: AppColors.textPrimary,
+        error: AppColors.error,
+        onError: Colors.white,
+        outline: AppColors.border,
+      ),
+      scaffoldBackgroundColor: AppColors.surfaceWhite,
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.deepNavy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: AppTypography.heading2.copyWith(color: Colors.white),
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.cardBackground,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.border, width: 1),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.deepNavy,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: AppTypography.button,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.deepNavy,
+          side: const BorderSide(color: AppColors.deepNavy, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle: AppTypography.button,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.deepNavy,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          textStyle: AppTypography.button,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.surfaceWhite,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.deepNavy, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
+        ),
+        labelStyle: AppTypography.labelMedium,
+        hintStyle: AppTypography.bodyMedium.copyWith(
+          color: AppColors.textTertiary,
+        ),
+        errorStyle: AppTypography.caption.copyWith(color: AppColors.error),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.divider,
+        thickness: 1,
+        space: 0,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.surfaceVariant,
+        labelStyle: AppTypography.labelMedium,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        contentTextStyle: AppTypography.bodyMedium.copyWith(
+          color: Colors.white,
+        ),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.white,
+        elevation: 8,
+        selectedItemColor: AppColors.deepNavy,
+        unselectedItemColor: AppColors.textTertiary,
+        type: BottomNavigationBarType.fixed,
+      ),
+    );
+  }
+}
