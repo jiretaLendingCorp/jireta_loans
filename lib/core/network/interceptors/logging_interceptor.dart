@@ -1,5 +1,6 @@
 // lib/core/network/interceptors/logging_interceptor.dart
 import 'package:dio/dio.dart';
+
 import '../../utils/logger.dart';
 
 class LoggingInterceptor extends Interceptor {
@@ -19,9 +20,14 @@ class LoggingInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    AppLogger.e(
-      '[ERR] ${err.response?.statusCode} ${err.requestOptions.path}: ${err.message}',
-    );
+    // FIX: err.message is null for DioExceptionType.unknown — fall back to
+    // the wrapped AppException message (set by ErrorInterceptor) or the type name.
+    final status = err.response?.statusCode?.toString() ?? 'no-response';
+    final appError = err.error; // set by ErrorInterceptor before this runs
+    final message = err.message?.isNotEmpty == true
+        ? err.message
+        : appError?.toString() ?? err.type.name;
+    AppLogger.e('[ERR] $status ${err.requestOptions.path}: $message');
     handler.next(err);
   }
 }

@@ -5,6 +5,21 @@ import '../../config/env_config.dart';
 import '../../constants/app_constants.dart';
 import '../../security/secure_storage.dart';
 
+// Endpoints that don't own a session — a 401 from them means bad credentials,
+// NOT an expired token. Never attempt a refresh for these paths.
+const _noRefreshPaths = {
+  'auth-login',
+  'auth-send-otp',
+  'auth-verify-otp',
+  'auth-forgot-password',
+  'auth-reset-password',
+  // FIX: auth-force-change-password uses the current session token to verify
+  // identity; it should never trigger a token refresh loop. A 401 here means
+  // the session has already expired — just propagate the error.
+  'auth-force-change-password',
+  'auth-logout',
+};
+
 class AuthInterceptor extends Interceptor {
   final Dio _dio;
   bool _isRefreshing = false;
@@ -32,6 +47,13 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
+    final path = err.requestOptions.path;
+
+    // Auth endpoints that don't carry a session must NEVER trigger a refresh.
+    if (_noRefreshPaths.contains(path)) {
+      return handler.next(err);
+    }
+
     if (err.response?.statusCode == 401 && !_isRefreshing) {
       _isRefreshing = true;
       try {

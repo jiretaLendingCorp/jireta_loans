@@ -1,13 +1,14 @@
 // lib/main.dart
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_core/firebase_core.dart';
+
+import 'app.dart';
 import 'core/config/env_config.dart';
 import 'core/di/injection.dart';
-import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +17,7 @@ void main() async {
 
   await Supabase.initialize(
     url: EnvConfig.supabaseUrl,
-    publishableKey: EnvConfig.supabaseAnonKey,
+    anonKey: EnvConfig.supabaseAnonKey, // FIX: was `publishableKey` — wrong param name for supabase_flutter 2.x
   );
 
   try {

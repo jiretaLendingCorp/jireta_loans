@@ -1,5 +1,6 @@
 // lib/core/security/secure_storage.dart
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../constants/app_constants.dart';
 
 class SecureStorage {
@@ -7,6 +8,14 @@ class SecureStorage {
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+    // FIX: Flutter Web (Chrome) requires WebOptions. Without this the storage
+    // silently falls back to an unencrypted path on some browsers, and on
+    // others it may throw at runtime — causing ALL authenticated requests to
+    // use the anon key instead of the user JWT, producing cascade 401s.
+    wOptions: WebOptions(
+      dbName: 'jireta_secure_storage',
+      publicKey: 'jireta_loans_pub_key',
     ),
   );
 
