@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- NETWORK PERMISSIONS — required for Dio/Supabase HTTP calls on Android.
+         The debug/profile flavors declare INTERNET in their own manifests,
+         but the MAIN manifest must also declare it for release builds (and for
+         any hot-restart scenario where the main manifest is the merge base). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
     <application
         android:label="jireta_loans"
         android:name="${applicationName}"

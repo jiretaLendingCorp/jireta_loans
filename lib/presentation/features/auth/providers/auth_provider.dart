@@ -1,9 +1,10 @@
 // lib/presentation/features/auth/providers/auth_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/di/injection.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../data/datasources/remote/auth_remote_datasource.dart';
 import '../../../../data/models/user_model.dart';
-import '../../../../core/di/injection.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 
 class AuthNotifier extends StateNotifier<AsyncValue<void>> {
@@ -142,6 +143,16 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
 
   String? extractErrorMessage(Object error) {
     final msg = error.toString();
+    // FIX: Handle connection-level failures first so users see actionable text
+    // instead of the raw DioException or "An error occurred" fallback.
+    if (msg.contains('NETWORK_ERROR') ||
+        msg.contains('Unable to reach server') ||
+        msg.contains('No internet')) {
+      return 'Cannot connect to server. Check your internet connection and try again.';
+    }
+    if (msg.contains('TIMEOUT') || msg.contains('timed out')) {
+      return 'Request timed out. Please try again.';
+    }
     if (msg.contains('Invalid email or password')) {
       return 'Invalid email or password.';
     }
