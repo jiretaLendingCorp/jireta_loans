@@ -1,7 +1,8 @@
 // lib/core/errors/error_handler.dart
 import 'package:dio/dio.dart';
-import 'failure.dart';
+
 import 'app_exception.dart';
+import 'failure.dart';
 
 class ErrorHandler {
   static Failure handle(dynamic error) {
@@ -15,22 +16,54 @@ class ErrorHandler {
   }
 
   static Failure _handleDio(DioException e) {
+    // FIX: ErrorInterceptor stores an AppException in e.error AND a human-
+    // readable string in e.message. Prefer unwrapping e.error for typed
+    // failures; fall back to e.message for a clean user string.
+    final inner = e.error;
+    if (inner is AppException) {
+      return _fromAppException(inner);
+    }
+
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.sendTimeout:
-        return const NetworkFailure(
-          'Request timed out. Please check your connection.',
+        return NetworkFailure(
+          e.message ?? 'Request timed out. Please check your connection.',
         );
       case DioExceptionType.connectionError:
-        return const NetworkFailure('No internet connection.');
+        return NetworkFailure(e.message ?? 'No internet connection.');
       case DioExceptionType.badResponse:
         return _handleResponse(e.response);
       case DioExceptionType.cancel:
         return const UnknownFailure('Request cancelled.');
+      case DioExceptionType.unknown:
       default:
-        return const NetworkFailure();
+        // e.message is now always set by ErrorInterceptor (previously was null).
+        return NetworkFailure(
+          e.message ?? 'Cannot connect to server. Please try again.',
+        );
     }
+  }
+
+  static Failure _fromAppException(AppException e) {
+    if (e is UnauthorizedException) return AuthFailure(e.message, code: e.code);
+    if (e is ForbiddenException) return ForbiddenFailure(e.message);
+    if (e is ValidationException) return ValidationFailure(e.message);
+    if (e is NotFoundException) return NotFoundFailure(e.message);
+    if (e is NetworkException) return NetworkFailure(e.message);
+    if (e is TimeoutException) return NetworkFailure(e.message);
+    if (e is AccountLockedException) return AuthFailure(e.message, code: e.code);
+    if (e is AccountSuspendedException) {
+      return ForbiddenFailure(e.message);
+    }
+    if (e is RateLimitException) {
+      return const AuthFailure(
+        'Too many requests. Please try again.',
+        code: 'RATE_LIMITED',
+      );
+    }
+    return ServerFailure(e.message, code: e.code);
   }
 
   static Failure _handleResponse(Response? response) {

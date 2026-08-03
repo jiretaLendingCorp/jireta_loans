@@ -31,6 +31,19 @@ class DioClient {
       ),
     );
 
+    // ── Interceptor execution order ────────────────────────────────────────
+    // Dio calls onRequest in REGISTRATION order (0 → 1 → 2).
+    // Dio calls onError  in REVERSE order       (2 → 1 → 0).
+    //
+    // Registration order: [Auth(0), Error(1), Logging(2)]
+    //   onRequest:  Auth → Error (noop) → Logging   (adds auth header first)
+    //   onError:    Logging → Error → Auth            (wraps error, then refreshes)
+    //
+    // LoggingInterceptor therefore sees the RAW Dio error before ErrorInterceptor
+    // wraps it. That is intentional: it lets us log the original transport-level
+    // detail even if ErrorInterceptor later converts it to a friendly message.
+    // After the ErrorInterceptor fix, err.message is always set, so the log line
+    // is readable regardless of which interceptor runs first.
     _dio.interceptors.addAll([
       AuthInterceptor(_dio),
       ErrorInterceptor(),

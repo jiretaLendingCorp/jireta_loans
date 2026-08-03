@@ -20,13 +20,17 @@ class LoggingInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // FIX: err.message is null for DioExceptionType.unknown — fall back to
-    // the wrapped AppException message (set by ErrorInterceptor) or the type name.
+    // NOTE ON INTERCEPTOR ORDER: Dio calls onError in REVERSE registration
+    // order. DioClient registers interceptors as [Auth, Error, Logging], so
+    // for errors the chain is: Logging → Error → Auth.
+    // This means the LoggingInterceptor sees the RAW Dio error BEFORE
+    // ErrorInterceptor has wrapped it into an AppException.
+    // After this fix, ErrorInterceptor always sets err.message so the log
+    // line is clean even for the initial raw error pass.
     final status = err.response?.statusCode?.toString() ?? 'no-response';
-    final appError = err.error; // set by ErrorInterceptor before this runs
     final message = err.message?.isNotEmpty == true
         ? err.message
-        : appError?.toString() ?? err.type.name;
+        : err.error?.toString() ?? err.type.name;
     AppLogger.e('[ERR] $status ${err.requestOptions.path}: $message');
     handler.next(err);
   }

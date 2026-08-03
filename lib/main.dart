@@ -15,9 +15,13 @@ void main() async {
 
   await dotenv.load(fileName: 'assets/env/.env');
 
+  print('SUPABASE_URL = ${dotenv.env['SUPABASE_URL']}');
+  print('EDGE_FUNCTIONS_URL = ${dotenv.env['EDGE_FUNCTIONS_URL']}');
+
   await Supabase.initialize(
     url: EnvConfig.supabaseUrl,
-    anonKey: EnvConfig.supabaseAnonKey, // FIX: was `publishableKey` — wrong param name for supabase_flutter 2.x
+    anonKey: EnvConfig
+        .supabaseAnonKey, // FIX: was `publishableKey` — wrong param name for supabase_flutter 2.x
   );
 
   try {
