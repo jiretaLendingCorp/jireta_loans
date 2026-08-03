@@ -9,11 +9,20 @@ class SecureStorage {
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
-    // FIX: Flutter Web (Chrome) requires WebOptions. Without this the storage
-    // silently falls back to an unencrypted path on some browsers, and on
-    // others it may throw at runtime — causing ALL authenticated requests to
-    // use the anon key instead of the user JWT, producing cascade 401s.
-    wOptions: WebOptions(
+    // Flutter Web (Chrome) requires webOptions so storage is encrypted in
+    // IndexedDB under a project-specific key+dbName.  Without this the package
+    // uses its default key ("FlutterSecureStorage"), which collides with other
+    // Flutter apps on the same origin and falls back to unencrypted storage on
+    // some browsers — causing all authenticated requests to use the anon key
+    // instead of the real user JWT and producing cascade 401s.
+    //
+    // FIX: was `wOptions:` (WindowsOptions — desktop only) which caused the
+    // Dart compile-time error:
+    //   "A value of type 'WebOptions' can't be assigned to a parameter of
+    //    type 'WindowsOptions' in a const constructor."
+    // Correct parameter for Flutter Web is `webOptions` (note: no 'w' prefix).
+    webOptions: WebOptions(
+      // ← FIXED (was: wOptions)
       dbName: 'jireta_secure_storage',
       publicKey: 'jireta_loans_pub_key',
     ),
