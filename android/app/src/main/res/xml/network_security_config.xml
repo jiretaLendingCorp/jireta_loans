@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  network_security_config.xml
+  Allows cleartext (HTTP) traffic to localhost variants used by the local
+  Supabase stack. Production builds should NEVER have a broad cleartext
+  allowance — only the local dev hosts are whitelisted here.
+
+  Referenced in AndroidManifest.xml via:
+    android:networkSecurityConfig="@xml/network_security_config"
+-->
+<network-security-config>
+  <!-- ── Local development hosts ──────────────────────────────────────── -->
+  <!-- 127.0.0.1 / localhost: Flutter Web, Windows desktop, macOS desktop -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="false">127.0.0.1</domain>
+  </domain-config>
+
+  <!-- 10.0.2.2: Android emulator's alias for the host machine loopback   -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="false">10.0.2.2</domain>
+  </domain-config>
+
+  <!-- 192.168.x.x: Physical Android device via Wi-Fi to dev machine.
+       Replace the example IP with your actual LAN IP if it differs, or
+       add additional <domain-config> blocks for other subnets.          -->
+  <domain-config cleartextTrafficPermitted="true">
+    <domain includeSubdomains="false">192.168.1.0</domain>
+  </domain-config>
+
+  <!-- ── Default: enforce TLS everywhere else (production) ───────────── -->
+  <base-config cleartextTrafficPermitted="false">
+    <trust-anchors>
+      <certificates src="system"/>
+    </trust-anchors>
+  </base-config>
+</network-security-config>

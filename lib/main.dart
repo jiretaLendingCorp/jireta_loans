@@ -15,8 +15,10 @@ void main() async {
 
   await dotenv.load(fileName: 'assets/env/.env');
 
-  print('SUPABASE_URL = ${dotenv.env['SUPABASE_URL']}');
-  print('EDGE_FUNCTIONS_URL = ${dotenv.env['EDGE_FUNCTIONS_URL']}');
+  assert(() {
+    EnvConfig.debugPrint();
+    return true;
+  }());
 
   await Supabase.initialize(
     url: EnvConfig.supabaseUrl,
