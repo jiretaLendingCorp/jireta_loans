@@ -22,10 +22,10 @@ serve(async (req) => {
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-    const { data: loan } = await db.from('loans').select('id, status, user_id').eq('id', loan_id).single();
+    const { data: loan } = await db.from('loans').select('id, status, lender_id').eq('id', loan_id).single();
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
 
-    if (user.role === ROLES.LENDER && loan.user_id !== user.id) {
+    if (user.role === ROLES.LENDER && loan.lender_id !== user.id) {
       return errorResponse('Access denied', 403, 'FORBIDDEN');
     }
 
@@ -33,7 +33,7 @@ serve(async (req) => {
       return errorResponse(`Cannot cancel loan in ${loan.status} status`, 400, 'INVALID_STATUS');
     }
 
-    await db.from('loans').update({ status: 'cancelled', cancelled_by: user.id, cancelled_at: new Date().toISOString() }).eq('id', loan_id);
+    await db.from('loans').update({ status: 'cancelled' }).eq('id', loan_id);
     await writeAuditLog({ performedBy: user.id, action: 'loan_cancel', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'cancelled' }, ipAddress: ip });
 
     return jsonResponse({ message: 'Loan cancelled' });

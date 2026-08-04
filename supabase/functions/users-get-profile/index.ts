@@ -34,18 +34,45 @@ serve(async (req) => {
     const db = getAdminClient();
     const { data, error } = await db
       .from('users')
-      .select(`id, first_name, middle_name, last_name, suffix, email, phone, gender, civil_status, dob,
-        avatar_url, account_status, force_password_change, last_login_at, created_at,
+      .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
+        force_password_change, last_login_at, created_at, profile_photo_url,
         roles(id, name),
-        employee_profiles(department, position, hired_at),
+        employee_profiles(department, position, hired_at, gender, civil_status),
         rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
-        lender_profiles(employment_type, employer_name, monthly_income, gcash_number, kyc_status, is_blacklisted)`)
+        lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, kyc_status, is_blacklisted, gender, civil_status)`)
       .eq('id', targetId)
       .single();
 
     if (error || !data) return errorResponse('User not found', 404, 'NOT_FOUND');
 
-    return jsonResponse({ user: data });
+    // Flatten nested profile rows onto the user so the mobile/web models can
+    // read department, position, plate_number, etc. straight off the object.
+    const emp = (data as any).employee_profiles ?? null;
+    const rider = (data as any).rider_profiles ?? null;
+    const lender = (data as any).lender_profiles ?? null;
+
+    const flattened = {
+      ...(data as any),
+      department: emp?.department ?? null,
+      position: emp?.position ?? null,
+      hired_at: emp?.hired_at ?? null,
+      gender: lender?.gender ?? emp?.gender ?? null,
+      civil_status: lender?.civil_status ?? emp?.civil_status ?? null,
+      plate_number: rider?.plate_number ?? null,
+      drivers_license_number: rider?.drivers_license_number ?? null,
+      drivers_license_expiry: rider?.drivers_license_expiry ?? null,
+      vehicle_brand: rider?.vehicle_brand ?? null,
+      vehicle_type: rider?.vehicle_type ?? null,
+      is_available: rider?.is_available ?? null,
+      employment_type: lender?.employment_type ?? null,
+      employer_name: lender?.employer_name ?? null,
+      monthly_income: lender?.monthly_income ?? null,
+      gcash_number: lender?.gcash_number ?? null,
+      kyc_status: lender?.kyc_status ?? null,
+      is_blacklisted: lender?.is_blacklisted ?? null,
+    };
+
+    return jsonResponse({ user: flattened });
   } catch (err) {
     console.error('users-get-profile error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

@@ -29,7 +29,7 @@ DO $$
 DECLARE
   -- ── CHANGE THESE THREE VALUES ─────────────────────────────────────────
   v_email      TEXT    := 'admin@jireta.com';   -- head manager email
-  v_password   TEXT    := 'Admin@1234';         -- temporary password (user will be forced to change it)
+  v_password   TEXT    := 'Admin@12345';         -- temporary password (user will be forced to change it)
   v_first_name TEXT    := 'Admin';
   v_last_name  TEXT    := 'Manager';
   -- ─────────────────────────────────────────────────────────────────────

@@ -32,7 +32,7 @@ serve(async (req) => {
          created_by_user:users!in_office_applications_created_by_fkey(
            id, first_name, last_name, roles(name)
          ),
-         loan:loans(id, loan_number, principal_amount, status)`,
+         loan:loans!in_office_applications_loan_id_fkey(id, loan_number, principal_amount, status)`,
         { count: 'exact' }
       )
       .order('created_at', { ascending: false })

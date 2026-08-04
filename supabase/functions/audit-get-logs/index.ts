@@ -30,7 +30,7 @@ serve(async (req) => {
       .from('audit_logs')
       .select(
         `id, action, table_name, record_id, old_values, new_values,
-         ip_address, user_agent, created_at,
+         ip_address, created_at,
          performed_by_user:users!audit_logs_performed_by_fkey(
            id, first_name, last_name, roles(name)
          )`,
@@ -46,7 +46,10 @@ serve(async (req) => {
     if (dateTo) query = query.lte('created_at', dateTo);
 
     const { data, error, count } = await query;
-    if (error) return errorResponse('Failed to fetch audit logs', 500, 'DB_ERROR');
+    if (error) {
+      console.error('audit-get-logs DB error:', error.message, error.details, error.hint);
+      return errorResponse('Failed to fetch audit logs', 500, 'DB_ERROR');
+    }
 
     return jsonResponse({
       data,

@@ -6,7 +6,11 @@ plugins {
 
 android {
     namespace = "com.example.jireta_loans"
-    compileSdk = flutter.compileSdkVersion
+    // ✅ FIX: flutter_plugin_android_lifecycle (via file_picker) requires
+    //    compileSdk 36+. Pin it explicitly — flutter.compileSdkVersion resolved
+    //    to 34 on this Flutter version, breaking assembleDebug with
+    //    "Dependency ... requires ... compile against version 36 or later".
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

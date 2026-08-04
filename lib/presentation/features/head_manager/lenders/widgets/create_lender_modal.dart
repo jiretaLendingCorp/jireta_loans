@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/lenders/widgets/create_lender_modal.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/hm_lender_provider.dart';
 
@@ -18,6 +19,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
   final _gcashCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
+  final _dobCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
   String _employmentType = 'employed';
@@ -32,6 +34,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
     _gcashCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
+    _dobCtrl.dispose();
     super.dispose();
   }
 
@@ -99,6 +102,16 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                 _phoneCtrl,
                 req: true,
                 type: TextInputType.phone,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _dobCtrl,
+                readOnly: true,
+                onTap: _pickDob,
+                decoration: _dec('Date of Birth'),
+                validator: (v) => v == null || v.isEmpty
+                    ? 'Date of Birth is required'
+                    : null,
               ),
               const SizedBox(height: 12),
               Row(
@@ -227,6 +240,20 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
   );
 
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year - 25, now.month, now.day),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Select Date of Birth',
+    );
+    if (picked != null) {
+      setState(() => _dobCtrl.text = picked.toIso8601String().split('T').first);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -240,6 +267,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
         'phone': _phoneCtrl.text.trim(),
         'gender': _gender,
         'civil_status': _civilStatus,
+        'dob': _dobCtrl.text.trim(),
         'gcash_number': _gcashCtrl.text.trim(),
         'employment_type': _employmentType,
         'employer_name': _employerCtrl.text.trim(),
@@ -248,7 +276,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = ErrorHandler.handle(e).message;
         _loading = false;
       });
     }

@@ -30,12 +30,13 @@ serve(async (req) => {
 
     const docsToInsert = documents.map((d: any) => ({
       ci_id,
-      file_url: d.file_url,
+      file_path: d.file_url,
       document_type: d.document_type ?? 'site_photo',
-      caption: d.caption ?? null,
+      file_name: d.file_name ?? 'ci_document',
+      mime_type: d.mime_type ?? 'application/octet-stream',
+      notes: d.caption ?? null,
       latitude: d.latitude ?? null,
       longitude: d.longitude ?? null,
-      taken_at: new Date().toISOString(),
     }));
     await db.from('ci_documents').insert(docsToInsert);
     await writeAuditLog({ performedBy: user.id, action: 'ci_upload_documents', tableName: 'ci_documents', recordId: ci_id, ipAddress: ip });

@@ -40,9 +40,11 @@ class ErrorHandler {
       case DioExceptionType.unknown:
       default:
         // e.message is now always set by ErrorInterceptor (previously was null).
-        return NetworkFailure(
+        // Strip a possible "DioException [...]" prefix so users never see it.
+        final msg = _cleanMessage(
           e.message ?? 'Cannot connect to server. Please try again.',
         );
+        return NetworkFailure(msg);
     }
   }
 
@@ -110,5 +112,16 @@ class ErrorHandler {
       return data['error']?['code']?.toString();
     }
     return null;
+  }
+
+  /// Removes the raw "DioException [type]:" prefix that would otherwise leak
+  /// into user-facing messages when a DioException escapes unwrapped.
+  static String _cleanMessage(String msg) {
+    final idx = msg.indexOf('DioException');
+    if (idx >= 0) {
+      final after = msg.substring(idx).split(':').skip(1).join(':').trim();
+      return after.isNotEmpty ? after : msg;
+    }
+    return msg;
   }
 }

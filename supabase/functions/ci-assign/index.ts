@@ -32,14 +32,14 @@ serve(async (req) => {
       .single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
-    if (!['under_review', 'ci_required'].includes(loan.status)) {
-      return errorResponse('Loan must be under_review or ci_required to assign CI', 409, 'INVALID_STATUS');
+    if (!['under_review', 'ci_assigned'].includes(loan.status)) {
+      return errorResponse('Loan must be under_review to assign CI', 409, 'INVALID_STATUS');
     }
 
     const { data: rider } = await db
       .from('rider_profiles')
-      .select('user_id, is_available')
-      .eq('user_id', rider_id)
+      .select('id, is_available')
+      .eq('id', rider_id)
       .single();
 
     if (!rider) return errorResponse('Rider not found', 404, 'NOT_FOUND');
@@ -51,13 +51,13 @@ serve(async (req) => {
       assigned_by: authResult.id,
       investigation_notes: investigation_notes ? sanitizeString(investigation_notes) : null,
       deadline: deadline ?? null,
-      status: 'pending',
+      status: 'assigned',
     }).select().single();
 
     if (ciErr || !ci) return errorResponse('Failed to create CI assignment', 500, 'SERVER_ERROR');
 
     await db.from('loans').update({ status: 'ci_assigned' }).eq('id', loan_id);
-    await db.from('rider_profiles').update({ is_available: false }).eq('user_id', rider_id);
+    await db.from('rider_profiles').update({ is_available: false }).eq('id', rider_id);
 
     await writeAuditLog({
       performedBy: authResult.id,

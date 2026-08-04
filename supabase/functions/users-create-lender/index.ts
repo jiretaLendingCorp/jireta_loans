@@ -9,6 +9,13 @@ import { writeAuditLog } from '../_shared/audit.ts';
 
 const DEFAULT_PASSWORD = '12345678';
 
+function toE164(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('63')) return `+${digits}`;
+  if (digits.startsWith('0')) return `+63${digits.slice(1)}`;
+  return `+63${digits}`;
+}
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -35,11 +42,11 @@ serve(async (req) => {
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-    const { data: existingPhone } = await db.from('users').select('id').eq('phone', phone.trim()).maybeSingle();
+    const { data: existingPhone } = await db.from('users').select('id').eq('phone_number', phone.trim()).maybeSingle();
     if (existingPhone) return errorResponse('Phone number already registered', 400, 'DUPLICATE');
 
     const { data: authUser, error: authErr } = await db.auth.admin.createUser({
-      phone: phone.trim(),
+      phone: toE164(phone.trim()),
       password: DEFAULT_PASSWORD,
       phone_confirm: true,
     });
@@ -54,10 +61,7 @@ serve(async (req) => {
       middle_name: middle_name ? sanitizeString(middle_name) : null,
       last_name: sanitizeString(last_name),
       suffix: suffix ? sanitizeString(suffix) : null,
-      phone: phone.trim(),
-      gender: sanitizeString(gender),
-      civil_status: sanitizeString(civil_status),
-      dob: dob,
+      phone_number: phone.trim(),
       role_id: roleData.id,
       account_status: 'active',
       force_password_change: true,
@@ -69,15 +73,23 @@ serve(async (req) => {
       return errorResponse('Failed to create user record', 500, 'SERVER_ERROR');
     }
 
-    await db.from('lender_profiles').insert({
-      user_id: newUser.id,
+    const { error: lenderProfileErr } = await db.from('lender_profiles').insert({
+      id: newUser.id,
+      gender: gender ? sanitizeString(gender) : null,
+      civil_status: civil_status ? sanitizeString(civil_status) : null,
+      date_of_birth: dob ?? null,
       employment_type: employment_type ? sanitizeString(employment_type) : null,
       employer_name: employer_name ? sanitizeString(employer_name) : null,
       monthly_income: monthly_income ? Number(monthly_income) : null,
       gcash_number: gcash_number ? sanitizeString(gcash_number) : null,
-      kyc_status: 'not_submitted',
+      kyc_status: 'pending',
       is_blacklisted: false,
     });
+
+    if (lenderProfileErr) {
+      await db.auth.admin.deleteUser(authUser.user.id);
+      return errorResponse('Failed to create lender profile: ' + lenderProfileErr.message, 500, 'SERVER_ERROR');
+    }
 
     await writeAuditLog({ performedBy: user.id, action: 'create_lender', tableName: 'users', recordId: newUser.id, ipAddress: ip });
 

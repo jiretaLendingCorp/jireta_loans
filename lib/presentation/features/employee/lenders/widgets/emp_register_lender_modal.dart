@@ -1,6 +1,7 @@
 // lib/presentation/features/employee/lenders/widgets/emp_register_lender_modal.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/validators.dart';
 import '../providers/emp_lender_provider.dart';
@@ -52,10 +53,10 @@ class _EmpRegisterLenderModalState
       await ref.read(empLenderProvider.notifier).createLender({
         'first_name': _firstNameCtrl.text.trim(),
         'last_name': _lastNameCtrl.text.trim(),
-        'phone_number': _phoneCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
         'gender': _gender,
         'civil_status': _civilStatus,
-        'date_of_birth': _dob!.toIso8601String().split('T')[0],
+        'dob': _dob!.toIso8601String().split('T')[0],
         'employment_type': _employmentType,
         'employer_name': _employerCtrl.text.trim(),
         'monthly_income': double.tryParse(_incomeCtrl.text) ?? 0,
@@ -74,7 +75,7 @@ class _EmpRegisterLenderModalState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception:', '').trim()),
+            content: Text(ErrorHandler.handle(e).message),
             backgroundColor: AppColors.error,
           ),
         );

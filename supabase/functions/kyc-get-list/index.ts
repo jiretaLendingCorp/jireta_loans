@@ -27,19 +27,51 @@ serve(async (req) => {
 
     const db = getAdminClient();
     let query = db.from('lender_profiles')
-      .select(`kyc_status, user_id, users!inner(id, first_name, last_name, phone, account_status), 
-        kyc_documents(id, document_type, status, created_at)`, { count: 'exact' })
+      .select(`id, kyc_status, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number, account_status), 
+        kyc_documents(id, document_type, file_path, status, uploaded_at)`, { count: 'exact' })
       .neq('kyc_status', 'not_submitted');
 
     if (status) query = query.eq('kyc_status', status);
     if (search) query = query.or(`users.first_name.ilike.%${search}%,users.last_name.ilike.%${search}%`);
 
-    query = query.order('created_at', { ascending: false, foreignTable: 'kyc_documents' }).range(offset, offset + limit - 1);
+    query = query.order('uploaded_at', { ascending: false, foreignTable: 'kyc_documents' }).range(offset, offset + limit - 1);
 
-    const { data, error, count } = await query;
+    const { data, error } = await query;
     if (error) return errorResponse('Failed to fetch KYC list', 500, 'SERVER_ERROR');
 
-    return jsonResponse({ data: data ?? [], total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
+    // Flatten the lender_profile groups into ONE row per KYC document so the
+    // list rows map cleanly to KycDocumentModel and each row's `id` is the real
+    // kyc_documents.id (needed for the details screen + kyc-verify).
+    const mapped = (data ?? []).flatMap((row: any) => {
+      const docs = row.kyc_documents ?? [];
+      if (docs.length === 0) {
+        return [
+          {
+            id: null,
+            lender_id: row.id,
+            document_type: 'other',
+            file_url: null,
+            status: row.kyc_status ?? 'pending',
+            created_at: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+            lender: row.users ?? null,
+          },
+        ];
+      }
+      return docs.map((d: any) => ({
+        id: d.id,
+        lender_id: row.id,
+        document_type: d.document_type,
+        file_url: d.file_path,
+        status: d.status ?? row.kyc_status ?? 'pending',
+        created_at: d.uploaded_at,
+        rejection_notes: d.rejection_notes ?? null,
+        reviewed_by: d.reviewed_by ?? null,
+        reviewed_at: d.reviewed_at ?? null,
+        lender: row.users ?? null,
+      }));
+    }).filter((d: any) => d.id != null);
+
+    return jsonResponse({ data: mapped, total: mapped.length, page, limit, totalPages: Math.ceil(mapped.length / limit) });
   } catch (err) {
     console.error('kyc-get-list error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

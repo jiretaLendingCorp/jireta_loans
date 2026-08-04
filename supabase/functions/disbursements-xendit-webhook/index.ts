@@ -16,7 +16,7 @@ serve(async (req) => {
     }
 
     const payload = await req.json();
-    const { id: xenditId, status, external_id } = payload;
+    const { id: xenditId, status } = payload;
 
     if (!xenditId || !status) {
       return errorResponse('Invalid webhook payload', 400, 'VALIDATION_ERROR');
@@ -26,28 +26,34 @@ serve(async (req) => {
 
     const { data: disbursement, error } = await db
       .from('disbursements')
-      .select('id, loan_id, lender_id, amount')
-      .eq('xendit_disbursement_id', xenditId)
+      .select('id, loan_id, amount, loans(lender_id)')
+      .eq('xendit_id', xenditId)
       .single();
 
     if (error || !disbursement) {
       console.warn('Disbursement not found for xendit id:', xenditId);
+      await db
+        .from('xendit_logs')
+        .insert({ event_type: 'disbursement', xendit_id: xenditId, status: 'unmatched', payload });
       return jsonResponse({ received: true });
     }
 
     const xenditStatus = status.toUpperCase();
     const isCompleted = xenditStatus === 'COMPLETED' || xenditStatus === 'SUCCESS';
     const isFailed = xenditStatus === 'FAILED';
+    const loanData = (disbursement as any).loans;
+    const lenderId = loanData?.lender_id;
 
     await db
       .from('disbursements')
-      .update({ xendit_status: xenditStatus, status: isCompleted ? 'completed' : isFailed ? 'failed' : 'pending' })
+      .update({ xendit_status: xenditStatus, status: isCompleted ? 'completed' : isFailed ? 'failed' : 'processing' })
       .eq('id', disbursement.id);
 
     await db.from('xendit_logs').insert({
-      type: 'disbursement_webhook',
+      event_type: 'disbursement',
+      loan_id: disbursement.loan_id,
+      disbursement_id: disbursement.id,
       xendit_id: xenditId,
-      external_id: external_id ?? null,
       status: xenditStatus,
       payload,
     });
@@ -55,21 +61,23 @@ serve(async (req) => {
     if (isCompleted) {
       await db
         .from('loans')
-        .update({ status: 'active', disbursement_method: 'gcash', disbursed_at: new Date().toISOString() })
+        .update({ status: 'active', disbursement_method: 'gcash', xendit_disbursement_id: xenditId, disbursed_at: new Date().toISOString() })
         .eq('id', disbursement.loan_id);
 
-      await sendPushNotification({
-        userId: disbursement.lender_id,
-        title: 'GCash Transfer Successful',
-        body: `₱${Number(disbursement.amount).toLocaleString()} has been transferred to your GCash account.`,
-        type: 'disbursement',
-        referenceId: disbursement.loan_id,
-      });
+      if (lenderId) {
+        await sendPushNotification({
+          userId: lenderId,
+          title: 'GCash Transfer Successful',
+          body: `₱${Number(disbursement.amount).toLocaleString()} has been transferred to your GCash account.`,
+          type: 'disbursement',
+          referenceId: disbursement.loan_id,
+        });
+      }
     }
 
-    if (isFailed) {
+    if (isFailed && lenderId) {
       await sendPushNotification({
-        userId: disbursement.lender_id,
+        userId: lenderId,
         title: 'GCash Transfer Failed',
         body: 'Your loan disbursement via GCash failed. Please contact our office.',
         type: 'disbursement',

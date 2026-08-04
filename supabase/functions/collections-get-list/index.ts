@@ -21,13 +21,15 @@ serve(async (req) => {
     const offset = (page - 1) * limit;
     const db = getAdminClient();
     let query = db.from('collection_assignments')
-      .select(`id, status, collection_schedule, notes, created_at, completed_at, proof_photo_url,
-        loans(id, loan_number, outstanding_balance, users(first_name, last_name, phone)),
-        loan_schedules(period_number, due_date, amount_due),
-        rider:users!rider_id(id, first_name, last_name),
-        assigner:users!assigned_by(id, first_name, last_name)`, { count: 'exact' });
+      .select(`id, status, rider_id, assigned_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
+        notes:collection_notes,
+        proof_photo, borrower_signature, collection_photo,
+        loans(id, loan_number, outstanding_balance, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number))),
+        loan_schedule:loan_schedules(installment_number, due_date, amount_due),
+        rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name)),
+        assigned_by_user:users!collection_assignments_assigned_by_fkey(id, first_name, last_name)`, { count: 'exact' });
     if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
-    else if (user.role === ROLES.LENDER) query = query.eq('loans.user_id', user.id);
+    else if (user.role === ROLES.LENDER) query = query.eq('loans.lender_id', user.id);
     else if (riderId) query = query.eq('rider_id', riderId);
     if (status) query = query.eq('status', status);
     query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);

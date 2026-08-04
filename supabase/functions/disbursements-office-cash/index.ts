@@ -61,11 +61,10 @@ serve(async (req) => {
       .from('disbursements')
       .insert({
         loan_id,
-        lender_id: loan.lender_id,
-        disbursement_method: 'office_cash',
+        method: 'office_cash',
         amount,
-        notes: notes ?? null,
-        disbursed_by: authResult.id,
+        delivery_notes: notes ?? null,
+        authorized_by: authResult.id,
         disbursed_at: now,
         status: 'completed',
       })

@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/kyc/screens/hm_kyc_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
 import '../../../../../data/models/kyc_document_model.dart';
@@ -41,14 +42,14 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _ds.getKycStatus();
+      final res = await _ds.getKycDetails(kycDocId: widget.kycId);
       setState(() {
-        _doc = res.isNotEmpty ? res.first : null;
+        _doc = res;
         _loading = false;
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = ErrorHandler.handle(e).message;
         _loading = false;
       });
     }

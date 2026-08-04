@@ -28,6 +28,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
   }
 
   Future<void> _submit() async {
+    if (ref.read(authProvider).isLoading) return;
     if (!_formKey.currentState!.validate()) return;
     final notifier = ref.read(authProvider.notifier);
     final ok = await notifier.login(
@@ -128,9 +129,10 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              const Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   Text(
                     'JIRETA',
                     style: TextStyle(
@@ -150,6 +152,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
                     ),
                   ),
                 ],
+                ),
               ),
             ],
           ),

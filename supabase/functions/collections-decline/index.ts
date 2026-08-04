@@ -24,7 +24,7 @@ serve(async (req) => {
     const { data: assignment } = await db.from('collection_assignments').select('id, status, rider_id, assigned_by').eq('id', assignment_id).eq('rider_id', user.id).single();
     if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
     if (assignment.status !== 'assigned') return errorResponse('Assignment is not pending', 400, 'INVALID_STATUS');
-    await db.from('collection_assignments').update({ status: 'declined', response_at: new Date().toISOString(), decline_reason: reason ?? null }).eq('id', assignment_id);
+    await db.from('collection_assignments').update({ status: 'declined', response_at: new Date().toISOString(), collection_notes: reason ?? null }).eq('id', assignment_id);
     await writeAuditLog({ performedBy: user.id, action: 'collection_decline', tableName: 'collection_assignments', recordId: assignment_id, ipAddress: ip });
     if (assignment.assigned_by) await sendPushNotification({ userId: assignment.assigned_by, title: 'Collection Declined', body: 'The rider declined the collection assignment. Please reassign.', type: 'collection_declined', referenceId: assignment_id });
     return jsonResponse({ message: 'Assignment declined' });

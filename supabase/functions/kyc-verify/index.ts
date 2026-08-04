@@ -31,29 +31,29 @@ serve(async (req) => {
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-    const { data: doc } = await db.from('kyc_documents').select('id, user_id, status').eq('id', kyc_doc_id).single();
+    const { data: doc } = await db.from('kyc_documents').select('id, lender_id, status').eq('id', kyc_doc_id).single();
     if (!doc) return errorResponse('KYC document not found', 404, 'NOT_FOUND');
 
     await db.from('kyc_documents').update({
       status: action,
-      verified_by: user.id,
-      verified_at: new Date().toISOString(),
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(),
       rejection_notes: rejection_notes ?? null,
     }).eq('id', kyc_doc_id);
 
-    const { data: allDocs } = await db.from('kyc_documents').select('status').eq('user_id', doc.user_id);
+    const { data: allDocs } = await db.from('kyc_documents').select('status').eq('lender_id', doc.lender_id);
     const anyRejected = allDocs?.some((d: any) => d.status === 'rejected');
     const allVerified = allDocs?.every((d: any) => d.status === 'verified');
 
-    let newKycStatus = 'under_review';
+    let newKycStatus = 'submitted';
     if (anyRejected) newKycStatus = 'rejected';
     else if (allVerified) newKycStatus = 'verified';
 
-    await db.from('lender_profiles').update({ kyc_status: newKycStatus }).eq('user_id', doc.user_id);
+    await db.from('lender_profiles').update({ kyc_status: newKycStatus }).eq('id', doc.lender_id);
 
     await writeAuditLog({ performedBy: user.id, action: `kyc_doc_${action}`, tableName: 'kyc_documents', recordId: kyc_doc_id, ipAddress: ip });
     await sendPushNotification({
-      userId: doc.user_id,
+      userId: doc.lender_id,
       title: action === 'verified' ? 'KYC Document Verified' : 'KYC Document Rejected',
       body: action === 'verified' ? 'Your document has been verified.' : `Document rejected: ${rejection_notes}`,
       type: 'kyc_update',

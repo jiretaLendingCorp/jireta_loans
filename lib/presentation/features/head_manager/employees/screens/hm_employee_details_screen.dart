@@ -157,6 +157,10 @@ class HmEmployeeDetailsScreen extends ConsumerWidget {
         _infoRow('Role', 'Employee'),
         _infoRow('Email', user.email ?? '—'),
         _infoRow('Phone', user.phoneNumber ?? '—'),
+        _infoRow('Department', user.department ?? '—'),
+        _infoRow('Position', user.position ?? '—'),
+        _infoRow('Gender', user.gender ?? '—'),
+        _infoRow('Civil Status', user.civilStatus ?? '—'),
         _infoRow('Created At', user.createdAt.toString().substring(0, 10)),
         _infoRow(
           'Last Login',

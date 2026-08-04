@@ -30,7 +30,8 @@ class UserRemoteDataSource {
       ApiEndpoints.usersGetProfile,
       queryParams: userId != null ? {'user_id': userId} : null,
     );
-    return UserModel.fromJson(res.data as Map<String, dynamic>);
+    final data = (res.data as Map<String, dynamic>)['user'];
+    return UserModel.fromJson(data as Map<String, dynamic>);
   }
 
   Future<Map<String, dynamic>> getProfileMap({String? userId}) async {
@@ -38,7 +39,8 @@ class UserRemoteDataSource {
       ApiEndpoints.usersGetProfile,
       queryParams: userId != null ? {'user_id': userId} : null,
     );
-    return res.data as Map<String, dynamic>;
+    final data = (res.data as Map<String, dynamic>)['user'];
+    return data as Map<String, dynamic>;
   }
 
   Future<List<UserModel>> getUsers({

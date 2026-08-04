@@ -28,21 +28,22 @@ serve(async (req) => {
     let query = db
       .from('blacklist')
       .select(
-        `id, reason, is_active, created_at, removed_at,
-         lender:users!blacklist_lender_id_fkey(
-           id, first_name, last_name, phone_number,
-           lender_profiles(gcash_number, kyc_status)
+        `id, reason, is_active, added_at, removed_at,
+         lender:lender_profiles!blacklist_lender_id_fkey(
+           id,
+           users!lender_profiles_id_fkey(id, first_name, last_name, phone_number),
+           gcash_number, kyc_status
          ),
          added_by_user:users!blacklist_added_by_fkey(id, first_name, last_name),
          removed_by_user:users!blacklist_removed_by_fkey(id, first_name, last_name)`,
         { count: 'exact' }
       )
-      .order('created_at', { ascending: false })
+      .order('added_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (isActive !== null && isActive !== '') query = query.eq('is_active', isActive === 'true');
-    if (dateFrom) query = query.gte('created_at', dateFrom);
-    if (dateTo) query = query.lte('created_at', dateTo);
+    if (dateFrom) query = query.gte('added_at', dateFrom);
+    if (dateTo) query = query.lte('added_at', dateTo);
 
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch blacklist', 500, 'DB_ERROR');
@@ -51,8 +52,9 @@ serve(async (req) => {
     if (search) {
       const s = search.toLowerCase();
       filtered = filtered.filter((b: any) => {
-        const name = `${b.lender?.first_name} ${b.lender?.last_name}`.toLowerCase();
-        return name.includes(s) || b.lender?.phone_number?.includes(s);
+        const borrower = b.lender?.users ?? b.lender;
+        const name = `${borrower?.first_name} ${borrower?.last_name}`.toLowerCase();
+        return name.includes(s) || borrower?.phone_number?.includes(s);
       });
     }
 

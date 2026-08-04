@@ -21,6 +21,7 @@ class ErrorInterceptor extends Interceptor {
               message: 'Your account has been suspended.',
               error: const AccountSuspendedException(),
               response: response,
+              type: err.type,
             ));
           }
           return handler.reject(DioException(
@@ -28,6 +29,7 @@ class ErrorInterceptor extends Interceptor {
             message: message,
             error: UnauthorizedException(message),
             response: response,
+            type: err.type,
           ));
         case 403:
           if (code == 'ACCOUNT_SUSPENDED') {
@@ -36,6 +38,7 @@ class ErrorInterceptor extends Interceptor {
               message: 'Your account has been suspended.',
               error: const AccountSuspendedException(),
               response: response,
+              type: err.type,
             ));
           }
           return handler.reject(DioException(
@@ -43,6 +46,7 @@ class ErrorInterceptor extends Interceptor {
             message: message,
             error: ForbiddenException(message),
             response: response,
+            type: err.type,
           ));
         case 429:
           if (code == 'ACCOUNT_LOCKED') {
@@ -51,6 +55,7 @@ class ErrorInterceptor extends Interceptor {
               message: message,
               error: AccountLockedException(message),
               response: response,
+              type: err.type,
             ));
           }
           return handler.reject(DioException(
@@ -58,6 +63,7 @@ class ErrorInterceptor extends Interceptor {
             message: 'Too many requests. Please try again later.',
             error: const RateLimitException(),
             response: response,
+            type: err.type,
           ));
         case 422:
         case 400:
@@ -66,6 +72,7 @@ class ErrorInterceptor extends Interceptor {
             message: message,
             error: ValidationException(message),
             response: response,
+            type: err.type,
           ));
         case 500:
         case 502:
@@ -75,6 +82,19 @@ class ErrorInterceptor extends Interceptor {
             message: message.isNotEmpty ? message : 'Internal server error.',
             error: ServerException(message),
             response: response,
+            type: err.type,
+          ));
+        // FIX: Any OTHER HTTP status (404, 408, 429-without-code, 451, etc.)
+        // previously fell through to `handler.next(err)` and reached the UI as
+        // the RAW DioException with a null message ("DioException [badResponse]:
+        // null"). Wrap every response here so a friendly message always surfaces.
+        default:
+          return handler.reject(DioException(
+            requestOptions: err.requestOptions,
+            message: message.isNotEmpty ? message : 'An error occurred.',
+            error: ServerException(message),
+            response: response,
+            type: err.type,
           ));
       }
     } else {
@@ -109,10 +129,9 @@ class ErrorInterceptor extends Interceptor {
           // Covers CORS failures on web, DNS errors, and any other
           // transport-level failure where Dio has no HTTP response.
           // The most common real-world cause: the Supabase Edge Functions
-          // have not been deployed yet (`supabase functions deploy --all`).
-          final msg = err.message?.isNotEmpty == true
-              ? err.message!
-              : 'Unable to reach server. Check your connection or verify the function is deployed.';
+          // have not been deployed yet (`supabase functions deploy --all`),
+          // or the host in EDGE_FUNCTIONS_URL is unreachable.
+          final msg = _describeUnknownError(err);
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: msg,
@@ -121,8 +140,6 @@ class ErrorInterceptor extends Interceptor {
           ));
       }
     }
-
-    handler.next(err);
   }
 
   String _extractMessage(dynamic data) {
@@ -132,6 +149,33 @@ class ErrorInterceptor extends Interceptor {
           'An error occurred';
     }
     return 'An error occurred';
+  }
+
+  /// Builds a stable, human-readable message for transport-level failures
+  /// (DioExceptionType.unknown). The raw `err.message` is frequently null or a
+  /// platform-specific blob, so we inspect the wrapped `err.error` (SocketException,
+  /// HandshakeException, ClientException, ...) and always fall back to the same
+  /// friendly "cannot reach server" sentence. This guarantees the UI never shows
+  /// a bare "DioException [unknown]: null".
+  String _describeUnknownError(DioException err) {
+    final raw = err.message;
+    if (raw != null && raw.isNotEmpty && !raw.contains('DioException')) {
+      return raw;
+    }
+    final cause = err.error;
+    final causeText = cause?.toString() ?? '';
+    if (causeText.contains('SocketException')) {
+      return 'Unable to reach server. Please check your connection.';
+    }
+    if (causeText.contains('HandshakeException')) {
+      return 'Secure connection failed. Please try again.';
+    }
+    if (causeText.contains('ClientException') ||
+        causeText.contains('Failed host lookup') ||
+        causeText.contains('Connection refused')) {
+      return 'Unable to reach server. Check your connection or verify the function is deployed.';
+    }
+    return 'Unable to reach server. Check your connection or verify the function is deployed.';
   }
 
   String? _extractCode(dynamic data) {

@@ -19,23 +19,23 @@ serve(async (req) => {
     const url = new URL(req.url);
     const page = parseInt(url.searchParams.get('page') ?? '1');
     const limit = parseInt(url.searchParams.get('limit') ?? '20');
-    const templateKey = url.searchParams.get('template_key');
-    const dateFrom = url.searchParams.get('date_from');
-    const dateTo = url.searchParams.get('date_to');
+    const templateKey = url.searchParams.get('template_key') ?? url.searchParams.get('type');
+    const dateFrom = url.searchParams.get('date_from') ?? url.searchParams.get('start_date');
+    const dateTo = url.searchParams.get('date_to') ?? url.searchParams.get('end_date');
     const offset = (page - 1) * limit;
 
     let query = db
       .from('reports')
       .select(
-        `id, template_key, template_name, parameters, row_count, status,
-         created_at, storage_path,
+        `id, report_type, title, parameters, file_path_pdf, file_path_excel,
+         generated_by, generated_at, created_at,
          generated_by_user:users!reports_generated_by_fkey(id, first_name, last_name)`,
         { count: 'exact' }
       )
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (templateKey) query = query.eq('template_key', templateKey);
+    if (templateKey) query = query.eq('report_type', templateKey);
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo);
 
@@ -43,8 +43,17 @@ serve(async (req) => {
     if (error) return errorResponse('Failed to fetch report history', 500, 'DB_ERROR');
 
     const reports = (data ?? []).map((r: any) => ({
-      ...r,
-      data_snapshot: undefined,
+      id: r.id,
+      template_key: r.report_type,
+      template_name: r.title,
+      format: r.file_path_pdf ? 'pdf' : r.file_path_excel ? 'xlsx' : 'pdf',
+      file_url: r.file_path_pdf ?? r.file_path_excel ?? null,
+      generated_by:
+        r.generated_by_user
+          ? `${r.generated_by_user.first_name} ${r.generated_by_user.last_name}`.trim()
+          : r.generated_by,
+      parameters: r.parameters,
+      created_at: r.generated_at ?? r.created_at,
     }));
 
     return jsonResponse({

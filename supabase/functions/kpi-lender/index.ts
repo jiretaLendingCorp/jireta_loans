@@ -38,20 +38,20 @@ serve(async (req) => {
 
     const { data: loanData } = await db
       .from('loans')
-      .select('principal_amount, outstanding_balance, interest_amount, penalty_applied')
+      .select('principal_amount, outstanding_balance, penalty_applied')
       .eq('lender_id', lenderId)
       .in('status', ['active', 'completed', 'overdue']);
 
     const { data: paymentData } = await db
       .from('payments')
-      .select('amount')
-      .eq('lender_id', lenderId)
+      .select('amount, loans!payments_loan_id_fkey(lender_id)')
+      .eq('loans.lender_id', lenderId)
       .eq('status', 'verified');
 
     const { data: penaltyData } = await db
       .from('penalty_logs')
-      .select('penalty_amount')
-      .eq('lender_id', lenderId);
+      .select('penalty_amount, loans!penalty_logs_loan_id_fkey(lender_id)')
+      .eq('loans.lender_id', lenderId);
 
     let totalBorrowed = 0, totalOutstanding = 0, totalInterestPaid = 0;
     (loanData ?? []).forEach((l: any) => {

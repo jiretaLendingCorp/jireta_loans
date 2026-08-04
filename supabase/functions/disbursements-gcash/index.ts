@@ -48,7 +48,7 @@ serve(async (req) => {
     const { data: lenderProfile } = await db
       .from('lender_profiles')
       .select('id')
-      .eq('user_id', loan.lender_id)
+      .eq('id', loan.lender_id)
       .single();
 
     const externalId = `DISB-${loan.loan_number}-${Date.now()}`;
@@ -69,13 +69,12 @@ serve(async (req) => {
       .from('disbursements')
       .insert({
         loan_id,
-        lender_id: loan.lender_id,
-        disbursement_method: 'gcash',
+        method: 'gcash',
         amount,
-        gcash_number,
-        xendit_disbursement_id: xenditResult.id,
+        xendit_id: xenditResult.id,
+        xendit_reference: externalId,
         xendit_status: xenditResult.status,
-        disbursed_by: authResult.id,
+        authorized_by: authResult.id,
         disbursed_at: now,
         status: xenditResult.status === 'COMPLETED' ? 'completed' : 'pending',
       })

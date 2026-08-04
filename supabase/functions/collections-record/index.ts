@@ -31,7 +31,7 @@ serve(async (req) => {
     if (existing) return errorResponse('Duplicate request detected', 409, 'IDEMPOTENCY_CONFLICT');
 
     const { data: assignment } = await db.from('collection_assignments')
-      .select('id, status, rider_id, loan_id, loan_schedule_id, assigned_by, loans(user_id, outstanding_balance)')
+      .select('id, status, rider_id, loan_id, loan_schedule_id, assigned_by, loans(lender_id, outstanding_balance)')
       .eq('id', assignment_id).eq('rider_id', user.id).single();
     if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
     if (!['accepted'].includes(assignment.status)) return errorResponse('Assignment must be accepted first', 400, 'INVALID_STATUS');
@@ -45,23 +45,21 @@ serve(async (req) => {
       loan_id: assignment.loan_id,
       loan_schedule_id: assignment.loan_schedule_id,
       amount: amount_collected,
-      method: 'rider_collection',
+      payment_method: 'rider_collection',
       status: 'verified',
-      collected_by: user.id,
+      recorded_by: user.id,
       collection_assignment_id: assignment_id,
       notes: notes ?? null,
       idempotency_key: idempotencyKey,
-      latitude: latitude ?? null,
-      longitude: longitude ?? null,
     }).select('id').single();
     if (payErr) return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
 
     await db.from('loan_schedules').update({ status: 'paid', paid_at: new Date().toISOString(), amount_paid: amount_collected }).eq('id', assignment.loan_schedule_id);
-    await db.from('loans').update({ outstanding_balance: newBalance, ...(newBalance <= 0 ? { status: 'completed', completed_at: new Date().toISOString() } : {}) }).eq('id', assignment.loan_id);
-    await db.from('collection_assignments').update({ status: 'in_progress' }).eq('id', assignment_id);
+    await db.from('loans').update({ outstanding_balance: newBalance, ...(newBalance <= 0 ? { status: 'completed' } : {}) }).eq('id', assignment.loan_id);
+    await db.from('collection_assignments').update({ status: 'in_progress', completed_at: new Date().toISOString(), amount_collected }).eq('id', assignment_id);
 
     await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payment.id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });
-    await sendPushNotification({ userId: loanData.user_id, title: 'Payment Collected', body: `Payment of ₱${amount_collected.toLocaleString()} has been collected. Remaining: ₱${newBalance.toLocaleString()}`, type: 'payment_collected', referenceId: payment.id });
+    await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Collected', body: `Payment of ₱${amount_collected.toLocaleString()} has been collected. Remaining: ₱${newBalance.toLocaleString()}`, type: 'payment_collected', referenceId: payment.id });
 
     return jsonResponse({ message: 'Payment recorded', payment_id: payment.id, new_balance: newBalance }, 201);
   } catch (err) {

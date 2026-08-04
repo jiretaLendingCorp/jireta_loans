@@ -156,6 +156,16 @@ serve(async (req) => {
     }
 
     // ── Step 8: success ───────────────────────────────────────────────────
+    // Reset any lockout: a successful login must clear the recently
+    // accumulated login_fail / account_locked rows. Without this, fails from a
+    // few minutes ago (or a stray duplicate request) permanently keep the
+    // account locked even though the user just signed in successfully.
+    await db
+      .from('auth_logs')
+      .delete()
+      .eq('user_id', user.id)
+      .in('event_type', ['login_fail', 'account_locked']);
+
     await db.from('auth_logs').insert({
       user_id:         user.id,
       event_type:      'login_success',

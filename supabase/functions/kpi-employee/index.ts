@@ -29,16 +29,16 @@ serve(async (req) => {
     ] = await Promise.all([
       db.from('users').select('*', { count: 'exact', head: true })
         .eq('created_by', empId).eq('roles.name', 'lender'),
-      db.from('loans').select('*', { count: 'exact', head: true })
-        .eq('processed_by', empId),
-      db.from('loans').select('*', { count: 'exact', head: true })
-        .eq('processed_by', empId).in('status', ['approved', 'active', 'completed']),
-      db.from('loans').select('*', { count: 'exact', head: true })
-        .eq('processed_by', empId).eq('status', 'rejected'),
-      db.from('loans').select('*', { count: 'exact', head: true })
-        .eq('processed_by', empId).eq('status', 'active'),
-      db.from('loans').select('*', { count: 'exact', head: true })
-        .eq('processed_by', empId).eq('status', 'completed'),
+      db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+        .eq('in_office_applications.created_by', empId),
+      db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+        .eq('in_office_applications.created_by', empId).in('status', ['approved', 'active', 'completed']),
+      db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+        .eq('in_office_applications.created_by', empId).eq('status', 'rejected'),
+      db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+        .eq('in_office_applications.created_by', empId).eq('status', 'active'),
+      db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+        .eq('in_office_applications.created_by', empId).eq('status', 'completed'),
       db.from('collection_assignments').select('*', { count: 'exact', head: true })
         .eq('assigned_by', empId),
     ]);

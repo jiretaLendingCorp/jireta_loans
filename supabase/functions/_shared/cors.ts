@@ -1,11 +1,7 @@
 // supabase/functions/_shared/cors.ts
 //
 // HARDENED: Added 'accept' to Access-Control-Allow-Headers.
-// Dio sends `Accept: application/json` as a default header.  Even though
-// browsers treat `Accept` as a "safelisted" CORS header (no preflight
-// needed), some stricter browser configurations or proxy layers do include it
-// in Access-Control-Request-Headers.  Listing it explicitly is zero-cost and
-// prevents subtle preflight rejections in those environments.
+// ADDED: successResponse helper used by in-office-submit and similar functions.
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -26,6 +22,10 @@ export function jsonResponse(data: unknown, status = 200): Response {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
+
+// Alias — some functions import successResponse instead of jsonResponse.
+// Both produce the same 200 JSON envelope so they are interchangeable.
+export const successResponse = jsonResponse;
 
 export function errorResponse(message: string, status = 400, code?: string): Response {
   return new Response(

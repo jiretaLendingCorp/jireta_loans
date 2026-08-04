@@ -30,16 +30,17 @@ serve(async (req) => {
     if (!existing) return errorResponse('User not found', 404, 'NOT_FOUND');
 
     const updateFields: Record<string, unknown> = {};
-    const allowed = ['first_name', 'middle_name', 'last_name', 'suffix', 'gender', 'civil_status', 'dob', 'avatar_url'];
+    const allowed = ['first_name', 'middle_name', 'last_name', 'suffix', 'profile_photo_url'];
     for (const f of allowed) {
       if (body[f] !== undefined) updateFields[f] = sanitizeString(body[f]);
     }
+    if (body.avatar_url !== undefined) updateFields.profile_photo_url = sanitizeString(body.avatar_url);
 
-    if (body.phone && body.phone !== existing.phone) {
+    if (body.phone && body.phone !== existing.phone_number) {
       if (!validatePhone(sanitizeString(body.phone))) return errorResponse('Invalid phone', 400, 'VALIDATION_ERROR');
-      const { data: taken } = await db.from('users').select('id').eq('phone', body.phone.trim()).neq('id', targetId).maybeSingle();
+      const { data: taken } = await db.from('users').select('id').eq('phone_number', body.phone.trim()).neq('id', targetId).maybeSingle();
       if (taken) return errorResponse('Phone already used', 400, 'DUPLICATE');
-      updateFields.phone = body.phone.trim();
+      updateFields.phone_number = body.phone.trim();
     }
 
     if (body.fcm_token !== undefined) updateFields.fcm_token = body.fcm_token;
@@ -54,17 +55,20 @@ serve(async (req) => {
         vehicle_type: rp.vehicle_type ? sanitizeString(rp.vehicle_type) : undefined,
         plate_number: rp.plate_number ? sanitizeString(rp.plate_number).toUpperCase() : undefined,
         vehicle_brand: rp.vehicle_brand ? sanitizeString(rp.vehicle_brand) : undefined,
-      }).eq('user_id', targetId);
+      }).eq('id', targetId);
     }
 
     if (body.lender_profile) {
       const lp = body.lender_profile;
       await db.from('lender_profiles').update({
+        gender: lp.gender ? sanitizeString(lp.gender) : undefined,
+        civil_status: lp.civil_status ? sanitizeString(lp.civil_status) : undefined,
+        date_of_birth: lp.dob ? sanitizeString(lp.dob) : undefined,
         employment_type: lp.employment_type ? sanitizeString(lp.employment_type) : undefined,
         employer_name: lp.employer_name ? sanitizeString(lp.employer_name) : undefined,
         monthly_income: lp.monthly_income ? Number(lp.monthly_income) : undefined,
         gcash_number: lp.gcash_number ? sanitizeString(lp.gcash_number) : undefined,
-      }).eq('user_id', targetId);
+      }).eq('id', targetId);
     }
 
     if (body.employee_profile && ['head_manager'].includes(user.role)) {
@@ -72,7 +76,7 @@ serve(async (req) => {
       await db.from('employee_profiles').update({
         department: ep.department ? sanitizeString(ep.department) : undefined,
         position: ep.position ? sanitizeString(ep.position) : undefined,
-      }).eq('user_id', targetId);
+      }).eq('id', targetId);
     }
 
     await writeAuditLog({ performedBy: user.id, action: 'update_profile', tableName: 'users', recordId: targetId, oldValues: existing, ipAddress: ip });

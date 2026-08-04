@@ -13,10 +13,6 @@ const _noRefreshPaths = {
   'auth-verify-otp',
   'auth-forgot-password',
   'auth-reset-password',
-  // FIX: auth-force-change-password uses the current session token to verify
-  // identity; it should never trigger a token refresh loop. A 401 here means
-  // the session has already expired — just propagate the error.
-  'auth-force-change-password',
   'auth-logout',
 };
 
@@ -31,7 +27,19 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await SecureStorage.getAccessToken();
+    // FIX: If SecureStorage throws on web (e.g. WebCrypto/IndexedDB
+    // unavailable before first interaction), a raw exception in onRequest aborts
+    // the whole request → Dio wraps it as DioExceptionType.unknown → the UI
+    // misleadingly reports "can't reach the server". Instead we swallow a storage
+    // failure and fall back to the anon key so the request still goes out and the
+    // real server response surfaces.
+    String? token;
+    try {
+      token = await SecureStorage.getAccessToken();
+    } catch (_) {
+      token = null;
+    }
+
     if (token != null && token.isNotEmpty) {
       // Authenticated request: use the stored user JWT.
       options.headers['Authorization'] = 'Bearer $token';
@@ -81,6 +89,29 @@ class AuthInterceptor extends Interceptor {
             queryParameters: err.requestOptions.queryParameters,
           );
           _isRefreshing = false;
+          // FIX: A retried 4xx/5xx must be surfaced as an error, not swallowed.
+          // Previously `handler.resolve(retryResponse)` was used unconditionally,
+          // so a refresh-retried request that still failed (e.g. force-change-
+          // password with a wrong current password) was treated as SUCCESS.
+          final status = retryResponse.statusCode;
+          if (status != null && status >= 400) {
+            final data = retryResponse.data;
+            String msg = 'Request failed. Please try again.';
+            if (data is Map) {
+              final errObj = data['error'];
+              final nested = errObj is Map ? errObj['message'] : null;
+              final top = data['message'];
+              msg = (nested as String?) ??
+                  (top as String?) ??
+                  'Request failed. Please try again.';
+            }
+            return handler.reject(DioException(
+              requestOptions: err.requestOptions,
+              response: retryResponse,
+              message: msg,
+              type: DioExceptionType.badResponse,
+            ));
+          }
           return handler.resolve(retryResponse);
         }
       } catch (_) {

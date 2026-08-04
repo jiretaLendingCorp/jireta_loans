@@ -53,8 +53,10 @@ serve(async (req: Request) => {
 
     if (!lenderId) {
       const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
+      const digits = String(s1.phone_number ?? '').replace(/\D/g, '');
+      const e164Phone = digits.startsWith('63') ? `+${digits}` : (digits.startsWith('0') ? `+63${digits.slice(1)}` : `+63${digits}`);
       const { data: authUser } = await db.auth.admin.createUser({
-        phone: s1.phone_number,
+        phone: e164Phone,
         password: '12345678',
         phone_confirm: true,
       });
@@ -76,7 +78,7 @@ serve(async (req: Request) => {
       lenderId = newUser.id;
 
       await db.from('lender_profiles').insert({
-        user_id: lenderId,
+        id: lenderId,
         gender: s1.gender,
         civil_status: s1.civil_status,
         date_of_birth: s1.date_of_birth,
@@ -106,10 +108,10 @@ serve(async (req: Request) => {
 
     if (s2.emergency_contacts) {
       const ecRows = (s2.emergency_contacts as any[]).map((ec: any) => ({
-        user_id: lenderId,
-        full_name: ec.full_name,
+        lender_id: lenderId,
+        name: ec.full_name,
         relationship: ec.relationship,
-        contact_number: ec.contact_number,
+        phone_number: ec.contact_number,
         address: ec.address,
       }));
       await db.from('emergency_contacts').insert(ecRows);
@@ -147,20 +149,16 @@ serve(async (req: Request) => {
 
     const { data: loan, error: loanErr } = await db.from('loans').insert({
       lender_id: lenderId,
+      in_office_application_id: application_id,
       loan_number: loanNumber,
       principal_amount: principalAmount,
-      interest_rate: interestRate,
-      interest_amount: interestAmount,
+      interest_rate: 20,
       total_payable: totalPayable,
       outstanding_balance: totalPayable,
-      frequency,
+      payment_frequency: frequency,
       term_days: termDays,
-      release_date: releaseDate.toISOString().split('T')[0],
-      due_date: dueDate.toISOString().split('T')[0],
       status: 'pending',
       purpose: s3.purpose,
-      penalty_applied: false,
-      created_by: authResult.id,
     }).select().single();
 
     if (loanErr || !loan) return errorResponse('Failed to create loan', 500);
@@ -172,7 +170,7 @@ serve(async (req: Request) => {
         d.setDate(d.getDate() + i + 1);
         scheduleRows.push({
           loan_id: loan.id,
-          period_number: i + 1,
+          installment_number: i + 1,
           due_date: d.toISOString().split('T')[0],
           amount_due: installmentAmount,
           amount_paid: 0,
@@ -186,7 +184,7 @@ serve(async (req: Request) => {
         d.setDate(d.getDate() + (i + 1) * 7);
         scheduleRows.push({
           loan_id: loan.id,
-          period_number: i + 1,
+          installment_number: i + 1,
           due_date: d.toISOString().split('T')[0],
           amount_due: installmentAmount,
           amount_paid: 0,
@@ -202,7 +200,7 @@ serve(async (req: Request) => {
         d.setDate(lastDay);
         scheduleRows.push({
           loan_id: loan.id,
-          period_number: i + 1,
+          installment_number: i + 1,
           due_date: d.toISOString().split('T')[0],
           amount_due: installmentAmount,
           amount_paid: 0,
@@ -217,19 +215,20 @@ serve(async (req: Request) => {
       const { data: coMaker } = await db.from('co_makers').insert({
         loan_id: loan.id,
         first_name: s4.first_name,
-        middle_name: s4.middle_name,
         last_name: s4.last_name,
         relationship: s4.relationship,
-        contact_number: s4.contact_number,
+        phone_number: s4.contact_number,
         address: s4.address,
-        birthday: s4.birthday,
+        date_of_birth: s4.birthday,
       }).select().single();
 
       if (coMaker && s4.documents) {
         const docRows = (s4.documents as any[]).map((d: any) => ({
           co_maker_id: coMaker.id,
           document_type: d.document_type,
-          file_url: d.file_url,
+          file_path: d.file_url,
+          file_name: d.file_name ?? 'document',
+          mime_type: d.mime_type ?? 'application/octet-stream',
         }));
         await db.from('co_maker_documents').insert(docRows);
       }
@@ -247,12 +246,12 @@ serve(async (req: Request) => {
       newValues: { loan_id: loan.id, lender_id: lenderId, loan_number: loanNumber },
     });
 
-    await sendPushNotification(db, {
-      user_id: lenderId,
+    await sendPushNotification({
+      userId: lenderId,
       title: 'Loan Application Received',
       body: `Your loan application ${loanNumber} has been submitted for ₱${principalAmount.toLocaleString()}.`,
       type: 'loan_applied',
-      reference_id: loan.id,
+      referenceId: loan.id,
     });
 
     return successResponse({

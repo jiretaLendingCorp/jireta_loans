@@ -23,9 +23,9 @@ serve(async (req) => {
     const db = getAdminClient();
     let query = db.from('credit_investigations')
       .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary,
-        loans(id, loan_number, users(first_name, last_name, phone)),
-        rider:users!rider_id(id, first_name, last_name),
-        assigner:users!assigned_by(id, first_name, last_name)`, { count: 'exact' });
+        loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number))),
+        rider:rider_profiles(users!rider_profiles_id_fkey(id, first_name, last_name)),
+        assigner:users(id, first_name, last_name)`, { count: 'exact' });
     if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
     else if (riderId) query = query.eq('rider_id', riderId);
     if (status) query = query.eq('status', status);

@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/employees/widgets/create_employee_modal.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/hm_employee_provider.dart';
 
@@ -17,6 +18,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
   final _firstNameCtrl = TextEditingController();
   final _middleNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
+  final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _deptCtrl = TextEditingController();
@@ -31,6 +33,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
+    _suffixCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _deptCtrl.dispose();
@@ -123,7 +126,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                       child: _field('Last Name', _lastNameCtrl, required: true),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(child: _field('Suffix (Jr., Sr.)', _phoneCtrl)),
+                    Expanded(child: _field('Suffix (Jr., Sr.)', _suffixCtrl)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -179,11 +182,30 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 12),
+                _field(
+                  'Phone Number',
+                  _phoneCtrl,
+                  required: true,
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(child: _field('Department', _deptCtrl)),
+                    Expanded(
+                      child: _field(
+                        'Department',
+                        _deptCtrl,
+                        required: true,
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(child: _field('Position', _positionCtrl)),
+                    Expanded(
+                      child: _field(
+                        'Position',
+                        _positionCtrl,
+                        required: true,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -252,7 +274,9 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
         'first_name': _firstNameCtrl.text.trim(),
         'middle_name': _middleNameCtrl.text.trim(),
         'last_name': _lastNameCtrl.text.trim(),
+        'suffix': _suffixCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
+        'phone_number': _phoneCtrl.text.trim(),
         'gender': _gender,
         'civil_status': _civilStatus,
         'department': _deptCtrl.text.trim(),
@@ -261,7 +285,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = ErrorHandler.handle(e).message;
         _loading = false;
       });
     }

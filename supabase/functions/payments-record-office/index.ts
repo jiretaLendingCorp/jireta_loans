@@ -63,7 +63,6 @@ serve(async (req) => {
     const { data: payment, error: payErr } = await db.from('payments').insert({
       loan_id,
       loan_schedule_id,
-      lender_id: loan.lender_id,
       amount: Number(amount),
       payment_method: 'office_cash',
       status: 'verified',
@@ -90,7 +89,6 @@ serve(async (req) => {
     await db.from('loans').update({
       outstanding_balance: Math.max(0, newBalance),
       status: loanStatus,
-      completed_at: loanStatus === 'completed' ? new Date().toISOString() : null,
     }).eq('id', loan_id);
 
     await writeAuditLog({

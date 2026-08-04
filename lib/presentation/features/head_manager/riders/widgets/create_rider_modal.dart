@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/riders/widgets/create_rider_modal.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/hm_rider_provider.dart';
 
@@ -126,9 +127,13 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _f('Plate Number', _plateCtrl)),
+                  Expanded(
+                    child: _f('Plate Number', _plateCtrl, req: true),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _f("Driver's License #", _licenseCtrl)),
+                  Expanded(
+                    child: _f("Driver's License #", _licenseCtrl, req: true),
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -204,7 +209,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = ErrorHandler.handle(e).message;
         _loading = false;
       });
     }

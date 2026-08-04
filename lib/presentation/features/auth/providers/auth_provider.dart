@@ -1,5 +1,6 @@
 // lib/presentation/features/auth/providers/auth_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/security/secure_storage.dart';
@@ -101,6 +102,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       state = const AsyncData(null);
       return true;
     } catch (e, s) {
+      // FIX: Log the REAL exception so a silent web failure (e.g. SecureStorage
+      // throwing on web) isn't swallowed — the console previously stayed empty
+      // while the snackbar showed a generic "can't reach" text.
+      debugPrint('[auth] forceChangePassword error: $e');
       state = AsyncError(e, s);
       return false;
     }
@@ -130,6 +135,25 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     } catch (e, s) {
       state = AsyncError(e, s);
       return false;
+    }
+  }
+
+  /// Best-effort server-side recording of the one-time Terms & Conditions
+  /// acceptance. The local flag is the gate; the server record makes the
+  /// acceptance durable per account (survives sign-out and device-data resets).
+  Future<void> acceptTerms({
+    required String deviceId,
+    required String platform,
+    required String appVersion,
+  }) async {
+    try {
+      await _ds.acceptTerms(
+        deviceId: deviceId,
+        platform: platform,
+        appVersion: appVersion,
+      );
+    } catch (_) {
+      // Non-fatal: never block the user from proceeding past the terms screen.
     }
   }
 

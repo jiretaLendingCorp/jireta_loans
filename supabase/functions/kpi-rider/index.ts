@@ -40,7 +40,7 @@ serve(async (req) => {
     const { data: paymentData } = await db
       .from('payments')
       .select('amount')
-      .eq('collected_by', riderId)
+      .eq('recorded_by', riderId)
       .eq('status', 'verified');
 
     const totalCollected = (paymentData ?? []).reduce(

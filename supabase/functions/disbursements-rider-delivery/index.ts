@@ -40,7 +40,7 @@ serve(async (req) => {
     const { data: rider } = await db
       .from('rider_profiles')
       .select('id, is_available')
-      .eq('user_id', rider_id)
+      .eq('id', rider_id)
       .single();
 
     if (!rider) return errorResponse('Rider not found', 404, 'NOT_FOUND');
@@ -53,13 +53,12 @@ serve(async (req) => {
       .from('disbursements')
       .insert({
         loan_id,
-        lender_id: loan.lender_id,
-        disbursement_method: 'rider_delivery',
+        method: 'rider_delivery',
         amount,
         rider_id,
         delivery_date,
-        notes: notes ?? null,
-        assigned_by: authResult.id,
+        delivery_notes: notes ?? null,
+        authorized_by: authResult.id,
         disbursed_at: now,
         status: 'pending',
       })

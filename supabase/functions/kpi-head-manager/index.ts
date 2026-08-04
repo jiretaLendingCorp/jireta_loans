@@ -32,9 +32,9 @@ serve(async (req) => {
       { count: totalPendingKyc },
       { count: totalCollectionTx },
     ] = await Promise.all([
-      db.from('users').select('*', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'),
-      db.from('users').select('*', { count: 'exact', head: true }).eq('roles.name', 'rider').neq('account_status', 'archived'),
-      db.from('users').select('*', { count: 'exact', head: true }).eq('roles.name', 'lender').neq('account_status', 'archived'),
+      db.from('users').select('*, roles!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'),
+      db.from('users').select('*, roles!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'rider').neq('account_status', 'archived'),
+      db.from('users').select('*, roles!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'lender').neq('account_status', 'archived'),
       db.from('loans').select('*', { count: 'exact', head: true }),
       db.from('loans').select('*', { count: 'exact', head: true }).in('status', ['approved', 'active', 'completed']),
       db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
@@ -49,7 +49,7 @@ serve(async (req) => {
 
     const { data: financials } = await db
       .from('loans')
-      .select('principal_amount, total_payable, outstanding_balance, interest_amount')
+      .select('principal_amount, total_payable, outstanding_balance')
       .in('status', ['active', 'completed', 'overdue']);
 
     const { data: payments } = await db
@@ -65,7 +65,7 @@ serve(async (req) => {
     (financials ?? []).forEach((l: any) => {
       totalReleased += Number(l.principal_amount);
       totalOutstanding += Number(l.outstanding_balance);
-      totalInterest += Number(l.interest_amount);
+      totalInterest += Math.max(0, Number(l.total_payable) - Number(l.principal_amount));
     });
 
     let totalCollected = 0;

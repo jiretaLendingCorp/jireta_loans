@@ -11,6 +11,7 @@ class ApiEndpoints {
   static const String authResetPassword = 'auth-reset-password';
   static const String authLogout = 'auth-logout';
   static const String authRefreshSession = 'auth-refresh-session';
+  static const String authTermsAccept = 'auth-terms-accept';
 
   // Users
   static const String usersCreateEmployee = 'users-create-employee';
@@ -27,6 +28,7 @@ class ApiEndpoints {
   static const String kycVerify = 'kyc-verify';
   static const String kycGetList = 'kyc-get-list';
   static const String kycGetStatus = 'kyc-get-status';
+  static const String kycGetDetails = 'kyc-get-details';
 
   // Loans
   static const String loansApply = 'loans-apply';

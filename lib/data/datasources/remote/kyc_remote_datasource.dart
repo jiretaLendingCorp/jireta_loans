@@ -64,6 +64,16 @@ class KycRemoteDataSource {
     return KycStatusModel.fromJson(res.data as Map<String, dynamic>);
   }
 
+  Future<KycDocumentModel> getKycDetails({required String kycDocId}) async {
+    final res = await _client.get(
+      ApiEndpoints.kycGetDetails,
+      queryParams: {'kyc_doc_id': kycDocId},
+    );
+    return KycDocumentModel.fromJson(
+      (res.data as Map<String, dynamic>)['document'] as Map<String, dynamic>,
+    );
+  }
+
   Future<Map<String, dynamic>?> getStatus({required String lenderId}) async {
     final res = await _client.get(
       ApiEndpoints.kycGetStatus,

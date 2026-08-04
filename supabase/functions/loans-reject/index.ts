@@ -27,16 +27,16 @@ serve(async (req) => {
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-    const { data: loan } = await db.from('loans').select('id, status, user_id').eq('id', loan_id).single();
+    const { data: loan } = await db.from('loans').select('id, status, lender_id').eq('id', loan_id).single();
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
     if (['active', 'completed', 'rejected', 'cancelled'].includes(loan.status)) {
       return errorResponse(`Cannot reject loan in ${loan.status} status`, 400, 'INVALID_STATUS');
     }
 
-    await db.from('loans').update({ status: 'rejected', rejected_by: user.id, rejection_reason: sanitizeString(rejection_reason), rejected_at: new Date().toISOString() }).eq('id', loan_id);
+    await db.from('loans').update({ status: 'rejected', rejected_by: user.id, rejection_reason: sanitizeString(rejection_reason) }).eq('id', loan_id);
 
     await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.user_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${sanitizeString(rejection_reason)}`, type: 'loan_rejected', referenceId: loan_id });
+    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${sanitizeString(rejection_reason)}`, type: 'loan_rejected', referenceId: loan_id });
 
     return jsonResponse({ message: 'Loan rejected' });
   } catch (err) {

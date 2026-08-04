@@ -59,7 +59,7 @@ export async function notifyStaff(params: {
     const db = getAdminClient();
     const { data: staff } = await db
       .from('users')
-      .select('id')
+      .select('id, roles!inner(name)')
       .in('roles.name', ['head_manager', 'employee'])
       .eq('account_status', 'active');
 

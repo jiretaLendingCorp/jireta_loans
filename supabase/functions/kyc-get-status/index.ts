@@ -19,10 +19,16 @@ serve(async (req) => {
     if (roleCheck) return roleCheck;
 
     const db = getAdminClient();
-    const { data: profile } = await db.from('lender_profiles').select('kyc_status').eq('user_id', user.id).single();
-    const { data: docs } = await db.from('kyc_documents').select('id, document_type, file_url, status, rejection_notes, created_at, verified_at').eq('user_id', user.id).order('created_at', { ascending: false });
+    const { data: profile } = await db.from('lender_profiles').select('kyc_status').eq('id', user.id).single();
+    const { data: docs } = await db.from('kyc_documents').select('id, lender_id, document_type, file_path, status, rejection_notes, reviewed_by, reviewed_at, uploaded_at').eq('lender_id', user.id).order('uploaded_at', { ascending: false });
 
-    return jsonResponse({ kyc_status: profile?.kyc_status ?? 'not_submitted', documents: docs ?? [] });
+    const documents = (docs ?? []).map((d: any) => ({
+      ...d,
+      file_url: d.file_path,
+      created_at: d.uploaded_at,
+    }));
+
+    return jsonResponse({ kyc_status: profile?.kyc_status ?? 'not_submitted', lender_id: user.id, documents });
   } catch (err) {
     console.error('kyc-get-status error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

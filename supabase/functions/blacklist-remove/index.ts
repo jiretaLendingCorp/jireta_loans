@@ -46,7 +46,7 @@ serve(async (req) => {
     await db
       .from('lender_profiles')
       .update({ is_blacklisted: false })
-      .eq('user_id', lender_id);
+      .eq('id', lender_id);
 
     await writeAuditLog({
       performedBy: authResult.id,

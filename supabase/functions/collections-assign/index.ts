@@ -20,11 +20,11 @@ serve(async (req) => {
     if (!loan_schedule_id || !rider_id) return errorResponse('loan_schedule_id and rider_id are required', 400, 'VALIDATION_ERROR');
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
-    const { data: schedule } = await db.from('loan_schedules').select('id, loan_id, status, loans(status, user_id)').eq('id', loan_schedule_id).single();
+    const { data: schedule } = await db.from('loan_schedules').select('id, loan_id, status, loans(status)').eq('id', loan_schedule_id).single();
     if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
     if ((schedule as any).loans?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');
     if (schedule.status === 'paid') return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
-    const { data: rider } = await db.from('rider_profiles').select('is_available').eq('user_id', rider_id).single();
+    const { data: rider } = await db.from('rider_profiles').select('is_available').eq('id', rider_id).single();
     if (!rider?.is_available) return errorResponse('Rider is not available', 400, 'VALIDATION_ERROR');
     const { data: assignment, error: insErr } = await db.from('collection_assignments').insert({
       loan_schedule_id,
@@ -32,7 +32,7 @@ serve(async (req) => {
       rider_id,
       assigned_by: user.id,
       collection_schedule: collection_schedule ?? null,
-      notes: notes ?? null,
+      collection_notes: notes ?? null,
       status: 'assigned',
     }).select('id').single();
     if (insErr) return errorResponse('Failed to create assignment', 500, 'SERVER_ERROR');

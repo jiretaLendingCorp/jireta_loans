@@ -31,7 +31,7 @@ serve(async (req) => {
     if (target.account_status === 'archived') return errorResponse('User already archived', 400, 'INVALID_STATUS');
 
     const { count: activeLoans } = await db.from('loans').select('*', { count: 'exact', head: true })
-      .eq('user_id', user_id).in('status', ['pending', 'under_review', 'active', 'overdue']);
+      .eq('lender_id', user_id).in('status', ['pending', 'under_review', 'ci_assigned', 'ci_completed', 'active', 'overdue']);
     if ((activeLoans ?? 0) > 0) return errorResponse('Cannot archive user with active loans', 400, 'ACTIVE_LOAN_EXISTS');
 
     await db.from('users').update({ account_status: 'archived' }).eq('id', user_id);

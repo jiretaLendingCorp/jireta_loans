@@ -73,4 +73,19 @@ class AuthRemoteDataSource {
       data: {'token': token, 'new_password': newPassword},
     );
   }
+
+  Future<void> acceptTerms({
+    required String deviceId,
+    required String platform,
+    required String appVersion,
+  }) async {
+    await _client.post(
+      ApiEndpoints.authTermsAccept,
+      data: {
+        'device_id': deviceId,
+        'platform': platform,
+        'app_version': appVersion,
+      },
+    );
+  }
 }

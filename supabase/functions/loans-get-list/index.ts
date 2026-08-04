@@ -24,21 +24,27 @@ serve(async (req) => {
     const offset = (page - 1) * limit;
 
     const db = getAdminClient();
+    // The borrower on a loan is a lender_profile (lender_profiles.id = users.id).
+    // To reach the user's name we embed lender_profiles → users.
     let query = db.from('loans')
-      .select(`id, loan_number, principal, total_payable, outstanding_balance, interest_rate,
-        frequency, term_days, status, created_at, approved_at, disbursed_at, completed_at,
-        users!inner(id, first_name, last_name, phone)`, { count: 'exact' });
+      .select(`id, loan_number, lender_id, principal_amount, interest_rate, total_payable,
+        outstanding_balance, payment_frequency, term_days, status, created_at, disbursed_at,
+        updated_at,
+        lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)),
+        in_office_applications!fk_loans_in_office(created_by)`, { count: 'exact' });
 
     if (user.role === ROLES.LENDER) {
-      query = query.eq('user_id', user.id);
+      query = query.eq('lender_id', user.id);
     } else if (user.role === ROLES.EMPLOYEE) {
-      query = query.eq('processed_by', user.id);
+      // No `processed_by` column: employee-created loans are linked through the
+      // in-office application they authored.
+      query = query.eq('in_office_applications.created_by', user.id);
     } else if (user.role === ROLES.RIDER) {
       return errorResponse('Access denied', 403, 'FORBIDDEN');
     }
 
     if (status) query = query.eq('status', status);
-    if (search) query = query.or(`loan_number.ilike.%${search}%,users.first_name.ilike.%${search}%,users.last_name.ilike.%${search}%`);
+    if (search) query = query.or(`loan_number.ilike.%${search}%,lender_profiles.users.first_name.ilike.%${search}%,lender_profiles.users.last_name.ilike.%${search}%`);
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo);
 
@@ -47,7 +53,34 @@ serve(async (req) => {
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch loans', 500, 'SERVER_ERROR');
 
-    return jsonResponse({ data: data ?? [], total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
+    const mapped = (data ?? []).map((r: any) => {
+      const borrower = r.lender_profiles?.users;
+      return {
+        id: r.id,
+        loan_number: r.loan_number,
+        lender_id: r.lender_id,
+        lender_name: borrower
+          ? `${borrower.first_name} ${borrower.last_name}`.trim()
+          : null,
+        principal_amount: r.principal_amount,
+        interest_rate: r.interest_rate,
+        interest_amount:
+          r.total_payable != null && r.principal_amount != null
+            ? +(r.total_payable - r.principal_amount).toFixed(2)
+            : null,
+        total_payable: r.total_payable,
+        outstanding_balance: r.outstanding_balance,
+        payment_frequency: r.payment_frequency,
+        frequency: r.payment_frequency,
+        term_days: r.term_days,
+        status: r.status,
+        created_at: r.created_at,
+        disbursed_at: r.disbursed_at,
+        updated_at: r.updated_at,
+      };
+    });
+
+    return jsonResponse({ data: mapped, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
   } catch (err) {
     console.error('loans-get-list error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

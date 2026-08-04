@@ -56,7 +56,7 @@ serve(async (req) => {
       .insert({
         lender_id,
         reason: sanitizeString(reason),
-        blacklisted_by: authResult.id,
+        added_by: authResult.id,
         is_active: true,
       })
       .select()
@@ -66,8 +66,8 @@ serve(async (req) => {
 
     await db
       .from('lender_profiles')
-      .update({ is_blacklisted: true })
-      .eq('user_id', lender_id);
+      .update({ is_blacklisted: true, blacklist_reason: sanitizeString(reason), blacklisted_by: authResult.id, blacklisted_at: new Date().toISOString() })
+      .eq('id', lender_id);
 
     await writeAuditLog({
       performedBy: authResult.id,

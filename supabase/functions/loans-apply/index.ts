@@ -86,10 +86,11 @@ serve(async (req) => {
     const roleCheck = requireRole(authResult, ROLES.LENDER);
     if (roleCheck) return roleCheck;
 
-    const { principal, frequency, purpose } = await req.json();
+    const { principal: principalField, principal_amount, frequency, purpose } = await req.json();
+    const principal = principalField ?? principal_amount;
 
     if (!principal || !frequency || !purpose) {
-      return errorResponse('principal, frequency, and purpose are required', 400, 'VALIDATION_ERROR');
+      return errorResponse('principal_amount, frequency, and purpose are required', 400, 'VALIDATION_ERROR');
     }
     if (!validateLoanAmount(Number(principal))) {
       return errorResponse('Loan amount must be between ₱3,000 and ₱500,000', 400, 'VALIDATION_ERROR');
@@ -104,7 +105,7 @@ serve(async (req) => {
     const { data: profile } = await db
       .from('lender_profiles')
       .select('kyc_status, is_blacklisted')
-      .eq('user_id', lenderId)
+      .eq('id', lenderId)
       .single();
 
     if (!profile) return errorResponse('Lender profile not found', 404, 'NOT_FOUND');
@@ -132,15 +133,12 @@ serve(async (req) => {
         loan_number: loanNumber,
         principal_amount: Number(principal),
         interest_rate: INTEREST_RATE * 100,
-        interest_amount: sched.interest,
         total_payable: sched.totalPayable,
         outstanding_balance: sched.totalPayable,
         payment_frequency: frequency,
         term_days: sched.termDays,
-        installment_amount: sched.installmentAmount,
         purpose: String(purpose).substring(0, 500),
         status: 'pending',
-        due_date: dueDate,
       })
       .select()
       .single();
@@ -152,7 +150,7 @@ serve(async (req) => {
 
     const scheduleRows = sched.dueDates.map((date, i) => ({
       loan_id: loan.id,
-      period_number: i + 1,
+      installment_number: i + 1,
       due_date: date,
       amount_due: sched.amounts[i],
       amount_paid: 0,
@@ -172,7 +170,7 @@ serve(async (req) => {
 
     const { data: staffUsers } = await db
       .from('users')
-      .select('id')
+      .select('id, roles!inner(name)')
       .in('roles.name', ['head_manager', 'employee'])
       .eq('account_status', 'active');
 

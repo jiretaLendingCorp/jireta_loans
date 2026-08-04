@@ -1,21 +1,26 @@
 // lib/presentation/features/auth/screens/terms_conditions_screen.dart
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../providers/auth_provider.dart';
 
-class TermsConditionsScreen extends StatefulWidget {
+class TermsConditionsScreen extends ConsumerStatefulWidget {
   const TermsConditionsScreen({super.key});
 
   @override
-  State<TermsConditionsScreen> createState() => _TermsConditionsScreenState();
+  ConsumerState<TermsConditionsScreen> createState() =>
+      _TermsConditionsScreenState();
 }
 
-class _TermsConditionsScreenState extends State<TermsConditionsScreen> {
+class _TermsConditionsScreenState
+    extends ConsumerState<TermsConditionsScreen> {
   bool _accepted = false;
   bool _privacyAccepted = false;
   bool _loading = false;
@@ -26,6 +31,19 @@ class _TermsConditionsScreenState extends State<TermsConditionsScreen> {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConstants.termsAcceptedKey, true);
+    // FIX: Record the acceptance server-side too (users.terms_accepted_at +
+    // terms_consent_logs). The local flag is the first-run gate; the server
+    // record makes it durable per account so it never re-prompts after sign-out.
+    final platform = kIsWeb
+        ? 'web'
+        : defaultTargetPlatform == TargetPlatform.iOS
+            ? 'ios'
+            : 'android';
+    await ref.read(authProvider.notifier).acceptTerms(
+          deviceId: 'default-device',
+          platform: platform,
+          appVersion: AppConstants.appVersion,
+        );
     if (!mounted) return;
     // Web browser (Head Manager / Employee) → email+password login
     // Mobile app (Rider / Lender) → phone OTP login

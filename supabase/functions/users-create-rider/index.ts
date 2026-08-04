@@ -10,6 +10,13 @@ import { sendPushNotification } from '../_shared/notifications.ts';
 
 const DEFAULT_PASSWORD = '12345678';
 
+function toE164(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('63')) return `+${digits}`;
+  if (digits.startsWith('0')) return `+63${digits.slice(1)}`;
+  return `+63${digits}`;
+}
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -36,11 +43,11 @@ serve(async (req) => {
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-    const { data: existingPhone } = await db.from('users').select('id').eq('phone', phone.trim()).maybeSingle();
+    const { data: existingPhone } = await db.from('users').select('id').eq('phone_number', phone.trim()).maybeSingle();
     if (existingPhone) return errorResponse('Phone number already registered', 400, 'DUPLICATE');
 
     const { data: authUser, error: authErr } = await db.auth.admin.createUser({
-      phone: phone.trim(),
+      phone: toE164(phone.trim()),
       password: DEFAULT_PASSWORD,
       phone_confirm: true,
     });
@@ -55,7 +62,7 @@ serve(async (req) => {
       middle_name: middle_name ? sanitizeString(middle_name) : null,
       last_name: sanitizeString(last_name),
       suffix: suffix ? sanitizeString(suffix) : null,
-      phone: phone.trim(),
+      phone_number: phone.trim(),
       role_id: roleData.id,
       account_status: 'active',
       force_password_change: true,
@@ -68,7 +75,7 @@ serve(async (req) => {
     }
 
     await db.from('rider_profiles').insert({
-      user_id: newUser.id,
+      id: newUser.id,
       vehicle_type: sanitizeString(vehicle_type),
       plate_number: sanitizeString(plate_number).toUpperCase(),
       drivers_license_number: sanitizeString(drivers_license_number),

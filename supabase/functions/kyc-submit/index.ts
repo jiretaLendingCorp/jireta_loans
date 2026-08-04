@@ -36,15 +36,17 @@ serve(async (req) => {
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
     const docsToInsert = documents.map((doc: any) => ({
-      user_id: user.id,
+      lender_id: user.id,
       document_type: doc.document_type,
-      file_url: doc.file_url,
-      file_name: doc.file_name ?? null,
-      status: 'submitted',
+      file_path: doc.file_url,
+      file_name: doc.file_name ?? 'document',
+      file_size: doc.file_size ?? 1,
+      mime_type: doc.mime_type ?? 'application/octet-stream',
+      status: 'pending',
     }));
 
     await db.from('kyc_documents').insert(docsToInsert);
-    await db.from('lender_profiles').update({ kyc_status: 'submitted' }).eq('user_id', user.id);
+    await db.from('lender_profiles').update({ kyc_status: 'submitted' }).eq('id', user.id);
 
     await writeAuditLog({ performedBy: user.id, action: 'kyc_submit', tableName: 'kyc_documents', recordId: user.id, ipAddress: ip });
     await notifyStaff({ title: 'KYC Submitted', body: 'A lender has submitted KYC documents for review.', type: 'kyc_submitted', referenceId: user.id });

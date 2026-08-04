@@ -71,13 +71,12 @@ serve(async (req) => {
     }
 
     await db.from('employee_profiles').insert({
-      user_id: user.id,
-      gender: gender ? sanitizeString(gender) : null,
-      civil_status: civil_status ? sanitizeString(civil_status) : null,
-      date_of_birth: dob ?? null,
+      id: user.id,
       department: sanitizeString(department),
       position: sanitizeString(position),
-      hired_at: hired_at ?? null,
+      hired_at: hired_at ?? new Date().toISOString().split('T')[0],
+      gender: gender ? sanitizeString(gender) : null,
+      civil_status: civil_status ? sanitizeString(civil_status) : null,
     });
 
     await db.from('password_history').insert({

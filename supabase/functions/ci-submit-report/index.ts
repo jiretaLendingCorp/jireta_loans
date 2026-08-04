@@ -29,7 +29,7 @@ serve(async (req) => {
     if ((docCount ?? 0) === 0) return errorResponse('At least 1 document must be uploaded', 400, 'VALIDATION_ERROR');
     await db.from('credit_investigations').update({ status: 'completed', report_summary: sanitizeString(report_summary), completed_at: new Date().toISOString() }).eq('id', ci_id);
     await db.from('loans').update({ status: 'ci_completed' }).eq('id', ci.loan_id);
-    await db.from('rider_profiles').update({ is_available: true }).eq('user_id', user.id);
+    await db.from('rider_profiles').update({ is_available: true }).eq('id', user.id);
     await writeAuditLog({ performedBy: user.id, action: 'ci_submit_report', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
     await notifyStaff({ title: 'CI Report Submitted', body: 'A rider has submitted a credit investigation report. Ready for approval.', type: 'ci_completed', referenceId: ci.loan_id });
     return jsonResponse({ message: 'CI report submitted. Loan is ready for approval.' });

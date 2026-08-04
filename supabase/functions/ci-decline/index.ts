@@ -23,9 +23,9 @@ serve(async (req) => {
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
     const { data: ci } = await db.from('credit_investigations').select('id, status, assigned_by, loan_id, rider_id').eq('id', ci_id).eq('rider_id', user.id).single();
     if (!ci) return errorResponse('CI not found', 404, 'NOT_FOUND');
-    if (ci.status !== 'pending') return errorResponse('CI is not pending', 400, 'INVALID_STATUS');
-    await db.from('credit_investigations').update({ status: 'declined', response_at: new Date().toISOString(), decline_reason: decline_reason ?? null }).eq('id', ci_id);
-    await db.from('loans').update({ status: 'ci_required' }).eq('id', ci.loan_id);
+    if (ci.status !== 'assigned') return errorResponse('CI is not in assigned status', 400, 'INVALID_STATUS');
+    await db.from('credit_investigations').update({ status: 'declined', response_at: new Date().toISOString(), notes: decline_reason ?? null }).eq('id', ci_id);
+    await db.from('loans').update({ status: 'under_review' }).eq('id', ci.loan_id);
     await writeAuditLog({ performedBy: user.id, action: 'ci_decline', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
     if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'CI Declined', body: 'The rider has declined the CI assignment. Please reassign.', type: 'ci_declined', referenceId: ci_id });
     return jsonResponse({ message: 'CI declined' });

@@ -189,8 +189,28 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const Expanded(flex: 2, child: Text('—')),
-            const Expanded(flex: 2, child: Text('—')),
+            Expanded(
+              flex: 2,
+              child: Text(
+                user.department ?? '—',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                user.position ?? '—',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             Expanded(
               flex: 1,
               child: _StatusBadge(

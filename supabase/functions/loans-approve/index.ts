@@ -26,7 +26,7 @@ serve(async (req) => {
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
     const { data: loan } = await db.from('loans')
-      .select('id, status, user_id, lender_profiles(kyc_status, is_blacklisted)')
+      .select('id, status, lender_id, lender_profiles(kyc_status, is_blacklisted)')
       .eq('id', loan_id).single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
@@ -39,10 +39,10 @@ serve(async (req) => {
     const { data: ci } = await db.from('credit_investigations').select('id, status').eq('loan_id', loan_id).eq('status', 'completed').maybeSingle();
     if (!ci) return errorResponse('CI report must be completed before approval', 400, 'INVALID_STATUS');
 
-    await db.from('loans').update({ status: 'approved', approved_by: user.id, approved_at: new Date().toISOString(), approval_notes: notes ?? null }).eq('id', loan_id);
+    await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', loan_id);
 
     await writeAuditLog({ performedBy: user.id, action: 'loan_approve', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'approved' }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.user_id, title: 'Loan Approved', body: 'Congratulations! Your loan application has been approved.', type: 'loan_approved', referenceId: loan_id });
+    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved', body: 'Congratulations! Your loan application has been approved.', type: 'loan_approved', referenceId: loan_id });
 
     return jsonResponse({ message: 'Loan approved successfully' });
   } catch (err) {
