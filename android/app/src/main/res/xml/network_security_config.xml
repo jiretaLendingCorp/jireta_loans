@@ -21,10 +21,11 @@
   </domain-config>
 
   <!-- 192.168.x.x: Physical Android device via Wi-Fi to dev machine.
-       Replace the example IP with your actual LAN IP if it differs, or
-       add additional <domain-config> blocks for other subnets.          -->
+       This MUST be the exact host IP the app connects to (matches
+       EDGE_FUNCTIONS_URL / SUPABASE_URL in assets/env/.env). A subnet base
+       address like 192.168.1.0 will NOT match and cleartext stays blocked. -->
   <domain-config cleartextTrafficPermitted="true">
-    <domain includeSubdomains="false">192.168.1.0</domain>
+    <domain includeSubdomains="false">192.168.1.9</domain>
   </domain-config>
 
   <!-- ── Default: enforce TLS everywhere else (production) ───────────── -->

@@ -21,18 +21,25 @@ serve(async (req) => {
 
     const db = getAdminClient();
 
+    // Lenders may self-register via OTP: an unregistered phone is allowed to
+    // request an OTP. Riders must be registered by the head manager first, so
+    // once a phone IS registered we only allow OTP for rider/lender roles.
     const { data: user } = await db
       .from('users')
       .select('id, account_status, roles(name)')
       .eq('phone_number', phone)
-      .single();
+      .maybeSingle();
 
-    if (!user) return errorResponse('Phone number not registered', 404, 'NOT_FOUND');
-    if (user.account_status === 'suspended') return errorResponse('Account suspended', 403, 'ACCOUNT_SUSPENDED');
-    if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+    let userId: string | null = null;
+    if (user) {
+      if (user.account_status === 'suspended') return errorResponse('Account suspended', 403, 'ACCOUNT_SUSPENDED');
+      if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+      if (user.account_status === 'inactive') return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
 
-    const role = (user as any).roles?.name;
-    if (!['rider', 'lender'].includes(role)) return errorResponse('OTP login not available for this role', 403, 'FORBIDDEN');
+      const role = (user as any).roles?.name;
+      if (!['rider', 'lender'].includes(role)) return errorResponse('OTP login not available for this role', 403, 'FORBIDDEN');
+      userId = user.id;
+    }
 
     const windowStart = new Date(Date.now() - OTP_WINDOW_MINUTES * 60000).toISOString();
     const { count } = await db
@@ -47,7 +54,9 @@ serve(async (req) => {
 
     await db.from('otp_codes').update({ used: true }).eq('phone_number', phone).eq('used', false);
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = Deno.env.get('USE_MOCK_SMS') === 'true'
+      ? '123456' // DEV MOCK: fixed OTP so you can test without receiving SMS.
+      : String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
 
     await db.from('otp_codes').insert({
@@ -59,13 +68,15 @@ serve(async (req) => {
     });
 
     const message = `Your Jireta Loans OTP is: ${code}. Valid for ${OTP_EXPIRY_MINUTES} minutes. Do not share this code.`;
-    await sendSms({ to: phone, message, userId: user.id });
+    await sendSms({ to: phone, message, userId: userId ?? undefined });
 
-    await db.from('auth_logs').insert({
-      user_id: user.id,
-      event_type: 'otp_sent',
-      ip_address: req.headers.get('x-forwarded-for') ?? 'unknown',
-    });
+    if (userId) {
+      await db.from('auth_logs').insert({
+        user_id: userId,
+        event_type: 'otp_sent',
+        ip_address: req.headers.get('x-forwarded-for') ?? 'unknown',
+      });
+    }
 
     return jsonResponse({ message: 'OTP sent successfully', expires_in: OTP_EXPIRY_MINUTES * 60 });
   } catch (err) {

@@ -8,6 +8,26 @@ export async function sendSms(params: {
   loanScheduleId?: string;
 }): Promise<boolean> {
   try {
+    // DEV MOCK: when USE_MOCK_SMS is truthy, skip the real Semaphore call so
+    // auth-send-otp (or any sender) never hangs waiting on the network. The
+    // OTP code is overridden to 123456 in auth-send-otp. Remove this branch
+    // / the env var to resume real SMS.
+    if (Deno.env.get('USE_MOCK_SMS') === 'true') {
+      console.log('[sms] MOCK_MODE: not sending real SMS to', params.to);
+      if (params.userId) {
+        const db = getAdminClient();
+        await db.from('sms_logs').insert({
+          user_id: params.userId,
+          loan_schedule_id: params.loanScheduleId ?? null,
+          phone_number: params.to,
+          message: params.message,
+          status: 'mocked',
+          gateway_reference: null,
+        });
+      }
+      return true;
+    }
+
     const apiKey = Deno.env.get('SEMAPHORE_API_KEY');
     const senderName = Deno.env.get('SEMAPHORE_SENDER_NAME') ?? 'JiretaLoans';
 

@@ -1,6 +1,7 @@
 // lib/presentation/features/auth/providers/auth_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/security/secure_storage.dart';
@@ -166,27 +167,48 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }
 
   String? extractErrorMessage(Object error) {
-    final msg = error.toString();
+    // Prefer the message ErrorInterceptor stores on DioException. It carries
+    // the REAL server text (e.g. "Phone number not registered", "OTP login
+    // not available for this role") or a friendly connection message. Using
+    // DioException.toString() would embed the "DioException [type]:" prefix
+    // and hide those details behind the generic fallback below.
+    final isDio = error is DioException;
+    final message = isDio && error.message?.isNotEmpty == true
+        ? error.message!
+        : error.toString();
+
     // FIX: Handle connection-level failures first so users see actionable text
     // instead of the raw DioException or "An error occurred" fallback.
-    if (msg.contains('NETWORK_ERROR') ||
-        msg.contains('Unable to reach server') ||
-        msg.contains('No internet')) {
+    if (message.contains('NETWORK_ERROR') ||
+        message.contains('Unable to reach server') ||
+        message.contains('No internet')) {
       return 'Cannot connect to server. Check your internet connection and try again.';
     }
-    if (msg.contains('TIMEOUT') || msg.contains('timed out')) {
+    if (message.contains('TIMEOUT') ||
+        message.contains('timed out') ||
+        message.contains('Request timed out')) {
       return 'Request timed out. Please try again.';
     }
-    if (msg.contains('Invalid email or password')) {
+    if (message.contains('Invalid email or password')) {
       return 'Invalid email or password.';
     }
-    if (msg.contains('Account locked')) {
+    if (message.contains('Account locked')) {
       return 'Account locked. Try again later.';
     }
-    if (msg.contains('Account suspended')) return 'Your account is suspended.';
-    if (msg.contains('Rate limit')) return 'Too many attempts. Please wait.';
-    if (msg.contains('OTP')) return 'Invalid or expired OTP.';
-    return 'An error occurred. Please try again.';
+    if (message.contains('Account suspended')) {
+      return 'Your account is suspended.';
+    }
+    if (message.contains('Rate limit') || message.contains('RATE_LIMITED')) {
+      return 'Too many attempts. Please wait.';
+    }
+    if (message.contains('Invalid OTP code') ||
+        message.contains('OTP expired or not found')) {
+      return 'Invalid or expired OTP.';
+    }
+    // For Dio failures surface the server's actual message (so "Phone number
+    // not registered" is no longer hidden behind the generic text). Only
+    // non-Dio/local errors keep the generic fallback.
+    return isDio ? message : 'An error occurred. Please try again.';
   }
 }
 

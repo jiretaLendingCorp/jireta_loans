@@ -20,7 +20,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     with SingleTickerProviderStateMixin {
   final _phoneCtrl = TextEditingController();
   final _phoneMask = MaskTextInputFormatter(
-    mask: '09## ### ####',
+    mask: '#### ### ####',
     filter: {'#': RegExp(r'[0-9]')},
   );
   bool _loading = false;
@@ -170,9 +170,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                         ],
                         decoration: const InputDecoration(
                           labelText: 'Mobile Number',
-                          hintText: '09XX XXX XXXX', // mask auto-fills "09"
+                          hintText: '09XX XXX XXXX',
                           prefixIcon: Icon(Icons.phone_android),
-                          prefixText: '+63 ',
                         ),
                         onChanged: (_) => setState(() {}),
                       ),

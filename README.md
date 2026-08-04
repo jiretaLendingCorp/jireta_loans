@@ -2991,7 +2991,7 @@ jireta_lms/
                 │       │
                 │       ├── lender_pay_via_gcash_screen.dart
                 │       │   # Generates Xendit payment link. Redirects to GCash app.
-                │       │   # Shows pending → confirmed state after webhook fires.
+                │       │   # Shows pending → confirmed state after webhook fires..
                 │       │
                 │       ├── lender_payment_history_screen.dart
                 │       │   # All payments: date, amount, method, status, reference#.

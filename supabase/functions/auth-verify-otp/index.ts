@@ -6,14 +6,68 @@ import { validatePhone, sanitizeString } from '../_shared/validators.ts';
 
 const MAX_OTP_ATTEMPTS = 5;
 
+function toE164(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('63')) return `+${digits}`;
+  if (digits.startsWith('0')) return `+63${digits.slice(1)}`;
+  return `+63${digits}`;
+}
+
+async function selfRegisterLender(db: any, phone: string) {
+  const { data: roleData } = await db.from('roles').select('id').eq('name', 'lender').single();
+  if (!roleData) return null;
+
+  const phoneEmail = `${phone}@jireta-loans.app`;
+
+  const { data: authUser, error: authErr } = await db.auth.admin.createUser({
+    email: phoneEmail,
+    password: `OTP_${phone}_SECURE`,
+    email_confirm: true,
+    phone: toE164(phone),
+    phone_confirm: true,
+    user_metadata: { role: 'lender' },
+  });
+  if (authErr || !authUser?.user) return null;
+
+  const { data: newUser, error: userErr } = await db.from('users').insert({
+    id: authUser.user.id,
+    role_id: roleData.id,
+    phone_number: phone,
+    email: phoneEmail,
+    first_name: 'Jireta',
+    last_name: 'Lender',
+    account_status: 'active',
+    force_password_change: false,
+    created_by: null,
+  }).select('id, account_status, email, force_password_change, roles(name)').single();
+
+  if (userErr || !newUser) {
+    await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+    return null;
+  }
+
+  const { error: profileErr } = await db.from('lender_profiles').insert({
+    id: newUser.id,
+    kyc_status: 'pending',
+    is_blacklisted: false,
+  });
+  if (profileErr) {
+    await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});
+    await db.from('users').delete().eq('id', newUser.id).catch(() => {});
+    return null;
+  }
+
+  return newUser;
+}
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
   try {
-    const { phone_number, code } = await req.json();
+    const { phone_number, code, otp } = await req.json();
     const phone = sanitizeString(String(phone_number ?? ''));
-    const otpCode = sanitizeString(String(code ?? ''));
+    const otpCode = sanitizeString(String(otp ?? code ?? ''));
 
     if (!validatePhone(phone)) return errorResponse('Invalid phone number', 400, 'VALIDATION_ERROR');
     if (!/^\d{6}$/.test(otpCode)) return errorResponse('OTP must be 6 digits', 400, 'VALIDATION_ERROR');
@@ -44,13 +98,18 @@ serve(async (req) => {
 
     await db.from('otp_codes').update({ used: true }).eq('id', otpRow.id);
 
-    const { data: user } = await db
+    let { data: user } = await db
       .from('users')
       .select('id, account_status, email, force_password_change, roles(name)')
       .eq('phone_number', phone)
-      .single();
+      .maybeSingle();
 
-    if (!user) return errorResponse('User not found', 404, 'NOT_FOUND');
+    // Self-registration: an unregistered phone that passes OTP becomes a
+    // lender automatically (head-manager pre-registration no longer required).
+    if (!user) {
+      user = await selfRegisterLender(db, phone);
+      if (!user) return errorResponse('Failed to create account', 500, 'SERVER_ERROR');
+    }
 
     const { data: authData, error: authErr } = await db.auth.signInWithOtp({
       phone: phone.replace(/^0/, '+63'),
