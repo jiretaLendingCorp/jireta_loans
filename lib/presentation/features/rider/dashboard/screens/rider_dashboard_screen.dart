@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -200,7 +201,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen>
           Icons.check_circle_outline, AppColors.success),
       _KpiItem('Failed', kpi.totalFailedCollections.toString(),
           Icons.cancel_outlined, AppColors.error),
-      _KpiItem('Collected', kpi.totalAmountCollected.toCurrency,
+      _KpiItem('Collected', '₱${NumberFormat('#,##0.00', 'en_PH').format(kpi.totalAmountCollected)}',
           Icons.payments, AppColors.gold),
       _KpiItem('CI Assigned', kpi.totalCiAssignments.toString(), Icons.search,
           AppColors.info),

@@ -28,7 +28,7 @@ serve(async (req) => {
 
     const allowedTypes = ['valid_id', 'selfie', 'proof_of_billing', 'proof_of_income', 'other'];
     for (const doc of documents) {
-      if (!doc.document_type || !doc.file_url) return errorResponse('Each document needs document_type and file_url', 400, 'VALIDATION_ERROR');
+      if (!doc.document_type) return errorResponse('Each document needs document_type', 400, 'VALIDATION_ERROR');
       if (!allowedTypes.includes(doc.document_type)) return errorResponse(`Invalid document_type: ${doc.document_type}`, 400, 'VALIDATION_ERROR');
     }
 
@@ -38,7 +38,7 @@ serve(async (req) => {
     const docsToInsert = documents.map((doc: any) => ({
       lender_id: user.id,
       document_type: doc.document_type,
-      file_path: doc.file_url,
+      file_path: doc.content_base64 ?? doc.file_url ?? '',
       file_name: doc.file_name ?? 'document',
       file_size: doc.file_size ?? 1,
       mime_type: doc.mime_type ?? 'application/octet-stream',

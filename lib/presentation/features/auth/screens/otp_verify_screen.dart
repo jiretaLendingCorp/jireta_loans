@@ -94,7 +94,21 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
     if (ok) {
       final state = ref.read(authStateProvider);
       if (state.forcePasswordChange) {
-        context.go(RouteConstants.forceChangePassword);
+        final role = state.role;
+        if (role == AppConstants.roleRider || role == AppConstants.roleLender) {
+          switch (role) {
+            case AppConstants.roleRider:
+              context.go(RouteConstants.riderDashboard);
+              break;
+            case AppConstants.roleLender:
+              context.go(RouteConstants.lenderDashboard);
+              break;
+            default:
+              context.go(RouteConstants.mobileLogin);
+          }
+        } else {
+          context.go(RouteConstants.forceChangePassword);
+        }
       } else {
         final role = state.role;
         switch (role) {

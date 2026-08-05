@@ -170,7 +170,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (isAuthenticated) {
         if (authState.forcePasswordChange &&
             path != RouteConstants.forceChangePassword) {
-          return RouteConstants.forceChangePassword;
+          final role = authState.role;
+          if (role != AppConstants.roleRider &&
+              role != AppConstants.roleLender) {
+            return RouteConstants.forceChangePassword;
+          }
         }
 
         if (path != RouteConstants.forceChangePassword &&

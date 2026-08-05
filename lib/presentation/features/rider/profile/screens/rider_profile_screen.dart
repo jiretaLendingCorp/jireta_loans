@@ -145,8 +145,6 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                     color: AppColors.riderGreen,
                   ),
                   const SizedBox(height: 16),
-                  _buildChangePasswordCard(),
-                  const SizedBox(height: 16),
                   OutlinedButton.icon(
                     onPressed: _logout,
                     icon: const Icon(Icons.logout, color: AppColors.error),
@@ -255,104 +253,4 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     );
   }
 
-  Widget _buildChangePasswordCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.border)),
-      child: ListTile(
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-              color: AppColors.riderGreen.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10)),
-          child: const Icon(Icons.lock_outline,
-              color: AppColors.riderGreen, size: 20),
-        ),
-        title: const Text('Change Password',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-        subtitle: const Text('Update your account password',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        trailing: const Icon(Icons.arrow_forward_ios,
-            size: 14, color: AppColors.textTertiary),
-        onTap: () => _showChangePasswordSheet(context),
-      ),
-    );
-  }
-
-  void _showChangePasswordSheet(BuildContext context) {
-    final currentCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
-    final confirmCtrl = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Change Password',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 20),
-            AppTextField(
-                controller: currentCtrl,
-                label: 'Current Password',
-                obscureText: true),
-            const SizedBox(height: 12),
-            AppTextField(
-                controller: newCtrl, label: 'New Password', obscureText: true),
-            const SizedBox(height: 12),
-            AppTextField(
-                controller: confirmCtrl,
-                label: 'Confirm New Password',
-                obscureText: true),
-            const SizedBox(height: 20),
-            AppButton(
-              label: 'Update Password',
-              onPressed: () async {
-                if (newCtrl.text != confirmCtrl.text) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Passwords do not match')));
-                  return;
-                }
-                Navigator.pop(ctx);
-                final ok = await ref
-                    .read(riderProfileProvider.notifier)
-                    .changePassword(
-                      currentPassword: currentCtrl.text,
-                      newPassword: newCtrl.text,
-                    );
-                if (mounted) {
-                  if (!context.mounted) return;
-                  if (ok) {
-                    showDialog(
-                        context: context,
-                        builder: (_) => const SuccessDialog(
-                            message: 'Password updated successfully'));
-                  } else {
-                    showDialog(
-                        context: context,
-                        builder: (_) => const ErrorDialog(
-                            message: 'Failed to update password'));
-                  }
-                }
-              },
-              color: AppColors.riderGreen,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

@@ -9,6 +9,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../kyc/providers/lender_kyc_provider.dart';
 import '../providers/lender_loan_provider.dart';
 
 class LenderApplyLoanScreen extends ConsumerStatefulWidget {
@@ -59,6 +60,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final kycState = ref.read(lenderKycProvider);
+      if (kycState.status == 'pending') {
+        context.go(RouteConstants.lenderKyc);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _purposeCtrl.dispose();
     super.dispose();
@@ -93,9 +105,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         confirmColor: AppColors.lenderPurple,
       ),
     );
-    if (confirmed != true) return;
+     if (confirmed != true) return;
 
-    final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
+     final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
           amount: _amount,
           frequency: _frequency,
           purpose: _purposeCtrl.text.trim(),

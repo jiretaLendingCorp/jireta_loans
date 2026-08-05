@@ -64,7 +64,7 @@ serve(async (req) => {
       phone_number: phone.trim(),
       role_id: roleData.id,
       account_status: 'active',
-      force_password_change: true,
+      force_password_change: false,
       created_by: user.id,
     }).select('id').single();
 

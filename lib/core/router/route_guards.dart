@@ -46,6 +46,10 @@ class RouteGuards {
     if (authState.isAuthenticated &&
         authState.forcePasswordChange == true &&
         state.matchedLocation != RouteConstants.forceChangePassword) {
+      final role = authState.role ?? '';
+      if (role == RoleConstants.rider || role == RoleConstants.lender) {
+        return null;
+      }
       return RouteConstants.forceChangePassword;
     }
     return null;

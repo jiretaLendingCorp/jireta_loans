@@ -66,7 +66,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           context.go(RouteConstants.webLogin);
       }
     } else if (authState.isAuthenticated && authState.forcePasswordChange) {
-      context.go(RouteConstants.forceChangePassword);
+      final role = authState.role;
+      if (role != AppConstants.roleRider && role != AppConstants.roleLender) {
+        context.go(RouteConstants.forceChangePassword);
+      } else {
+        switch (role) {
+          case AppConstants.roleHeadManager:
+            context.go(RouteConstants.hmDashboard);
+            break;
+          case AppConstants.roleEmployee:
+            context.go(RouteConstants.empDashboard);
+            break;
+          case AppConstants.roleRider:
+            context.go(RouteConstants.riderDashboard);
+            break;
+          case AppConstants.roleLender:
+            context.go(RouteConstants.lenderDashboard);
+            break;
+          default:
+            context.go(RouteConstants.webLogin);
+        }
+      }
     } else if (!termsAccepted) {
       context.go(RouteConstants.terms);
     } else {

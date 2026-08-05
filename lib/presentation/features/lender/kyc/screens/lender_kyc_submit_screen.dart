@@ -111,6 +111,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
         docs.add({
           'document_type': e.key,
           'file_name': f.name,
+          'file_size': f.size,
           if (contentBase64 != null) 'content_base64': contentBase64,
         });
       }
