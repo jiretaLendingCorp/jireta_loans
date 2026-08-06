@@ -208,22 +208,31 @@ serve(async (req) => {
     const { data: staffUsers } = await db
       .from('users')
       .select('id, fcm_token, roles(name)')
-      .in('roles.name', [ROLES.HEAD_MANAGER, ROLES.EMPLOYEE])
       .eq('account_status', 'active');
 
-    for (const su of staffUsers ?? []) {
+    const staff = (staffUsers ?? []).filter(
+      (u: any) =>
+        u?.roles?.name === ROLES.HEAD_MANAGER || u?.roles?.name === ROLES.EMPLOYEE
+    );
+
+    for (const su of staff) {
       await db.from('notifications').insert({
         user_id: su.id,
         title: 'New In-Office Loan Application',
-        message: `Loan application ${loanNumber} submitted via in-office wizard.`,
+        body: `Loan application ${loanNumber} submitted via in-office wizard.`,
         type: 'loan_application',
         reference_id: loan.id,
         is_read: false,
+        sent_at: new Date().toISOString(),
       });
       if (su.fcm_token) {
-        await sendPushNotification(su.fcm_token, 'New Loan Application', `${loanNumber} submitted`, {
+        await sendPushNotification({
+          userId: su.id,
+          title: 'New Loan Application',
+          body: `${loanNumber} submitted`,
           type: 'loan_application',
-          loan_id: loan.id,
+          referenceId: loan.id,
+          sentBy: authResult.id,
         });
       }
     }

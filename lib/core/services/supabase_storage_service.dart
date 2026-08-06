@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../security/secure_storage.dart';
 import '../utils/logger.dart';
 
 class SupabaseStorageService {
@@ -18,6 +19,31 @@ class SupabaseStorageService {
     'application/pdf',
   ];
 
+  /// The app authenticates through custom Edge Functions (auth-login /
+  /// auth-verify-otp) and stores the returned JWT in SecureStorage, but it
+  /// never signs in the supabase_flutter client itself. Without a session the
+  /// storage API runs with the anon key, `auth.uid()` is NULL, and every
+  /// upload fails with "new row violates row-level security".
+  /// This restores the session from the stored tokens before any upload.
+  Future<void> _ensureSession() async {
+    final client = Supabase.instance.client;
+    if (client.auth.currentSession != null) return;
+    final accessToken = await SecureStorage.getAccessToken();
+    final refreshToken = await SecureStorage.getRefreshToken();
+    if (accessToken == null || accessToken.isEmpty) {
+      throw Exception('Not signed in');
+    }
+    try {
+      await client.auth.setSession(
+        refreshToken ?? '',
+        accessToken: accessToken,
+      );
+    } catch (e) {
+      AppLogger.error('[Storage] Failed to restore session: $e');
+      rethrow;
+    }
+  }
+
   Future<String?> uploadFile({
     required File file,
     required String bucket,
@@ -25,6 +51,8 @@ class SupabaseStorageService {
     int maxBytes = maxSizeBytes,
   }) async {
     try {
+      await _ensureSession();
+
       final bytes = await file.length();
       if (bytes > maxBytes) {
         throw Exception(

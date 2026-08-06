@@ -33,11 +33,6 @@ const _lenderNavItems = [
       label: 'Payments',
       route: RouteConstants.lenderPayments),
   MobileNavItem(
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications,
-      label: 'Alerts',
-      route: RouteConstants.lenderNotifications),
-  MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
       label: 'Profile',
@@ -87,7 +82,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
       final file = result.files.first;
       final ext = file.extension?.toLowerCase() ?? '';
       if (file.size > 5 * 1024 * 1024) {
-        if (context.mounted) {
+        if (mounted) {
           showDialog(
               context: context,
               builder: (_) => const ErrorDialog(
@@ -113,17 +108,17 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
               docType: _selectedType!,
               mimeType: _mimeType ?? 'image/jpeg',
             );
-    // Use context.mounted (not State.mounted) to guard all async context use
+    // Use mounted (not context.mounted) to guard all async context use
     if (success) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       await showDialog(
           context: context,
           builder: (_) =>
               const SuccessDialog(message: 'Document uploaded successfully.'));
-      if (!context.mounted) return;
+      if (!mounted) return;
       Navigator.of(context).pop();
     } else {
-      if (!context.mounted) return;
+      if (!mounted) return;
       showDialog(
           context: context,
           builder: (_) => ErrorDialog(

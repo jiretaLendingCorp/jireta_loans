@@ -10,12 +10,12 @@ import '../providers/emp_kyc_provider.dart';
 
 final _empKycDetailProvider =
     FutureProvider.family<Map<String, dynamic>?, String>((ref, lenderId) {
-  return ref.read(empKycProvider.notifier).getStatus(lenderId);
+  return ref.read(empKycProvider.notifier).getDetails(lenderId: lenderId);
 });
 
 class EmpKycDetailsScreen extends ConsumerStatefulWidget {
-  final String kycId;
-  const EmpKycDetailsScreen({super.key, required this.kycId});
+  final String lenderId;
+  const EmpKycDetailsScreen({super.key, required this.lenderId});
   @override
   ConsumerState<EmpKycDetailsScreen> createState() => _State();
 }
@@ -32,7 +32,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(_empKycDetailProvider(widget.kycId));
+    final async = ref.watch(_empKycDetailProvider(widget.lenderId));
     return WebScaffold(
       title: 'KYC Review',
       body: async.when(
@@ -112,7 +112,9 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
                           decoration: BoxDecoration(
                               color: AppColors.info.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4)),
-                          child: Text(d['doc_type'] ?? 'Document',
+                          child: Text(
+                              d['document_type'] ?? d['doc_type'] ??
+                                  'Document',
                               style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -124,6 +126,11 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
                     if (d['submitted_at'] != null)
                       Text(
                           'Submitted: ${DateTime.tryParse(d['submitted_at'])?.toDisplayDate ?? '—'}',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary)),
+                    if (d['created_at'] != null && d['submitted_at'] == null)
+                      Text(
+                          'Submitted: ${DateTime.tryParse(d['created_at'])?.toDisplayDate ?? '—'}',
                           style: const TextStyle(
                               fontSize: 12, color: AppColors.textSecondary)),
                     if (d['rejection_notes'] != null &&
@@ -154,7 +161,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
 
   Widget _actionCard(List docs, String kycStatus) {
     final pendingDocs = docs
-        .where((d) => (d as Map<String, dynamic>)['status'] == 'submitted')
+        .where((d) => (d as Map<String, dynamic>)['status'] == 'pending')
         .toList();
     return _Card(
         title: 'Review Actions',
@@ -165,6 +172,17 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
             const Text('Select document to review:',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _busy ? null : () => _verifyAll('verified'),
+              icon: const Icon(Icons.verified_outlined, size: 18),
+              label: Text('Verify All (${pendingDocs.length})'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 12),
             ...pendingDocs.map((doc) {
               final d = doc as Map<String, dynamic>;
               return Padding(
@@ -172,7 +190,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(d['doc_type'] ?? 'Document',
+                      Text(d['document_type'] ?? d['doc_type'] ?? 'Document',
                           style: const TextStyle(
                               fontSize: 13, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
@@ -253,7 +271,22 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
         content: Text(ok ? 'Document $action successfully' : 'Action failed'),
         backgroundColor: ok ? AppColors.success : AppColors.error,
       ));
-      if (ok) ref.invalidate(_empKycDetailProvider(widget.kycId));
+      if (ok) ref.invalidate(_empKycDetailProvider(widget.lenderId));
+    }
+  }
+
+  Future<void> _verifyAll(String action) async {
+    setState(() => _busy = true);
+    final ok = await ref
+        .read(empKycProvider.notifier)
+        .verifyAll(lenderId: widget.lenderId, action: action);
+    if (mounted) {
+      setState(() => _busy = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ok ? 'All documents $action successfully' : 'Action failed'),
+        backgroundColor: ok ? AppColors.success : AppColors.error,
+      ));
+      if (ok) ref.invalidate(_empKycDetailProvider(widget.lenderId));
     }
   }
 

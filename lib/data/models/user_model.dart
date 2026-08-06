@@ -10,6 +10,19 @@ class UserModel extends UserEntity {
   final String? driversLicenseNumber;
   final String? vehicleBrand;
   final String? vehicleType;
+  final String? employmentType;
+  final String? employerName;
+  final double? monthlyIncome;
+  final String? gcashNumber;
+  final String? kycStatus;
+  final DateTime? dateOfBirth;
+  final bool? isBlacklisted;
+  final String? sourceOfFunds;
+  final String? streetAddress;
+  final String? barangay;
+  final String? city;
+  final String? province;
+  final String? zipCode;
 
   const UserModel({
     required super.id,
@@ -33,6 +46,19 @@ class UserModel extends UserEntity {
     this.driversLicenseNumber,
     this.vehicleBrand,
     this.vehicleType,
+    this.employmentType,
+    this.employerName,
+    this.monthlyIncome,
+    this.gcashNumber,
+    this.kycStatus,
+    this.dateOfBirth,
+    this.isBlacklisted,
+    this.sourceOfFunds,
+    this.streetAddress,
+    this.barangay,
+    this.city,
+    this.province,
+    this.zipCode,
   });
 
   String get phone => phoneNumber ?? '';
@@ -65,6 +91,23 @@ class UserModel extends UserEntity {
           json['drivers_license_number'] ?? json['license_number'],
       vehicleBrand: json['vehicle_brand'],
       vehicleType: json['vehicle_type'],
+      employmentType: json['employment_type'],
+      employerName: json['employer_name'],
+      monthlyIncome: json['monthly_income'] != null
+          ? (json['monthly_income'] as num).toDouble()
+          : null,
+      gcashNumber: json['gcash_number'],
+      kycStatus: json['kyc_status'],
+      dateOfBirth: json['date_of_birth'] != null
+          ? DateTime.tryParse(json['date_of_birth'])
+          : null,
+      isBlacklisted: json['is_blacklisted'],
+      sourceOfFunds: json['source_of_funds'],
+      streetAddress: json['street_address'],
+      barangay: json['barangay'],
+      city: json['city'],
+      province: json['province'],
+      zipCode: json['zip_code'],
     );
   }
 
@@ -89,6 +132,19 @@ class UserModel extends UserEntity {
     'drivers_license_number': driversLicenseNumber,
     'vehicle_brand': vehicleBrand,
     'vehicle_type': vehicleType,
+    'employment_type': employmentType,
+    'employer_name': employerName,
+    'monthly_income': monthlyIncome,
+    'gcash_number': gcashNumber,
+    'kyc_status': kycStatus,
+    'date_of_birth': dateOfBirth?.toIso8601String(),
+    'is_blacklisted': isBlacklisted,
+    'source_of_funds': sourceOfFunds,
+    'street_address': streetAddress,
+    'barangay': barangay,
+    'city': city,
+    'province': province,
+    'zip_code': zipCode,
   };
 
   UserModel copyWith({
@@ -117,6 +173,27 @@ class UserModel extends UserEntity {
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
       lastLoginAt: lastLoginAt,
       createdAt: createdAt,
+      department: department,
+      position: position,
+      gender: gender,
+      civilStatus: civilStatus,
+      plateNumber: plateNumber,
+      driversLicenseNumber: driversLicenseNumber,
+      vehicleBrand: vehicleBrand,
+      vehicleType: vehicleType,
+      employmentType: employmentType,
+      employerName: employerName,
+      monthlyIncome: monthlyIncome,
+      gcashNumber: gcashNumber,
+      kycStatus: kycStatus,
+      dateOfBirth: dateOfBirth,
+      isBlacklisted: isBlacklisted,
+      sourceOfFunds: sourceOfFunds,
+      streetAddress: streetAddress,
+      barangay: barangay,
+      city: city,
+      province: province,
+      zipCode: zipCode,
     );
   }
 }

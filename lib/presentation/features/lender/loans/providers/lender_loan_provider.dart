@@ -84,6 +84,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState> {
     required double amount,
     required String frequency,
     required String purpose,
+    Map<String, dynamic>? coMaker,
   }) async {
     state = state.copyWith(isSubmitting: true);
     try {
@@ -91,6 +92,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState> {
         amount: amount,
         frequency: frequency,
         purpose: purpose,
+        coMaker: coMaker,
       );
       state = state.copyWith(isSubmitting: false);
       await loadLoans();

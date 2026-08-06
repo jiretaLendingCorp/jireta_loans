@@ -58,18 +58,27 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
   Widget build(BuildContext context) {
     final authAsync = ref.watch(authProvider);
     final isLoading = authAsync.isLoading;
-    final isWide = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
       backgroundColor: AppColors.deepNavy,
-      body: isWide ? _buildWide(isLoading) : _buildNarrow(isLoading),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 800;
+            final isTall = constraints.maxHeight > 620;
+            return isWide
+                ? _buildWide(isLoading)
+                : _buildNarrow(isLoading, compact: !isTall);
+          },
+        ),
+      ),
     );
   }
 
   Widget _buildWide(bool isLoading) {
     return Row(
       children: [
-        Expanded(flex: 5, child: _buildBrandPanel()),
+        Expanded(flex: 5, child: _buildBrandPanel(compact: false)),
         Expanded(
           flex: 4,
           child: Container(
@@ -77,7 +86,10 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
-                child: _buildForm(isLoading),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: _buildForm(isLoading),
+                ),
               ),
             ),
           ),
@@ -86,18 +98,20 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
     );
   }
 
-  Widget _buildNarrow(bool isLoading) {
+  Widget _buildNarrow(bool isLoading, {required bool compact}) {
     return SingleChildScrollView(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
           Container(
             width: double.infinity,
             color: AppColors.deepNavy,
-            child: _buildBrandPanel(),
+            padding: EdgeInsets.symmetric(vertical: compact ? 20 : 28),
+            child: _buildBrandPanel(compact: compact),
           ),
           Container(
             color: AppColors.surfaceWhite,
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
             child: _buildForm(isLoading),
           ),
         ],
@@ -105,27 +119,27 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
     );
   }
 
-  Widget _buildBrandPanel() {
+  Widget _buildBrandPanel({required bool compact}) {
     return Padding(
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 24 : 40),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: compact ? 44 : 56,
+                height: compact ? 44 : 56,
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.gold),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.account_balance,
                   color: AppColors.gold,
-                  size: 32,
+                  size: compact ? 26 : 32,
                 ),
               ),
               const SizedBox(width: 16),
@@ -137,7 +151,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
                     'JIRETA',
                     style: TextStyle(
                       fontFamily: 'PlayfairDisplay',
-                      fontSize: 28,
+                      fontSize: 26,
                       fontWeight: FontWeight.w700,
                       color: AppColors.gold,
                       letterSpacing: 4,
@@ -146,7 +160,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
                   Text(
                     'LOANS & CREDIT CORP · 1966',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9,
                       color: Colors.white54,
                       letterSpacing: 2,
                     ),
@@ -156,32 +170,40 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 40),
-          const Text(
-            'Enterprise\nLending Platform',
-            style: TextStyle(
-              fontFamily: 'PlayfairDisplay',
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              height: 1.2,
+          if (!compact) ...[
+            const SizedBox(height: 40),
+            const Text(
+              'Enterprise\nLending Platform',
+              style: TextStyle(
+                fontFamily: 'PlayfairDisplay',
+                fontSize: 32,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                height: 1.2,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Secure, compliant, and efficient loan management for your team.',
-            style: TextStyle(fontSize: 14, color: Colors.white60, height: 1.6),
-          ),
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              _featurePill(Icons.verified_user, 'RBAC Security'),
-              const SizedBox(width: 8),
-              _featurePill(Icons.insights, 'Live KPIs'),
-              const SizedBox(width: 8),
-              _featurePill(Icons.receipt_long, 'Audit Logs'),
-            ],
-          ),
+            const SizedBox(height: 16),
+            const Text(
+              'Secure, compliant, and efficient loan management for your team.',
+              style: TextStyle(fontSize: 14, color: Colors.white60, height: 1.6),
+            ),
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                _featurePill(Icons.verified_user, 'RBAC Security'),
+                const SizedBox(width: 8),
+                _featurePill(Icons.insights, 'Live KPIs'),
+                const SizedBox(width: 8),
+                _featurePill(Icons.receipt_long, 'Audit Logs'),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Secure lending management for your team.',
+              style: TextStyle(fontSize: 12, color: Colors.white60, height: 1.4),
+            ),
+          ],
         ],
       ),
     );

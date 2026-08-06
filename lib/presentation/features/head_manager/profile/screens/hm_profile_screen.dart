@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/profile_avatar_upload.dart';
 import '../providers/hm_profile_provider.dart';
 
 class HmProfileScreen extends ConsumerStatefulWidget {
@@ -96,16 +97,13 @@ class _HmProfileScreenState extends ConsumerState<HmProfileScreen> {
       ),
       child: Column(
         children: [
-          CircleAvatar(
+          ProfileAvatarUpload(
+            photoUrl: state.user?.profilePhotoUrl,
+            name: name,
+            color: AppColors.deepNavy,
             radius: 48,
-            backgroundColor: AppColors.deepNavy,
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : 'H',
-              style: const TextStyle(
-                  fontSize: 36,
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700),
-            ),
+            onUploaded: (url) =>
+                ref.read(hmProfileProvider.notifier).updatePhoto(url),
           ),
           const SizedBox(height: 16),
           Text(name,

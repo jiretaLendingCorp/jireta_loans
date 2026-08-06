@@ -26,11 +26,6 @@ const _lenderNavItems = [
       label: 'Payments',
       route: RouteConstants.lenderPayments),
   MobileNavItem(
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications,
-      label: 'Alerts',
-      route: RouteConstants.lenderNotifications),
-  MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
       label: 'Profile',

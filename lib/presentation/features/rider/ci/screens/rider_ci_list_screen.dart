@@ -27,7 +27,6 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
     MobileNavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home', route: RouteConstants.riderDashboard),
     MobileNavItem(icon: Icons.payments_outlined, activeIcon: Icons.payments, label: 'Collections', route: RouteConstants.riderCollections),
     MobileNavItem(icon: Icons.search_outlined, activeIcon: Icons.search, label: 'CI Tasks', route: RouteConstants.riderCi),
-    MobileNavItem(icon: Icons.notifications_outlined, activeIcon: Icons.notifications, label: 'Notifications', route: RouteConstants.riderNotifications),
     MobileNavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile', route: RouteConstants.riderProfile),
   ];
 

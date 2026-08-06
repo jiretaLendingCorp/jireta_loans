@@ -7,6 +7,13 @@ import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString, validatePhone } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 
+// Normalize display values (e.g. "Self-Employed") to the lowercase/underscored
+// form the lender_profiles CHECK constraints expect (e.g. "self_employed").
+function normalizeEnum(value: string | undefined | null): string | null {
+  if (!value) return null;
+  return sanitizeString(value).trim().toLowerCase().replace(/\s+/g, '_');
+}
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -49,25 +56,49 @@ serve(async (req) => {
       await db.from('users').update(updateFields).eq('id', targetId);
     }
 
-    if (body.rider_profile && user.role !== 'lender' && user.role !== 'employee') {
-      const rp = body.rider_profile;
+    // Rider profile — accept both the flat mobile payload and the nested form.
+    if (body.rider_profile || body.plate_number || body.drivers_license_number || body.vehicle_type || body.vehicle_brand) {
+      const rp = body.rider_profile ?? body;
       await db.from('rider_profiles').update({
         vehicle_type: rp.vehicle_type ? sanitizeString(rp.vehicle_type) : undefined,
         plate_number: rp.plate_number ? sanitizeString(rp.plate_number).toUpperCase() : undefined,
         vehicle_brand: rp.vehicle_brand ? sanitizeString(rp.vehicle_brand) : undefined,
+        drivers_license_number: rp.drivers_license_number ? sanitizeString(rp.drivers_license_number) : undefined,
+        drivers_license_expiry: rp.drivers_license_expiry ?? undefined,
       }).eq('id', targetId);
     }
 
-    if (body.lender_profile) {
-      const lp = body.lender_profile;
+    // Lender profile — accept both the flat mobile payload and the nested form.
+    const lp = body.lender_profile ?? (body.gender || body.civil_status || body.dob ||
+      body.date_of_birth || body.employment_type || body.employer_name ||
+      body.monthly_income || body.gcash_number || body.source_of_funds ||
+      body.street_address || body.barangay || body.city || body.province || body.zip_code
+      ? body : null);
+
+    if (lp) {
+      const dob = lp.dob ?? lp.date_of_birth;
       await db.from('lender_profiles').update({
-        gender: lp.gender ? sanitizeString(lp.gender) : undefined,
-        civil_status: lp.civil_status ? sanitizeString(lp.civil_status) : undefined,
-        date_of_birth: lp.dob ? sanitizeString(lp.dob) : undefined,
-        employment_type: lp.employment_type ? sanitizeString(lp.employment_type) : undefined,
+        gender: lp.gender !== undefined && lp.gender !== null && lp.gender !== ''
+          ? (normalizeEnum(lp.gender) ?? undefined)
+          : undefined,
+        civil_status: lp.civil_status !== undefined && lp.civil_status !== null && lp.civil_status !== ''
+          ? (normalizeEnum(lp.civil_status) ?? undefined)
+          : undefined,
+        date_of_birth: dob ? String(dob).substring(0, 10) : undefined,
+        employment_type: lp.employment_type !== undefined && lp.employment_type !== null && lp.employment_type !== ''
+          ? (normalizeEnum(lp.employment_type) ?? undefined)
+          : undefined,
         employer_name: lp.employer_name ? sanitizeString(lp.employer_name) : undefined,
-        monthly_income: lp.monthly_income ? Number(lp.monthly_income) : undefined,
+        monthly_income: lp.monthly_income !== undefined && lp.monthly_income !== null && lp.monthly_income !== ''
+          ? Number(lp.monthly_income)
+          : undefined,
         gcash_number: lp.gcash_number ? sanitizeString(lp.gcash_number) : undefined,
+        source_of_funds: lp.source_of_funds ? normalizeEnum(lp.source_of_funds) : undefined,
+        street_address: lp.street_address ? sanitizeString(lp.street_address) : undefined,
+        barangay: lp.barangay ? sanitizeString(lp.barangay) : undefined,
+        city: lp.city ? sanitizeString(lp.city) : undefined,
+        province: lp.province ? sanitizeString(lp.province) : undefined,
+        zip_code: lp.zip_code ? sanitizeString(lp.zip_code) : undefined,
       }).eq('id', targetId);
     }
 

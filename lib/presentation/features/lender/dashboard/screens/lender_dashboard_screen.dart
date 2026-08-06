@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/models/kpi_lender_model.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
@@ -39,12 +40,6 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
       activeIcon: Icons.payment,
       label: 'Payments',
       route: RouteConstants.lenderPayments,
-    ),
-    MobileNavItem(
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications,
-      label: 'Alerts',
-      route: RouteConstants.lenderNotifications,
     ),
     MobileNavItem(
       icon: Icons.person_outline,
@@ -93,11 +88,11 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                     children: [
                       _WelcomeBanner(kpi: state.kpi),
                       const SizedBox(height: 20),
+                      _KycStatusCard(kpi: state.kpi),
+                      const SizedBox(height: 20),
                       _QuickActions(context: context),
                       const SizedBox(height: 20),
-                      const _SectionLabel('Account Summary'),
-                      const SizedBox(height: 12),
-                      _KpiGrid(kpi: state.kpi),
+                      _MyLoansOverview(kpi: state.kpi),
                       const SizedBox(height: 20),
                       if (state.error != null) _ErrorBanner(state.error!),
                     ],
@@ -174,6 +169,111 @@ class _WelcomeBanner extends StatelessWidget {
             ),
             prefix: '₱',
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KycStatusCard extends StatelessWidget {
+  final KpiLenderModel kpi;
+  const _KycStatusCard({required this.kpi});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = kpi.kycStatus;
+    final isApproved = status == 'verified' || status == 'approved';
+    final isRejected = status == 'rejected';
+    final isSubmitted = status == 'submitted' || status == 'pending';
+
+    final Color bg;
+    final Color fg;
+    final IconData icon;
+    final String title;
+    final String subtitle;
+    final String actionLabel;
+    final VoidCallback? onAction;
+
+    if (isApproved) {
+      bg = AppColors.successLight;
+      fg = AppColors.success;
+      icon = Icons.verified_user_outlined;
+      title = 'KYC Verified';
+      subtitle = 'Your account has been fully verified.';
+      actionLabel = '';
+      onAction = null;
+    } else if (isRejected) {
+      bg = AppColors.errorLight;
+      fg = AppColors.error;
+      icon = Icons.gpp_bad_outlined;
+      title = 'KYC Rejected';
+      subtitle = 'Your KYC submission needs attention. Please resubmit.';
+      actionLabel = 'Resubmit';
+      onAction = () => context.push(RouteConstants.lenderKyc);
+    } else if (isSubmitted) {
+      bg = AppColors.warningLight;
+      fg = AppColors.warning;
+      icon = Icons.hourglass_top_rounded;
+      title = 'KYC Under Review';
+      subtitle = 'Your documents are being reviewed. We\'ll notify you once verified.';
+      actionLabel = 'View Status';
+      onAction = () => context.push(RouteConstants.lenderKycStatus);
+    } else {
+      bg = AppColors.warningLight;
+      fg = AppColors.warning;
+      icon = Icons.verified_user_outlined;
+      title = 'Account Not Verified';
+      subtitle = 'Complete your KYC to start borrowing with Jireta Loans.';
+      actionLabel = 'Verify Now';
+      onAction = () => context.push(RouteConstants.lenderKyc);
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: fg.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: fg.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: fg, size: 26),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          if (onAction != null && actionLabel.isNotEmpty)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(foregroundColor: fg),
+              child: Text(actionLabel),
+            ),
         ],
       ),
     );
@@ -281,114 +381,169 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _KpiGrid extends StatelessWidget {
+class _MyLoansOverview extends StatelessWidget {
   final dynamic kpi;
-  const _KpiGrid({required this.kpi});
+  const _MyLoansOverview({required this.kpi});
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      _KpiItem('Applications', kpi?.totalApplications ?? 0,
-          Icons.description_outlined, AppColors.lenderPurple, false),
-      _KpiItem('Approved', kpi?.totalApproved ?? 0, Icons.check_circle_outline,
-          AppColors.success, false),
-      _KpiItem('Rejected', kpi?.totalRejected ?? 0, Icons.cancel_outlined,
-          AppColors.error, false),
-      _KpiItem('Active', kpi?.totalActive ?? 0, Icons.trending_up,
-          AppColors.warning, false),
-      _KpiItem('Completed', kpi?.totalCompleted ?? 0, Icons.done_all,
-          AppColors.info, false),
-      _KpiItem('Total Borrowed', kpi?.totalBorrowed ?? 0, Icons.account_balance,
-          AppColors.lenderPurple, true),
-      _KpiItem('Total Paid', kpi?.totalPaid ?? 0, Icons.payments,
-          AppColors.success, true),
-      _KpiItem('Interest Paid', kpi?.totalInterestPaid ?? 0, Icons.percent,
-          AppColors.warning, true),
-      _KpiItem('Penalties Paid', kpi?.totalPenaltiesPaid ?? 0,
-          Icons.warning_outlined, AppColors.error, true),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.95,
-      ),
-      itemCount: items.length,
-      itemBuilder: (_, i) => _KpiCard(item: items[i]),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('My Loans'),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.lenderPurple.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.receipt_long_outlined,
+                        color: AppColors.lenderPurple, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Applications Submitted',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${kpi?.totalApplications ?? 0}',
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _MiniBadge(label: 'Active', value: kpi?.totalActive ?? 0),
+                ],
+              ),
+              const Divider(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Approved',
+                      value: kpi?.totalApproved ?? 0,
+                      color: AppColors.success,
+                    ),
+                  ),
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Completed',
+                      value: kpi?.totalCompleted ?? 0,
+                      color: AppColors.info,
+                    ),
+                  ),
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Rejected',
+                      value: kpi?.totalRejected ?? 0,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.payments_outlined,
+                      color: AppColors.lenderPurple, size: 18),
+                  const SizedBox(width: 6),
+                  const Text('Total Paid',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                  const Spacer(),
+                  CountUpAnimation(
+                    value: (kpi?.totalPaid ?? 0).toDouble(),
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success),
+                    prefix: '₱',
+                    compact: true,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _KpiItem {
+class _MiniBadge extends StatelessWidget {
   final String label;
   final num value;
-  final IconData icon;
-  final Color color;
-  final bool isCurrency;
-  const _KpiItem(
-      this.label, this.value, this.icon, this.color, this.isCurrency);
-}
-
-class _KpiCard extends StatelessWidget {
-  final _KpiItem item;
-  const _KpiCard({required this.item});
+  const _MiniBadge({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.lenderPurple.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: item.color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(item.icon, color: item.color, size: 18),
-          ),
-          const SizedBox(height: 8),
-          CountUpAnimation(
-            value: item.value.toDouble(),
-            style: TextStyle(
-              fontSize: item.isCurrency ? 11 : 18,
-              fontWeight: FontWeight.bold,
-              color: item.color,
-            ),
-            prefix: item.isCurrency ? '₱' : '',
-            compact: item.isCurrency,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            item.label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 9,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+      child: Text(
+        '$label · $value',
+        style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.lenderPurple),
       ),
     );
+  }
+}
+
+class _OverviewMetric extends StatelessWidget {
+  final String label;
+  final num value;
+  final Color color;
+  const _OverviewMetric(
+      {required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      CountUpAnimation(
+        value: value.toDouble(),
+        style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color),
+      ),
+      const SizedBox(height: 2),
+      Text(label,
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+    ]);
   }
 }
 

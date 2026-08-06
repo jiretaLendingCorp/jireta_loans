@@ -34,6 +34,7 @@ serve(async (req) => {
     const { data: ci } = await db.from('credit_investigations').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
     const { data: disbursements } = await db.from('disbursements').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
     const { data: penalties } = await db.from('penalty_logs').select('*').eq('loan_id', loanId).order('applied_at', { ascending: false });
+    const { data: coMakers } = await db.from('co_makers').select('*').eq('loan_id', loanId).order('created_at');
 
     const lp = (loan as any).lender_profiles;
     const loanOut: Record<string, unknown> = {
@@ -47,6 +48,7 @@ serve(async (req) => {
       credit_investigations: ci ?? [],
       disbursements: disbursements ?? [],
       penalties: penalties ?? [],
+      co_makers: coMakers ?? [],
     };
 
     return jsonResponse(loanOut);

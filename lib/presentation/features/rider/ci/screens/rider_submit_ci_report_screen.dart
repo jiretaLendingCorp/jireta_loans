@@ -40,11 +40,6 @@ class _RiderSubmitCiReportScreenState
         label: 'CI Tasks',
         route: RouteConstants.riderCi),
     MobileNavItem(
-        icon: Icons.notifications_outlined,
-        activeIcon: Icons.notifications,
-        label: 'Notifications',
-        route: RouteConstants.riderNotifications),
-    MobileNavItem(
         icon: Icons.person_outline,
         activeIcon: Icons.person,
         label: 'Profile',

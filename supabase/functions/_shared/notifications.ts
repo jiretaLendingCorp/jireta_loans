@@ -17,15 +17,19 @@ export async function sendPushNotification(params: {
       .eq('id', params.userId)
       .single();
 
-    await db.from('notifications').insert({
+    const { error } = await db.from('notifications').insert({
       user_id: params.userId,
       title: params.title,
       body: params.body,
       type: params.type,
       reference_id: params.referenceId ?? null,
-      sent_by: params.sentBy ?? null,
+      triggered_by: params.sentBy ?? null,
       is_read: false,
+      sent_at: new Date().toISOString(),
     });
+    if (error) {
+      console.error('Notification insert failed:', error.message);
+    }
 
     if (user?.fcm_token) {
       const fcmKey = Deno.env.get('FCM_SERVER_KEY');
@@ -54,16 +58,20 @@ export async function notifyStaff(params: {
   body: string;
   type: string;
   referenceId?: string;
+  sentBy?: string;
 }): Promise<void> {
   try {
     const db = getAdminClient();
-    const { data: staff } = await db
+    const { data: users } = await db
       .from('users')
-      .select('id, roles!inner(name)')
-      .in('roles.name', ['head_manager', 'employee'])
+      .select('id, roles(name)')
       .eq('account_status', 'active');
 
-    if (!staff) return;
+    const staff = (users ?? []).filter(
+      (u: any) =>
+        u?.roles?.name === 'head_manager' || u?.roles?.name === 'employee'
+    );
+    if (staff.length === 0) return;
     await Promise.all(
       staff.map((u: { id: string }) =>
         sendPushNotification({ ...params, userId: u.id })

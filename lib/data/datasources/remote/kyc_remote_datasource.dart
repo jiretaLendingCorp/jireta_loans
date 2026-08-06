@@ -82,6 +82,20 @@ class KycRemoteDataSource {
     return res.data as Map<String, dynamic>?;
   }
 
+  Future<Map<String, dynamic>?> getDetails({
+    String? kycDocId,
+    String? lenderId,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.kycGetDetails,
+      queryParams: {
+        if (kycDocId != null) 'kyc_doc_id': kycDocId,
+        if (lenderId != null) 'lender_id': lenderId,
+      },
+    );
+    return res.data as Map<String, dynamic>?;
+  }
+
   Future<void> verifyKyc({
     required String kycDocId,
     required String action,
@@ -91,6 +105,21 @@ class KycRemoteDataSource {
       ApiEndpoints.kycVerify,
       data: {
         'kyc_doc_id': kycDocId,
+        'action': action,
+        if (rejectionNotes != null) 'rejection_notes': rejectionNotes,
+      },
+    );
+  }
+
+  Future<void> verifyAllKyc({
+    required String lenderId,
+    required String action,
+    String? rejectionNotes,
+  }) async {
+    await _client.patch(
+      ApiEndpoints.kycVerify,
+      data: {
+        'lender_id': lenderId,
         'action': action,
         if (rejectionNotes != null) 'rejection_notes': rejectionNotes,
       },
@@ -108,7 +137,13 @@ class KycRemoteDataSource {
         rejectionNotes: rejectionNotes,
       );
 
-  Future<void> submitKyc(List<Map<String, dynamic>> documents) async {
-    await _client.post(ApiEndpoints.kycSubmit, data: {'documents': documents});
+  Future<void> submitKyc(
+    List<Map<String, dynamic>> documents, {
+    Map<String, dynamic>? info,
+  }) async {
+    await _client.post(ApiEndpoints.kycSubmit, data: {
+      'documents': documents,
+      if (info != null) ...info,
+    });
   }
 }

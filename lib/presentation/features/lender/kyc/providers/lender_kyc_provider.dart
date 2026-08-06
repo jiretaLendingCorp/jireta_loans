@@ -57,10 +57,13 @@ class LenderKycNotifier extends StateNotifier<LenderKycState> {
     }
   }
 
-  Future<bool> submitKyc(List<Map<String, dynamic>> documents) async {
+  Future<bool> submitKyc(
+    List<Map<String, dynamic>> documents, {
+    Map<String, dynamic>? info,
+  }) async {
     state = state.copyWith(isSubmitting: true);
     try {
-      await _ds.submitKyc(documents);
+      await _ds.submitKyc(documents, info: info);
       state = state.copyWith(isSubmitting: false);
       await loadStatus();
       return true;

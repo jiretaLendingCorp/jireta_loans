@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/lender/notifications/providers/lender_notification_provider.dart';
+import '../../../features/rider/notifications/providers/rider_notification_provider.dart';
+import '../notification_badge.dart';
 
 class MobileScaffold extends ConsumerWidget {
   final String title;
@@ -17,6 +19,7 @@ class MobileScaffold extends ConsumerWidget {
   final bool showBackButton;
   final bool resizeToAvoidBottomInset;
   final bool showBottomNav;
+  final bool showNotificationsBell;
 
   const MobileScaffold({
     super.key,
@@ -29,6 +32,7 @@ class MobileScaffold extends ConsumerWidget {
     this.showBackButton = false,
     this.resizeToAvoidBottomInset = true,
     this.showBottomNav = true,
+    this.showNotificationsBell = true,
   });
 
   @override
@@ -37,6 +41,14 @@ class MobileScaffold extends ConsumerWidget {
     final currentIndex = navItems.indexWhere(
       (item) => path == item.route || path.startsWith('${item.route}/'),
     );
+
+    final isLender = path.startsWith('/lender');
+    final notificationsRoute = isLender
+        ? RouteConstants.lenderNotifications
+        : RouteConstants.riderNotifications;
+    final unreadCount = isLender
+        ? ref.watch(lenderNotificationProvider).unreadCount
+        : ref.watch(riderNotificationProvider).unreadCount;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -60,33 +72,22 @@ class MobileScaffold extends ConsumerWidget {
             ),
           ),
           automaticallyImplyLeading: showBackButton,
-          actions: appBarActions ??
-              [
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, color: Colors.white),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  onSelected: (val) async {
-                    if (val == 'logout') {
-                      await ref.read(authProvider.notifier).logout();
-                      if (context.mounted) {
-                        context.go(RouteConstants.mobileLogin);
-                      }
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'logout',
-                      child: Row(children: [
-                        Icon(Icons.logout, size: 18, color: AppColors.error),
-                        SizedBox(width: 10),
-                        Text('Sign Out',
-                            style: TextStyle(color: AppColors.error)),
-                      ]),
-                    ),
-                  ],
+          actions: [
+            if (showNotificationsBell) ...[
+              IconButton(
+                onPressed: () => context.go(notificationsRoute),
+                icon: NotificationBadge(
+                  count: unreadCount,
+                  child: const Icon(
+                    Icons.notifications_outlined,
+                    color: Colors.white,
+                  ),
                 ),
-              ],
+              ),
+              const SizedBox(width: 4),
+            ],
+            ...?appBarActions,
+          ],
         ),
         body: body,
         floatingActionButton: floatingActionButton,
@@ -228,7 +229,7 @@ class _BottomNav extends StatelessWidget {
 }
 
 // Rider nav builder
-List<MobileNavItem> riderNavItems({int notifBadge = 0}) => [
+List<MobileNavItem> riderNavItems() => [
       const MobileNavItem(
         icon: Icons.home_outlined,
         activeIcon: Icons.home,
@@ -247,13 +248,6 @@ List<MobileNavItem> riderNavItems({int notifBadge = 0}) => [
         label: 'CI Tasks',
         route: RouteConstants.riderCi,
       ),
-      MobileNavItem(
-        icon: Icons.notifications_outlined,
-        activeIcon: Icons.notifications,
-        label: 'Alerts',
-        route: RouteConstants.riderNotifications,
-        badgeCount: notifBadge,
-      ),
       const MobileNavItem(
         icon: Icons.person_outlined,
         activeIcon: Icons.person,
@@ -263,7 +257,7 @@ List<MobileNavItem> riderNavItems({int notifBadge = 0}) => [
     ];
 
 // Lender nav builder
-List<MobileNavItem> lenderNavItems({int notifBadge = 0}) => [
+List<MobileNavItem> lenderNavItems() => [
       const MobileNavItem(
         icon: Icons.home_outlined,
         activeIcon: Icons.home,
@@ -281,13 +275,6 @@ List<MobileNavItem> lenderNavItems({int notifBadge = 0}) => [
         activeIcon: Icons.payments,
         label: 'Payments',
         route: RouteConstants.lenderPayments,
-      ),
-      MobileNavItem(
-        icon: Icons.notifications_outlined,
-        activeIcon: Icons.notifications,
-        label: 'Alerts',
-        route: RouteConstants.lenderNotifications,
-        badgeCount: notifBadge,
       ),
       const MobileNavItem(
         icon: Icons.person_outlined,

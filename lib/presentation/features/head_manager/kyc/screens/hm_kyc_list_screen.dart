@@ -85,7 +85,8 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
             return _KycRow(
               doc: doc,
               onTap: () => context.go(
-                RouteConstants.hmKycDetails.replaceFirst(':id', doc.id),
+                RouteConstants.hmKycDetails.replaceFirst(
+                    ':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId),
               ),
             );
           }).toList(),

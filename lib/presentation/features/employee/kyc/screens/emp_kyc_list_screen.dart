@@ -152,11 +152,13 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
         lender != null ? '${lender['first_name']} ${lender['last_name']}' : '—';
     final submittedAt = kyc['submitted_at'] != null
         ? DateTime.parse(kyc['submitted_at']).toDisplayDate
-        : '—';
+        : kyc['created_at'] != null
+            ? DateTime.tryParse(kyc['created_at'])?.toDisplayDate ?? '—'
+            : '—';
 
     return InkWell(
       onTap: () => context.go(RouteConstants.empKycDetails
-          .replaceFirst(':id', kyc['id'] as String? ?? '')),
+          .replaceFirst(':id', kyc['lender_id'] as String? ?? kyc['id'] as String? ?? '')),
       child: Container(
         color:
             isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
@@ -178,7 +180,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
               ])),
           Expanded(
               flex: 2,
-              child: Text(kyc['doc_type'] ?? '—',
+              child: Text(kyc['document_type'] ?? kyc['doc_type'] ?? '—',
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.textSecondary))),
           Expanded(
@@ -195,7 +197,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
                     size: 18, color: AppColors.info),
                 tooltip: 'Review',
                 onPressed: () => context.go(RouteConstants.empKycDetails
-                    .replaceFirst(':id', kyc['id'] as String? ?? '')),
+                    .replaceFirst(':id', kyc['lender_id'] as String? ?? kyc['id'] as String? ?? '')),
               )),
         ]),
       ),

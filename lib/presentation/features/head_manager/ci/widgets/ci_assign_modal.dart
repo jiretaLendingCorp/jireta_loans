@@ -52,7 +52,9 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
           (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
       setState(() {
         _riders = list
-            .where((r) => r['rider_profile']?['is_available'] == true)
+            .where((r) =>
+                r['rider_profiles']?['is_available'] == true &&
+                r['rider_profiles']?['is_available'] != null)
             .toList();
         _loadingRiders = false;
       });
@@ -247,7 +249,7 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
               items: _riders.map((r) {
                 final firstName = r['first_name'] ?? '';
                 final lastName = r['last_name'] ?? '';
-                final plate = r['rider_profile']?['plate_number'] ?? '';
+                final plate = r['rider_profiles']?['plate_number'] ?? '';
                 return DropdownMenuItem<String>(
                   value: r['id'] as String,
                   child: Text('$firstName $lastName — $plate'),

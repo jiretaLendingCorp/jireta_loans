@@ -22,8 +22,7 @@ void main() async {
 
   await Supabase.initialize(
     url: EnvConfig.supabaseUrl,
-    anonKey: EnvConfig
-        .supabaseAnonKey, // FIX: was `publishableKey` — wrong param name for supabase_flutter 2.x
+    publishableKey: EnvConfig.supabaseAnonKey,
   );
 
   try {

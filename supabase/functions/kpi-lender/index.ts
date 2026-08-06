@@ -53,6 +53,12 @@ serve(async (req) => {
       .select('penalty_amount, loans!penalty_logs_loan_id_fkey(lender_id)')
       .eq('loans.lender_id', lenderId);
 
+    const { data: kycProfile } = await db
+      .from('lender_profiles')
+      .select('kyc_status, is_blacklisted')
+      .eq('id', lenderId)
+      .single();
+
     let totalBorrowed = 0, totalOutstanding = 0, totalInterestPaid = 0;
     (loanData ?? []).forEach((l: any) => {
       totalBorrowed += Number(l.principal_amount);
@@ -78,6 +84,8 @@ serve(async (req) => {
       remaining_balance: totalOutstanding,
       total_interest_paid: Math.max(0, totalInterestPaid),
       total_penalties_paid: totalPenaltiesPaid,
+      kyc_status: kycProfile?.kyc_status ?? 'not_submitted',
+      is_blacklisted: kycProfile?.is_blacklisted ?? false,
     });
   } catch (err) {
     console.error('kpi-lender error:', err);

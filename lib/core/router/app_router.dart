@@ -272,7 +272,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmKycDetails,
           builder: (ctx, s) =>
-              HmKycDetailsScreen(kycId: s.pathParameters['id']!)),
+              HmKycDetailsScreen(lenderId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.hmCi,
           builder: (ctx, s) => const HmCiListScreen()),
@@ -364,7 +364,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.empKycDetails,
           builder: (ctx, s) =>
-              EmpKycDetailsScreen(kycId: s.pathParameters['id']!)),
+              EmpKycDetailsScreen(lenderId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.empCi,
           builder: (ctx, s) => const EmpCiListScreen()),

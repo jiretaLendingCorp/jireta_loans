@@ -32,8 +32,8 @@ serve(async (req) => {
       .single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
-    if (!['under_review', 'ci_assigned'].includes(loan.status)) {
-      return errorResponse('Loan must be under_review to assign CI', 409, 'INVALID_STATUS');
+    if (!['pending', 'under_review', 'ci_required', 'ci_assigned'].includes(loan.status)) {
+      return errorResponse('Loan must be pending or under_review to assign CI', 409, 'INVALID_STATUS');
     }
 
     const { data: rider } = await db
@@ -74,6 +74,7 @@ serve(async (req) => {
       body: 'You have been assigned a credit investigation. Tap to view details.',
       type: 'ci_assigned',
       referenceId: ci.id,
+      sentBy: authResult.id,
     });
 
     await sendPushNotification({
@@ -82,6 +83,7 @@ serve(async (req) => {
       body: `Credit investigation assigned to rider successfully.`,
       type: 'ci_assigned',
       referenceId: ci.id,
+      sentBy: authResult.id,
     });
 
     return jsonResponse({ ci_id: ci.id, message: 'CI assigned successfully' }, 201);

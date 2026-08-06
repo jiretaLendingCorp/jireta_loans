@@ -45,6 +45,11 @@ class HmProfileNotifier extends StateNotifier<HmProfileState> {
     await loadProfile();
   }
 
+  Future<void> updatePhoto(String url) async {
+    await _userDs.updateProfile({'profile_photo_url': url});
+    await loadProfile();
+  }
+
   Future<void> changePassword(
       {required String currentPassword, required String newPassword}) async {
     await _authDs.forceChangePassword(

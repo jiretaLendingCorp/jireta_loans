@@ -4,7 +4,6 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { sendPushNotification } from '../_shared/notifications.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 
 serve(async (req) => {
@@ -42,11 +41,12 @@ serve(async (req) => {
       .insert({
         user_id,
         title,
-        message,
+        body: message,
         type,
         reference_id: reference_id ?? null,
-        sent_by: authResult.id,
+        triggered_by: authResult.id,
         is_read: false,
+        sent_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -54,11 +54,25 @@ serve(async (req) => {
     if (notifErr) return errorResponse('Failed to create notification', 500, 'DB_ERROR');
 
     if (targetUser.fcm_token) {
-      await sendPushNotification(targetUser.fcm_token, title, message, {
-        type,
-        reference_id: reference_id ?? '',
-        notification_id: notification.id,
-      });
+      const fcmKey = Deno.env.get('FCM_SERVER_KEY');
+      if (fcmKey) {
+        try {
+          await fetch('https://fcm.googleapis.com/fcm/send', {
+            method: 'POST',
+            headers: {
+              Authorization: `key=${fcmKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: targetUser.fcm_token,
+              notification: { title, body: message },
+              data: { type, reference_id: reference_id ?? '' },
+            }),
+          });
+        } catch (fcmErr) {
+          console.error('FCM push failed:', fcmErr);
+        }
+      }
     }
 
     await writeAuditLog({

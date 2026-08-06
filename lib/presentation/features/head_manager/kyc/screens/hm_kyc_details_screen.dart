@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
-import '../../../../../data/models/kyc_document_model.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -12,8 +11,8 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 
 class HmKycDetailsScreen extends ConsumerStatefulWidget {
-  final String kycId;
-  const HmKycDetailsScreen({super.key, required this.kycId});
+  final String lenderId;
+  const HmKycDetailsScreen({super.key, required this.lenderId});
 
   @override
   ConsumerState<HmKycDetailsScreen> createState() => _HmKycDetailsScreenState();
@@ -21,7 +20,7 @@ class HmKycDetailsScreen extends ConsumerStatefulWidget {
 
 class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
   final _ds = sl<KycRemoteDataSource>();
-  KycDocumentModel? _doc;
+  Map<String, dynamic>? _data;
   bool _loading = true;
   String? _error;
   final _rejectionCtrl = TextEditingController();
@@ -42,9 +41,9 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final res = await _ds.getKycDetails(kycDocId: widget.kycId);
+      final res = await _ds.getDetails(lenderId: widget.lenderId);
       setState(() {
-        _doc = res;
+        _data = res;
         _loading = false;
       });
     } catch (e) {
@@ -55,7 +54,42 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
     }
   }
 
-  Future<void> _verify(String action) async {
+  Future<void> _verifyAll(String action) async {
+    final pendingDocs =
+        (_data?['documents'] as List? ?? [])
+            .where((d) => (d as Map<String, dynamic>)['status'] == 'pending')
+            .toList();
+    final count = pendingDocs.length;
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Verify All Documents',
+      message: count == 0
+          ? 'No pending documents to verify.'
+          : 'Verify all $count pending KYC documents at once?',
+      confirmLabel: 'Verify All',
+      isDangerous: false,
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      await _ds.verifyAllKyc(
+        lenderId: widget.lenderId,
+        action: action,
+        rejectionNotes: null,
+      );
+      if (mounted) {
+        showSuccessSnackBar(context, 'All documents verified successfully.');
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) showErrorSnackBar(context, 'Action failed: $e');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _verify(String docId, String action) async {
     if (action == 'rejected' && _rejectionCtrl.text.trim().isEmpty) {
       showErrorSnackBar(context, 'Please enter rejection notes.');
       return;
@@ -74,7 +108,7 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
     setState(() => _submitting = true);
     try {
       await _ds.verifyKyc(
-        kycDocId: widget.kycId,
+        kycDocId: docId,
         action: action,
         rejectionNotes:
             action == 'rejected' ? _rejectionCtrl.text.trim() : null,
@@ -102,14 +136,22 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
           ? const ShimmerLoader()
           : _error != null
               ? Center(child: Text(_error!))
-              : _doc == null
-                  ? const Center(child: Text('Document not found.'))
+              : _data == null
+                  ? const Center(child: Text('KYC data not found.'))
                   : _buildContent(),
     );
   }
 
   Widget _buildContent() {
-    final doc = _doc!;
+    final data = _data!;
+    final lender = (data['lender'] as Map<String, dynamic>?) ?? {};
+    final docs = (data['documents'] as List?) ?? [];
+    final contacts = (data['emergency_contacts'] as List?) ?? [];
+    final kycStatus = (data['kyc_status'] as String?) ?? 'pending';
+
+    final pendingDocs =
+        docs.where((d) => (d as Map<String, dynamic>)['status'] == 'pending').toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Row(
@@ -121,53 +163,142 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _SectionCard(
-                  title: 'KYC Document Info',
+                  title: 'Lender Information',
                   child: Column(
                     children: [
-                      _InfoRow('Lender', doc.lenderName),
-                      _InfoRow('Document Type', doc.documentType),
-                      _InfoRow('Status', doc.status),
+                      _InfoRow('Full Name',
+                          '${lender['first_name'] ?? ''} ${lender['middle_name'] ?? ''} ${lender['last_name'] ?? ''}'
+                              .replaceAll(RegExp(r'\s+'), ' ')
+                              .trim()),
+                      _InfoRow('Phone', lender['phone_number'] ?? '—'),
+                      _InfoRow('Email', lender['email'] ?? '—'),
+                      _InfoRow('KYC Status', kycStatus),
                       _InfoRow(
-                        'Submitted',
-                        doc.submittedAt.toString().substring(0, 10),
+                        'Address',
+                        [
+                          lender['street_address'],
+                          lender['barangay'],
+                          lender['city'],
+                          lender['province'],
+                          lender['zip_code'],
+                        ]
+                            .where((e) =>
+                                e != null && e.toString().isNotEmpty)
+                            .join(', ')
+                            .isEmpty
+                            ? '—'
+                            : [
+                                lender['street_address'],
+                                lender['barangay'],
+                                lender['city'],
+                                lender['province'],
+                                lender['zip_code'],
+                              ]
+                                .where((e) =>
+                                    e != null && e.toString().isNotEmpty)
+                                .join(', '),
                       ),
+                      _InfoRow('Source of Funds', lender['source_of_funds'] ?? '—'),
+                      _InfoRow('Employment', lender['employment_type'] ?? '—'),
+                      _InfoRow('Employer', lender['employer_name'] ?? '—'),
+                      _InfoRow('Monthly Income',
+                          lender['monthly_income'] != null
+                              ? '₱${lender['monthly_income']}'
+                              : '—'),
+                      _InfoRow('GCash', lender['gcash_number'] ?? '—'),
+                      _InfoRow('Gender', lender['gender'] ?? '—'),
+                      _InfoRow('Civil Status', lender['civil_status'] ?? '—'),
+                      _InfoRow(
+                          'Date of Birth', lender['date_of_birth'] ?? '—'),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (doc.fileUrl != null)
+                _SectionCard(
+                  title: 'Submitted Documents',
+                  child: docs.isEmpty
+                      ? const Text('No documents submitted.',
+                          style: TextStyle(
+                              color: AppColors.textSecondary, fontSize: 13))
+                      : Column(
+                          children: docs.map((doc) {
+                            final d = doc as Map<String, dynamic>;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: AppColors.border),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          d['document_type'] ?? 'Document',
+                                          style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600),
+                                        ),
+                                      ),
+                                      StatusBadge(status: d['status'] ?? 'pending'),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  if (d['created_at'] != null)
+                                    Text(
+                                      'Submitted: ${d['created_at']}'.substring(0, 32),
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textSecondary),
+                                    ),
+                                  if (d['rejection_notes'] != null &&
+                                      (d['rejection_notes'] as String).isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 6),
+                                      child: Text(
+                                        'Note: ${d['rejection_notes']}',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.error),
+                                      ),
+                                    ),
+                                  if (d['file_url'] != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {},
+                                        icon: const Icon(Icons.open_in_new,
+                                            size: 14),
+                                        label: const Text('View Document',
+                                            style: TextStyle(fontSize: 12)),
+                                        style: OutlinedButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 10, vertical: 6)),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                ),
+                if (contacts.isNotEmpty) ...[
+                  const SizedBox(height: 16),
                   _SectionCard(
-                    title: 'Document Preview',
-                    child: Container(
-                      height: 300,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      alignment: Alignment.center,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.image_outlined,
-                              size: 48, color: AppColors.textTertiary),
-                          const SizedBox(height: 8),
-                          Text(
-                            doc.fileUrl ?? '',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.open_in_new, size: 16),
-                            label: const Text('View Document'),
-                          ),
-                        ],
-                      ),
+                    title: 'Emergency Contact',
+                    child: Column(
+                      children: contacts.map((c) {
+                        final m = c as Map<String, dynamic>;
+                        return _InfoRow(
+                            '${m['name'] ?? '—'} (${m['relationship'] ?? '—'})',
+                            m['phone_number'] ?? '—');
+                      }).toList(),
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -178,53 +309,104 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
               children: [
                 _SectionCard(
                   title: 'Actions',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      StatusBadge(status: doc.status),
-                      const SizedBox(height: 16),
-                      if (doc.status == 'submitted' ||
-                          doc.status == 'pending') ...[
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.riderGreen,
-                          ),
-                          onPressed:
-                              _submitting ? null : () => _verify('verified'),
-                          icon:
-                              const Icon(Icons.check_circle_outline, size: 18),
-                          label: const Text('Verify Document'),
-                        ),
-                        const SizedBox(height: 8),
-                        const Divider(),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _rejectionCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Rejection Notes',
-                            hintText: 'Required when rejecting...',
-                          ),
-                          maxLines: 3,
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                            side: const BorderSide(color: AppColors.error),
-                          ),
-                          onPressed:
-                              _submitting ? null : () => _verify('rejected'),
-                          icon: const Icon(Icons.cancel_outlined, size: 18),
-                          label: const Text('Reject Document'),
-                        ),
-                      ] else
-                        Text(
-                          'This document has been ${doc.status}.',
+                  child: pendingDocs.isEmpty
+                      ? Text(
+                          docs.isEmpty
+                              ? 'No documents to review yet.'
+                              : 'All documents have been reviewed.',
                           style: const TextStyle(
                               fontSize: 13, color: AppColors.textSecondary),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Pending documents:',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textSecondary),
+                            ),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.success,
+                              ),
+                              onPressed: _submitting
+                                  ? null
+                                  : () => _verifyAll('verified'),
+                              icon: const Icon(
+                                  Icons.verified_outlined,
+                                  size: 18),
+                              label: Text(
+                                  'Verify All (${pendingDocs.length})'),
+                            ),
+                            const Divider(),
+                            ...pendingDocs.map((doc) {
+                              final d = doc as Map<String, dynamic>;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      d['document_type'] ?? 'Document',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.riderGreen,
+                                      ),
+                                      onPressed: _submitting
+                                          ? null
+                                          : () => _verify(
+                                              d['id'] ?? '', 'verified'),
+                                      icon: const Icon(
+                                          Icons.check_circle_outline,
+                                          size: 18),
+                                      label: const Text('Verify Document'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                            const Divider(),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _rejectionCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Rejection Notes',
+                                hintText: 'Required when rejecting...',
+                              ),
+                              maxLines: 3,
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.error,
+                                side:
+                                    const BorderSide(color: AppColors.error),
+                              ),
+                              onPressed: _submitting
+                                  ? null
+                                  : () => _verify(
+                                        pendingDocs.isNotEmpty
+                                            ? (pendingDocs
+                                                    .first as Map<String, dynamic>)['id']
+                                                    ?.toString() ??
+                                                ''
+                                            : '',
+                                        'rejected',
+                                      ),
+                              icon: const Icon(Icons.cancel_outlined, size: 18),
+                              label: const Text('Reject Document'),
+                            ),
+                          ],
                         ),
-                    ],
-                  ),
                 ),
               ],
             ),

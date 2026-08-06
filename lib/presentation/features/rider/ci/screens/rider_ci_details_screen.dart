@@ -68,14 +68,14 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
             images: _pickedImages,
           );
       if (ok) {
-        if (!context.mounted) return;
+        if (!mounted) return;
         setState(() => _pickedImages.clear());
         showDialog(
             context: context,
             builder: (_) => const SuccessDialog(
                 message: 'Documents uploaded successfully'));
       } else {
-        if (!context.mounted) return;
+        if (!mounted) return;
         showDialog(
             context: context,
             builder: (_) =>
@@ -98,19 +98,19 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
             ciId: widget.ciId,
             reportSummary: _reportCtrl.text.trim(),
           );
-      // Use context.mounted (not State.mounted) to guard all async context use
+      // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
-        if (!context.mounted) return;
+        if (!mounted) return;
         await showDialog(
           context: context,
           builder: (_) => const SuccessDialog(
             message: 'CI report submitted successfully',
           ),
         );
-        if (!context.mounted) return;
+        if (!mounted) return;
         context.pop();
       } else {
-        if (!context.mounted) return;
+        if (!mounted) return;
         showDialog(
             context: context,
             builder: (_) =>

@@ -9,6 +9,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/signature_pad.dart';
 import '../../kyc/providers/lender_kyc_provider.dart';
 import '../providers/lender_loan_provider.dart';
 
@@ -25,6 +26,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   String _frequency = 'weekly';
   final _purposeCtrl = TextEditingController();
   bool _previewLoading = false;
+  Map<String, dynamic>? _coMaker;
+  int _step = 0;
+  final _coMakerFormKey = GlobalKey<_CoMakerFormState>();
 
   static const _navItems = [
     MobileNavItem(
@@ -44,12 +48,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       activeIcon: Icons.payment,
       label: 'Payments',
       route: RouteConstants.lenderPayments,
-    ),
-    MobileNavItem(
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications,
-      label: 'Alerts',
-      route: RouteConstants.lenderNotifications,
     ),
     MobileNavItem(
       icon: Icons.person_outline,
@@ -96,6 +94,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       return;
     }
 
+    final cmValid = _coMakerFormKey.currentState?.validate() ?? false;
+    if (!cmValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please complete the co-maker details and signature.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => ConfirmationDialog(
@@ -105,12 +114,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         confirmColor: AppColors.lenderPurple,
       ),
     );
-     if (confirmed != true) return;
+    if (confirmed != true) return;
 
-     final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
+    final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
           amount: _amount,
           frequency: _frequency,
           purpose: _purposeCtrl.text.trim(),
+          coMaker: _coMaker,
         );
 
     if (!mounted) return;
@@ -130,6 +140,245 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     }
   }
 
+  void _goNext() {
+    if (_step == 0) {
+      if (_purposeCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter your loan purpose to continue.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    } else {
+      final valid = _coMakerFormKey.currentState?.validate() ?? false;
+      if (!valid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please complete the co-maker details and signature.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    }
+    setState(() => _step = _step + 1);
+  }
+
+  void _goBack() => setState(() => _step = _step - 1);
+
+  Widget _buildLoanDetailsStep(NumberFormat fmt, Map<String, dynamic>? preview) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _InfoCard(),
+          const SizedBox(height: 20),
+          const _SectionTitle('Loan Amount'),
+          const SizedBox(height: 4),
+          Text(
+            '₱${fmt.format(_amount)}',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: AppColors.lenderPurple,
+            ),
+          ),
+          Slider(
+            value: _amount,
+            min: 3000,
+            max: 500000,
+            divisions: 497,
+            activeColor: AppColors.lenderPurple,
+            inactiveColor: AppColors.lenderPurple.withValues(alpha: 0.2),
+            onChanged: (v) {
+              setState(() => _amount = (v / 1000).round() * 1000.0);
+            },
+            onChangeEnd: (_) => _refreshPreview(),
+          ),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('₱3,000',
+                  style: TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary)),
+              Text('₱500,000',
+                  style: TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const _SectionTitle('Payment Frequency'),
+          const SizedBox(height: 10),
+          Row(
+            children: ['daily', 'weekly', 'monthly'].map((f) {
+              final selected = f == _frequency;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _frequency = f);
+                      _refreshPreview();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.lenderPurple
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: selected
+                              ? AppColors.lenderPurple
+                              : AppColors.border,
+                        ),
+                      ),
+                      child: Text(
+                        f[0].toUpperCase() + f.substring(1),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: selected
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+          const _SectionTitle('Purpose'),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _purposeCtrl,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Enter purpose of loan...',
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.lenderPurple),
+              ),
+            ),
+          ),
+          if (preview != null) ...[
+            const SizedBox(height: 20),
+            _SchedulePreview(preview: preview, loading: _previewLoading),
+          ] else ...[
+            const SizedBox(height: 20),
+            AppButton(
+              label: 'Preview Schedule',
+              onTap: _refreshPreview,
+              color: AppColors.lenderPurpleLight,
+              isLoading: _previewLoading,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoMakerStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle('Co-Maker Information'),
+          const SizedBox(height: 6),
+          const Text(
+            'A co-maker is required for your loan application.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          _CoMakerForm(
+            key: _coMakerFormKey,
+            onChanged: (value) {
+              setState(() => _coMaker = value);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewStep(NumberFormat fmt, Map<String, dynamic>? preview) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle('Review & Confirm'),
+          const SizedBox(height: 12),
+          _ReviewCard(
+            amount: _amount,
+            frequency: _frequency,
+            purpose: _purposeCtrl.text.trim(),
+            coMaker: _coMaker,
+            fmt: fmt,
+          ),
+          if (preview != null) ...[
+            const SizedBox(height: 16),
+            _SchedulePreview(preview: preview, loading: _previewLoading),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWizardBar(LenderLoanState state) {
+    final isLast = _step == 2;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (_step > 0) ...[
+            Expanded(
+              child: AppButton(
+                label: 'Back',
+                variant: AppButtonVariant.outlined,
+                color: AppColors.lenderPurple,
+                onTap: _goBack,
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            flex: 2,
+            child: AppButton(
+              label: isLast ? 'Submit Application' : 'Next',
+              icon: isLast ? Icons.send : Icons.arrow_forward,
+              color: AppColors.lenderPurple,
+              isLoading: state.isSubmitting,
+              onTap: isLast ? _submit : _goNext,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderLoanProvider);
@@ -143,138 +392,272 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       showBackButton: true,
       body: state.activeLoan != null
           ? _ActiveLoanBlock(state.activeLoan!, context)
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _InfoCard(),
-                  const SizedBox(height: 20),
-                  const _SectionTitle('Loan Amount'),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₱${fmt.format(_amount)}',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.lenderPurple,
-                    ),
-                  ),
-                  Slider(
-                    value: _amount,
-                    min: 3000,
-                    max: 500000,
-                    divisions: 497,
-                    activeColor: AppColors.lenderPurple,
-                    inactiveColor: AppColors.lenderPurple.withValues(alpha: 0.2),
-                    onChanged: (v) {
-                      setState(() => _amount = (v / 1000).round() * 1000.0);
-                    },
-                    onChangeEnd: (_) => _refreshPreview(),
-                  ),
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          : Column(
+              children: [
+                _StepIndicator(current: _step),
+                Expanded(
+                  child: IndexedStack(
+                    index: _step,
                     children: [
-                      Text('₱3,000',
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.textSecondary)),
-                      Text('₱500,000',
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.textSecondary)),
+                      _buildLoanDetailsStep(fmt, preview),
+                      _buildCoMakerStep(),
+                      _buildReviewStep(fmt, preview),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  const _SectionTitle('Payment Frequency'),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: ['daily', 'weekly', 'monthly'].map((f) {
-                      final selected = f == _frequency;
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: InkWell(
-                            onTap: () {
-                              setState(() => _frequency = f);
-                              _refreshPreview();
-                            },
-                            borderRadius: BorderRadius.circular(10),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? AppColors.lenderPurple
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: selected
-                                      ? AppColors.lenderPurple
-                                      : AppColors.border,
-                                ),
-                              ),
-                              child: Text(
-                                f[0].toUpperCase() + f.substring(1),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: selected
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                ),
+                _buildWizardBar(state),
+              ],
+            ),
+    );
+  }
+}
+
+class _CoMakerForm extends StatefulWidget {
+  final ValueChanged<Map<String, dynamic>?> onChanged;
+  const _CoMakerForm({super.key, required this.onChanged});
+
+  @override
+  State<_CoMakerForm> createState() => _CoMakerFormState();
+}
+
+class _CoMakerFormState extends State<_CoMakerForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _firstCtrl = TextEditingController();
+  final _lastCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  String? _relationship;
+  DateTime? _dob;
+  String? _dobError;
+  String? _signature;
+  String? _signatureError;
+
+  static const _relationshipOptions = [
+    'Spouse',
+    'Parent',
+    'Sibling',
+    'Child',
+    'Relative',
+    'Friend',
+    'Colleague',
+    'Employer',
+    'Other',
+  ];
+
+  @override
+  void dispose() {
+    _firstCtrl.dispose();
+    _lastCtrl.dispose();
+    _phoneCtrl.dispose();
+    _addressCtrl.dispose();
+    super.dispose();
+  }
+
+  void _emit() {
+    final map = <String, dynamic>{
+      'first_name': _firstCtrl.text.trim(),
+      'last_name': _lastCtrl.text.trim(),
+      'phone_number': _phoneCtrl.text.trim(),
+      'relationship': _relationship,
+      'address': _addressCtrl.text.trim(),
+      'date_of_birth': _dob?.toIso8601String().substring(0, 10),
+      'signature': _signature,
+    };
+    widget.onChanged(map);
+  }
+
+  bool validate() {
+    final dobOk = _dob != null;
+    final sigOk = _signature != null && _signature!.isNotEmpty;
+    setState(() {
+      _dobError = dobOk ? null : 'Date of birth is required';
+      _signatureError =
+          sigOk ? null : 'Co-maker must sign the pad before submission';
+    });
+    final formOk = _formKey.currentState?.validate() ?? false;
+    return formOk && dobOk && sigOk;
+  }
+
+  Future<void> _pickDob() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(1990, 1, 1),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.lenderPurple,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _dob = picked;
+        _dobError = null;
+      });
+      _emit();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.groups_outlined,
+                    color: AppColors.lenderPurple, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Co-Maker',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _firstCtrl,
+              onChanged: (_) => _emit(),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'First name is required'
+                  : null,
+              decoration: _coFieldDeco('First Name'),
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _lastCtrl,
+              onChanged: (_) => _emit(),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Last name is required'
+                  : null,
+              decoration: _coFieldDeco('Last Name'),
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+              onChanged: (_) => _emit(),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Contact number is required';
+                }
+                final digits = v.replaceAll(RegExp(r'\D'), '');
+                if (digits.length != 11 || !digits.startsWith('09')) {
+                  return 'Must be an 11-digit number starting with 09';
+                }
+                return null;
+              },
+              decoration: _coFieldDeco('Contact Number'),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: _relationship,
+              decoration: _coFieldDeco('Relationship'),
+              validator: (v) => v == null ? 'Relationship is required' : null,
+              items: _relationshipOptions
+                  .map((item) =>
+                      DropdownMenuItem(value: item, child: Text(item)))
+                  .toList(),
+              onChanged: (v) {
+                setState(() => _relationship = v);
+                _emit();
+              },
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _addressCtrl,
+              onChanged: (_) => _emit(),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Address is required'
+                  : null,
+              decoration: _coFieldDeco('Address'),
+            ),
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: _pickDob,
+              borderRadius: BorderRadius.circular(10),
+              child: InputDecorator(
+                decoration: _coFieldDeco('Date of Birth').copyWith(
+                  errorText: _dobError,
+                  errorStyle: const TextStyle(fontSize: 12),
+                ),
+                child: Text(
+                  _dob == null
+                      ? 'Select date'
+                      : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    color: _dob == null
+                        ? AppColors.textTertiary
+                        : AppColors.textPrimary,
                   ),
-                  const SizedBox(height: 20),
-                  const _SectionTitle('Purpose'),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _purposeCtrl,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Enter purpose of loan...',
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: AppColors.lenderPurple),
-                      ),
-                    ),
-                  ),
-                  if (preview != null) ...[
-                    const SizedBox(height: 20),
-                    _SchedulePreview(
-                        preview: preview, loading: _previewLoading),
-                  ] else ...[
-                    const SizedBox(height: 20),
-                    AppButton(
-                      label: 'Preview Schedule',
-                      onTap: _refreshPreview,
-                      color: AppColors.lenderPurpleLight,
-                      isLoading: _previewLoading,
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  AppButton(
-                    label: 'Submit Application',
-                    onTap: _submit,
-                    color: AppColors.lenderPurple,
-                    isLoading: state.isSubmitting,
-                    icon: Icons.send,
-                  ),
-                  const SizedBox(height: 32),
-                ],
+                ),
               ),
             ),
+            const SizedBox(height: 14),
+            SignaturePad(
+              onSignatureChanged: (sig) {
+                setState(() {
+                  _signature = sig;
+                  _signatureError =
+                      (sig != null && sig.isNotEmpty)
+                          ? null
+                          : 'Co-maker must sign the pad before submission';
+                });
+                _emit();
+              },
+              height: 160,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'The co-maker signature above serves as consent for this loan.',
+              style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+            ),
+            if (_signatureError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _signatureError!,
+                  style: const TextStyle(fontSize: 12, color: AppColors.error),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _coFieldDeco(String label) {
+    return InputDecoration(
+      labelText: label,
+      isDense: true,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.lenderPurple),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
     );
   }
 }
@@ -454,6 +837,216 @@ class _PreviewRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _StepIndicator extends StatelessWidget {
+  final int current;
+  const _StepIndicator({required this.current});
+
+  static const _labels = ['Loan Details', 'Co-Maker', 'Review'];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+      child: Row(
+        children: [
+          for (int i = 0; i < _labels.length; i++) ...[
+            if (i > 0)
+              Expanded(
+                child: Container(
+                  height: 2,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  color: i <= current
+                      ? AppColors.lenderPurple
+                      : AppColors.border,
+                ),
+              ),
+            _StepDot(
+              index: i,
+              isActive: i == current,
+              isDone: i < current,
+              label: _labels[i],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StepDot extends StatelessWidget {
+  final int index;
+  final bool isActive;
+  final bool isDone;
+  final String label;
+  const _StepDot({
+    required this.index,
+    required this.isActive,
+    required this.isDone,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final highlighted = isActive || isDone;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: isActive ? 32 : 24,
+          height: isActive ? 32 : 24,
+          decoration: BoxDecoration(
+            color: highlighted ? AppColors.lenderPurple : Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: highlighted ? AppColors.lenderPurple : AppColors.border,
+              width: 1.5,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: isDone
+              ? const Icon(Icons.check, color: Colors.white, size: 14)
+              : Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isActive ? Colors.white : AppColors.textSecondary,
+                  ),
+                ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+            color: highlighted ? AppColors.lenderPurple : AppColors.textTertiary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReviewCard extends StatelessWidget {
+  final double amount;
+  final String frequency;
+  final String purpose;
+  final Map<String, dynamic>? coMaker;
+  final NumberFormat fmt;
+  const _ReviewCard({
+    required this.amount,
+    required this.frequency,
+    required this.purpose,
+    required this.coMaker,
+    required this.fmt,
+  });
+
+  String _s(String key) {
+    final v = coMaker?[key];
+    return v?.toString().trim() ?? '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final signed = _s('signature').isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row(
+            'Loan Amount',
+            '₱${fmt.format(amount)}',
+          ),
+          _row(
+            'Payment Frequency',
+            frequency[0].toUpperCase() + frequency.substring(1),
+          ),
+          _row('Purpose', purpose.isEmpty ? '-' : purpose),
+          const Divider(height: 24),
+          const Text(
+            'Co-Maker',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _row(
+              'Full Name', '${_s('first_name')} ${_s('last_name')}'.trim()),
+          _row(
+              'Contact',
+              _s('phone_number').isEmpty ? '-' : _s('phone_number')),
+          _row(
+              'Relationship',
+              _s('relationship').isEmpty ? '-' : _s('relationship')),
+          _row('Address', _s('address').isEmpty ? '-' : _s('address')),
+          _row(
+              'Date of Birth',
+              _s('date_of_birth').isEmpty ? '-' : _s('date_of_birth')),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(
+                signed ? Icons.check_circle : Icons.error_outline,
+                size: 18,
+                color: signed ? AppColors.success : AppColors.error,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                signed
+                    ? 'Co-maker signature provided'
+                    : 'Co-maker signature missing',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: signed ? AppColors.success : AppColors.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 118,
+              child: Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _ActiveLoanBlock extends StatelessWidget {

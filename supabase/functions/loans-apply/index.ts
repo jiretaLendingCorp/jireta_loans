@@ -86,7 +86,8 @@ serve(async (req) => {
     const roleCheck = requireRole(authResult, ROLES.LENDER);
     if (roleCheck) return roleCheck;
 
-    const { principal: principalField, principal_amount, frequency, purpose } = await req.json();
+    const body = await req.json();
+    const { principal: principalField, principal_amount, frequency, purpose, co_maker } = body;
     const principal = principalField ?? principal_amount;
 
     if (!principal || !frequency || !purpose) {
@@ -158,6 +159,34 @@ serve(async (req) => {
     }));
 
     await db.from('loan_schedules').insert(scheduleRows);
+
+    if (co_maker && co_maker.first_name && co_maker.last_name) {
+      const coMakerName = String(co_maker.first_name).trim();
+      const coMakerLast = String(co_maker.last_name).trim();
+      const dateOfBirth = co_maker.date_of_birth
+        ? String(co_maker.date_of_birth).substring(0, 10)
+        : null;
+
+      const { data: coMakerRow, error: coErr } = await db
+        .from('co_makers')
+        .insert({
+          loan_id: loan.id,
+          first_name: coMakerName,
+          last_name: coMakerLast,
+          relationship: co_maker.relationship ? String(co_maker.relationship).trim() : 'Other',
+          phone_number: co_maker.phone_number ? String(co_maker.phone_number).trim() : null,
+          date_of_birth: dateOfBirth,
+          address: co_maker.address ? String(co_maker.address).trim() : null,
+          signature: co_maker.signature ? String(co_maker.signature) : null,
+        })
+        .select()
+        .single();
+
+      if (coMakerErr || !coMakerRow) {
+        console.error('co_maker insert error:', coMakerErr);
+        return errorResponse('Failed to save co-maker details', 500, 'SERVER_ERROR');
+      }
+    }
 
     await writeAuditLog({
       performedBy: lenderId,

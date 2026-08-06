@@ -30,12 +30,38 @@ class _LenderEditProfileScreenState
   final _gcashCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
+  final _streetCtrl = TextEditingController();
+  final _barangayCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _provinceCtrl = TextEditingController();
+  final _zipCtrl = TextEditingController();
 
   String? _gender;
   String? _civilStatus;
   String? _employmentType;
+  String? _sourceOfFunds;
   DateTime? _dob;
+  String? _dobError;
   bool _initialized = false;
+
+  static const _genderOptions = ['Male', 'Female', 'Prefer not to say'];
+  static const _civilOptions = ['Single', 'Married', 'Widowed', 'Separated'];
+  static const _employmentOptions = [
+    'Employed',
+    'Self-Employed',
+    'Business Owner',
+    'OFW',
+    'Freelancer',
+    'Unemployed',
+  ];
+  static const _sourceOfFundsOptions = [
+    'Salary',
+    'Business Income',
+    'Remittance',
+    'Allowance',
+    'Pension',
+    'Other',
+  ];
 
   static const _navItems = [
     MobileNavItem(
@@ -57,12 +83,6 @@ class _LenderEditProfileScreenState
       route: RouteConstants.lenderPayments,
     ),
     MobileNavItem(
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications,
-      label: 'Alerts',
-      route: RouteConstants.lenderNotifications,
-    ),
-    MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
       label: 'Profile',
@@ -76,6 +96,23 @@ class _LenderEditProfileScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) => _initFromState());
   }
 
+  /// Convert a display value (e.g. "Self-Employed", "Prefer not to say") to
+  /// the lowercase/underscored form the lender_profiles CHECK constraints use.
+  String _toDbEnum(String value) {
+    final v = value.trim().toLowerCase().replaceAll(' ', '_');
+    if (v == 'prefer_not_to_say') return 'other';
+    return v;
+  }
+
+  String _fromDbEnum(String? value) {
+    if (value == null || value.isEmpty) return '';
+    final display = value
+        .split('_')
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+    return display == 'Other' ? 'Prefer not to say' : display;
+  }
+
   void _initFromState() {
     if (_initialized) return;
     final user = ref.read(lenderProfileProvider).user;
@@ -83,6 +120,25 @@ class _LenderEditProfileScreenState
     _firstNameCtrl.text = user.firstName;
     _lastNameCtrl.text = user.lastName;
     _middleNameCtrl.text = user.middleName ?? '';
+    _gender = user.gender != null ? _fromDbEnum(user.gender) : null;
+    _civilStatus = user.civilStatus != null ? _fromDbEnum(user.civilStatus) : null;
+    _employmentType =
+        user.employmentType != null ? _fromDbEnum(user.employmentType) : null;
+    _sourceOfFunds =
+        user.sourceOfFunds != null ? _fromDbEnum(user.sourceOfFunds) : null;
+    _dob = user.dateOfBirth;
+    _gcashCtrl.text = user.gcashNumber ?? '';
+    _employerCtrl.text = user.employerName ?? '';
+    _incomeCtrl.text = user.monthlyIncome != null
+        ? (user.monthlyIncome! % 1 == 0
+            ? user.monthlyIncome!.toInt().toString()
+            : user.monthlyIncome.toString())
+        : '';
+    _streetCtrl.text = user.streetAddress ?? '';
+    _barangayCtrl.text = user.barangay ?? '';
+    _cityCtrl.text = user.city ?? '';
+    _provinceCtrl.text = user.province ?? '';
+    _zipCtrl.text = user.zipCode ?? '';
     _initialized = true;
     setState(() {});
   }
@@ -95,6 +151,11 @@ class _LenderEditProfileScreenState
     _gcashCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
+    _streetCtrl.dispose();
+    _barangayCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
+    _zipCtrl.dispose();
     super.dispose();
   }
 
@@ -114,27 +175,39 @@ class _LenderEditProfileScreenState
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _dob = picked);
+    if (picked != null) {
+      setState(() {
+        _dob = picked;
+        _dobError = null;
+      });
+    }
   }
 
   Future<void> _submit() async {
+    setState(() => _dobError = _dob == null ? 'Date of birth is required' : null);
     if (!_formKey.currentState!.validate()) return;
+    if (_dob == null) return;
 
     final payload = <String, dynamic>{
       'first_name': _firstNameCtrl.text.trim(),
       'last_name': _lastNameCtrl.text.trim(),
       if (_middleNameCtrl.text.trim().isNotEmpty)
         'middle_name': _middleNameCtrl.text.trim(),
-      if (_gender != null) 'gender': _gender,
-      if (_civilStatus != null) 'civil_status': _civilStatus,
-      if (_dob != null) 'date_of_birth': DateFormat('yyyy-MM-dd').format(_dob!),
-      if (_gcashCtrl.text.trim().isNotEmpty)
-        'gcash_number': _gcashCtrl.text.trim(),
-      if (_employmentType != null) 'employment_type': _employmentType,
-      if (_employerCtrl.text.trim().isNotEmpty)
+      'lender_profile': {
+        'gender': _toDbEnum(_gender!),
+        'civil_status': _toDbEnum(_civilStatus!),
+        'dob': DateFormat('yyyy-MM-dd').format(_dob!),
+        'employment_type': _toDbEnum(_employmentType!),
         'employer_name': _employerCtrl.text.trim(),
-      if (_incomeCtrl.text.trim().isNotEmpty)
         'monthly_income': double.tryParse(_incomeCtrl.text.trim()),
+        'gcash_number': _gcashCtrl.text.trim(),
+        'source_of_funds': _toDbEnum(_sourceOfFunds ?? 'other'),
+        'street_address': _streetCtrl.text.trim(),
+        'barangay': _barangayCtrl.text.trim(),
+        'city': _cityCtrl.text.trim(),
+        'province': _provinceCtrl.text.trim(),
+        'zip_code': _zipCtrl.text.trim(),
+      },
     };
 
     final ok =
@@ -187,44 +260,57 @@ class _LenderEditProfileScreenState
                         AppTextField(
                           label: 'First Name',
                           controller: _firstNameCtrl,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'First name is required'
-                              : null,
+                          validator: _requiredValidator('First name'),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Middle Name (Optional)',
                           controller: _middleNameCtrl,
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return null;
+                            if (v.trim().length < 2) {
+                              return 'Middle name must be at least 2 characters';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Last Name',
                           controller: _lastNameCtrl,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Last name is required'
-                              : null,
+                          validator: _requiredValidator('Last name'),
                         ),
                         const SizedBox(height: 12),
                         _buildDropdownField(
                           label: 'Gender',
                           value: _gender,
-                          items: const ['Male', 'Female', 'Prefer not to say'],
+                          items: _genderOptions,
+                          validator: (v) =>
+                              v == null ? 'Gender is required' : null,
                           onChanged: (v) => setState(() => _gender = v),
                         ),
                         const SizedBox(height: 12),
                         _buildDropdownField(
                           label: 'Civil Status',
                           value: _civilStatus,
-                          items: const [
-                            'Single',
-                            'Married',
-                            'Widowed',
-                            'Separated'
-                          ],
+                          items: _civilOptions,
+                          validator: (v) =>
+                              v == null ? 'Civil status is required' : null,
                           onChanged: (v) => setState(() => _civilStatus = v),
                         ),
                         const SizedBox(height: 12),
                         _buildDateField(),
+                        if (_dobError != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6, left: 12),
+                            child: Text(
+                              _dobError!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -241,7 +327,9 @@ class _LenderEditProfileScreenState
                             LengthLimitingTextInputFormatter(11),
                           ],
                           validator: (v) {
-                            if (v == null || v.isEmpty) return null;
+                            if (v == null || v.isEmpty) {
+                              return 'GCash number is required';
+                            }
                             if (v.length != 11) {
                               return 'GCash number must be 11 digits';
                             }
@@ -255,20 +343,18 @@ class _LenderEditProfileScreenState
                         _buildDropdownField(
                           label: 'Employment Type',
                           value: _employmentType,
-                          items: const [
-                            'Employed',
-                            'Self-Employed',
-                            'Business Owner',
-                            'OFW',
-                            'Freelancer',
-                            'Unemployed',
-                          ],
-                          onChanged: (v) => setState(() => _employmentType = v),
+                          items: _employmentOptions,
+                          validator: (v) =>
+                              v == null ? 'Employment type is required' : null,
+                          onChanged: (v) =>
+                              setState(() => _employmentType = v),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Employer / Business Name',
                           controller: _employerCtrl,
+                          validator: _requiredValidator(
+                              'Employer / business name'),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
@@ -281,13 +367,61 @@ class _LenderEditProfileScreenState
                                 RegExp(r'[0-9.]')),
                           ],
                           validator: (v) {
-                            if (v == null || v.isEmpty) return null;
-                            final d = double.tryParse(v);
-                            if (d == null || d < 0) {
-                              return 'Enter a valid amount';
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Monthly income is required';
+                            }
+                            final d = double.tryParse(v.trim());
+                            if (d == null || d <= 0) {
+                              return 'Enter a valid amount greater than 0';
                             }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 12),
+                        _buildDropdownField(
+                          label: 'Source of Funds',
+                          value: _sourceOfFunds,
+                          items: _sourceOfFundsOptions,
+                          validator: (v) =>
+                              v == null ? 'Source of funds is required' : null,
+                          onChanged: (v) =>
+                              setState(() => _sourceOfFunds = v),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildSectionCard(
+                      'Residence Address',
+                      Icons.location_on_outlined,
+                      [
+                        AppTextField(
+                          label: 'Street Address',
+                          controller: _streetCtrl,
+                        ),
+                        const SizedBox(height: 12),
+                        AppTextField(
+                          label: 'Barangay',
+                          controller: _barangayCtrl,
+                        ),
+                        const SizedBox(height: 12),
+                        AppTextField(
+                          label: 'City / Municipality',
+                          controller: _cityCtrl,
+                        ),
+                        const SizedBox(height: 12),
+                        AppTextField(
+                          label: 'Province',
+                          controller: _provinceCtrl,
+                        ),
+                        const SizedBox(height: 12),
+                        AppTextField(
+                          label: 'ZIP Code',
+                          controller: _zipCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(4),
+                          ],
                         ),
                       ],
                     ),
@@ -354,6 +488,12 @@ class _LenderEditProfileScreenState
     );
   }
 
+  String? Function(String?) _requiredValidator(String label) {
+    return (v) => (v == null || v.trim().isEmpty)
+        ? '$label is required'
+        : null;
+  }
+
   Widget _buildSectionCard(String title, IconData icon, List<Widget> children) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -405,6 +545,7 @@ class _LenderEditProfileScreenState
     required String label,
     required String? value,
     required List<String> items,
+    required String? Function(String?) validator,
     required void Function(String?) onChanged,
   }) {
     return DropdownButtonFormField<String>(
@@ -426,11 +567,16 @@ class _LenderEditProfileScreenState
           borderSide:
               const BorderSide(color: AppColors.lenderPurple, width: 1.5),
         ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         filled: true,
         fillColor: Colors.white,
       ),
+      validator: validator,
       items: items
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),
@@ -445,7 +591,9 @@ class _LenderEditProfileScreenState
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.border),
+          border: Border.all(
+            color: _dobError != null ? AppColors.error : AppColors.border,
+          ),
           borderRadius: BorderRadius.circular(10),
           color: Colors.white,
         ),
@@ -457,7 +605,7 @@ class _LenderEditProfileScreenState
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Date of Birth',
+                    'Date of Birth *',
                     style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,

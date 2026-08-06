@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -12,6 +13,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_kyc_provider.dart';
@@ -42,11 +44,6 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
         label: 'Payments',
         route: RouteConstants.lenderPayments),
     MobileNavItem(
-        icon: Icons.notifications_outlined,
-        activeIcon: Icons.notifications,
-        label: 'Alerts',
-        route: RouteConstants.lenderNotifications),
-    MobileNavItem(
         icon: Icons.person_outline,
         activeIcon: Icons.person,
         label: 'Profile',
@@ -74,7 +71,48 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
     'proof_of_income': Icons.work_outline,
   };
 
+  final _formKey = GlobalKey<FormState>();
+  final _streetCtrl = TextEditingController();
+  final _barangayCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _provinceCtrl = TextEditingController();
+  final _zipCtrl = TextEditingController();
+  final _ecNameCtrl = TextEditingController();
+  final _ecPhoneCtrl = TextEditingController();
+  String? _sourceOfFunds;
+  String? _ecRelationship;
+
+  static const _sourceOfFundsOptions = [
+    'Salary',
+    'Business Income',
+    'Remittance',
+    'Allowance',
+    'Pension',
+    'Other',
+  ];
+  static const _relationshipOptions = [
+    'Spouse',
+    'Parent',
+    'Sibling',
+    'Child',
+    'Relative',
+    'Friend',
+    'Other',
+  ];
+
   bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _streetCtrl.dispose();
+    _barangayCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
+    _zipCtrl.dispose();
+    _ecNameCtrl.dispose();
+    _ecPhoneCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickFile(String docType) async {
     final result = await FilePicker.platform.pickFiles(
@@ -97,6 +135,8 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
           SnackBar(content: Text('Please upload: ${missing.join(', ')}')));
       return;
     }
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() => _isSubmitting = true);
     try {
       final docs = <Map<String, dynamic>>[];
@@ -115,20 +155,41 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
           if (contentBase64 != null) 'content_base64': contentBase64,
         });
       }
-      final ok = await ref.read(lenderKycProvider.notifier).submitKyc(docs);
-      // Use context.mounted (not State.mounted) to guard all async context use
+
+      final info = <String, dynamic>{
+        'address_info': {
+          'street_address': _streetCtrl.text.trim(),
+          'barangay': _barangayCtrl.text.trim(),
+          'city': _cityCtrl.text.trim(),
+          'province': _provinceCtrl.text.trim(),
+          'zip_code': _zipCtrl.text.trim(),
+        },
+        'source_of_funds': _sourceOfFunds!
+            .toLowerCase()
+            .replaceAll(' ', '_'),
+        'emergency_contact': {
+          'name': _ecNameCtrl.text.trim(),
+          'relationship': _ecRelationship,
+          'phone_number': _ecPhoneCtrl.text.trim(),
+        },
+      };
+
+      final ok = await ref
+          .read(lenderKycProvider.notifier)
+          .submitKyc(docs, info: info);
+      // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
-        if (!context.mounted) return;
+        if (!mounted) return;
         await showDialog(
           context: context,
           builder: (_) => const SuccessDialog(
             message: 'KYC documents submitted successfully. Under review.',
           ),
         );
-        if (!context.mounted) return;
+        if (!mounted) return;
         context.go(RouteConstants.lenderDashboard);
       } else {
-        if (!context.mounted) return;
+        if (!mounted) return;
         showDialog(
           context: context,
           builder: (_) => const ErrorDialog(
@@ -157,6 +218,8 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildStatusBanner(state),
+                  const SizedBox(height: 20),
+                  _buildInformationSection(),
                   const SizedBox(height: 20),
                   const Text('Required Documents',
                       style: TextStyle(
@@ -213,6 +276,206 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildInformationSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.home_outlined,
+                      size: 18, color: AppColors.lenderPurple),
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'Residential & Financial Information',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 16),
+            AppTextField(
+              label: 'Street Address *',
+              controller: _streetCtrl,
+              validator: _required('Street address'),
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'Barangay *',
+              controller: _barangayCtrl,
+              validator: _required('Barangay'),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    label: 'City / Municipality *',
+                    controller: _cityCtrl,
+                    validator: _required('City / municipality'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: AppTextField(
+                    label: 'Province *',
+                    controller: _provinceCtrl,
+                    validator: _required('Province'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'ZIP Code *',
+              controller: _zipCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(4),
+              ],
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'ZIP code is required';
+                }
+                if (v.trim().length != 4) {
+                  return 'ZIP code must be 4 digits';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildDropdown(
+              label: 'Source of Funds *',
+              value: _sourceOfFunds,
+              items: _sourceOfFundsOptions,
+              validator: (v) => v == null ? 'Source of funds is required' : null,
+              onChanged: (v) => setState(() => _sourceOfFunds = v),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Emergency Contact',
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'In case we need to reach someone related to you.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'Contact Name *',
+              controller: _ecNameCtrl,
+              validator: _required('Contact name'),
+            ),
+            const SizedBox(height: 12),
+            _buildDropdown(
+              label: 'Relationship *',
+              value: _ecRelationship,
+              items: _relationshipOptions,
+              validator: (v) => v == null ? 'Relationship is required' : null,
+              onChanged: (v) => setState(() => _ecRelationship = v),
+            ),
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'Contact Phone Number *',
+              controller: _ecPhoneCtrl,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+              ],
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Phone number is required';
+                }
+                if (v.length != 11 || !v.startsWith('09')) {
+                  return 'Must be an 11-digit number starting with 09';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? Function(String?) _required(String label) {
+    return (v) =>
+        (v == null || v.trim().isEmpty) ? '$label is required' : null;
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<String> items,
+    required String? Function(String?) validator,
+    required void Function(String?) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle:
+            const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide:
+              const BorderSide(color: AppColors.lenderPurple, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      validator: validator,
+      items: items
+          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+          .toList(),
+      onChanged: onChanged,
     );
   }
 

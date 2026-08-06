@@ -37,9 +37,27 @@ class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
     }
   }
 
+  Future<bool> verifyAll({required String lenderId, required String action}) async {
+    try {
+      await _ds.verifyAllKyc(lenderId: lenderId, action: action);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>?> getStatus(String lenderId) async {
     try {
       return await _ds.getStatus(lenderId: lenderId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getDetails(
+      {String? kycDocId, String? lenderId}) async {
+    try {
+      return await _ds.getDetails(kycDocId: kycDocId, lenderId: lenderId);
     } catch (e) {
       return null;
     }

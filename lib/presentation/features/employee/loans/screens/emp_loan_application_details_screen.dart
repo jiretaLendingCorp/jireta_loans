@@ -9,6 +9,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../../head_manager/ci/widgets/ci_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
 
 final _empLoanDetailProvider =
@@ -39,8 +40,13 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   Widget _buildContent(
       BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
     final status = data['status'] as String? ?? '';
-    final canAct = ['pending', 'under_review', 'ci_required', 'ci_completed']
-        .contains(status);
+    final canAct = [
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    ].contains(status);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -199,6 +205,19 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   Widget _buildActionPanel(
       BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
     final status = data['status'] as String? ?? '';
+    final canApprove = status == 'ci_completed';
+    final canAssignCi = ['pending', 'under_review', 'ci_required']
+        .contains(status);
+    final canRequestCi = status == 'under_review';
+    final canReject = [
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    ].contains(status);
+    final canCancel = ['pending', 'under_review'].contains(status);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -211,30 +230,50 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                     fontWeight: FontWeight.w700,
                     color: AppColors.deepNavy)),
             const Divider(height: 20),
-            if (['pending', 'under_review', 'ci_completed']
-                .contains(status)) ...[
+            if (canApprove)
               _actionBtn(
                   'Approve Loan',
                   AppColors.success,
                   Icons.check_circle_outline,
                   () => _approve(context, ref, data)),
+            if (canAssignCi) ...[
+              if (canApprove) const SizedBox(height: 10),
+              _actionBtn('Assign Rider for CI', AppColors.gold, Icons.search,
+                  () => _showAssignRider(context, ref, data)),
+            ],
+            if (canRequestCi) ...[
               const SizedBox(height: 10),
               _actionBtn('Request CI', AppColors.lenderPurple, Icons.search,
                   () => _requestCI(context, ref, data)),
-              const SizedBox(height: 10),
             ],
-            if (['pending', 'under_review', 'ci_required']
-                .contains(status)) ...[
+            if (canReject) ...[
+              const SizedBox(height: 10),
               _actionBtn('Reject Loan', AppColors.error, Icons.cancel_outlined,
                   () => _reject(context, ref, data)),
-              const SizedBox(height: 10),
             ],
-            _actionBtn('Cancel', AppColors.textSecondary, Icons.close,
-                () => _cancel(context, ref, data)),
+            if (canCancel) ...[
+              const SizedBox(height: 10),
+              _actionBtn('Cancel', AppColors.textSecondary, Icons.close,
+                  () => _cancel(context, ref, data)),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _showAssignRider(BuildContext context, WidgetRef ref,
+      Map<String, dynamic> data) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => CiAssignModal(loanId: data['id'] as String),
+    );
+    if (assigned == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Rider assigned for credit investigation'),
+          backgroundColor: AppColors.success));
+      ref.invalidate(_empLoanDetailProvider(loanId));
+    }
   }
 
   Widget _actionBtn(

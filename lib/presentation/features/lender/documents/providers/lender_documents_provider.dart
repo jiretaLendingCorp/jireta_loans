@@ -76,9 +76,15 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState> {
       state = state.copyWith(uploadProgress: 0.7);
 
       await _client.post(ApiEndpoints.kycSubmit, data: {
-        'document_type': docType,
-        'file_url': url,
-        'mime_type': mimeType,
+        'documents': [
+          {
+            'document_type': docType,
+            'file_url': url,
+            'file_name': file.path.split('\\').last.split('/').last,
+            'file_size': file.lengthSync(),
+            'mime_type': mimeType,
+          },
+        ],
       });
 
       state = state.copyWith(uploadProgress: 1.0, isUploading: false);

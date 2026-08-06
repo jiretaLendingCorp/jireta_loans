@@ -8,6 +8,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
+import '../../ci/widgets/ci_assign_modal.dart';
 
 class HmLoanApplicationDetailsScreen extends ConsumerStatefulWidget {
   final String loanId;
@@ -86,6 +87,8 @@ class _HmLoanApplicationDetailsScreenState
               Expanded(child: _buildLoanCard(loan, fmt)),
             ],
           ),
+          const SizedBox(height: 20),
+          _buildCoMakerCard(loan),
           const SizedBox(height: 20),
           _buildSchedulePreview(loan, fmt),
           const SizedBox(height: 20),
@@ -176,6 +179,70 @@ class _HmLoanApplicationDetailsScreenState
                     : '-'),
             _row('Blacklisted',
                 profile['is_blacklisted'] == true ? '🔴 Yes' : '🟢 No'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCoMakerCard(Map<String, dynamic> loan) {
+    final coMakers =
+        (loan['co_makers'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    if (coMakers.isEmpty) return const SizedBox.shrink();
+    final cm = coMakers.first;
+    final signature = cm['signature'] as String?;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Co-Maker',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Divider(height: 20),
+            _row(
+                'Name',
+                '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim()),
+            _row('Relationship', cm['relationship'] as String? ?? '-'),
+            _row('Phone', _maskPhone(cm['phone_number'] as String? ?? '')),
+            _row('Birthday', cm['date_of_birth'] as String? ?? '-'),
+            _row('Address', cm['address'] as String? ?? '-'),
+            if (signature != null && signature.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Co-Maker Signature',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              Container(
+                width: 280,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: signature.startsWith('data:') ||
+                        signature.startsWith('http')
+                    ? Image.network(
+                        signature,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Center(
+                            child: Icon(Icons.draw_outlined,
+                                size: 40, color: AppColors.textTertiary)),
+                      )
+                    : const Center(
+                        child: Icon(Icons.draw_outlined,
+                            size: 40, color: AppColors.textTertiary)),
+              ),
+            ],
           ],
         ),
       ),
@@ -277,6 +344,7 @@ class _HmLoanApplicationDetailsScreenState
 
   Widget _buildActionButtons(Map<String, dynamic> loan, String status) {
     final canApprove = status == 'ci_completed';
+    final canAssignCi = ['pending', 'under_review', 'ci_required'].contains(status);
     final canRequestCi = status == 'under_review';
     final canReject = [
       'pending',
@@ -319,6 +387,16 @@ class _HmLoanApplicationDetailsScreenState
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
+                    ),
+                  ),
+                if (canAssignCi)
+                  ElevatedButton.icon(
+                    onPressed: () => _showAssignRider(loan['id'] as String),
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text('Assign Rider for CI'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black87,
                     ),
                   ),
                 if (canRequestCi)
@@ -404,6 +482,22 @@ class _HmLoanApplicationDetailsScreenState
         },
       ),
     );
+  }
+
+  Future<void> _showAssignRider(String loanId) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => CiAssignModal(loanId: loanId),
+    );
+    if (assigned == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rider assigned for credit investigation'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      await _load();
+    }
   }
 
   Future<void> _requestCi(String loanId) async {

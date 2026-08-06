@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/profile_avatar_upload.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../profile/providers/emp_profile_provider.dart';
 
 class EmpProfileScreen extends ConsumerStatefulWidget {
   const EmpProfileScreen({super.key});
@@ -25,6 +29,26 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
   bool _isChangingPassword = false;
 
   @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.read(empProfileProvider.notifier).loadProfile());
+  }
+
+  Future<void> _updatePhoto(String url) async {
+    final ds = sl<UserRemoteDataSource>();
+    await ds.updateProfile({'profile_photo_url': url});
+    await ref.read(empProfileProvider.notifier).loadProfile();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile picture updated'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _currentPassCtrl.dispose();
     _newPassCtrl.dispose();
@@ -34,8 +58,9 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profileState = ref.watch(empProfileProvider);
     final authState = ref.watch(authStateProvider);
-    final user = authState.user;
+    final user = profileState.valueOrNull ?? authState.user;
 
     return WebScaffold(
       title: 'My Profile',
@@ -45,7 +70,8 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildProfileCard(user?.firstName ?? '', user?.lastName ?? '',
-                user?.email ?? '', user?.role ?? ''),
+                user?.email ?? '', user?.role ?? '', user?.profilePhotoUrl,
+                user?.department, user?.position),
             const SizedBox(height: 24),
             _buildChangePasswordCard(),
             const SizedBox(height: 24),
@@ -57,23 +83,19 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
   }
 
   Widget _buildProfileCard(
-      String firstName, String lastName, String email, String role) {
+      String firstName, String lastName, String email, String role,
+      String? photoUrl, String? department, String? position) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Row(
           children: [
-            CircleAvatar(
+            ProfileAvatarUpload(
+              photoUrl: photoUrl,
+              name: firstName,
+              color: AppColors.deepNavy,
               radius: 40,
-              backgroundColor: AppColors.deepNavy,
-              child: Text(
-                firstName.isNotEmpty ? firstName[0].toUpperCase() : 'E',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
+              onUploaded: _updatePhoto,
             ),
             const SizedBox(width: 24),
             Expanded(
@@ -97,22 +119,64 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.deepNavy.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      role.replaceAll('_', ' ').toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.deepNavy,
-                        letterSpacing: 1,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.deepNavy.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          role.replaceAll('_', ' ').toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy,
+                            letterSpacing: 1,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (position != null && position.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            position.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.deepNavy,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      if (department != null && department.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            department.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),

@@ -8,6 +8,7 @@ class CoMakerModel {
   final String? phone;
   final DateTime? dateOfBirth;
   final String? address;
+  final String? signature;
   final DateTime createdAt;
 
   const CoMakerModel({
@@ -19,6 +20,7 @@ class CoMakerModel {
     this.phone,
     this.dateOfBirth,
     this.address,
+    this.signature,
     required this.createdAt,
   });
 
@@ -29,11 +31,12 @@ class CoMakerModel {
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',
       relationship: json['relationship'] ?? '',
-      phone: json['phone'],
+      phone: json['phone_number'] ?? json['phone'],
       dateOfBirth: json['date_of_birth'] != null
           ? DateTime.parse(json['date_of_birth'])
           : null,
       address: json['address'],
+      signature: json['signature'],
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
