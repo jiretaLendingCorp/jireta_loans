@@ -21,14 +21,7 @@ class EmpKycDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _State extends ConsumerState<EmpKycDetailsScreen> {
-  final _remarksCtrl = TextEditingController();
   bool _busy = false;
-
-  @override
-  void dispose() {
-    _remarksCtrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +45,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
     final docs = (data['documents'] as List?) ?? [];
     final lender = data['lender'] as Map<String, dynamic>?;
     final kycStatus = data['kyc_status'] ?? 'pending';
+    final contacts = (data['emergency_contacts'] as List?) ?? [];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -61,6 +55,10 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
             child: Column(children: [
               _infoCard(lender, kycStatus),
               const SizedBox(height: 16),
+              _financialCard(lender),
+              const SizedBox(height: 16),
+              _emergencyCard(contacts),
+              const SizedBox(height: 16),
               _docsCard(docs),
             ])),
         const SizedBox(width: 16),
@@ -69,18 +67,92 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
     );
   }
 
+  String _label(dynamic value) {
+    if (value == null || value.toString().isEmpty) return '—';
+    final s = value.toString();
+    return s
+        .split('_')
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
+  String _address(Map<String, dynamic>? lender) {
+    final parts = [
+      lender?['street_address'],
+      lender?['barangay'],
+      lender?['city'],
+      lender?['province'],
+      lender?['zip_code'],
+    ].where((e) => e != null && e.toString().isNotEmpty).toList();
+    return parts.isEmpty ? '—' : parts.join(', ');
+  }
+
   Widget _infoCard(Map<String, dynamic>? lender, String kycStatus) {
     final name = lender != null
-        ? '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
+        ? [
+            lender['first_name'],
+            lender['middle_name'],
+            lender['last_name'],
+            lender['suffix'],
+          ]
+                .where((e) => e != null && e.toString().isNotEmpty)
+                .join(' ')
+                .trim()
         : 'N/A';
     return _Card(
-        title: 'Lender Information',
+        title: 'Personal Information',
         icon: Icons.person_outline,
         children: [
-          _row('Name', name.trim()),
+          _row('Full Name', name),
           _row('Phone', lender?['phone_number'] ?? 'N/A'),
           _row('KYC Status', kycStatus),
+          _row('Gender', _label(lender?['gender'])),
+          _row('Civil Status', _label(lender?['civil_status'])),
+          _row('Date of Birth', lender?['date_of_birth'] ?? '—'),
+          _row('Address', _address(lender)),
         ]);
+  }
+
+  Widget _financialCard(Map<String, dynamic>? lender) {
+    return _Card(
+        title: 'Financial Details',
+        icon: Icons.account_balance_wallet_outlined,
+        children: [
+          _row('Employment', _label(lender?['employment_type'])),
+          _row('Employer', lender?['employer_name'] ?? '—'),
+          _row(
+              'Monthly Income',
+              lender?['monthly_income'] != null
+                  ? '₱${lender?['monthly_income']}'
+                  : '—'),
+          _row('GCash', lender?['gcash_number'] ?? '—'),
+          _row('Source of Funds', _label(lender?['source_of_funds'])),
+        ]);
+  }
+
+  Widget _emergencyCard(List contacts) {
+    if (contacts.isEmpty) {
+      return const _Card(
+          title: 'Emergency Contact',
+          icon: Icons.emergency_outlined,
+          children: [
+            Text('No emergency contact provided',
+                style: TextStyle(color: AppColors.textSecondary))
+          ]);
+    }
+    return _Card(
+        title: 'Emergency Contact',
+        icon: Icons.emergency_outlined,
+        children: contacts.map((c) {
+          final m = c as Map<String, dynamic>;
+          return Column(children: [
+            _row('Name', m['name'] ?? '—'),
+            _row('Relationship', m['relationship'] ?? '—'),
+            _row('Phone', m['phone_number'] ?? '—'),
+            if (m['address'] != null && m['address'].toString().isNotEmpty)
+              _row('Address', m['address'].toString()),
+          ]);
+        }).toList());
   }
 
   Widget _docsCard(List docs) {
@@ -169,7 +241,8 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
         children: [
           const SizedBox(height: 8),
           if (pendingDocs.isNotEmpty) ...[
-            const Text('Select document to review:',
+            const Text(
+                'One action verifies the lender\'s entire KYC submission.',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             const SizedBox(height: 12),
             ElevatedButton.icon(
@@ -182,65 +255,6 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
             ),
-            const SizedBox(height: 12),
-            ...pendingDocs.map((doc) {
-              final d = doc as Map<String, dynamic>;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(d['document_type'] ?? d['doc_type'] ?? 'Document',
-                          style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _remarksCtrl,
-                        maxLines: 2,
-                        decoration: InputDecoration(
-                            hintText: 'Rejection reason (optional)...',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                            contentPadding: const EdgeInsets.all(10)),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Expanded(
-                            child: ElevatedButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () => _verify(d['id'] ?? '', 'verified', null),
-                          icon: const Icon(Icons.check, size: 16),
-                          label: const Text('Verify'),
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.success,
-                              foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 10)),
-                        )),
-                        const SizedBox(width: 8),
-                        Expanded(
-                            child: OutlinedButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () => _verify(
-                                  d['id'] ?? '',
-                                  'rejected',
-                                  _remarksCtrl.text.trim().isEmpty
-                                      ? null
-                                      : _remarksCtrl.text.trim()),
-                          icon: const Icon(Icons.close, size: 16),
-                          label: const Text('Reject'),
-                          style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.error,
-                              side: const BorderSide(color: AppColors.error),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 10)),
-                        )),
-                      ]),
-                    ]),
-              );
-            }),
           ] else
             Container(
                 padding: const EdgeInsets.all(16),
@@ -259,22 +273,6 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
         ]);
   }
 
-  Future<void> _verify(String docId, String action, String? notes) async {
-    if (docId.isEmpty) return;
-    setState(() => _busy = true);
-    final ok = await ref
-        .read(empKycProvider.notifier)
-        .verify(kycDocId: docId, action: action, rejectionNotes: notes);
-    if (mounted) {
-      setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ok ? 'Document $action successfully' : 'Action failed'),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ));
-      if (ok) ref.invalidate(_empKycDetailProvider(widget.lenderId));
-    }
-  }
-
   Future<void> _verifyAll(String action) async {
     setState(() => _busy = true);
     final ok = await ref
@@ -283,7 +281,8 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
     if (mounted) {
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ok ? 'All documents $action successfully' : 'Action failed'),
+        content:
+            Text(ok ? 'All documents $action successfully' : 'Action failed'),
         backgroundColor: ok ? AppColors.success : AppColors.error,
       ));
       if (ok) ref.invalidate(_empKycDetailProvider(widget.lenderId));

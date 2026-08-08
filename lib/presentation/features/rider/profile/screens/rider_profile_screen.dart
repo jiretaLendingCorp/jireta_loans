@@ -134,21 +134,66 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
               child: Form(
                 key: _formKey,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildAvatar(state),
-                    const SizedBox(height: 24),
-                    _buildInfoCard(),
-                    const SizedBox(height: 16),
-                    _buildRiderInfoCard(),
-                    const SizedBox(height: 16),
+                    _buildHeader(state),
+                    const SizedBox(height: 22),
+                    _sectionTitle('Personal Information'),
+                    const SizedBox(height: 10),
+                    _buildFieldCard([
+                      AppTextField(
+                        controller: _firstCtrl,
+                        label: 'First Name',
+                        prefixIcon: Icons.person_outline,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'First name is required'
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+                      AppTextField(
+                        controller: _lastCtrl,
+                        label: 'Last Name',
+                        prefixIcon: Icons.person_outline,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Last name is required'
+                            : null,
+                      ),
+                    ]),
+                    const SizedBox(height: 22),
+                    _sectionTitle('Rider Information'),
+                    const SizedBox(height: 10),
+                    _buildFieldCard([
+                      AppTextField(
+                        controller: _plateCtrl,
+                        label: 'Plate Number',
+                        prefixIcon: Icons.directions_bike_outlined,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Plate number is required'
+                            : null,
+                      ),
+                      const SizedBox(height: 14),
+                      AppTextField(
+                        controller: _licenseCtrl,
+                        label: "Driver's License Number",
+                        prefixIcon: Icons.badge_outlined,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? "Driver's license number is required"
+                            : null,
+                      ),
+                    ]),
+                    const SizedBox(height: 22),
+                    _sectionTitle('Account'),
+                    const SizedBox(height: 10),
                     _buildLegalCard(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 22),
                     AppButton(
                       label: state.isSaving ? 'Saving...' : 'Save Changes',
                       onPressed: state.isSaving ? null : _save,
                       color: AppColors.riderGreen,
+                      isExpanded: true,
+                      icon: Icons.save_outlined,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: _logout,
                       icon: const Icon(Icons.logout, color: AppColors.error),
@@ -156,7 +201,9 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                           style: TextStyle(color: AppColors.error)),
                       style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: AppColors.error),
-                          minimumSize: const Size(double.infinity, 48)),
+                          minimumSize: const Size(double.infinity, 48),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12))),
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -166,36 +213,182 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     );
   }
 
-  Widget _buildAvatar(state) {
-    final name = state.user != null
-        ? '${state.user!.firstName} ${state.user!.lastName}'
-        : 'Rider';
-    return Column(
-      children: [
-        ProfileAvatarUpload(
-          photoUrl: state.user?.profilePhotoUrl,
-          name: name,
-          color: AppColors.riderGreen,
-          radius: 44,
-          onUploaded: _updateAvatar,
+  Widget _buildHeader(state) {
+    final user = state.user;
+    final name =
+        user != null ? '${user.firstName} ${user.lastName}' : 'Rider';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.riderGreen, AppColors.riderGreenDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(height: 12),
-        Text(name,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.riderGreen.withValues(alpha: 0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: _statusPill(user?.accountStatus),
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+            ),
+            child: ProfileAvatarUpload(
+              photoUrl: user?.profilePhotoUrl,
+              name: name,
+              color: AppColors.riderGreen,
+              radius: 38,
+              onUploaded: _updateAvatar,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            name,
+            textAlign: TextAlign.center,
             style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary)),
-        const SizedBox(height: 4),
+              fontFamily: 'PlayfairDisplay',
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _roleChip(Icons.directions_bike, 'Rider'),
+              const SizedBox(width: 8),
+              _roleChip(Icons.verified_outlined, 'CI Collector'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Tap the camera icon to change your profile picture',
+            style: TextStyle(fontSize: 11, color: Colors.white70),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusPill(String? status) {
+    final s = (status ?? 'active').toLowerCase();
+    final label = switch (s) {
+      'active' => 'Active',
+      'suspended' => 'Suspended',
+      'blacklisted' => 'Blacklisted',
+      'deactivated' => 'Deactivated',
+      _ => (status ?? 'Active'),
+    };
+    final color = switch (s) {
+      'active' => AppColors.success,
+      'suspended' => AppColors.warning,
+      'blacklisted' || 'deactivated' => AppColors.error,
+      _ => AppColors.goldLight,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 8, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _roleChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.gold, width: 1),
+        borderRadius: BorderRadius.circular(20),
+        color: AppColors.gold.withValues(alpha: 0.15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.goldLight),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.goldLight),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Row(
+      children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          width: 4,
+          height: 16,
           decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12)),
-          child: const Text('Tap the camera icon to change your profile picture',
-              style: TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
+            color: AppColors.gold,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AppColors.deepNavy,
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFieldCard(List<Widget> children) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(children: children),
     );
   }
 
@@ -208,105 +401,40 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     }
   }
 
-  Widget _buildInfoCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.border)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Personal Information',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary)),
-            const SizedBox(height: 16),
-            AppTextField(
-              controller: _firstCtrl,
-              label: 'First Name',
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'First name is required'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              controller: _lastCtrl,
-              label: 'Last Name',
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Last name is required'
-                  : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRiderInfoCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.border)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Rider Information',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary)),
-            const SizedBox(height: 16),
-            AppTextField(
-              controller: _plateCtrl,
-              label: 'Plate Number',
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Plate number is required'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              controller: _licenseCtrl,
-              label: "Driver's License Number",
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? "Driver's license number is required"
-                  : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildLegalCard() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.border)),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: ListTile(
         leading: Container(
           width: 42,
           height: 42,
           decoration: BoxDecoration(
               color: AppColors.riderGreen.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10)),
+              borderRadius: BorderRadius.circular(12)),
           child: const Icon(Icons.description_outlined,
               color: AppColors.riderGreen, size: 22),
         ),
         title: const Text('Terms & Conditions',
             style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.deepNavy)),
         subtitle: const Text('Review the terms of service',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
         trailing:
-            const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+            const Icon(Icons.chevron_right, color: AppColors.textTertiary),
         onTap: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,

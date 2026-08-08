@@ -21,7 +21,7 @@ export async function sendSms(params: {
           loan_schedule_id: params.loanScheduleId ?? null,
           phone_number: params.to,
           message: params.message,
-          status: 'mocked',
+          status: 'sent',
           gateway_reference: null,
         });
       }

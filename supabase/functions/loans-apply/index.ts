@@ -105,13 +105,20 @@ serve(async (req) => {
 
     const { data: profile } = await db
       .from('lender_profiles')
-      .select('kyc_status, is_blacklisted')
+      .select('kyc_status')
       .eq('id', lenderId)
       .single();
 
     if (!profile) return errorResponse('Lender profile not found', 404, 'NOT_FOUND');
     if (profile.kyc_status !== 'verified') return errorResponse('KYC must be verified before applying', 403, 'KYC_NOT_VERIFIED');
-    if (profile.is_blacklisted) return errorResponse('Account is blacklisted', 403, 'BLACKLISTED');
+
+    const { data: blacklist } = await db
+      .from('blacklist')
+      .select('id')
+      .eq('lender_id', lenderId)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (blacklist) return errorResponse('Account is blacklisted', 403, 'BLACKLISTED');
 
     const { count: activeLoanCount } = await db
       .from('loans')
@@ -134,8 +141,6 @@ serve(async (req) => {
         loan_number: loanNumber,
         principal_amount: Number(principal),
         interest_rate: INTEREST_RATE * 100,
-        total_payable: sched.totalPayable,
-        outstanding_balance: sched.totalPayable,
         payment_frequency: frequency,
         term_days: sched.termDays,
         purpose: String(purpose).substring(0, 500),
@@ -154,8 +159,6 @@ serve(async (req) => {
       installment_number: i + 1,
       due_date: date,
       amount_due: sched.amounts[i],
-      amount_paid: 0,
-      status: 'pending',
     }));
 
     await db.from('loan_schedules').insert(scheduleRows);

@@ -19,10 +19,11 @@ serve(async (req) => {
       .from('loan_schedules')
       .select(
         `id, due_date, amount_due,
-         loan:loans(
+         loan:loans!loan_schedules_loan_id_fkey(
            loan_number, status, outstanding_balance,
-           lender:users!loans_lender_id_fkey(
-             id, first_name, last_name, phone_number
+           lender_profiles!loans_lender_id_fkey(
+             id,
+             users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)
            )
          )`
       )
@@ -46,19 +47,9 @@ serve(async (req) => {
       }).format(Number(schedule.amount_due));
       const message = `Hi ${name}, your Jireta Loans payment of ${amount} is due on ${targetDateStr} (Loan: ${loan.loan_number}). Pay on time to avoid penalties.`;
 
-      const smsResult = await sendSms(lender.phone_number, message);
+      const smsResult = await sendSms({ to: lender.phone_number, message, userId: lender.id, loanScheduleId: schedule.id });
 
-      await db.from('sms_logs').insert({
-        user_id: lender.id,
-        phone_number: lender.phone_number,
-        message_type: 'payment_reminder',
-        message_body: message,
-        status: smsResult.success ? 'sent' : 'failed',
-        provider_response: smsResult.response ?? null,
-        reference_id: schedule.id,
-      });
-
-      results.push({ phone: lender.phone_number, status: smsResult.success ? 'sent' : 'failed' });
+      results.push({ phone: lender.phone_number, status: smsResult ? 'sent' : 'failed' });
     }
 
     return jsonResponse({

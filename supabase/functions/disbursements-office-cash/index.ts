@@ -29,7 +29,7 @@ serve(async (req) => {
 
     const { data: loan, error: loanErr } = await db
       .from('loans')
-      .select('id, loan_number, lender_id, principal_amount, status, disbursement_method')
+      .select('id, loan_number, lender_id, principal_amount, status')
       .eq('id', loan_id)
       .single();
 
@@ -37,7 +37,9 @@ serve(async (req) => {
     if (loan.status !== 'approved') {
       return errorResponse('Loan must be in approved status to disburse', 400, 'INVALID_STATUS');
     }
-    if (loan.disbursement_method) {
+
+    const { count: disbCount } = await db.from('disbursements').select('*', { count: 'exact', head: true }).eq('loan_id', loan_id);
+    if ((disbCount ?? 0) > 0) {
       return errorResponse('Loan has already been disbursed', 400, 'DUPLICATE');
     }
 
@@ -75,7 +77,7 @@ serve(async (req) => {
 
     await db
       .from('loans')
-      .update({ status: 'active', disbursement_method: 'office_cash', disbursed_at: now })
+      .update({ status: 'active' })
       .eq('id', loan_id);
 
     await writeAuditLog({

@@ -23,9 +23,9 @@ serve(async (req) => {
     const offset = (page - 1) * limit;
     const db = getAdminClient();
     let query = db.from('payments')
-      .select(`id, loan_id, loan_schedule_id, amount, payment_method, status, created_at, paid_at, notes, receipt_path, recorded_by,
-        loans!inner(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name)))`, { count: 'exact' });
-    if (user.role === ROLES.LENDER) query = query.eq('loans.lender_id', user.id);
+      .select(`id, loan_schedule_id, amount, payment_method, status, created_at, paid_at, notes, receipt_path, recorded_by,
+        loan_schedules!inner(id, loan_id, loans!inner(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name))))`, { count: 'exact' });
+    if (user.role === ROLES.LENDER) query = query.eq('loan_schedules.loans.lender_id', user.id);
     if (status) query = query.eq('status', status);
     if (method) query = query.eq('payment_method', method);
     if (dateFrom) query = query.gte('created_at', dateFrom);
@@ -34,11 +34,12 @@ serve(async (req) => {
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch payments', 500, 'SERVER_ERROR');
     const mapped = (data ?? []).map((p: any) => {
-      const loan = p.loans ?? null;
+      const schedule = p.loan_schedules ?? null;
+      const loan = schedule?.loans ?? null;
       const lender = loan?.lender_profiles?.users ?? null;
       return {
         id: p.id,
-        loan_id: p.loan_id,
+        loan_id: schedule?.loan_id ?? null,
         loan_schedule_id: p.loan_schedule_id,
         amount: p.amount,
         method: p.payment_method,

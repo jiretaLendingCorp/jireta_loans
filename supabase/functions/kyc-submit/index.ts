@@ -56,7 +56,7 @@ serve(async (req) => {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { documents, address_info, source_of_funds, emergency_contact } = body;
+    const { profile, documents, address_info, source_of_funds, emergency_contact } = body;
 
     if (!documents || !Array.isArray(documents) || documents.length === 0) {
       return errorResponse('At least one document is required', 400, 'VALIDATION_ERROR');
@@ -67,8 +67,32 @@ serve(async (req) => {
       if (!ALLOWED_TYPES.includes(doc.document_type)) return errorResponse(`Invalid document_type: ${doc.document_type}`, 400, 'VALIDATION_ERROR');
     }
 
+    // The lender fills out their ENTIRE profile here during KYC — identity,
+    // personal details, employment, income, GCash. The profile screen is a
+    // read-only view of this data, so nothing may be left blank.
+    const p = profile ?? {};
+    const REQUIRED_PROFILE = [
+      'first_name', 'last_name', 'gender', 'civil_status', 'dob',
+      'employment_type', 'employer_name', 'monthly_income', 'gcash_number',
+    ];
+    for (const f of REQUIRED_PROFILE) {
+      const v = p[f];
+      if (v === undefined || v === null || String(v).trim() === '') {
+        return errorResponse(`Missing required profile field: ${f}`, 400, 'VALIDATION_ERROR');
+      }
+    }
+
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+    // ── 1) Identity (users) — names are captured here in KYC, never auto-filled.
+    const { error: userErr } = await db.from('users').update({
+      first_name: sanitizeString(p.first_name),
+      middle_name: p.middle_name ? sanitizeString(p.middle_name) : null,
+      last_name: sanitizeString(p.last_name),
+      suffix: p.suffix ? sanitizeString(p.suffix) : null,
+    }).eq('id', user.id);
+    if (userErr) console.error('kyc-submit user update error:', userErr.message);
 
     // Upload each document to the kyc-documents storage bucket (service role)
     // and store the returned object path — NOT the raw base64 payload which
@@ -112,19 +136,24 @@ serve(async (req) => {
     const { error: insertErr } = await db.from('kyc_documents').insert(docsToInsert);
     if (insertErr) return errorResponse(`Failed to save KYC documents: ${insertErr.message}`, 500, 'DB_ERROR');
 
-    // Persist the residence / financial information the lender filled in.
-    if (address_info || source_of_funds) {
-      const ai = address_info ?? {};
-      const { error: profileErr } = await db.from('lender_profiles').update({
-        street_address: ai.street_address ? sanitizeString(ai.street_address) : undefined,
-        barangay: ai.barangay ? sanitizeString(ai.barangay) : undefined,
-        city: ai.city ? sanitizeString(ai.city) : undefined,
-        province: ai.province ? sanitizeString(ai.province) : undefined,
-        zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : undefined,
-        source_of_funds: source_of_funds ? normalizeEnum(source_of_funds) : undefined,
-      }).eq('id', user.id);
-      if (profileErr) console.error('kyc-submit profile update error:', profileErr.message);
-    }
+    // ── 2) Lender profile details + residence + source of funds ─────────────
+    const ai = address_info ?? {};
+    const { error: profileErr } = await db.from('lender_profiles').update({
+      gender: normalizeEnum(p.gender),
+      civil_status: normalizeEnum(p.civil_status),
+      date_of_birth: String(p.dob).substring(0, 10),
+      employment_type: normalizeEnum(p.employment_type),
+      employer_name: sanitizeString(p.employer_name),
+      monthly_income: Number(p.monthly_income),
+      gcash_number: sanitizeString(p.gcash_number),
+      source_of_funds: source_of_funds ? normalizeEnum(source_of_funds) : undefined,
+      street_address: ai.street_address ? sanitizeString(ai.street_address) : undefined,
+      barangay: ai.barangay ? sanitizeString(ai.barangay) : undefined,
+      city: ai.city ? sanitizeString(ai.city) : undefined,
+      province: ai.province ? sanitizeString(ai.province) : undefined,
+      zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : undefined,
+    }).eq('id', user.id);
+    if (profileErr) console.error('kyc-submit profile update error:', profileErr.message);
 
     // Emergency contact (one per lender is sufficient for KYC).
     if (emergency_contact?.name && emergency_contact?.phone_number) {

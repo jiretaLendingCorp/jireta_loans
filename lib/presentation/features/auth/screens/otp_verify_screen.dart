@@ -127,9 +127,19 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         c.clear();
       }
       _focusNodes[0].requestFocus();
+      // FIX: surface the REAL server message (e.g. "Unable to sign in") instead
+      // of always claiming the OTP was invalid/expired, which masked the actual
+      // failure behind a hardcoded snackbar.
+      final err = ref.read(authProvider).error;
+      var message = 'Invalid or expired OTP. Please try again.';
+      if (err != null) {
+        message =
+            ref.read(authProvider.notifier).extractErrorMessage(err) ?? message;
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid or expired OTP. Please try again.'),
+        SnackBar(
+          content: Text(message),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),

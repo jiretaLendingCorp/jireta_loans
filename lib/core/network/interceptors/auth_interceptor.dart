@@ -114,6 +114,11 @@ class AuthInterceptor extends Interceptor {
           }
           return handler.resolve(retryResponse);
         }
+        // FIX: 401 without a usable refresh token — the stored access token
+        // can never be repaired (e.g. a magic-link `hashed_token` got saved as
+        // the JWT). Drop the broken session so the next launch forces a clean
+        // login instead of looping on "Invalid JWT format".
+        await SecureStorage.clearAll();
       } catch (_) {
         await SecureStorage.clearAll();
       }

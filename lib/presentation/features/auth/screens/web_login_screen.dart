@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
@@ -131,16 +132,14 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
               Container(
                 width: compact ? 44 : 56,
                 height: compact ? 44 : 56,
+                padding: EdgeInsets.all(compact ? 6 : 8),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.15),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppColors.gold),
                 ),
-                child: Icon(
-                  Icons.account_balance,
-                  color: AppColors.gold,
-                  size: compact ? 26 : 32,
-                ),
+                child: Image.asset(AssetConstants.logoJpg,
+                    fit: BoxFit.contain),
               ),
               const SizedBox(width: 16),
               const Flexible(

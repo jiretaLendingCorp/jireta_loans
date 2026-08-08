@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
+import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
@@ -100,16 +101,21 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                 Container(
                   width: 80,
                   height: 80,
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.15),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.gold, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.account_balance,
-                    size: 44,
-                    color: AppColors.gold,
-                  ),
+                  child: Image.asset(AssetConstants.logoJpg,
+                      fit: BoxFit.contain),
                 ),
                 const SizedBox(height: 16),
                 const Text(

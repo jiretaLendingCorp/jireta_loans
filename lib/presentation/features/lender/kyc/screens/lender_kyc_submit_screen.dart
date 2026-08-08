@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -72,6 +73,13 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
   };
 
   final _formKey = GlobalKey<FormState>();
+  final _firstNameCtrl = TextEditingController();
+  final _middleNameCtrl = TextEditingController();
+  final _lastNameCtrl = TextEditingController();
+  final _suffixCtrl = TextEditingController();
+  final _gcashCtrl = TextEditingController();
+  final _employerCtrl = TextEditingController();
+  final _incomeCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
   final _barangayCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
@@ -79,9 +87,24 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
   final _zipCtrl = TextEditingController();
   final _ecNameCtrl = TextEditingController();
   final _ecPhoneCtrl = TextEditingController();
+  String? _gender;
+  String? _civilStatus;
+  String? _employmentType;
   String? _sourceOfFunds;
   String? _ecRelationship;
+  DateTime? _dob;
+  String? _dobError;
 
+  static const _genderOptions = ['Male', 'Female', 'Prefer not to say'];
+  static const _civilOptions = ['Single', 'Married', 'Widowed', 'Separated'];
+  static const _employmentOptions = [
+    'Employed',
+    'Self-Employed',
+    'Business Owner',
+    'OFW',
+    'Freelancer',
+    'Unemployed',
+  ];
   static const _sourceOfFundsOptions = [
     'Salary',
     'Business Income',
@@ -104,6 +127,13 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
 
   @override
   void dispose() {
+    _firstNameCtrl.dispose();
+    _middleNameCtrl.dispose();
+    _lastNameCtrl.dispose();
+    _suffixCtrl.dispose();
+    _gcashCtrl.dispose();
+    _employerCtrl.dispose();
+    _incomeCtrl.dispose();
     _streetCtrl.dispose();
     _barangayCtrl.dispose();
     _cityCtrl.dispose();
@@ -114,6 +144,14 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
     super.dispose();
   }
 
+  /// Convert a display value (e.g. "Self-Employed", "Prefer not to say") to
+  /// the lowercase/underscored form the lender_profiles CHECK constraints use.
+  String _toDbEnum(String value) {
+    final v = value.trim().toLowerCase().replaceAll(' ', '_');
+    if (v == 'prefer_not_to_say') return 'other';
+    return v;
+  }
+
   Future<void> _pickFile(String docType) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -122,6 +160,30 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
     );
     if (result != null && result.files.isNotEmpty) {
       setState(() => _selectedFiles[docType] = result.files.first);
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dob ?? DateTime(1990),
+      firstDate: DateTime(1920),
+      lastDate: DateTime.now().subtract(const Duration(days: 6570)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.lenderPurple,
+            onPrimary: Colors.white,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _dob = picked;
+        _dobError = null;
+      });
     }
   }
 
@@ -136,6 +198,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
+    if (_dob == null) return;
 
     setState(() => _isSubmitting = true);
     try {
@@ -156,7 +219,24 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
         });
       }
 
-      final info = <String, dynamic>{
+      // Everything the lender fills in KYC lives on their profile — the
+      // profile screen only displays these details afterwards.
+      final payload = <String, dynamic>{
+        'profile': {
+          'first_name': _firstNameCtrl.text.trim(),
+          if (_middleNameCtrl.text.trim().isNotEmpty)
+            'middle_name': _middleNameCtrl.text.trim(),
+          'last_name': _lastNameCtrl.text.trim(),
+          if (_suffixCtrl.text.trim().isNotEmpty)
+            'suffix': _suffixCtrl.text.trim(),
+          'gender': _toDbEnum(_gender!),
+          'civil_status': _toDbEnum(_civilStatus!),
+          'dob': DateFormat('yyyy-MM-dd').format(_dob!),
+          'employment_type': _toDbEnum(_employmentType!),
+          'employer_name': _employerCtrl.text.trim(),
+          'monthly_income': double.tryParse(_incomeCtrl.text.trim()),
+          'gcash_number': _gcashCtrl.text.trim(),
+        },
         'address_info': {
           'street_address': _streetCtrl.text.trim(),
           'barangay': _barangayCtrl.text.trim(),
@@ -164,9 +244,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
           'province': _provinceCtrl.text.trim(),
           'zip_code': _zipCtrl.text.trim(),
         },
-        'source_of_funds': _sourceOfFunds!
-            .toLowerCase()
-            .replaceAll(' ', '_'),
+        'source_of_funds': _toDbEnum(_sourceOfFunds!),
         'emergency_contact': {
           'name': _ecNameCtrl.text.trim(),
           'relationship': _ecRelationship,
@@ -176,7 +254,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
 
       final ok = await ref
           .read(lenderKycProvider.notifier)
-          .submitKyc(docs, info: info);
+          .submitKyc(docs, info: payload);
       // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
         if (!mounted) return;
@@ -280,153 +358,284 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
   }
 
   Widget _buildInformationSection() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        children: [
+          _buildSectionCard(
+            'Personal Information',
+            Icons.person_outline,
+            [
+              AppTextField(
+                label: 'First Name *',
+                controller: _firstNameCtrl,
+                validator: _required('First name'),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Middle Name (Optional)',
+                controller: _middleNameCtrl,
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Last Name *',
+                controller: _lastNameCtrl,
+                validator: _required('Last name'),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Suffix (Optional)',
+                hint: 'e.g. Jr., Sr., III',
+                controller: _suffixCtrl,
+              ),
+              const SizedBox(height: 12),
+              _buildDropdown(
+                label: 'Gender *',
+                value: _gender,
+                items: _genderOptions,
+                validator: (v) => v == null ? 'Gender is required' : null,
+                onChanged: (v) => setState(() => _gender = v),
+              ),
+              const SizedBox(height: 12),
+              _buildDropdown(
+                label: 'Civil Status *',
+                value: _civilStatus,
+                items: _civilOptions,
+                validator: (v) => v == null ? 'Civil status is required' : null,
+                onChanged: (v) => setState(() => _civilStatus = v),
+              ),
+              const SizedBox(height: 12),
+              _buildDateField(),
+              if (_dobError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 12),
+                  child: Text(
+                    _dobError!,
+                    style: const TextStyle(fontSize: 12, color: AppColors.error),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildSectionCard(
+            'Financial Information',
+            Icons.account_balance_wallet_outlined,
+            [
+              AppTextField(
+                label: 'GCash Number *',
+                controller: _gcashCtrl,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'GCash number is required';
+                  }
+                  if (v.length != 11) {
+                    return 'GCash number must be 11 digits';
+                  }
+                  if (!v.startsWith('09')) {
+                    return 'Must start with 09';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildDropdown(
+                label: 'Employment Type *',
+                value: _employmentType,
+                items: _employmentOptions,
+                validator: (v) => v == null ? 'Employment type is required' : null,
+                onChanged: (v) => setState(() => _employmentType = v),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Employer / Business Name *',
+                controller: _employerCtrl,
+                validator: _required('Employer / business name'),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Monthly Income (₱) *',
+                controller: _incomeCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Monthly income is required';
+                  }
+                  final d = double.tryParse(v.trim());
+                  if (d == null || d <= 0) {
+                    return 'Enter a valid amount greater than 0';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildDropdown(
+                label: 'Source of Funds *',
+                value: _sourceOfFunds,
+                items: _sourceOfFundsOptions,
+                validator: (v) => v == null ? 'Source of funds is required' : null,
+                onChanged: (v) => setState(() => _sourceOfFunds = v),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildSectionCard(
+            'Residence Address',
+            Icons.location_on_outlined,
+            [
+              AppTextField(
+                label: 'Street Address *',
+                controller: _streetCtrl,
+                validator: _required('Street address'),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Barangay *',
+                controller: _barangayCtrl,
+                validator: _required('Barangay'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppTextField(
+                      label: 'City / Municipality *',
+                      controller: _cityCtrl,
+                      validator: _required('City / municipality'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: AppTextField(
+                      label: 'Province *',
+                      controller: _provinceCtrl,
+                      validator: _required('Province'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'ZIP Code *',
+                controller: _zipCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'ZIP code is required';
+                  }
+                  if (v.trim().length != 4) {
+                    return 'ZIP code must be 4 digits';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildSectionCard(
+            'Emergency Contact',
+            Icons.emergency_outlined,
+            [
+              const Text(
+                'In case we need to reach someone related to you.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Contact Name *',
+                controller: _ecNameCtrl,
+                validator: _required('Contact name'),
+              ),
+              const SizedBox(height: 12),
+              _buildDropdown(
+                label: 'Relationship *',
+                value: _ecRelationship,
+                items: _relationshipOptions,
+                validator: (v) => v == null ? 'Relationship is required' : null,
+                onChanged: (v) => setState(() => _ecRelationship = v),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Contact Phone Number *',
+                controller: _ecPhoneCtrl,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Phone number is required';
+                  }
+                  if (v.length != 11 || !v.startsWith('09')) {
+                    return 'Must be an 11-digit number starting with 09';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(String title, IconData icon, List<Widget> children) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2)),
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.lenderPurple.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.home_outlined,
-                      size: 18, color: AppColors.lenderPurple),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(width: 10),
-                const Text(
-                  'Residential & Financial Information',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Divider(height: 1, color: AppColors.border),
-            const SizedBox(height: 16),
-            AppTextField(
-              label: 'Street Address *',
-              controller: _streetCtrl,
-              validator: _required('Street address'),
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              label: 'Barangay *',
-              controller: _barangayCtrl,
-              validator: _required('Barangay'),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: AppTextField(
-                    label: 'City / Municipality *',
-                    controller: _cityCtrl,
-                    validator: _required('City / municipality'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: AppTextField(
-                    label: 'Province *',
-                    controller: _provinceCtrl,
-                    validator: _required('Province'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              label: 'ZIP Code *',
-              controller: _zipCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(4),
-              ],
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'ZIP code is required';
-                }
-                if (v.trim().length != 4) {
-                  return 'ZIP code must be 4 digits';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildDropdown(
-              label: 'Source of Funds *',
-              value: _sourceOfFunds,
-              items: _sourceOfFundsOptions,
-              validator: (v) => v == null ? 'Source of funds is required' : null,
-              onChanged: (v) => setState(() => _sourceOfFunds = v),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Emergency Contact',
-              style: TextStyle(
+                child: Icon(icon, size: 18, color: AppColors.lenderPurple),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'In case we need to reach someone related to you.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              label: 'Contact Name *',
-              controller: _ecNameCtrl,
-              validator: _required('Contact name'),
-            ),
-            const SizedBox(height: 12),
-            _buildDropdown(
-              label: 'Relationship *',
-              value: _ecRelationship,
-              items: _relationshipOptions,
-              validator: (v) => v == null ? 'Relationship is required' : null,
-              onChanged: (v) => setState(() => _ecRelationship = v),
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              label: 'Contact Phone Number *',
-              controller: _ecPhoneCtrl,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(11),
-              ],
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Phone number is required';
-                }
-                if (v.length != 11 || !v.startsWith('09')) {
-                  return 'Must be an 11-digit number starting with 09';
-                }
-                return null;
-              },
-            ),
-          ],
-        ),
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 16),
+          ...children,
+        ],
       ),
     );
   }
@@ -476,6 +685,56 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),
       onChanged: onChanged,
+    );
+  }
+
+  Widget _buildDateField() {
+    final fmt = DateFormat('MMMM d, yyyy');
+    return GestureDetector(
+      onTap: _pickDate,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: _dobError != null ? AppColors.error : AppColors.border,
+          ),
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.white,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Date of Birth *',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _dob != null ? fmt.format(_dob!) : 'Select date',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _dob != null
+                          ? AppColors.textPrimary
+                          : AppColors.textTertiary,
+                      fontWeight:
+                          _dob != null ? FontWeight.w500 : FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.calendar_today_outlined,
+                size: 18, color: AppColors.textSecondary),
+          ],
+        ),
+      ),
     );
   }
 

@@ -71,8 +71,7 @@ serve(async (req) => {
     // Lender profile — accept both the flat mobile payload and the nested form.
     const lp = body.lender_profile ?? (body.gender || body.civil_status || body.dob ||
       body.date_of_birth || body.employment_type || body.employer_name ||
-      body.monthly_income || body.gcash_number || body.source_of_funds ||
-      body.street_address || body.barangay || body.city || body.province || body.zip_code
+      body.monthly_income || body.gcash_number || body.source_of_funds
       ? body : null);
 
     if (lp) {
@@ -94,12 +93,45 @@ serve(async (req) => {
           : undefined,
         gcash_number: lp.gcash_number ? sanitizeString(lp.gcash_number) : undefined,
         source_of_funds: lp.source_of_funds ? normalizeEnum(lp.source_of_funds) : undefined,
-        street_address: lp.street_address ? sanitizeString(lp.street_address) : undefined,
-        barangay: lp.barangay ? sanitizeString(lp.barangay) : undefined,
-        city: lp.city ? sanitizeString(lp.city) : undefined,
-        province: lp.province ? sanitizeString(lp.province) : undefined,
-        zip_code: lp.zip_code ? sanitizeString(lp.zip_code) : undefined,
       }).eq('id', targetId);
+    }
+
+    // Address lives in the addresses table now (3NF) — upsert the primary home address.
+    const hasAddressField =
+      body.street_address !== undefined || body.barangay !== undefined ||
+      body.city !== undefined || body.province !== undefined || body.zip_code !== undefined ||
+      lp?.street_address !== undefined || lp?.barangay !== undefined ||
+      lp?.city !== undefined || lp?.province !== undefined || lp?.zip_code !== undefined;
+
+    if (hasAddressField) {
+      const addr = lp ?? body;
+      const { data: existingAddr } = await db
+        .from('addresses')
+        .select('id')
+        .eq('user_id', targetId)
+        .eq('address_type', 'home')
+        .eq('is_primary', true)
+        .maybeSingle();
+      if (existingAddr) {
+        await db.from('addresses').update({
+          street: addr.street_address !== undefined ? sanitizeString(addr.street_address) : undefined,
+          barangay: addr.barangay !== undefined ? sanitizeString(addr.barangay) : undefined,
+          city: addr.city !== undefined ? sanitizeString(addr.city) : undefined,
+          province: addr.province !== undefined ? sanitizeString(addr.province) : undefined,
+          zip_code: addr.zip_code !== undefined ? sanitizeString(addr.zip_code) : undefined,
+        }).eq('id', existingAddr.id);
+      } else if (addr.street_address && addr.barangay && addr.city && addr.province) {
+        await db.from('addresses').insert({
+          user_id: targetId,
+          address_type: 'home',
+          street: sanitizeString(addr.street_address),
+          barangay: sanitizeString(addr.barangay),
+          city: sanitizeString(addr.city),
+          province: sanitizeString(addr.province),
+          zip_code: addr.zip_code ? sanitizeString(addr.zip_code) : null,
+          is_primary: true,
+        });
+      }
     }
 
     if (body.employee_profile && ['head_manager'].includes(user.role)) {

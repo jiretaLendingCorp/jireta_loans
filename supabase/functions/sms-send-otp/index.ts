@@ -16,16 +16,22 @@ serve(async (req) => {
 
     const message = `Your Jireta Loans OTP is: ${otp}. Valid for 5 minutes. Do not share this code.`;
 
-    const result = await sendSms(phone, message);
-    if (!result.success) return errorResponse('Failed to send OTP SMS', 500, 'SMS_ERROR');
+    const result = await sendSms({ to: phone, message });
+    if (!result) return errorResponse('Failed to send OTP SMS', 500, 'SMS_ERROR');
 
     const db = getAdminClient();
+    const { data: user } = await db
+      .from('users')
+      .select('id')
+      .eq('phone_number', phone)
+      .maybeSingle();
+
     await db.from('sms_logs').insert({
+      user_id: user?.id,
       phone_number: phone,
-      message_type: 'otp',
-      message_body: message,
+      message,
       status: 'sent',
-      provider_response: result.response ?? null,
+      gateway_reference: null,
     });
 
     return jsonResponse({ success: true });

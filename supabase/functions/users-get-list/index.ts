@@ -5,6 +5,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
+import { getLenderBlacklistBatch } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -52,7 +53,7 @@ serve(async (req) => {
     let query = db.from('users')
       .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, 
         created_at, last_login_at, roles!users_role_id_fkey(name),
-        lender_profiles!lender_profiles_id_fkey(kyc_status, is_blacklisted, gender),
+        lender_profiles!lender_profiles_id_fkey(kyc_status, gender),
         rider_profiles(vehicle_type, plate_number, is_available),
         employee_profiles(department, position, gender, civil_status)`, { count: 'exact' });
 
@@ -75,13 +76,23 @@ serve(async (req) => {
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch users', 500, 'SERVER_ERROR');
 
-    const mapped = (data ?? []).map((u: any) => ({
-      ...u,
-      phone: u.phone_number,
-      gender: u.lender_profiles?.gender ?? u.employee_profiles?.gender ?? null,
-      department: u.employee_profiles?.department ?? null,
-      position: u.employee_profiles?.position ?? null,
-    }));
+    const blacklistMap = await getLenderBlacklistBatch(
+      db,
+      (data ?? []).filter((u: any) => u.lender_profiles).map((u: any) => u.id),
+    );
+
+    const mapped = (data ?? []).map((u: any) => {
+      const isBlacklisted = u.lender_profiles ? Boolean(blacklistMap[u.id]) : null;
+      return {
+        ...u,
+        lender_profiles: u.lender_profiles ? { ...u.lender_profiles, is_blacklisted: isBlacklisted } : u.lender_profiles,
+        is_blacklisted: isBlacklisted,
+        phone: u.phone_number,
+        gender: u.lender_profiles?.gender ?? u.employee_profiles?.gender ?? null,
+        department: u.employee_profiles?.department ?? null,
+        position: u.employee_profiles?.position ?? null,
+      };
+    });
 
     return jsonResponse({
       data: mapped,

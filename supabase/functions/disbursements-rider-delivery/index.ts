@@ -29,13 +29,15 @@ serve(async (req) => {
 
     const { data: loan } = await db
       .from('loans')
-      .select('id, loan_number, lender_id, principal_amount, status, disbursement_method')
+      .select('id, loan_number, lender_id, principal_amount, status')
       .eq('id', loan_id)
       .single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
     if (loan.status !== 'approved') return errorResponse('Loan must be approved to disburse', 400, 'INVALID_STATUS');
-    if (loan.disbursement_method) return errorResponse('Loan already disbursed', 400, 'DUPLICATE');
+
+    const { count: disbCount } = await db.from('disbursements').select('*', { count: 'exact', head: true }).eq('loan_id', loan_id);
+    if ((disbCount ?? 0) > 0) return errorResponse('Loan already disbursed', 400, 'DUPLICATE');
 
     const { data: rider } = await db
       .from('rider_profiles')

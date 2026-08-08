@@ -6,6 +6,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { getLoanFinancials } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -31,18 +32,20 @@ serve(async (req) => {
     if (existing) return errorResponse('Duplicate request detected', 409, 'IDEMPOTENCY_CONFLICT');
 
     const { data: assignment } = await db.from('collection_assignments')
-      .select('id, status, rider_id, loan_id, loan_schedule_id, assigned_by, loans(lender_id, outstanding_balance)')
+      .select('id, status, rider_id, loan_schedule_id, assigned_by, loan_schedule:loan_schedules(loan_id, loans(lender_id))')
       .eq('id', assignment_id).eq('rider_id', user.id).single();
     if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
     if (!['accepted'].includes(assignment.status)) return errorResponse('Assignment must be accepted first', 400, 'INVALID_STATUS');
 
-    const loanData = (assignment as any).loans;
-    if (amount_collected > loanData.outstanding_balance) return errorResponse('Amount exceeds outstanding balance', 400, 'VALIDATION_ERROR');
+    const loanId = (assignment as any).loan_schedule?.loan_id;
+    const loanData = (assignment as any).loan_schedule?.loans;
+    const financials = await getLoanFinancials(db, loanId);
+    if (!loanId || !loanData || !financials) return errorResponse('Loan not found', 404, 'NOT_FOUND');
+    if (amount_collected > financials.outstanding_balance) return errorResponse('Amount exceeds outstanding balance', 400, 'VALIDATION_ERROR');
 
-    const newBalance = Math.round((loanData.outstanding_balance - amount_collected) * 100) / 100;
+    const newBalance = Math.round((financials.outstanding_balance - amount_collected) * 100) / 100;
 
     const { data: payment, error: payErr } = await db.from('payments').insert({
-      loan_id: assignment.loan_id,
       loan_schedule_id: assignment.loan_schedule_id,
       amount: amount_collected,
       payment_method: 'rider_collection',
@@ -54,8 +57,7 @@ serve(async (req) => {
     }).select('id').single();
     if (payErr) return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
 
-    await db.from('loan_schedules').update({ status: 'paid', paid_at: new Date().toISOString(), amount_paid: amount_collected }).eq('id', assignment.loan_schedule_id);
-    await db.from('loans').update({ outstanding_balance: newBalance, ...(newBalance <= 0 ? { status: 'completed' } : {}) }).eq('id', assignment.loan_id);
+    await db.from('loans').update({ ...(newBalance <= 0 ? { status: 'completed' } : {}) }).eq('id', loanId);
     await db.from('collection_assignments').update({ status: 'in_progress', completed_at: new Date().toISOString(), amount_collected }).eq('id', assignment_id);
 
     await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payment.id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });

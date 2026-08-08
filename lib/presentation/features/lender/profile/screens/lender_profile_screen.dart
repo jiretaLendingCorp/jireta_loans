@@ -72,57 +72,129 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
 
   Widget _buildProfile(dynamic user) {
     final firstName = user.firstName as String? ?? '';
-    final lastName = user.lastName as String? ?? '';
     final phone = user.phoneNumber as String? ?? '';
     final userModel = ref.watch(lenderProfileProvider).user;
+    final accountStatus = user.accountStatus as String?;
+    final fullName = _buildFullName(userModel ?? user);
+    final kycStatus = (userModel?.kycStatus ?? 'pending').toLowerCase();
+    final isVerified = kycStatus == 'verified';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(children: [
-        _buildHeader(firstName, lastName, phone, user.profilePhotoUrl as String?),
-        const SizedBox(height: 20),
-        _buildInfoCard('Personal Details', [
-          _infoRow(Icons.person, 'Full Name', '$firstName $lastName'),
-          _infoRow(Icons.phone, 'Phone', phone.maskPhone()),
-          _infoRow(Icons.wc, 'Gender', _formatLabel(user.gender)),
-          _infoRow(Icons.favorite_border, 'Civil Status',
-              _formatLabel(user.civilStatus)),
-          _infoRow(Icons.cake_outlined, 'Date of Birth',
-              userModel?.dateOfBirth != null
-                  ? _formatDate(userModel!.dateOfBirth!)
-                  : '—'),
-          _infoRow(Icons.location_on_outlined, 'Address',
-              _buildAddress(userModel)),
-        ]),
-        const SizedBox(height: 12),
-        _buildInfoCard('Financial Details', [
-          _infoRow(
-              Icons.account_balance_wallet,
-              'GCash',
-              user.gcashNumber != null
-                  ? (user.gcashNumber as String).maskPhone()
-                  : '—'),
-          _infoRow(Icons.work_outline, 'Employment',
-              _formatLabel(user.employmentType)),
-          _infoRow(Icons.business, 'Employer',
-              user.employerName?.toString() ?? '—'),
-          _infoRow(
-              Icons.payments,
-              'Monthly Income',
-              user.monthlyIncome != null
-                  ? (user.monthlyIncome as num).toDouble().toCurrency
-                  : '—'),
-          _infoRow(Icons.savings_outlined, 'Source of Funds',
-              _formatLabel(user.sourceOfFunds)),
-        ]),
-        const SizedBox(height: 12),
+        _buildHeader(fullName, firstName, phone, user.profilePhotoUrl as String?, accountStatus),
+        const SizedBox(height: 22),
+        _sectionTitle('Verification'),
+        const SizedBox(height: 10),
         _buildKycCard(userModel?.kycStatus),
-        const SizedBox(height: 12),
+        if (!isVerified) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.warningLight,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: AppColors.warning.withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.lock_outline, color: AppColors.warning, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Your personal, financial, and emergency contact details '
+                    'will appear here once your KYC is verified by our staff.',
+                    style: TextStyle(fontSize: 13, color: AppColors.warning),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (isVerified) ...[
+          const SizedBox(height: 22),
+          _sectionTitle('Personal Details'),
+          const SizedBox(height: 10),
+          _buildCard([
+            _infoRow(Icons.person, 'Full Name', fullName),
+            _infoRow(Icons.phone, 'Phone', phone.maskPhone()),
+            _infoRow(Icons.wc, 'Gender', _formatLabel(user.gender)),
+            _infoRow(Icons.favorite_border, 'Civil Status',
+                _formatLabel(user.civilStatus)),
+            _infoRow(Icons.cake_outlined, 'Date of Birth',
+                userModel?.dateOfBirth != null
+                    ? _formatDate(userModel!.dateOfBirth!)
+                    : '—'),
+            _infoRow(Icons.location_on_outlined, 'Address',
+                _buildAddress(userModel)),
+          ]),
+          const SizedBox(height: 22),
+          _sectionTitle('Financial Details'),
+          const SizedBox(height: 10),
+          _buildCard([
+            _infoRow(
+                Icons.account_balance_wallet,
+                'GCash',
+                user.gcashNumber != null
+                    ? (user.gcashNumber as String).maskPhone()
+                    : '—'),
+            _infoRow(Icons.work_outline, 'Employment',
+                _formatLabel(user.employmentType)),
+            _infoRow(Icons.business, 'Employer',
+                user.employerName?.toString() ?? '—'),
+            _infoRow(
+                Icons.payments,
+                'Monthly Income',
+                user.monthlyIncome != null
+                    ? (user.monthlyIncome as num).toDouble().toCurrency
+                    : '—'),
+            _infoRow(Icons.savings_outlined, 'Source of Funds',
+                _formatLabel(user.sourceOfFunds)),
+          ]),
+          const SizedBox(height: 22),
+          _sectionTitle('Emergency Contact'),
+          const SizedBox(height: 10),
+          _buildCard(_buildEmergencyRows(userModel?.emergencyContacts)),
+        ],
+        const SizedBox(height: 22),
+        _sectionTitle('Legal'),
+        const SizedBox(height: 10),
         _buildLegalCard(context),
-        const SizedBox(height: 20),
+        const SizedBox(height: 22),
         _buildActionButton(context),
+        const SizedBox(height: 24),
       ]),
     );
+  }
+
+  String _buildFullName(dynamic user) {
+    final parts = [
+      user?.firstName,
+      user?.middleName,
+      user?.lastName,
+      user?.suffix,
+    ].where((e) => e != null && e.toString().isNotEmpty).toList();
+    return parts.isEmpty ? '—' : parts.join(' ');
+  }
+
+  List<Widget> _buildEmergencyRows(List<Map<String, dynamic>>? contacts) {
+    if (contacts == null || contacts.isEmpty) {
+      return [_infoRow(Icons.emergency_outlined, 'Emergency Contact', '—')];
+    }
+    final c = contacts.first;
+    return [
+      _infoRow(Icons.person_outline, 'Name',
+          c['name']?.toString() ?? '—'),
+      _infoRow(Icons.family_restroom, 'Relationship',
+          c['relationship']?.toString() ?? '—'),
+      _infoRow(Icons.phone, 'Phone',
+          (c['phone_number']?.toString() ?? '').maskPhone()),
+      if (c['address'] != null && c['address'].toString().isNotEmpty)
+        _infoRow(Icons.location_on_outlined, 'Address',
+            c['address'].toString()),
+    ];
   }
 
   String _buildAddress(dynamic user) {
@@ -145,45 +217,184 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     return s.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' ');
   }
 
-  Widget _buildHeader(String firstName, String lastName, String phone, String? photoUrl) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(children: [
-          ProfileAvatarUpload(
-            photoUrl: photoUrl,
-            name: firstName,
-            color: AppColors.lenderPurple,
-            radius: 40,
-            onUploaded: _updateAvatar,
+  Widget _buildHeader(String fullName, String firstName, String phone, String? photoUrl, String? accountStatus) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.lenderPurple, AppColors.lenderPurpleDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.lenderPurple.withValues(alpha: 0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
-          const SizedBox(height: 12),
-          Text('$firstName $lastName',
-              style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.deepNavy)),
-          Text(phone,
-              style: const TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary)),
-          const SizedBox(height: 4),
+        ],
+      ),
+      child: Column(
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: _statusPill(accountStatus),
+          ),
+          const SizedBox(height: 18),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-                color: AppColors.lenderPurple.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20)),
-            child: const Text('Lender',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.lenderPurple)),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+            ),
+            child: ProfileAvatarUpload(
+              photoUrl: photoUrl,
+              name: firstName,
+              color: AppColors.lenderPurple,
+              radius: 38,
+              onUploaded: _updateAvatar,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            fullName,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: 'PlayfairDisplay',
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            phone,
+            style: const TextStyle(fontSize: 13, color: Colors.white70),
           ),
           const SizedBox(height: 8),
-          const Text('Tap the camera icon to change your picture',
-              style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-        ]),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _roleChip(Icons.account_balance, 'Lender'),
+              const SizedBox(width: 8),
+              _roleChip(Icons.verified_outlined, 'Borrower'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Tap the camera icon to change your profile picture',
+            style: TextStyle(fontSize: 11, color: Colors.white70),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _statusPill(String? status) {
+    final s = (status ?? 'active').toLowerCase();
+    final label = switch (s) {
+      'active' => 'Active',
+      'suspended' => 'Suspended',
+      'blacklisted' => 'Blacklisted',
+      'deactivated' => 'Deactivated',
+      _ => (status ?? 'Active'),
+    };
+    final color = switch (s) {
+      'active' => AppColors.success,
+      'suspended' => AppColors.warning,
+      'blacklisted' || 'deactivated' => AppColors.error,
+      _ => AppColors.goldLight,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 8, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _roleChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.gold, width: 1),
+        borderRadius: BorderRadius.circular(20),
+        color: AppColors.gold.withValues(alpha: 0.15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.goldLight),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.goldLight),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: AppColors.gold,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AppColors.deepNavy,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard(List<Widget> rows) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(children: rows),
     );
   }
 
@@ -202,15 +413,27 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         (AppColors.warning, Icons.pending_outlined, 'Under Review'),
       _ => (AppColors.textSecondary, Icons.badge_outlined, 'Not Submitted'),
     };
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: ListTile(
         leading: Container(
           width: 42,
           height: 42,
           decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10)),
+              borderRadius: BorderRadius.circular(12)),
           child: Icon(icon, color: color, size: 22),
         ),
         title: const Text('KYC Verification',
@@ -218,15 +441,36 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
         subtitle: Text('Status: $label',
             style: TextStyle(fontSize: 12, color: color)),
-        trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: color)),
+        ),
         onTap: () => context.push(RouteConstants.lenderKycStatus),
       ),
     );
   }
 
   Widget _buildLegalCard(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: Column(children: [
         ListTile(
           leading: Container(
@@ -234,7 +478,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             height: 42,
             decoration: BoxDecoration(
                 color: AppColors.lenderPurple.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(12)),
             child: const Icon(Icons.description_outlined,
                 color: AppColors.lenderPurple, size: 22),
           ),
@@ -243,7 +487,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                   fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
           subtitle: const Text('Review the terms of the loan service',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary),
           onTap: () => showModalBottomSheet(
             context: context,
             isScrollControlled: true,
@@ -312,7 +556,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             height: 42,
             decoration: BoxDecoration(
                 color: AppColors.lenderPurple.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(12)),
             child: const Icon(Icons.privacy_tip_outlined,
                 color: AppColors.lenderPurple, size: 22),
           ),
@@ -321,7 +565,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                   fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
           subtitle: const Text('How we collect and protect your data',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary),
           onTap: () => showModalBottomSheet(
             context: context,
             isScrollControlled: true,
@@ -352,36 +596,28 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
-  Widget _buildInfoCard(String title, List<Widget> rows) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.deepNavy)),
-          const Divider(height: 20),
-          ...rows,
-        ]),
-      ),
-    );
-  }
-
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(children: [
-        Icon(icon, size: 18, color: AppColors.lenderPurple),
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppColors.lenderPurple.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 17, color: AppColors.lenderPurple),
+        ),
         const SizedBox(width: 12),
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label,
               style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
+                  fontSize: 11, color: AppColors.textTertiary)),
+          const SizedBox(height: 2),
           Text(value,
               style: const TextStyle(
                   fontSize: 14,
@@ -434,4 +670,5 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       ),
     ]);
   }
+
 }

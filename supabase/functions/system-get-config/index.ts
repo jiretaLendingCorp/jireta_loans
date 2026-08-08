@@ -2,7 +2,7 @@
 import { isAuthUser, requireAuth } from '../_shared/auth.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { enforceRole } from '../_shared/rbac.ts';
+import { requireRole, ROLES } from '../_shared/rbac.ts';
 
 Deno.serve(async (req: Request) => {
     const cors = handleCors(req);
@@ -11,13 +11,13 @@ Deno.serve(async (req: Request) => {
     const authResult = await requireAuth(req);
     if (!isAuthUser(authResult)) return authResult;
 
-    const roleCheck = enforceRole(authResult, ['head_manager']);
+    const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER);
     if (roleCheck) return roleCheck;
 
     const supabase = getAdminClient();
 
     const { data, error } = await supabase
-        .from('system_configs')
+        .from('system_config')
         .select('*')
         .order('config_key', { ascending: true });
 

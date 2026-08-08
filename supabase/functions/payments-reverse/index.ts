@@ -8,6 +8,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { getPaymentLoanId, getLoanFinancials } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -22,17 +23,22 @@ serve(async (req) => {
     if (!payment_id || !reason) return errorResponse('payment_id and reason required', 400, 'VALIDATION_ERROR');
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
-    const { data: payment } = await db.from('payments').select('id, status, amount, loan_id, loan_schedule_id, loans(lender_id, outstanding_balance)').eq('id', payment_id).single();
+    const { data: payment } = await db.from('payments').select('id, status, amount, loan_schedule_id, collection_assignment_id').eq('id', payment_id).single();
     if (!payment) return errorResponse('Payment not found', 404, 'NOT_FOUND');
     if (payment.status !== 'verified') return errorResponse('Only verified payments can be reversed', 400, 'INVALID_STATUS');
     await db.from('payments').update({ status: 'reversed' }).eq('id', payment_id);
-    await db.from('loan_schedules').update({ status: 'pending', paid_at: null, amount_paid: 0 }).eq('id', payment.loan_schedule_id);
-    const loanData = (payment as any).loans;
-    const restoredBalance = Math.round((loanData.outstanding_balance + payment.amount) * 100) / 100;
-    await db.from('loans').update({ outstanding_balance: restoredBalance, status: 'active' }).eq('id', payment.loan_id);
     await db.from('payment_reversals').insert({ payment_id, reversed_by: user.id, reason: sanitizeString(reason) });
+    const loanId = await getPaymentLoanId(db, payment);
+    const financials = loanId ? await getLoanFinancials(db, loanId) : null;
+    const restoredBalance = Math.round(((financials?.outstanding_balance ?? 0) + Number(payment.amount)) * 100) / 100;
+    if (loanId) await db.from('loans').update({ status: 'active' }).eq('id', loanId);
+    const lenderId = loanId
+      ? (await db.from('loans').select('lender_id').eq('id', loanId).single()).data?.lender_id
+      : null;
     await writeAuditLog({ performedBy: user.id, action: 'payment_reverse', tableName: 'payments', recordId: payment_id, oldValues: { status: 'verified', amount: payment.amount }, newValues: { status: 'reversed', reason }, ipAddress: ip });
-    await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Reversed', body: `A payment of ₱${payment.amount.toLocaleString()} has been reversed.`, type: 'payment_reversed', referenceId: payment_id });
+    if (lenderId) {
+      await sendPushNotification({ userId: lenderId, title: 'Payment Reversed', body: `A payment of ₱${Number(payment.amount).toLocaleString()} has been reversed.`, type: 'payment_reversed', referenceId: payment_id });
+    }
     return jsonResponse({ message: 'Payment reversed, balance restored' });
   } catch (err) {
     console.error('payments-reverse error:', err);

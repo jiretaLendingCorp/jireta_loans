@@ -64,11 +64,6 @@ serve(async (req) => {
 
     if (blErr) throw blErr;
 
-    await db
-      .from('lender_profiles')
-      .update({ is_blacklisted: true, blacklist_reason: sanitizeString(reason), blacklisted_by: authResult.id, blacklisted_at: new Date().toISOString() })
-      .eq('id', lender_id);
-
     await writeAuditLog({
       performedBy: authResult.id,
       action: 'blacklist_add',

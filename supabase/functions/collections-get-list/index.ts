@@ -6,6 +6,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
+import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -24,7 +25,7 @@ serve(async (req) => {
       .select(`id, status, rider_id, assigned_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
         notes:collection_notes,
         proof_photo, borrower_signature, collection_photo,
-        loans(id, loan_number, outstanding_balance, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number))),
+        loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number))),
         loan_schedule:loan_schedules(installment_number, due_date, amount_due),
         rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name)),
         assigned_by_user:users!collection_assignments_assigned_by_fkey(id, first_name, last_name)`, { count: 'exact' });
@@ -35,7 +36,14 @@ serve(async (req) => {
     query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch collections', 500, 'SERVER_ERROR');
-    return jsonResponse({ data: data ?? [], total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
+
+    const loanIds = (data ?? []).map((r: any) => r.loans?.id).filter(Boolean);
+    const financials = await getLoanFinancialsBatch(db, loanIds);
+    const mapped = (data ?? []).map((r: any) => {
+      const loan = r.loans ? { ...r.loans, outstanding_balance: financials[r.loans.id]?.outstanding_balance ?? null } : null;
+      return { ...r, loans: loan };
+    });
+    return jsonResponse({ data: mapped, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
   } catch (err) {
     console.error('collections-get-list error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

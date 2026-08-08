@@ -83,7 +83,6 @@ serve(async (req) => {
       monthly_income: monthly_income ? Number(monthly_income) : null,
       gcash_number: gcash_number ? sanitizeString(gcash_number) : null,
       kyc_status: 'pending',
-      is_blacklisted: false,
     });
 
     if (lenderProfileErr) {

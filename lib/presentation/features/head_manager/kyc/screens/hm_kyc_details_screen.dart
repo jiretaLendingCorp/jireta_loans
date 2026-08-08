@@ -55,19 +55,18 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
   }
 
   Future<void> _verifyAll(String action) async {
-    final pendingDocs =
-        (_data?['documents'] as List? ?? [])
-            .where((d) => (d as Map<String, dynamic>)['status'] == 'pending')
-            .toList();
-    final count = pendingDocs.length;
+    if (action == 'rejected' && _rejectionCtrl.text.trim().isEmpty) {
+      showErrorSnackBar(context, 'Please enter rejection notes.');
+      return;
+    }
     final confirmed = await showConfirmationDialog(
       context,
-      title: 'Verify All Documents',
-      message: count == 0
-          ? 'No pending documents to verify.'
-          : 'Verify all $count pending KYC documents at once?',
-      confirmLabel: 'Verify All',
-      isDangerous: false,
+      title: action == 'verified' ? 'Verify All Documents' : 'Reject All Documents',
+      message: action == 'verified'
+          ? 'Verify the lender\'s entire KYC submission at once?'
+          : 'Reject the lender\'s entire KYC submission? They will be notified.',
+      confirmLabel: action == 'verified' ? 'Verify All' : 'Reject All',
+      isDangerous: action == 'rejected',
     );
     if (confirmed != true || !mounted) return;
 
@@ -76,49 +75,14 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
       await _ds.verifyAllKyc(
         lenderId: widget.lenderId,
         action: action,
-        rejectionNotes: null,
-      );
-      if (mounted) {
-        showSuccessSnackBar(context, 'All documents verified successfully.');
-        await _load();
-      }
-    } catch (e) {
-      if (mounted) showErrorSnackBar(context, 'Action failed: $e');
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
-  Future<void> _verify(String docId, String action) async {
-    if (action == 'rejected' && _rejectionCtrl.text.trim().isEmpty) {
-      showErrorSnackBar(context, 'Please enter rejection notes.');
-      return;
-    }
-    final confirmed = await showConfirmationDialog(
-      context,
-      title: action == 'verified' ? 'Verify Document' : 'Reject Document',
-      message: action == 'verified'
-          ? 'Mark this KYC document as verified?'
-          : 'Reject this KYC document? The lender will be notified.',
-      confirmLabel: action == 'verified' ? 'Verify' : 'Reject',
-      isDangerous: action == 'rejected',
-    );
-    if (confirmed != true || !mounted) return;
-
-    setState(() => _submitting = true);
-    try {
-      await _ds.verifyKyc(
-        kycDocId: docId,
-        action: action,
-        rejectionNotes:
-            action == 'rejected' ? _rejectionCtrl.text.trim() : null,
+        rejectionNotes: action == 'rejected' ? _rejectionCtrl.text.trim() : null,
       );
       if (mounted) {
         showSuccessSnackBar(
             context,
             action == 'verified'
-                ? 'Document verified successfully.'
-                : 'Document rejected.');
+                ? 'All documents verified successfully.'
+                : 'All documents rejected.');
         await _load();
       }
     } catch (e) {
@@ -308,29 +272,47 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
             child: Column(
               children: [
                 _SectionCard(
-                  title: 'Actions',
+                  title: 'Review Actions',
                   child: pendingDocs.isEmpty
-                      ? Text(
-                          docs.isEmpty
-                              ? 'No documents to review yet.'
-                              : 'All documents have been reviewed.',
-                          style: const TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary),
+                      ? Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.successLight,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.check_circle,
+                                  color: AppColors.success, size: 20),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'All documents reviewed.',
+                                  style: TextStyle(
+                                      color: AppColors.success,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
                         )
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const Text(
-                              'Pending documents:',
+                              'One action verifies the lender\'s entire KYC submission.',
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                   color: AppColors.textSecondary),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.success,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
                               ),
                               onPressed: _submitting
                                   ? null
@@ -341,41 +323,7 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
                               label: Text(
                                   'Verify All (${pendingDocs.length})'),
                             ),
-                            const Divider(),
-                            ...pendingDocs.map((doc) {
-                              final d = doc as Map<String, dynamic>;
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      d['document_type'] ?? 'Document',
-                                      style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.riderGreen,
-                                      ),
-                                      onPressed: _submitting
-                                          ? null
-                                          : () => _verify(
-                                              d['id'] ?? '', 'verified'),
-                                      icon: const Icon(
-                                          Icons.check_circle_outline,
-                                          size: 18),
-                                      label: const Text('Verify Document'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                            const Divider(),
-                            const SizedBox(height: 8),
+                            const Divider(height: 28),
                             TextFormField(
                               controller: _rejectionCtrl,
                               decoration: const InputDecoration(
@@ -393,17 +341,9 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
                               ),
                               onPressed: _submitting
                                   ? null
-                                  : () => _verify(
-                                        pendingDocs.isNotEmpty
-                                            ? (pendingDocs
-                                                    .first as Map<String, dynamic>)['id']
-                                                    ?.toString() ??
-                                                ''
-                                            : '',
-                                        'rejected',
-                                      ),
+                                  : () => _verifyAll('rejected'),
                               icon: const Icon(Icons.cancel_outlined, size: 18),
-                              label: const Text('Reject Document'),
+                              label: const Text('Reject All'),
                             ),
                           ],
                         ),

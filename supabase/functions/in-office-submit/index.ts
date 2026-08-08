@@ -87,7 +87,6 @@ serve(async (req: Request) => {
         monthly_income: s1.monthly_income,
         gcash_number: s1.gcash_number,
         kyc_status: 'pending',
-        is_blacklisted: false,
       });
     }
 
@@ -153,8 +152,6 @@ serve(async (req: Request) => {
       loan_number: loanNumber,
       principal_amount: principalAmount,
       interest_rate: 20,
-      total_payable: totalPayable,
-      outstanding_balance: totalPayable,
       payment_frequency: frequency,
       term_days: termDays,
       status: 'pending',
@@ -173,8 +170,6 @@ serve(async (req: Request) => {
           installment_number: i + 1,
           due_date: d.toISOString().split('T')[0],
           amount_due: installmentAmount,
-          amount_paid: 0,
-          status: 'pending',
         });
       }
     } else if (frequency === 'weekly') {
@@ -187,8 +182,6 @@ serve(async (req: Request) => {
           installment_number: i + 1,
           due_date: d.toISOString().split('T')[0],
           amount_due: installmentAmount,
-          amount_paid: 0,
-          status: 'pending',
         });
       }
     } else {
@@ -203,8 +196,6 @@ serve(async (req: Request) => {
           installment_number: i + 1,
           due_date: d.toISOString().split('T')[0],
           amount_due: installmentAmount,
-          amount_paid: 0,
-          status: 'pending',
         });
       }
     }

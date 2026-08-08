@@ -7,6 +7,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { getLoanFinancials, hasPenaltyApplied } from '../_shared/loan_financials.ts';
 
 const PENALTY_RATE = 0.20;
 
@@ -28,18 +29,19 @@ serve(async (req) => {
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-    const { data: loan } = await db.from('loans').select('id, status, lender_id, total_payable, outstanding_balance, penalty_applied').eq('id', loan_id).single();
+    const { data: loan } = await db.from('loans').select('id, status, lender_id').eq('id', loan_id).single();
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
     if (loan.status !== 'overdue') return errorResponse('Penalty can only be applied to overdue loans', 400, 'INVALID_STATUS');
-    if (loan.penalty_applied) return errorResponse('Penalty already applied', 400, 'DUPLICATE');
 
-    const penaltyAmount = Math.round(loan.total_payable * PENALTY_RATE * 100) / 100;
-    const newBalance = Math.round((loan.outstanding_balance + penaltyAmount) * 100) / 100;
+    if (await hasPenaltyApplied(db, loan_id)) return errorResponse('Penalty already applied', 400, 'DUPLICATE');
 
-    await db.from('loans').update({ outstanding_balance: newBalance, penalty_applied: true, penalty_amount: penaltyAmount, penalty_applied_at: new Date().toISOString(), penalty_applied_by: user.id }).eq('id', loan_id);
-    await db.from('penalty_logs').insert({ loan_id, applied_by: user.id, penalty_rate: PENALTY_RATE, penalty_basis: loan.total_payable, penalty_amount: penaltyAmount, reason: reason ?? 'Overdue penalty applied' });
+    const financials = await getLoanFinancials(db, loan_id);
+    const penaltyAmount = Math.round((financials?.total_payable ?? 0) * PENALTY_RATE * 100) / 100;
+    const newBalance = Math.round(((financials?.outstanding_balance ?? 0) + penaltyAmount) * 100) / 100;
 
-    await writeAuditLog({ performedBy: user.id, action: 'apply_penalty', tableName: 'loans', recordId: loan_id, oldValues: { outstanding_balance: loan.outstanding_balance }, newValues: { outstanding_balance: newBalance, penalty_amount: penaltyAmount }, ipAddress: ip });
+    await db.from('penalty_logs').insert({ loan_id, applied_by: user.id, penalty_rate: PENALTY_RATE, penalty_basis: financials?.total_payable ?? 0, penalty_amount: penaltyAmount, reason: reason ?? 'Overdue penalty applied' });
+
+    await writeAuditLog({ performedBy: user.id, action: 'apply_penalty', tableName: 'penalty_logs', recordId: loan_id, oldValues: { outstanding_balance: financials?.outstanding_balance }, newValues: { outstanding_balance: newBalance, penalty_amount: penaltyAmount }, ipAddress: ip });
     await sendPushNotification({ userId: loan.lender_id, title: 'Overdue Penalty Applied', body: `A 20% penalty of ₱${penaltyAmount.toLocaleString()} has been added to your outstanding balance.`, type: 'penalty_applied', referenceId: loan_id });
 
     return jsonResponse({ message: 'Penalty applied', penalty_amount: penaltyAmount, new_balance: newBalance });

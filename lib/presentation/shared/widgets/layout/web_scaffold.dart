@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../features/auth/providers/auth_provider.dart';
@@ -418,16 +419,13 @@ class _SidebarHeader extends StatelessWidget {
           Container(
             width: 38,
             height: 38,
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.7)),
             ),
-            child: const Icon(
-              Icons.account_balance,
-              color: AppColors.gold,
-              size: 20,
-            ),
+            child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.contain),
           ),
           if (!collapsed) ...[
             const SizedBox(width: 10),

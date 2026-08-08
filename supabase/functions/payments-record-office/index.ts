@@ -6,6 +6,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { getLoanFinancials, getSchedulePayment } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -39,7 +40,7 @@ serve(async (req) => {
 
     const { data: loan } = await db
       .from('loans')
-      .select('id, lender_id, outstanding_balance, status, total_payable')
+      .select('id, lender_id, status')
       .eq('id', loan_id)
       .single();
 
@@ -47,21 +48,24 @@ serve(async (req) => {
     if (!['active', 'overdue'].includes(loan.status)) {
       return errorResponse('Loan is not in payable status', 409, 'INVALID_STATUS');
     }
-    if (Number(amount) > Number(loan.outstanding_balance)) {
+
+    const financials = await getLoanFinancials(db, loan_id);
+    if (!financials) return errorResponse('Loan not found', 404, 'NOT_FOUND');
+    if (Number(amount) > financials.outstanding_balance) {
       return errorResponse('Amount exceeds outstanding balance', 400, 'VALIDATION_ERROR');
     }
 
     const { data: schedule } = await db
       .from('loan_schedules')
-      .select('id, amount_due, amount_paid, status')
+      .select('id, amount_due, due_date')
       .eq('id', loan_schedule_id)
       .single();
 
     if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
-    if (schedule.status === 'paid') return errorResponse('Installment already paid', 409, 'PAYMENT_ALREADY_MADE');
+    const schedulePayment = await getSchedulePayment(db, loan_schedule_id);
+    if (schedulePayment.amount_paid >= Number(schedule.amount_due)) return errorResponse('Installment already paid', 409, 'PAYMENT_ALREADY_MADE');
 
     const { data: payment, error: payErr } = await db.from('payments').insert({
-      loan_id,
       loan_schedule_id,
       amount: Number(amount),
       payment_method: 'office_cash',
@@ -74,20 +78,10 @@ serve(async (req) => {
 
     if (payErr || !payment) return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
 
-    const newAmountPaid = Number(schedule.amount_paid) + Number(amount);
-    const scheduleStatus = newAmountPaid >= Number(schedule.amount_due) ? 'paid' : 'partial';
-
-    await db.from('loan_schedules').update({
-      amount_paid: newAmountPaid,
-      status: scheduleStatus,
-      paid_at: scheduleStatus === 'paid' ? new Date().toISOString() : null,
-    }).eq('id', loan_schedule_id);
-
-    const newBalance = Number(loan.outstanding_balance) - Number(amount);
+    const newBalance = Math.max(0, Math.round((financials.outstanding_balance - Number(amount)) * 100) / 100);
     const loanStatus = newBalance <= 0 ? 'completed' : loan.status;
 
     await db.from('loans').update({
-      outstanding_balance: Math.max(0, newBalance),
       status: loanStatus,
     }).eq('id', loan_id);
 
@@ -103,7 +97,7 @@ serve(async (req) => {
     await sendPushNotification({
       userId: loan.lender_id,
       title: 'Payment Recorded',
-      body: `Your payment of ₱${Number(amount).toLocaleString()} has been recorded. Remaining balance: ₱${Math.max(0, newBalance).toLocaleString()}`,
+      body: `Your payment of ₱${Number(amount).toLocaleString()} has been recorded. Remaining balance: ₱${newBalance.toLocaleString()}`,
       type: 'payment_recorded',
       referenceId: payment.id,
     });
@@ -111,7 +105,7 @@ serve(async (req) => {
     return jsonResponse({
       payment_id: payment.id,
       amount: Number(amount),
-      outstanding_balance: Math.max(0, newBalance),
+      outstanding_balance: newBalance,
       loan_status: loanStatus,
     }, 201);
   } catch (err) {

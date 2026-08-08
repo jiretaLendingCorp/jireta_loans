@@ -2,7 +2,8 @@
 class AssetConstants {
   AssetConstants._();
 
-  static const String logo = 'assets/images/jireta_logo.png';
+  static const String logo = 'assets/images/logo.jpg';
+  static const String logoJpg = 'assets/images/logo.jpg';
   static const String logoWhite = 'assets/images/jireta_logo_white.png';
   static const String logoGold = 'assets/images/jireta_logo_gold.png';
   static const String splashBg = 'assets/images/splash_background.png';

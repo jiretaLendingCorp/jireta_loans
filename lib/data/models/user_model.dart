@@ -23,6 +23,7 @@ class UserModel extends UserEntity {
   final String? city;
   final String? province;
   final String? zipCode;
+  final List<Map<String, dynamic>> emergencyContacts;
 
   const UserModel({
     required super.id,
@@ -59,6 +60,7 @@ class UserModel extends UserEntity {
     this.city,
     this.province,
     this.zipCode,
+    this.emergencyContacts = const [],
   });
 
   String get phone => phoneNumber ?? '';
@@ -108,6 +110,11 @@ class UserModel extends UserEntity {
       city: json['city'],
       province: json['province'],
       zipCode: json['zip_code'],
+      emergencyContacts: (json['emergency_contacts'] as List?)
+              ?.whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList() ??
+          const [],
     );
   }
 
@@ -145,6 +152,7 @@ class UserModel extends UserEntity {
     'city': city,
     'province': province,
     'zip_code': zipCode,
+    'emergency_contacts': emergencyContacts,
   };
 
   UserModel copyWith({

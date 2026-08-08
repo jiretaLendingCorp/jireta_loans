@@ -43,11 +43,6 @@ serve(async (req) => {
       .update({ is_active: false, removed_by: authResult.id, removed_at: new Date().toISOString() })
       .eq('id', active.id);
 
-    await db
-      .from('lender_profiles')
-      .update({ is_blacklisted: false })
-      .eq('id', lender_id);
-
     await writeAuditLog({
       performedBy: authResult.id,
       action: 'blacklist_remove',

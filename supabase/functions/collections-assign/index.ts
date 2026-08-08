@@ -6,6 +6,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { getSchedulePayment, scheduleStatus } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -20,15 +21,15 @@ serve(async (req) => {
     if (!loan_schedule_id || !rider_id) return errorResponse('loan_schedule_id and rider_id are required', 400, 'VALIDATION_ERROR');
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
-    const { data: schedule } = await db.from('loan_schedules').select('id, loan_id, status, loans(status)').eq('id', loan_schedule_id).single();
+    const { data: schedule } = await db.from('loan_schedules').select('id, loan_id, amount_due, due_date, loans(status)').eq('id', loan_schedule_id).single();
     if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
     if ((schedule as any).loans?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');
-    if (schedule.status === 'paid') return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
+    const payment = await getSchedulePayment(db, loan_schedule_id);
+    if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
     const { data: rider } = await db.from('rider_profiles').select('is_available').eq('id', rider_id).single();
     if (!rider?.is_available) return errorResponse('Rider is not available', 400, 'VALIDATION_ERROR');
     const { data: assignment, error: insErr } = await db.from('collection_assignments').insert({
       loan_schedule_id,
-      loan_id: (schedule as any).loan_id,
       rider_id,
       assigned_by: user.id,
       collection_schedule: collection_schedule ?? null,

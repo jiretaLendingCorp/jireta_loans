@@ -3,7 +3,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { isAuthUser, requireAuth } from '../_shared/auth.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { enforceRole } from '../_shared/rbac.ts';
+import { requireRole, ROLES } from '../_shared/rbac.ts';
 
 Deno.serve(async (req: Request) => {
     const cors = handleCors(req);
@@ -12,7 +12,7 @@ Deno.serve(async (req: Request) => {
     const authResult = await requireAuth(req);
     if (!isAuthUser(authResult)) return authResult;
 
-    const roleCheck = enforceRole(authResult, ['head_manager']);
+    const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER);
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
@@ -34,7 +34,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: existing, error: fetchErr } = await supabase
         .from('sms_templates')
-        .select('id, template_key, content')
+        .select('id, template_key, body')
         .eq('id', template_id)
         .single();
 
@@ -45,9 +45,8 @@ Deno.serve(async (req: Request) => {
     const { error } = await supabase
         .from('sms_templates')
         .update({
-            content: content.trim(),
+            body: content.trim(),
             updated_at: new Date().toISOString(),
-            updated_by: authResult.id,
         })
         .eq('id', template_id);
 
@@ -58,8 +57,8 @@ Deno.serve(async (req: Request) => {
         action: 'sms_template_updated',
         tableName: 'sms_templates',
         recordId: existing.id,
-        oldValues: { content: existing.content },
-        newValues: { content: content.trim() },
+        oldValues: { body: existing.body },
+        newValues: { body: content.trim() },
     });
 
     return jsonResponse({ success: true, template_id, template_key: existing.template_key });

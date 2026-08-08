@@ -61,7 +61,7 @@ serve(async (req) => {
     if (isCompleted) {
       await db
         .from('loans')
-        .update({ status: 'active', disbursement_method: 'gcash', xendit_disbursement_id: xenditId, disbursed_at: new Date().toISOString() })
+        .update({ status: 'active' })
         .eq('id', disbursement.loan_id);
 
       if (lenderId) {

@@ -5,6 +5,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
+import { getLoanFinancialsBatch, getLoanDisbursementsBatch } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -27,8 +28,8 @@ serve(async (req) => {
     // The borrower on a loan is a lender_profile (lender_profiles.id = users.id).
     // To reach the user's name we embed lender_profiles → users.
     let query = db.from('loans')
-      .select(`id, loan_number, lender_id, principal_amount, interest_rate, total_payable,
-        outstanding_balance, payment_frequency, term_days, status, created_at, disbursed_at,
+      .select(`id, loan_number, lender_id, principal_amount, interest_rate,
+        payment_frequency, term_days, status, created_at,
         updated_at,
         lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)),
         in_office_applications!fk_loans_in_office(created_by)`, { count: 'exact' });
@@ -53,8 +54,16 @@ serve(async (req) => {
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch loans', 500, 'SERVER_ERROR');
 
+    const loanIds = (data ?? []).map((r: any) => r.id);
+    const [financials, disbursements] = await Promise.all([
+      getLoanFinancialsBatch(db, loanIds),
+      getLoanDisbursementsBatch(db, loanIds),
+    ]);
+
     const mapped = (data ?? []).map((r: any) => {
       const borrower = r.lender_profiles?.users;
+      const fin = financials[r.id] ?? {};
+      const disb = disbursements[r.id];
       return {
         id: r.id,
         loan_number: r.loan_number,
@@ -64,18 +73,15 @@ serve(async (req) => {
           : null,
         principal_amount: r.principal_amount,
         interest_rate: r.interest_rate,
-        interest_amount:
-          r.total_payable != null && r.principal_amount != null
-            ? +(r.total_payable - r.principal_amount).toFixed(2)
-            : null,
-        total_payable: r.total_payable,
-        outstanding_balance: r.outstanding_balance,
+        interest_amount: fin.interest_amount ?? null,
+        total_payable: fin.total_payable ?? null,
+        outstanding_balance: fin.outstanding_balance ?? null,
         payment_frequency: r.payment_frequency,
         frequency: r.payment_frequency,
         term_days: r.term_days,
         status: r.status,
         created_at: r.created_at,
-        disbursed_at: r.disbursed_at,
+        disbursed_at: disb?.disbursed_at ?? null,
         updated_at: r.updated_at,
       };
     });

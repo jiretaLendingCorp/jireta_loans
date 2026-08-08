@@ -5,6 +5,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { getLoanFinancials, getLoanDisbursement, hasPenaltyApplied, getLenderBlacklist, getSchedulePayment } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -22,7 +23,7 @@ serve(async (req) => {
     const db = getAdminClient();
 
     const { data: loan } = await db.from('loans')
-      .select(`*, lender_profiles!loans_lender_id_fkey(id, kyc_status, is_blacklisted, gcash_number, employment_type, employer_name, monthly_income, users:users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email))`)
+      .select(`*, lender_profiles!loans_lender_id_fkey(id, kyc_status, gcash_number, employment_type, employer_name, monthly_income, users:users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email))`)
       .eq('id', loanId).single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
@@ -30,21 +31,40 @@ serve(async (req) => {
     if (user.role === ROLES.RIDER) return errorResponse('Access denied', 403, 'FORBIDDEN');
 
     const { data: schedule } = await db.from('loan_schedules').select('*').eq('loan_id', loanId).order('installment_number');
-    const { data: payments } = await db.from('payments').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
+    const scheduleIds = (schedule ?? []).map((s: any) => s.id);
+    let payments: any[] = [];
+    if (scheduleIds.length > 0) {
+      const { data: payRows } = await db.from('payments').select('*').in('loan_schedule_id', scheduleIds).order('created_at', { ascending: false });
+      payments = payRows ?? [];
+    }
     const { data: ci } = await db.from('credit_investigations').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
     const { data: disbursements } = await db.from('disbursements').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
     const { data: penalties } = await db.from('penalty_logs').select('*').eq('loan_id', loanId).order('applied_at', { ascending: false });
     const { data: coMakers } = await db.from('co_makers').select('*').eq('loan_id', loanId).order('created_at');
 
+    const [financials, disbursement, penaltyApplied, blacklist] = await Promise.all([
+      getLoanFinancials(db, loanId),
+      getLoanDisbursement(db, loanId),
+      hasPenaltyApplied(db, loanId),
+      getLenderBlacklist(db, loan.lender_id),
+    ]);
+
     const lp = (loan as any).lender_profiles;
     const loanOut: Record<string, unknown> = {
       ...loan,
+      total_payable: financials?.total_payable ?? null,
+      outstanding_balance: financials?.outstanding_balance ?? null,
+      interest_amount: financials?.interest_amount ?? null,
+      penalty_applied: penaltyApplied,
+      disbursed_at: disbursement?.disbursed_at ?? null,
+      disbursement_method: disbursement?.method ?? null,
+      xendit_disbursement_id: disbursement?.xendit_id ?? null,
       frequency: loan.payment_frequency,
-      interest_amount: Math.max(0, Math.round((Number(loan.total_payable) - Number(loan.principal_amount)) * 100) / 100),
       lender: lp?.users ?? null,
-      lender_profile: lp ?? null,
+      lender_profile: lp ? { ...lp, is_blacklisted: blacklist != null } : null,
+      is_blacklisted: blacklist != null,
       loan_schedules: schedule ?? [],
-      payments: payments ?? [],
+      payments: payments,
       credit_investigations: ci ?? [],
       disbursements: disbursements ?? [],
       penalties: penalties ?? [],

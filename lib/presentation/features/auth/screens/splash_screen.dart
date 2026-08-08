@@ -1,9 +1,11 @@
 // lib/presentation/features/auth/screens/splash_screen.dart
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
@@ -87,7 +89,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             context.go(RouteConstants.webLogin);
         }
       }
-    } else if (!termsAccepted) {
+    } else if (!termsAccepted && !kIsWeb) {
       context.go(RouteConstants.terms);
     } else {
       context.go(RouteConstants.webLogin);
@@ -117,16 +119,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   Container(
                     width: 100,
                     height: 100,
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.gold.withValues(alpha: 0.15),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(color: AppColors.gold, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
-                    child: const Icon(
-                      Icons.account_balance,
-                      size: 56,
-                      color: AppColors.gold,
-                    ),
+                    child: Image.asset(AssetConstants.logoJpg,
+                        fit: BoxFit.contain),
                   ),
                   const SizedBox(height: 24),
                   const Text(

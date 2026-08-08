@@ -26,7 +26,7 @@ serve(async (req) => {
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
     const { data: loan } = await db.from('loans')
-      .select('id, status, lender_id, lender_profiles(kyc_status, is_blacklisted)')
+      .select('id, status, lender_id, lender_profiles(kyc_status)')
       .eq('id', loan_id).single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
@@ -34,7 +34,9 @@ serve(async (req) => {
 
     const lp = (loan as any).lender_profiles;
     if (lp?.kyc_status !== 'verified') return errorResponse('Lender KYC must be verified', 400, 'KYC_NOT_VERIFIED');
-    if (lp?.is_blacklisted) return errorResponse('Lender is blacklisted', 400, 'BLACKLISTED');
+
+    const { data: blacklist } = await db.from('blacklist').select('id').eq('lender_id', loan.lender_id).eq('is_active', true).maybeSingle();
+    if (blacklist) return errorResponse('Lender is blacklisted', 400, 'BLACKLISTED');
 
     const { data: ci } = await db.from('credit_investigations').select('id, status').eq('loan_id', loan_id).eq('status', 'completed').maybeSingle();
     if (!ci) return errorResponse('CI report must be completed before approval', 400, 'INVALID_STATUS');

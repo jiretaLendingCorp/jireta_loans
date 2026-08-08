@@ -4,6 +4,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { getLenderBlacklist, getLenderAddress } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -39,7 +40,7 @@ serve(async (req) => {
         roles(id, name),
         employee_profiles(department, position, hired_at, gender, civil_status),
         rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
-        lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, kyc_status, is_blacklisted, gender, civil_status, date_of_birth, source_of_funds, street_address, barangay, city, province, zip_code)`)
+        lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, kyc_status, gender, civil_status, date_of_birth, source_of_funds)`)
       .eq('id', targetId)
       .single();
 
@@ -49,6 +50,9 @@ serve(async (req) => {
       .from('emergency_contacts')
       .select('id, name, relationship, phone_number, address')
       .eq('lender_id', targetId);
+
+    const blacklist = await getLenderBlacklist(db, targetId);
+    const address = await getLenderAddress(db, targetId);
 
     // Flatten nested profile rows onto the user so the mobile/web models can
     // read department, position, plate_number, etc. straight off the object.
@@ -74,14 +78,14 @@ serve(async (req) => {
       monthly_income: lender?.monthly_income ?? null,
       gcash_number: lender?.gcash_number ?? null,
       kyc_status: lender?.kyc_status ?? null,
-      is_blacklisted: lender?.is_blacklisted ?? null,
+      is_blacklisted: blacklist ? true : null,
       date_of_birth: lender?.date_of_birth ?? null,
       source_of_funds: lender?.source_of_funds ?? null,
-      street_address: lender?.street_address ?? null,
-      barangay: lender?.barangay ?? null,
-      city: lender?.city ?? null,
-      province: lender?.province ?? null,
-      zip_code: lender?.zip_code ?? null,
+      street_address: address?.street ?? null,
+      barangay: address?.barangay ?? null,
+      city: address?.city ?? null,
+      province: address?.province ?? null,
+      zip_code: address?.zip_code ?? null,
       emergency_contacts: emergencyContacts ?? [],
     };
 
