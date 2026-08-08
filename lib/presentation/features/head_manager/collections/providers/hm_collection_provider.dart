@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmCollectionState {
   final List<CollectionAssignmentModel> items;
@@ -43,9 +44,11 @@ class HmCollectionState {
       );
 }
 
-class HmCollectionNotifier extends StateNotifier<HmCollectionState> {
+class HmCollectionNotifier extends StateNotifier<HmCollectionState>
+    with RealtimeRefreshMixin {
   final CollectionRemoteDataSource _ds;
   HmCollectionNotifier(this._ds) : super(const HmCollectionState()) {
+    bindRealtimeRefresh(['collection_assignments', 'payments'], refresh: fetch);
     fetch();
   }
 

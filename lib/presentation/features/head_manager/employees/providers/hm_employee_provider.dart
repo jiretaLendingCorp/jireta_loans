@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmEmployeeState {
   final List<UserModel> employees;
@@ -42,9 +43,11 @@ class HmEmployeeState {
   );
 }
 
-class HmEmployeeNotifier extends StateNotifier<HmEmployeeState> {
+class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
+    with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   HmEmployeeNotifier(this._ds) : super(const HmEmployeeState()) {
+    bindRealtimeRefresh(['users', 'employee_profiles'], refresh: load);
     load();
   }
 

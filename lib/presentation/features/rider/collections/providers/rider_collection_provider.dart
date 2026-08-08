@@ -6,6 +6,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/utils/helpers.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class RiderCollectionState {
   final List<CollectionAssignmentModel> collections;
@@ -42,11 +43,13 @@ class RiderCollectionState {
       );
 }
 
-class RiderCollectionNotifier extends StateNotifier<RiderCollectionState> {
+class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
+    with RealtimeRefreshMixin {
   final CollectionRemoteDataSource _ds;
 
   RiderCollectionNotifier(this._ds)
       : super(const RiderCollectionState()) {
+    bindRealtimeRefresh(['collection_assignments', 'payments'], refresh: load);
     load();
   }
 

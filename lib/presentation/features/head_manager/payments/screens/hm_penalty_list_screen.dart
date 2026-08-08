@@ -10,6 +10,7 @@ import '../../../../../data/models/penalty_log_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class _PenaltyState {
   final List<PenaltyLogModel> items;
@@ -25,9 +26,11 @@ class _PenaltyState {
           error: error);
 }
 
-class _PenaltyNotifier extends StateNotifier<_PenaltyState> {
+class _PenaltyNotifier extends StateNotifier<_PenaltyState>
+    with RealtimeRefreshMixin<_PenaltyState> {
   final LoanRemoteDataSource _ds;
   _PenaltyNotifier(this._ds) : super(const _PenaltyState()) {
+    bindRealtimeRefresh(['penalty_logs'], refresh: () => load());
     load();
   }
 

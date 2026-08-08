@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final hmAuditProvider =
     StateNotifierProvider<HmAuditNotifier, AsyncValue<Map<String, dynamic>>>(
@@ -9,9 +10,12 @@ final hmAuditProvider =
   return HmAuditNotifier(sl<AuditRemoteDataSource>());
 });
 
-class HmAuditNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+class HmAuditNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+    with RealtimeRefreshMixin {
   final AuditRemoteDataSource _ds;
-  HmAuditNotifier(this._ds) : super(const AsyncData({'items': [], 'total': 0}));
+  HmAuditNotifier(this._ds) : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(['audit_logs'], refresh: loadLogs);
+  }
 
   Future<void> loadLogs(
       {String? action,

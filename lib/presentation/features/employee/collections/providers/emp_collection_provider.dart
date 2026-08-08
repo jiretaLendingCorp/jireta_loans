@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final empCollectionListProvider = StateNotifierProvider<EmpCollectionNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
@@ -11,11 +12,15 @@ final empCollectionListProvider = StateNotifierProvider<EmpCollectionNotifier,
 });
 
 class EmpCollectionNotifier
-    extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+    extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+    with RealtimeRefreshMixin {
   final CollectionRemoteDataSource _ds;
   final UserRemoteDataSource _userDs;
   EmpCollectionNotifier(this._ds, this._userDs)
-      : super(const AsyncData({'items': [], 'total': 0}));
+      : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(['collection_assignments'], refresh: loadList);
+    loadList();
+  }
 
   Future<void> loadList({String? status, String? riderId, int page = 1}) async {
     state = const AsyncLoading();

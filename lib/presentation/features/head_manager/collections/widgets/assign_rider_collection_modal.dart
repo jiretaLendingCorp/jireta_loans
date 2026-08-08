@@ -51,7 +51,7 @@ class _AssignRiderCollectionModalState
       final res = await ds.getUserList(role: 'rider', status: 'active', page: 1, limit: 100);
       final list = (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
       setState(() {
-        _riders = list.where((r) => r['rider_profile']?['is_available'] == true).toList();
+        _riders = list.where((r) => r['rider_profiles']?['is_available'] == true).toList();
         _loadingRiders = false;
       });
     } catch (_) {

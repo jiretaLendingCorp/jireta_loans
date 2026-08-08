@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class _AuditState {
   final List<Map<String, dynamic>> logs;
@@ -18,9 +19,13 @@ class _AuditState {
       _AuditState(logs: logs ?? this.logs, isLoading: isLoading ?? this.isLoading, currentPage: currentPage ?? this.currentPage, totalPages: totalPages ?? this.totalPages);
 }
 
-class _AuditNotifier extends StateNotifier<_AuditState> {
+class _AuditNotifier extends StateNotifier<_AuditState>
+    with RealtimeRefreshMixin<_AuditState> {
   final AuditRemoteDataSource _ds;
-  _AuditNotifier(this._ds) : super(const _AuditState()) { fetch(); }
+  _AuditNotifier(this._ds) : super(const _AuditState()) {
+    bindRealtimeRefresh(['audit_logs'], refresh: fetch);
+    fetch();
+  }
 
   Future<void> fetch({int page = 1, String? action, String? performedBy}) async {
     state = state.copyWith(isLoading: true);

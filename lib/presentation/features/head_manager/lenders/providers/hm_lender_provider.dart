@@ -4,6 +4,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/datasources/remote/blacklist_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmLenderState {
   final List<UserModel> lenders;
@@ -35,10 +36,13 @@ class HmLenderState {
   );
 }
 
-class HmLenderNotifier extends StateNotifier<HmLenderState> {
+class HmLenderNotifier extends StateNotifier<HmLenderState>
+    with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   final BlacklistRemoteDataSource _blds;
   HmLenderNotifier(this._ds, this._blds) : super(const HmLenderState()) {
+    bindRealtimeRefresh(['users', 'lender_profiles', 'blacklist'],
+        refresh: load);
     load();
   }
 

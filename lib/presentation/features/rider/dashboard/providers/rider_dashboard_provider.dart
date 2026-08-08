@@ -7,6 +7,7 @@ import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/models/kpi_rider_model.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class RiderDashboardState {
   final KpiRiderModel kpi;
@@ -39,13 +40,20 @@ class RiderDashboardState {
       );
 }
 
-class RiderDashboardNotifier extends StateNotifier<RiderDashboardState> {
+class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
+    with RealtimeRefreshMixin {
   final KpiRemoteDataSource _kpiDs;
   final CollectionRemoteDataSource _collDs;
   final CiRemoteDataSource _ciDs;
 
   RiderDashboardNotifier(this._kpiDs, this._collDs, this._ciDs)
       : super(RiderDashboardState(kpi: KpiRiderModel.empty())) {
+    bindRealtimeRefresh([
+      'collection_assignments',
+      'credit_investigations',
+      'payments',
+      'notifications',
+    ], refresh: load);
     load();
   }
 

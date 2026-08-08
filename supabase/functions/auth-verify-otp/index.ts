@@ -53,7 +53,7 @@ async function selfRegisterLender(db: any, phone: string) {
 
   const { error: profileErr } = await db.from('lender_profiles').insert({
     id: newUser.id,
-    kyc_status: 'pending',
+    kyc_status: 'not_submitted',
   });
   if (profileErr) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});

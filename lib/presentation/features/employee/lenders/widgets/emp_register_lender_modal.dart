@@ -26,6 +26,7 @@ class _EmpRegisterLenderModalState
   String _gender = 'male';
   String _civilStatus = 'single';
   String _employmentType = 'employed';
+  String _sourceOfFunds = 'salary';
   DateTime? _dob;
   bool _isLoading = false;
 
@@ -61,6 +62,7 @@ class _EmpRegisterLenderModalState
         'employer_name': _employerCtrl.text.trim(),
         'monthly_income': double.tryParse(_incomeCtrl.text) ?? 0,
         'gcash_number': _gcashCtrl.text.trim(),
+        'source_of_funds': _sourceOfFunds,
       });
       if (mounted) {
         Navigator.pop(context);
@@ -229,6 +231,30 @@ class _EmpRegisterLenderModalState
                               value: 'unemployed', child: Text('Unemployed')),
                         ],
                         onChanged: (v) => setState(() => _employmentType = v!),
+                      ),
+                      const SizedBox(height: 12),
+  DropdownButtonFormField<String>(
+    initialValue: _sourceOfFunds,
+                        decoration: const InputDecoration(
+                            labelText: 'Source of Funds'),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'salary', child: Text('Salary')),
+                          DropdownMenuItem(
+                              value: 'business_income',
+                              child: Text('Business Income')),
+                          DropdownMenuItem(
+                              value: 'remittance',
+                              child: Text('Remittance')),
+                          DropdownMenuItem(
+                              value: 'allowance',
+                              child: Text('Allowance')),
+                          DropdownMenuItem(
+                              value: 'pension', child: Text('Pension')),
+                          DropdownMenuItem(
+                              value: 'other', child: Text('Other')),
+                        ],
+                        onChanged: (v) => setState(() => _sourceOfFunds = v!),
                       ),
                       const SizedBox(height: 12),
                       _buildTextField(

@@ -82,6 +82,7 @@ class SupabaseStorageService {
     required String path,
     int expiresIn = 3600,
   }) async {
+    await _ensureSession();
     final url = await _storage.from(bucket).createSignedUrl(path, expiresIn);
     return url;
   }

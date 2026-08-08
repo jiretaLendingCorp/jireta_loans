@@ -72,6 +72,29 @@ serve(async (req) => {
       .eq('lender_id', targetLenderId!)
       .order('uploaded_at', { ascending: false });
 
+    // kyc-documents is a private bucket with an owner-scoped RLS policy
+    // (only the lender who uploaded a file may read it). Staff review KYC
+    // with their own JWT, so a client-side signed URL lookup would be blocked
+    // by RLS and fail with "object not found". Resolve signed URLs here with
+    // the service-role client so reviewers can open lender documents.
+    const KYC_BUCKET = 'kyc-documents';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const signOne = async (path: string) => {
+      const { data } = await db.storage
+        .from(KYC_BUCKET)
+        .createSignedUrl(path, 3600);
+      // createSignedUrl returns a path relative to the storage API
+      // (/object/sign/...); the app launches these URLs with url_launcher,
+      // which needs an absolute URL, so prefix with the storage base URL.
+      const signedPath = (data as any)?.signedUrl ?? null;
+      return signedPath ? `${supabaseUrl}/storage/v1${signedPath}` : null;
+    };
+    const signedUrls = new Map<string, string | null>();
+    for (const d of (docs ?? [])) {
+      const p = (d as any).file_path as string;
+      if (p) signedUrls.set((d as any).id, await signOne(p));
+    }
+
     const { data: emergencyContacts } = await db
       .from('emergency_contacts')
       .select('id, name, relationship, phone_number, address')
@@ -113,12 +136,13 @@ serve(async (req) => {
       rejection_notes: d.rejection_notes,
       reviewed_by: d.reviewed_by,
       reviewed_at: d.reviewed_at,
+      signed_url: signedUrls.get(d.id) ?? null,
     }));
 
     return jsonResponse({
       document,
       lender_id: targetLenderId,
-      kyc_status: (lenderProfile as any)?.kyc_status ?? 'pending',
+      kyc_status: (lenderProfile as any)?.kyc_status ?? 'not_submitted',
       lender,
       documents,
       emergency_contacts: emergencyContacts ?? [],

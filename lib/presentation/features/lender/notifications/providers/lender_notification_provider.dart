@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../../../../data/models/notification_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class LenderNotificationState {
   final List<NotificationModel> notifications;
@@ -32,11 +33,13 @@ class LenderNotificationState {
 }
 
 class LenderNotificationNotifier
-    extends StateNotifier<LenderNotificationState> {
+    extends StateNotifier<LenderNotificationState>
+    with RealtimeRefreshMixin {
   final NotificationRemoteDataSource _ds;
 
   LenderNotificationNotifier(this._ds)
       : super(const LenderNotificationState()) {
+    bindRealtimeRefresh(['notifications'], refresh: load);
     load();
   }
 

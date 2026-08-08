@@ -88,11 +88,114 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
                 RouteConstants.hmKycDetails.replaceFirst(
                     ':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId),
               ),
+              onVerify: () => _verifyAll(doc, 'verified'),
+              onReject: () => _promptReject(doc),
             );
           }).toList(),
         ),
       ),
     );
+  }
+
+  Future<void> _verifyAll(dynamic doc, String action) async {
+    final ok = await ref.read(hmKycProvider.notifier).verifyAll(
+          lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId,
+          action: action,
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? (action == 'verified'
+                ? 'KYC documents verified'
+                : 'KYC documents rejected')
+            : 'Action failed'),
+        backgroundColor: ok ? AppColors.success : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _promptReject(dynamic doc) async {
+    final lenderId = doc.lenderId.isEmpty ? doc.id : doc.lenderId;
+    final notesCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.cancel_outlined, color: AppColors.error, size: 24),
+            SizedBox(width: 10),
+            Text('Reject KYC'),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Rejecting will reject all submitted documents for this lender.',
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              const Text('Rejection Reason *',
+                  style:
+                      TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: notesCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Enter reason for rejection...',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (notesCtrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please provide a rejection reason'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+                return;
+              }
+              Navigator.of(context).pop(true);
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      if (!mounted) return;
+      final ok = await ref.read(hmKycProvider.notifier).verifyAll(
+            lenderId: lenderId,
+            action: 'rejected',
+            rejectionNotes: notesCtrl.text.trim(),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok ? 'KYC documents rejected' : 'Action failed'),
+          backgroundColor: ok ? AppColors.success : AppColors.error,
+        ),
+      );
+    }
   }
 
   Widget _buildEmpty() {
@@ -116,8 +219,15 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
 class _KycRow extends StatefulWidget {
   final dynamic doc;
   final VoidCallback onTap;
+  final VoidCallback onVerify;
+  final VoidCallback onReject;
 
-  const _KycRow({required this.doc, required this.onTap});
+  const _KycRow({
+    required this.doc,
+    required this.onTap,
+    required this.onVerify,
+    required this.onReject,
+  });
 
   @override
   State<_KycRow> createState() => _KycRowState();
@@ -131,6 +241,7 @@ class _KycRowState extends State<_KycRow> {
     final doc = widget.doc;
     final date =
         DateFormat('MMM d, y').format(doc.submittedAt ?? doc.createdAt);
+    final status = (doc.status ?? 'pending').toString();
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -189,20 +300,67 @@ class _KycRowState extends State<_KycRow> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Document Type: ${doc.documentType ?? 'KYC Submission'}  •  $date',
+                      '${doc.documentCountLabel ?? 'KYC Submission'}  •  $date',
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
-              StatusBadge(status: doc.status),
+              StatusBadge(status: status),
               const SizedBox(width: 12),
+              if (status != 'verified')
+                _ActionButton(
+                  icon: Icons.check_circle_outline,
+                  label: 'Verify',
+                  color: AppColors.success,
+                  onPressed: widget.onVerify,
+                ),
+              if (status != 'rejected') ...[
+                const SizedBox(width: 8),
+                _ActionButton(
+                  icon: Icons.cancel_outlined,
+                  label: 'Reject',
+                  color: AppColors.error,
+                  onPressed: widget.onReject,
+                ),
+              ],
+              const SizedBox(width: 8),
               const Icon(Icons.chevron_right,
                   size: 18, color: AppColors.textTertiary),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16, color: color),
+      label: Text(label,
+          style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: Size.zero,
+        backgroundColor: color.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
     );
   }

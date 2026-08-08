@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final empKycProvider =
     StateNotifierProvider<EmpKycNotifier, AsyncValue<Map<String, dynamic>>>(
@@ -9,9 +10,12 @@ final empKycProvider =
   return EmpKycNotifier(sl<KycRemoteDataSource>());
 });
 
-class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+    with RealtimeRefreshMixin {
   final KycRemoteDataSource _ds;
-  EmpKycNotifier(this._ds) : super(const AsyncData({'items': [], 'total': 0}));
+  EmpKycNotifier(this._ds) : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(['kyc_documents', 'lender_profiles'], refresh: loadList);
+  }
 
   Future<void> loadList({String? status, String? search, int page = 1}) async {
     state = const AsyncLoading();
@@ -37,9 +41,16 @@ class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
     }
   }
 
-  Future<bool> verifyAll({required String lenderId, required String action}) async {
+  Future<bool> verifyAll(
+      {required String lenderId,
+      required String action,
+      String? rejectionNotes}) async {
     try {
-      await _ds.verifyAllKyc(lenderId: lenderId, action: action);
+      await _ds.verifyAllKyc(
+          lenderId: lenderId,
+          action: action,
+          rejectionNotes: rejectionNotes);
+      await loadList();
       return true;
     } catch (e) {
       return false;

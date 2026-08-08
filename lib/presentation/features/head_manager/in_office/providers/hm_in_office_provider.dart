@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/in_office_remote_datasource.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmInOfficeState {
   final List<Map<String, dynamic>> applications;
@@ -33,11 +34,13 @@ final hmInOfficeProvider =
       sl<InOfficeRemoteDataSource>(), sl<LoanRemoteDataSource>());
 });
 
-class HmInOfficeNotifier extends StateNotifier<HmInOfficeState> {
+class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
+    with RealtimeRefreshMixin {
   final InOfficeRemoteDataSource _ds;
   final LoanRemoteDataSource _loanDs;
   HmInOfficeNotifier(this._ds, this._loanDs)
       : super(const HmInOfficeState()) {
+    bindRealtimeRefresh(['in_office_applications'], refresh: load);
     load();
   }
 

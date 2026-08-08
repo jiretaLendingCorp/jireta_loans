@@ -4,6 +4,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/datasources/remote/auth_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmProfileState {
   final UserModel? user;
@@ -19,12 +20,14 @@ class HmProfileState {
           error: error);
 }
 
-class HmProfileNotifier extends StateNotifier<HmProfileState> {
+class HmProfileNotifier extends StateNotifier<HmProfileState>
+    with RealtimeRefreshMixin {
   final UserRemoteDataSource _userDs;
   final AuthRemoteDataSource _authDs;
 
   HmProfileNotifier(this._userDs, this._authDs)
       : super(const HmProfileState()) {
+    bindRealtimeRefresh(['users'], refresh: loadProfile);
     loadProfile();
   }
 

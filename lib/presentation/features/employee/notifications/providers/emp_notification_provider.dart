@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final empNotificationProvider = StateNotifierProvider<EmpNotificationNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
@@ -9,10 +10,14 @@ final empNotificationProvider = StateNotifierProvider<EmpNotificationNotifier,
 });
 
 class EmpNotificationNotifier
-    extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+    extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+    with RealtimeRefreshMixin {
   final NotificationRemoteDataSource _ds;
   EmpNotificationNotifier(this._ds)
-      : super(const AsyncData({'items': [], 'total': 0}));
+      : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(['notifications'], refresh: loadList);
+    loadList();
+  }
 
   Future<void> loadList({bool? isRead, int page = 1}) async {
     state = const AsyncLoading();

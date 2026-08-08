@@ -137,6 +137,9 @@ serve(async (req) => {
     if (insertErr) return errorResponse(`Failed to save KYC documents: ${insertErr.message}`, 500, 'DB_ERROR');
 
     // ── 2) Lender profile details + source of funds ─────────────────────────
+    // profileErr must NOT be swallowed: this is an atomic UPDATE whose FK/CHECK
+    // violations silently wipe every field, which is exactly how a lender
+    // "submits KYC but staff sees nothing". Surface it so it can be fixed.
     const { error: profileErr } = await db.from('lender_profiles').update({
       gender: normalizeEnum(p.gender),
       civil_status: normalizeEnum(p.civil_status),
@@ -147,7 +150,10 @@ serve(async (req) => {
       gcash_number: sanitizeString(p.gcash_number),
       source_of_funds: source_of_funds ? normalizeEnum(source_of_funds) : undefined,
     }).eq('id', user.id);
-    if (profileErr) console.error('kyc-submit profile update error:', profileErr.message);
+    if (profileErr) {
+      console.error('kyc-submit profile update error:', profileErr.message);
+      return errorResponse(`Failed to update lender profile: ${profileErr.message}`, 500, 'DB_ERROR');
+    }
 
     // ── 3) Residence — now lives in `addresses` (3NF), not lender_profiles. ──
     const ai = address_info ?? {};

@@ -89,7 +89,13 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
     }
   }
 
-  bool get _canApprove => ['ci_completed'].contains(widget.loan.status);
+  bool get _canApprove => [
+        'pending',
+        'under_review',
+        'ci_required',
+        'ci_assigned',
+        'ci_completed'
+      ].contains(widget.loan.status);
   bool get _canReject => [
         'pending',
         'under_review',

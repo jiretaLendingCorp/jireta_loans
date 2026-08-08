@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmReportState {
   final List<Map<String, dynamic>> history;
@@ -35,9 +36,12 @@ final hmReportProvider =
   return HmReportNotifier(sl<ReportRemoteDataSource>());
 });
 
-class HmReportNotifier extends StateNotifier<HmReportState> {
+class HmReportNotifier extends StateNotifier<HmReportState>
+    with RealtimeRefreshMixin {
   final ReportRemoteDataSource _ds;
-  HmReportNotifier(this._ds) : super(const HmReportState());
+  HmReportNotifier(this._ds) : super(const HmReportState()) {
+    bindRealtimeRefresh(['reports'], refresh: loadHistory);
+  }
 
   Future<void> loadTemplates() async {
     state = state.copyWith(isLoading: true, error: null);

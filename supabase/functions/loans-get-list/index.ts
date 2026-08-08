@@ -32,7 +32,9 @@ serve(async (req) => {
         payment_frequency, term_days, status, created_at,
         updated_at,
         lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)),
-        in_office_applications!fk_loans_in_office(created_by)`, { count: 'exact' });
+        in_office_applications!fk_loans_in_office(created_by),
+        credit_investigations(ci_id:id, status, created_at, rider:rider_profiles(users!rider_profiles_id_fkey(first_name, last_name)))`,
+        { count: 'exact' });
 
     if (user.role === ROLES.LENDER) {
       query = query.eq('lender_id', user.id);
@@ -64,6 +66,13 @@ serve(async (req) => {
       const borrower = r.lender_profiles?.users;
       const fin = financials[r.id] ?? {};
       const disb = disbursements[r.id];
+      // Latest credit investigation for the loan (rider assigned for CI).
+      const cis = r.credit_investigations ?? [];
+      const latestCi = cis.length
+        ? cis.sort((a: any, b: any) =>
+            (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0]
+        : null;
+      const ciRider = latestCi?.rider?.users;
       return {
         id: r.id,
         loan_number: r.loan_number,
@@ -83,6 +92,10 @@ serve(async (req) => {
         created_at: r.created_at,
         disbursed_at: disb?.disbursed_at ?? null,
         updated_at: r.updated_at,
+        ci_status: latestCi?.status ?? null,
+        assigned_rider_name: ciRider
+          ? `${ciRider.first_name} ${ciRider.last_name}`.trim()
+          : null,
       };
     });
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/disbursement_remote_datasource.dart';
 import '../../../../../data/models/disbursement_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmDisbursementState {
   final List<DisbursementModel> disbursements;
@@ -39,10 +40,12 @@ class HmDisbursementState {
       );
 }
 
-class HmDisbursementNotifier extends StateNotifier<HmDisbursementState> {
+class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
+    with RealtimeRefreshMixin {
   final DisbursementRemoteDataSource _ds;
 
   HmDisbursementNotifier(this._ds) : super(const HmDisbursementState()) {
+    bindRealtimeRefresh(['disbursements', 'loans'], refresh: load);
     load();
   }
 

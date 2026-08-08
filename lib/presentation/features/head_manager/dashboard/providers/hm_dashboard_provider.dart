@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmDashboardState {
   final KpiHeadManagerModel kpi;
@@ -26,11 +27,23 @@ class HmDashboardState {
   );
 }
 
-class HmDashboardNotifier extends StateNotifier<HmDashboardState> {
+class HmDashboardNotifier extends StateNotifier<HmDashboardState>
+    with RealtimeRefreshMixin {
   final KpiRemoteDataSource _ds;
 
   HmDashboardNotifier(this._ds)
     : super(HmDashboardState(kpi: KpiHeadManagerModel.empty())) {
+    bindRealtimeRefresh([
+      'loans',
+      'loan_schedules',
+      'payments',
+      'collection_assignments',
+      'credit_investigations',
+      'kyc_documents',
+      'in_office_applications',
+      'disbursements',
+      'notifications',
+    ], refresh: loadKpis);
     loadKpis();
   }
 

@@ -6,6 +6,7 @@ import '../../../../../core/network/dio_client.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../data/models/kyc_document_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class LenderDocumentsState {
   final List<KycDocumentModel> documents;
@@ -38,12 +39,16 @@ class LenderDocumentsState {
       );
 }
 
-class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState> {
+class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
+    with RealtimeRefreshMixin {
   final DioClient _client;
   final SupabaseStorageService _storage;
 
   LenderDocumentsNotifier(this._client, this._storage)
-      : super(const LenderDocumentsState());
+      : super(const LenderDocumentsState()) {
+    bindRealtimeRefresh(['kyc_documents'], refresh: loadDocuments);
+    loadDocuments();
+  }
 
   Future<void> loadDocuments() async {
     state = state.copyWith(isLoading: true, error: null);

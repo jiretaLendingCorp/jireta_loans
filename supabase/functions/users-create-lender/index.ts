@@ -30,7 +30,7 @@ serve(async (req) => {
 
     const body = await req.json();
     const { first_name, middle_name, last_name, suffix, phone, gender, civil_status,
-      dob, employment_type, employer_name, monthly_income, gcash_number } = body;
+      dob, employment_type, employer_name, monthly_income, gcash_number, source_of_funds } = body;
 
     if (!first_name || !last_name || !phone || !gender || !civil_status || !dob) {
       return errorResponse('Missing required fields', 400, 'VALIDATION_ERROR');
@@ -75,14 +75,15 @@ serve(async (req) => {
 
     const { error: lenderProfileErr } = await db.from('lender_profiles').insert({
       id: newUser.id,
-      gender: gender ? sanitizeString(gender) : null,
-      civil_status: civil_status ? sanitizeString(civil_status) : null,
+      gender: gender ? sanitizeString(gender).toLowerCase() : null,
+      civil_status: civil_status ? sanitizeString(civil_status).toLowerCase() : null,
       date_of_birth: dob ?? null,
-      employment_type: employment_type ? sanitizeString(employment_type) : null,
+      employment_type: employment_type ? sanitizeString(employment_type).toLowerCase() : null,
       employer_name: employer_name ? sanitizeString(employer_name) : null,
       monthly_income: monthly_income ? Number(monthly_income) : null,
       gcash_number: gcash_number ? sanitizeString(gcash_number) : null,
-      kyc_status: 'pending',
+      source_of_funds: source_of_funds ? sanitizeString(source_of_funds).toLowerCase() : null,
+      kyc_status: 'not_submitted',
     });
 
     if (lenderProfileErr) {

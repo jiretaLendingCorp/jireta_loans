@@ -45,7 +45,7 @@ class LenderProfileModel {
       employerName: json['employer_name'],
       monthlyIncome: (json['monthly_income'] as num?)?.toDouble(),
       gcashNumber: json['gcash_number'],
-      kycStatus: json['kyc_status'] ?? 'pending',
+      kycStatus: json['kyc_status'] ?? 'not_submitted',
       isBlacklisted: json['is_blacklisted'] ?? false,
       blacklistReason: json['blacklist_reason'],
       createdAt: json['created_at'] != null

@@ -4,6 +4,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class EmpCiState {
   final bool isLoading;
@@ -59,11 +60,14 @@ Map<String, dynamic> _ciModelToMap(CreditInvestigationModel m) => {
       'ci_documents': m.documents,
     };
 
-class EmpCiNotifier extends StateNotifier<EmpCiState> {
+class EmpCiNotifier extends StateNotifier<EmpCiState>
+    with RealtimeRefreshMixin {
   final CiRemoteDataSource _ds;
   final UserRemoteDataSource _userDs;
 
-  EmpCiNotifier(this._ds, this._userDs) : super(const EmpCiState());
+  EmpCiNotifier(this._ds, this._userDs) : super(const EmpCiState()) {
+    bindRealtimeRefresh(['credit_investigations', 'ci_documents'], refresh: load);
+  }
 
   Future<void> load({String? status, String? riderId, int page = 1}) async {
     state = state.copyWith(isLoading: true, error: null);

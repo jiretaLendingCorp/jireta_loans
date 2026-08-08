@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class RiderProfileState {
   final UserModel? user;
@@ -16,6 +17,9 @@ class RiderProfileState {
     this.error,
     this.isSaving = false,
   });
+
+  String? get plateNumber => user?.plateNumber;
+  String? get licenseNumber => user?.driversLicenseNumber;
 
   RiderProfileState copyWith({
     UserModel? user,
@@ -31,11 +35,13 @@ class RiderProfileState {
       );
 }
 
-class RiderProfileNotifier extends StateNotifier<RiderProfileState> {
+class RiderProfileNotifier extends StateNotifier<RiderProfileState>
+    with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
 
   RiderProfileNotifier(this._ds)
       : super(const RiderProfileState()) {
+    bindRealtimeRefresh(['users', 'rider_profiles'], refresh: loadProfile);
     loadProfile();
   }
 

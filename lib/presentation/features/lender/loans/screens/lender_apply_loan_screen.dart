@@ -60,10 +60,14 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final kycState = ref.read(lenderKycProvider);
-      if (kycState.status == 'pending') {
-        context.go(RouteConstants.lenderKyc);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(lenderKycProvider.notifier).loadStatus();
+      if (!mounted) return;
+      final status = ref.read(lenderKycProvider).status;
+      if (status != 'verified') {
+        context.go(status == 'not_submitted'
+            ? RouteConstants.lenderKyc
+            : RouteConstants.lenderKycStatus);
       }
     });
   }

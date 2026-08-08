@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/blacklist_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final hmBlacklistProvider = StateNotifierProvider<HmBlacklistNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
@@ -9,10 +10,14 @@ final hmBlacklistProvider = StateNotifierProvider<HmBlacklistNotifier,
 });
 
 class HmBlacklistNotifier
-    extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+    extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+    with RealtimeRefreshMixin {
   final BlacklistRemoteDataSource _ds;
   HmBlacklistNotifier(this._ds)
-      : super(const AsyncData({'items': [], 'total': 0}));
+      : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(['blacklist'], refresh: loadList);
+    loadList();
+  }
 
   Future<void> loadList({String? search, int page = 1}) async {
     state = const AsyncLoading();

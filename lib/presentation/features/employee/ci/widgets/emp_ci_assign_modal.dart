@@ -300,7 +300,7 @@ class _EmpCiAssignModalState extends ConsumerState<EmpCiAssignModal> {
 
     if (mounted) {
       setState(() => _isLoading = false);
-      Navigator.pop(context);
+      Navigator.pop(context, ok);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

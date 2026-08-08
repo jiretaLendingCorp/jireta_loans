@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/models/kpi_employee_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class EmpDashboardState {
   final KpiEmployeeModel kpi;
@@ -27,11 +28,21 @@ class EmpDashboardState {
       );
 }
 
-class EmpDashboardNotifier extends StateNotifier<EmpDashboardState> {
+class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
+    with RealtimeRefreshMixin {
   final KpiRemoteDataSource _ds;
 
   EmpDashboardNotifier(this._ds)
       : super(EmpDashboardState(kpi: KpiEmployeeModel.empty())) {
+    bindRealtimeRefresh([
+      'loans',
+      'loan_schedules',
+      'payments',
+      'collection_assignments',
+      'credit_investigations',
+      'kyc_documents',
+      'notifications',
+    ], refresh: loadKpis);
     loadKpis();
   }
 

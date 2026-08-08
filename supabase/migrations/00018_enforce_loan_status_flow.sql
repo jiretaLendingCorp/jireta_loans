@@ -2,16 +2,17 @@
 -- Enforce the loan lifecycle at the database level so a loan can never
 -- become 'approved' or 'active' out of order, even if a function is bypassed.
 --
--- Lifecycle: pending -> ci_assigned -> ci_completed -> approved -> active
---   - approved can only come from ci_completed
+-- Lifecycle: pending -> under_review -> ci_required -> ci_assigned -> ci_completed -> approved -> active
+--   - approved can come from pending, under_review, ci_required, ci_assigned, or ci_completed
+--     (a loan may be approved directly without a CI assignment)
 --   - active can only come from approved (or be restored from
 --     completed/overdue when a payment is reversed)
 
 CREATE OR REPLACE FUNCTION enforce_loan_status_flow()
 RETURNS trigger AS $$
 BEGIN
-  IF NEW.status = 'approved' AND OLD.status <> 'ci_completed' THEN
-    RAISE EXCEPTION 'Loan must be in ci_completed status before approval (was %)', OLD.status;
+  IF NEW.status = 'approved' AND OLD.status NOT IN ('pending', 'under_review', 'ci_required', 'ci_assigned', 'ci_completed') THEN
+    RAISE EXCEPTION 'Loan cannot be approved from % status (was %)', NEW.status, OLD.status;
   END IF;
   IF NEW.status = 'active' AND OLD.status NOT IN ('approved', 'active', 'completed', 'overdue') THEN
     RAISE EXCEPTION 'Loan must be approved before becoming active (was %)', OLD.status;

@@ -7,6 +7,7 @@ import '../../../../../data/datasources/remote/blacklist_remote_datasource.dart'
 import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class _BlacklistState {
   final List<Map<String, dynamic>> items;
@@ -38,10 +39,12 @@ class _BlacklistState {
   );
 }
 
-class _BlacklistNotifier extends StateNotifier<_BlacklistState> {
+class _BlacklistNotifier extends StateNotifier<_BlacklistState>
+    with RealtimeRefreshMixin<_BlacklistState> {
   final BlacklistRemoteDataSource _ds;
 
   _BlacklistNotifier(this._ds) : super(const _BlacklistState()) {
+    bindRealtimeRefresh(['blacklist'], refresh: () => fetch());
     fetch();
   }
 

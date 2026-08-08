@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class _ReportState {
   final List<Map<String, dynamic>> templates;
@@ -18,9 +19,13 @@ class _ReportState {
       _ReportState(templates: templates ?? this.templates, history: history ?? this.history, isLoading: isLoading ?? this.isLoading, isGenerating: isGenerating ?? this.isGenerating);
 }
 
-class _ReportNotifier extends StateNotifier<_ReportState> {
+class _ReportNotifier extends StateNotifier<_ReportState>
+    with RealtimeRefreshMixin<_ReportState> {
   final ReportRemoteDataSource _ds;
-  _ReportNotifier(this._ds) : super(const _ReportState()) { init(); }
+  _ReportNotifier(this._ds) : super(const _ReportState()) {
+    bindRealtimeRefresh(['reports'], refresh: init);
+    init();
+  }
 
   Future<void> init() async {
     state = state.copyWith(isLoading: true);

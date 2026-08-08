@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
 import '../../../../../data/models/kyc_document_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmKycState {
   final List<KycDocumentModel> docs;
@@ -47,10 +48,12 @@ class HmKycState {
       );
 }
 
-class HmKycNotifier extends StateNotifier<HmKycState> {
+class HmKycNotifier extends StateNotifier<HmKycState>
+    with RealtimeRefreshMixin {
   final KycRemoteDataSource _ds;
 
   HmKycNotifier(this._ds) : super(const HmKycState()) {
+    bindRealtimeRefresh(['kyc_documents', 'lender_profiles'], refresh: fetch);
     fetch();
   }
 
@@ -96,6 +99,24 @@ class HmKycNotifier extends StateNotifier<HmKycState> {
     try {
       await _ds.verifyKyc(
         kycDocId: kycDocId,
+        action: action,
+        rejectionNotes: rejectionNotes,
+      );
+      await fetch(page: state.currentPage);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> verifyAll({
+    required String lenderId,
+    required String action,
+    String? rejectionNotes,
+  }) async {
+    try {
+      await _ds.verifyAllKyc(
+        lenderId: lenderId,
         action: action,
         rejectionNotes: rejectionNotes,
       );

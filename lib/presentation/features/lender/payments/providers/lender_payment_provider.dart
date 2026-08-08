@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../../data/models/payment_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class LenderPaymentState {
   final List<PaymentModel> payments;
@@ -35,10 +36,12 @@ class LenderPaymentState {
       );
 }
 
-class LenderPaymentNotifier extends StateNotifier<LenderPaymentState> {
+class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
+    with RealtimeRefreshMixin {
   final PaymentRemoteDataSource _ds;
 
   LenderPaymentNotifier(this._ds) : super(const LenderPaymentState()) {
+    bindRealtimeRefresh(['payments', 'loan_schedules'], refresh: loadPayments);
     loadPayments();
   }
 

@@ -147,7 +147,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
   /// Convert a display value (e.g. "Self-Employed", "Prefer not to say") to
   /// the lowercase/underscored form the lender_profiles CHECK constraints use.
   String _toDbEnum(String value) {
-    final v = value.trim().toLowerCase().replaceAll(' ', '_');
+    final v = value.trim().toLowerCase().replaceAll(RegExp(r'[\s-]'), '_');
     if (v == 'prefer_not_to_say') return 'other';
     return v;
   }

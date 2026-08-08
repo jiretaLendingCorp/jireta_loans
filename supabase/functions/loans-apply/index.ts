@@ -183,8 +183,8 @@ serve(async (req) => {
         .select()
         .single();
 
-      if (coMakerErr || !coMakerRow) {
-        console.error('co_maker insert error:', coMakerErr);
+      if (coErr || !coMakerRow) {
+        console.error('co_maker insert error:', coErr);
         return errorResponse('Failed to save co-maker details', 500, 'SERVER_ERROR');
       }
 

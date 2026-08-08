@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class LenderLoanState {
   final List<LoanModel> loans;
@@ -39,10 +40,12 @@ class LenderLoanState {
       );
 }
 
-class LenderLoanNotifier extends StateNotifier<LenderLoanState> {
+class LenderLoanNotifier extends StateNotifier<LenderLoanState>
+    with RealtimeRefreshMixin {
   final LoanRemoteDataSource _ds;
 
   LenderLoanNotifier(this._ds) : super(const LenderLoanState()) {
+    bindRealtimeRefresh(['loans', 'loan_schedules'], refresh: loadLoans);
     loadLoans();
   }
 

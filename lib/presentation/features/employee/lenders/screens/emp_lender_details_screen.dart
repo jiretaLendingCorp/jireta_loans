@@ -53,6 +53,11 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           _buildContactInfo(data),
           const SizedBox(height: 20),
+          _buildAddressInfo(data),
+          const SizedBox(height: 20),
+          _buildEmergencyContact(data),
+          if ((data['emergency_contacts'] as List?)?.isNotEmpty == true)
+            const SizedBox(height: 20),
           _buildAccountStatus(data),
           const SizedBox(height: 20),
           _buildKycStatus(data),
@@ -112,7 +117,7 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
               _InfoItem('Civil Status',
                   data['lender_profiles']?['civil_status'] ?? '—'),
               _InfoItem(
-                  'Date of Birth', data['lender_profiles']?['dob'] ?? '—'),
+                  'Date of Birth', data['lender_profiles']?['date_of_birth'] ?? '—'),
               _InfoItem('Employment',
                   data['lender_profiles']?['employment_type'] ?? '—'),
               _InfoItem(
@@ -122,7 +127,56 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
                   data['lender_profiles']?['monthly_income'] != null
                       ? '₱${data['lender_profiles']['monthly_income']}'
                       : '—'),
+              _InfoItem('Source of Funds',
+                  data['lender_profiles']?['source_of_funds'] ?? '—'),
             ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddressInfo(Map<String, dynamic> data) {
+    final parts = [
+      data['street_address'],
+      data['barangay'],
+      data['city'],
+      data['province'],
+      data['zip_code'],
+    ].where((e) => e != null && e.toString().isNotEmpty).toList();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle('Address'),
+            const SizedBox(height: 12),
+            Text(parts.isEmpty ? '—' : parts.join(', '),
+                style: const TextStyle(
+                    fontSize: 14, color: AppColors.textPrimary)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmergencyContact(Map<String, dynamic> data) {
+    final contacts = (data['emergency_contacts'] as List?) ?? [];
+    if (contacts.isEmpty) return const SizedBox.shrink();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionTitle('Emergency Contact'),
+            const SizedBox(height: 12),
+            _buildInfoGrid(contacts.map((c) {
+              final m = c as Map<String, dynamic>;
+              return _InfoItem('${m['name'] ?? '—'} (${m['relationship'] ?? '—'})',
+                  '${m['phone_number'] ?? '—'}${(m['address'] != null && m['address'].toString().isNotEmpty) ? ' — ${m['address']}' : ''}');
+            }).toList()),
           ],
         ),
       ),

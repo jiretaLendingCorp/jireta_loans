@@ -7,6 +7,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../ci/widgets/emp_ci_assign_modal.dart';
+import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
 import '../providers/emp_loan_provider.dart';
 
 class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
@@ -143,7 +145,7 @@ class _EmpLoanApplicationsScreenState
           Expanded(flex: 2, child: Text('Frequency', style: style)),
           Expanded(flex: 2, child: Text('Status', style: style)),
           Expanded(flex: 2, child: Text('Applied', style: style)),
-          Expanded(flex: 2, child: Text('Actions', style: style)),
+          Expanded(flex: 4, child: Text('Actions', style: style)),
         ],
       ),
     );
@@ -195,7 +197,29 @@ class _EmpLoanApplicationsScreenState
             ),
             Expanded(
               flex: 2,
-              child: _LoanStatusBadge(status: loan.status),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _LoanStatusBadge(status: loan.status),
+                  if (loan.ciStatus != null &&
+                      (loan.ciStatus == 'assigned' ||
+                          loan.ciStatus == 'accepted' ||
+                          loan.ciStatus == 'in_progress') &&
+                      loan.status == 'ci_assigned') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      loan.assignedRiderName != null
+                          ? 'Rider: ${loan.assignedRiderName}'
+                          : 'Rider Assigned',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.riderGreen,
+                          fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
             ),
             Expanded(
               flex: 2,
@@ -208,24 +232,126 @@ class _EmpLoanApplicationsScreenState
               ),
             ),
             Expanded(
-              flex: 2,
-              child: ElevatedButton(
-                onPressed: () => context.go(
-                  RouteConstants.empLoanDetails.replaceFirst(':id', loan.id),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.deepNavy,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  textStyle: const TextStyle(fontSize: 12),
-                  minimumSize: Size.zero,
-                ),
-                child: const Text('Review'),
-              ),
+              flex: 4,
+              child: _buildActions(loan),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActions(LoanModel loan) {
+    final status = loan.status;
+    final canAssignRider = ['pending', 'under_review', 'ci_required'].contains(status);
+    final canApprove = [
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    ].contains(status);
+    final canReject = [
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    ].contains(status);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        if (canApprove)
+          _EmpLoanActionButton(
+            label: 'Approve',
+            icon: Icons.check_circle_outline,
+            color: AppColors.success,
+            onPressed: () => _showApprove(loan),
+          ),
+        if (canAssignRider)
+          _EmpLoanActionButton(
+            label: 'Assign Rider',
+            icon: Icons.delivery_dining,
+            color: AppColors.info,
+            onPressed: () => _showAssignRider(loan),
+          ),
+        if (canReject)
+          _EmpLoanActionButton(
+            label: 'Reject',
+            icon: Icons.cancel_outlined,
+            color: AppColors.error,
+            onPressed: () => _showReject(loan),
+          ),
+        _EmpLoanActionButton(
+          label: 'Review',
+          icon: Icons.visibility_outlined,
+          color: AppColors.textSecondary,
+          onPressed: () => context.go(
+            RouteConstants.empLoanDetails.replaceFirst(':id', loan.id),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showApprove(LoanModel loan) async {
+    await showDialog(
+      context: context,
+      builder: (_) => ApproveRejectModal(
+        loanId: loan.id,
+        isApprove: true,
+        onConfirm: (_, __) async {
+          final ok = await ref.read(empLoanProvider.notifier).approve(loan.id);
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok ? 'Loan approved successfully' : 'Approval failed'),
+              backgroundColor: ok ? AppColors.success : AppColors.error,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showAssignRider(LoanModel loan) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => EmpCiAssignModal(loanId: loan.id, ciId: ''),
+    );
+    if (assigned == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rider assigned for credit investigation'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      ref.read(empLoanProvider.notifier).load();
+    }
+  }
+
+  Future<void> _showReject(LoanModel loan) async {
+    await showDialog(
+      context: context,
+      builder: (_) => ApproveRejectModal(
+        loanId: loan.id,
+        isApprove: false,
+        onConfirm: (_, reason) async {
+          if (!mounted) return;
+          final notifier = ref.read(empLoanProvider.notifier);
+          final ok = await notifier.reject(loan.id, reason ?? '');
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok ? 'Loan rejected' : 'Reject failed'),
+              backgroundColor: ok ? AppColors.error : AppColors.textSecondary,
+            ),
+          );
+        },
       ),
     );
   }
@@ -257,6 +383,37 @@ class _TabDef {
   final String label;
   final String? statusKey;
   const _TabDef(this.label, this.statusKey);
+}
+
+class _EmpLoanActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const _EmpLoanActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 15, color: color),
+      label: Text(label,
+          style: TextStyle(
+              fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: Size.zero,
+        backgroundColor: color.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
 }
 
 class _LoanStatusBadge extends StatelessWidget {

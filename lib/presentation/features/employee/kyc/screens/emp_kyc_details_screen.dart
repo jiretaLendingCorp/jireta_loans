@@ -1,6 +1,8 @@
 // lib/presentation/features/employee/kyc/screens/emp_kyc_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -22,6 +24,38 @@ class EmpKycDetailsScreen extends ConsumerStatefulWidget {
 
 class _State extends ConsumerState<EmpKycDetailsScreen> {
   bool _busy = false;
+
+  Future<void> _openDocument(Map<String, dynamic> doc) async {
+    final signedUrl = doc['signed_url'] as String?;
+    final filePath = doc['file_url'] as String?;
+    try {
+      String url;
+      if (signedUrl != null && signedUrl.isNotEmpty) {
+        url = signedUrl;
+      } else if (filePath != null && filePath.startsWith('http')) {
+        url = filePath;
+      } else if (filePath != null) {
+        url = await SupabaseStorageService.instance
+            .getSignedUrl(bucket: 'kyc-documents', path: filePath);
+      } else {
+        return;
+      }
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Unable to open document.'),
+            backgroundColor: AppColors.error));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Failed to open document: $e'),
+            backgroundColor: AppColors.error));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +250,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: OutlinedButton.icon(
-                          onPressed: () {},
+                          onPressed: () => _openDocument(d),
                           icon: const Icon(Icons.open_in_new, size: 14),
                           label: const Text('View Document',
                               style: TextStyle(fontSize: 12)),

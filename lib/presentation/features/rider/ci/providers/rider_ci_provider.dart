@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class RiderCiState {
   final List<CreditInvestigationModel> ciList;
@@ -43,10 +44,12 @@ class RiderCiState {
       );
 }
 
-class RiderCiNotifier extends StateNotifier<RiderCiState> {
+class RiderCiNotifier extends StateNotifier<RiderCiState>
+    with RealtimeRefreshMixin {
   final CiRemoteDataSource _ds;
 
   RiderCiNotifier(this._ds) : super(const RiderCiState()) {
+    bindRealtimeRefresh(['credit_investigations', 'ci_documents'], refresh: load);
     load();
   }
 

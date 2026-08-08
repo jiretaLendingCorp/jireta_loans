@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/in_office_remote_datasource.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final empInOfficeProvider = StateNotifierProvider<EmpInOfficeNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
@@ -11,12 +12,14 @@ final empInOfficeProvider = StateNotifierProvider<EmpInOfficeNotifier,
 });
 
 class EmpInOfficeNotifier
-    extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+    extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+    with RealtimeRefreshMixin {
   final InOfficeRemoteDataSource _ds;
   final LoanRemoteDataSource _loanDs;
 
   EmpInOfficeNotifier(this._ds, this._loanDs)
       : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(['in_office_applications'], refresh: loadList);
     loadList();
   }
 

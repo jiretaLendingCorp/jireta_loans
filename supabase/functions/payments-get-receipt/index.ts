@@ -22,8 +22,13 @@ serve(async (req) => {
     if (user.role === ROLES.LENDER && (payment as any).loan_schedules?.loans?.lender_id !== user.id) return errorResponse('Access denied', 403, 'FORBIDDEN');
     if (user.role === ROLES.RIDER) return errorResponse('Access denied', 403, 'FORBIDDEN');
     if (!(payment as any).receipt_path) return errorResponse('Receipt not yet generated', 404, 'NOT_FOUND');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const { data: signedUrl } = await db.storage.from('receipts').createSignedUrl((payment as any).receipt_path, 3600);
-    return jsonResponse({ signed_url: signedUrl?.signedUrl ?? null, receipt_url: signedUrl?.signedUrl ?? null, payment_id: paymentId });
+    // createSignedUrl returns a path relative to the storage API (/object/sign/...);
+    // the app launches it with url_launcher, which needs an absolute URL.
+    const signedPath = (signedUrl as any)?.signedUrl ?? null;
+    const fullUrl = signedPath ? `${supabaseUrl}/storage/v1${signedPath}` : null;
+    return jsonResponse({ signed_url: fullUrl, receipt_url: fullUrl, payment_id: paymentId });
   } catch (err) {
     console.error('payments-get-receipt error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

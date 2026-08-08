@@ -10,6 +10,8 @@ class KycDocumentModel {
   final DateTime? reviewedAt;
   final DateTime createdAt;
   final Map<String, dynamic>? lender;
+  final int documentCount;
+  final List<String> documentTypes;
 
   const KycDocumentModel({
     required this.id,
@@ -22,6 +24,8 @@ class KycDocumentModel {
     this.reviewedAt,
     required this.createdAt,
     this.lender,
+    this.documentCount = 0,
+    this.documentTypes = const [],
   });
 
   factory KycDocumentModel.fromJson(Map<String, dynamic> json) =>
@@ -40,7 +44,17 @@ class KycDocumentModel {
             ? DateTime.parse(json['created_at'])
             : DateTime.now(),
         lender: json['lender'] as Map<String, dynamic>?,
+        documentCount: (json['document_count'] as num?)?.toInt() ?? 0,
+        documentTypes: (json['document_types'] as List? ?? [])
+            .map((e) => e.toString())
+            .toList(),
       );
+
+  String get documentCountLabel => documentCount <= 0
+      ? 'KYC Submission'
+      : documentCount == 1
+          ? '1 document'
+          : '$documentCount documents';
 
   String get lenderName {
     if (lender == null) return '';
@@ -77,7 +91,7 @@ class KycStatusModel {
 
   factory KycStatusModel.fromJson(Map<String, dynamic> json) => KycStatusModel(
     lenderId: json['lender_id'] ?? '',
-    kycStatus: json['kyc_status'] ?? 'pending',
+    kycStatus: json['kyc_status'] ?? 'not_submitted',
     documents: (json['documents'] as List? ?? [])
         .map((e) => KycDocumentModel.fromJson(e as Map<String, dynamic>))
         .toList(),

@@ -1,7 +1,9 @@
 // lib/presentation/features/head_manager/kyc/screens/hm_kyc_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/errors/error_handler.dart';
+import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
 import '../../../../../core/di/injection.dart';
@@ -89,6 +91,34 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
       if (mounted) showErrorSnackBar(context, 'Action failed: $e');
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _openDocument(Map<String, dynamic> doc) async {
+    final signedUrl = doc['signed_url'] as String?;
+    final filePath = doc['file_url'] as String?;
+    try {
+      String url;
+      if (signedUrl != null && signedUrl.isNotEmpty) {
+        // Server-resolved signed URL (service role) — bypasses the owner-scoped
+        // storage RLS that blocks a reviewer's own JWT from reading lender files.
+        url = signedUrl;
+      } else if (filePath != null && filePath.startsWith('http')) {
+        url = filePath;
+      } else if (filePath != null) {
+        url = await SupabaseStorageService.instance
+            .getSignedUrl(bucket: 'kyc-documents', path: filePath);
+      } else {
+        return;
+      }
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else if (mounted) {
+        showErrorSnackBar(context, 'Unable to open document.');
+      }
+    } catch (e) {
+      if (mounted) showErrorSnackBar(context, 'Failed to open document: $e');
     }
   }
 
@@ -233,7 +263,7 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
                                     Padding(
                                       padding: const EdgeInsets.only(top: 8),
                                       child: OutlinedButton.icon(
-                                        onPressed: () {},
+                                        onPressed: () => _openDocument(d),
                                         icon: const Icon(Icons.open_in_new,
                                             size: 14),
                                         label: const Text('View Document',

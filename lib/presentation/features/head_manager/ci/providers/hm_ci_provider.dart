@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmCiState {
   final List<CreditInvestigationModel> items;
@@ -47,10 +48,12 @@ class HmCiState {
       );
 }
 
-class HmCiNotifier extends StateNotifier<HmCiState> {
+class HmCiNotifier extends StateNotifier<HmCiState>
+    with RealtimeRefreshMixin {
   final CiRemoteDataSource _ds;
 
   HmCiNotifier(this._ds) : super(const HmCiState()) {
+    bindRealtimeRefresh(['credit_investigations', 'ci_documents'], refresh: fetch);
     fetch();
   }
 

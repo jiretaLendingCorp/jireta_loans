@@ -5,6 +5,8 @@ class LoanModel extends LoanEntity {
   final Map<String, dynamic>? lenderProfile;
   final List<Map<String, dynamic>>? schedules;
   final List<Map<String, dynamic>>? payments;
+  final String? assignedRiderName;
+  final String? ciStatus;
 
   const LoanModel({
     required super.id,
@@ -30,6 +32,8 @@ class LoanModel extends LoanEntity {
     this.lenderProfile,
     this.schedules,
     this.payments,
+    this.assignedRiderName,
+    this.ciStatus,
   });
 
   factory LoanModel.fromJson(Map<String, dynamic> json) {
@@ -70,6 +74,8 @@ class LoanModel extends LoanEntity {
       schedules: (json['loan_schedules'] as List?)
           ?.cast<Map<String, dynamic>>(),
       payments: (json['payments'] as List?)?.cast<Map<String, dynamic>>(),
+      assignedRiderName: json['assigned_rider_name'],
+      ciStatus: json['ci_status'],
     );
   }
 

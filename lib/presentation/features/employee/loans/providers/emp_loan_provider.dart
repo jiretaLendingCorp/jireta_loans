@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class EmpLoanState {
   final List<LoanModel> loans;
@@ -39,9 +40,11 @@ class EmpLoanState {
       );
 }
 
-class EmpLoanNotifier extends StateNotifier<EmpLoanState> {
+class EmpLoanNotifier extends StateNotifier<EmpLoanState>
+    with RealtimeRefreshMixin {
   final LoanRemoteDataSource _ds;
   EmpLoanNotifier(this._ds) : super(const EmpLoanState()) {
+    bindRealtimeRefresh(['loans', 'loan_schedules'], refresh: load);
     load();
   }
 
@@ -101,9 +104,14 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
     }
   }
 
-  Future<void> reject(String loanId, String reason) async {
-    await _ds.rejectLoan(loanId, reason);
-    await load();
+  Future<bool> reject(String loanId, String reason) async {
+    try {
+      await _ds.rejectLoan(loanId, reason);
+      await load();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> requestCI(String loanId) async {

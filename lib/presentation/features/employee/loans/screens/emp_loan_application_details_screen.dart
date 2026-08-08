@@ -205,7 +205,13 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   Widget _buildActionPanel(
       BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
     final status = data['status'] as String? ?? '';
-    final canApprove = status == 'ci_completed';
+    final canApprove = [
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    ].contains(status);
     final canAssignCi = ['pending', 'under_review', 'ci_required']
         .contains(status);
     final canRequestCi = status == 'under_review';

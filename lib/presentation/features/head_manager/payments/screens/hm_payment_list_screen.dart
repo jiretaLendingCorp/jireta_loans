@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class _PaymentState {
   final List<Map<String, dynamic>> payments;
@@ -18,9 +19,13 @@ class _PaymentState {
   _PaymentState copyWith({List<Map<String, dynamic>>? payments, bool? isLoading, String? error, int? currentPage, int? totalPages}) => _PaymentState(payments: payments ?? this.payments, isLoading: isLoading ?? this.isLoading, error: error, currentPage: currentPage ?? this.currentPage, totalPages: totalPages ?? this.totalPages);
 }
 
-class _PaymentNotifier extends StateNotifier<_PaymentState> {
+class _PaymentNotifier extends StateNotifier<_PaymentState>
+    with RealtimeRefreshMixin<_PaymentState> {
   final PaymentRemoteDataSource _ds;
-  _PaymentNotifier(this._ds) : super(const _PaymentState()) { fetch(); }
+  _PaymentNotifier(this._ds) : super(const _PaymentState()) {
+    bindRealtimeRefresh(['payments'], refresh: () => fetch());
+    fetch();
+  }
 
   Future<void> fetch({int page = 1, String? method, String? status}) async {
     state = state.copyWith(isLoading: true, error: null);

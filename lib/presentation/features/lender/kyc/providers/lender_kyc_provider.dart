@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
 import '../../../../../data/models/kyc_document_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class LenderKycState {
   final KycStatusModel? kycStatus;
@@ -30,7 +31,7 @@ class LenderKycState {
         isSubmitting: isSubmitting ?? this.isSubmitting,
       );
 
-  String get status => kycStatus?.kycStatus ?? 'pending';
+  String get status => kycStatus?.kycStatus ?? 'not_submitted';
   List<KycDocumentModel> get documents => kycStatus?.documents ?? const [];
   String? get rejectionNotes {
     for (final d in documents) {
@@ -40,10 +41,12 @@ class LenderKycState {
   }
 }
 
-class LenderKycNotifier extends StateNotifier<LenderKycState> {
+class LenderKycNotifier extends StateNotifier<LenderKycState>
+    with RealtimeRefreshMixin {
   final KycRemoteDataSource _ds;
 
   LenderKycNotifier(this._ds) : super(const LenderKycState()) {
+    bindRealtimeRefresh(['kyc_documents', 'lender_profiles'], refresh: loadStatus);
     loadStatus();
   }
 

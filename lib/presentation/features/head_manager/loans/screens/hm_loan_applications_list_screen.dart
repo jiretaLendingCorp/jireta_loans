@@ -4,11 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../ci/widgets/ci_assign_modal.dart';
+import '../../disbursements/providers/hm_disbursement_provider.dart';
+import '../../disbursements/widgets/disburse_modal.dart';
 import '../providers/hm_loan_provider.dart';
+import '../widgets/approve_reject_modal.dart';
 
 class HmLoanApplicationsListScreen extends ConsumerStatefulWidget {
   const HmLoanApplicationsListScreen({super.key});
@@ -152,7 +158,7 @@ class _HmLoanApplicationsListScreenState
           Expanded(flex: 2, child: Text('Frequency', style: s)),
           Expanded(flex: 2, child: Text('Date Applied', style: s)),
           Expanded(flex: 2, child: Text('Status', style: s)),
-          Expanded(flex: 1, child: Text('Action', style: s)),
+          Expanded(flex: 4, child: Text('Action', style: s)),
         ],
       ),
     );
@@ -211,33 +217,221 @@ class _HmLoanApplicationsListScreenState
             ),
             Expanded(
               flex: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  _formatStatus(loan.status),
-                  style: TextStyle(
-                      fontSize: 12, color: color, fontWeight: FontWeight.w500),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _formatStatus(loan.status),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: color,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                  if (loan.ciStatus != null &&
+                      (loan.ciStatus == 'assigned' ||
+                          loan.ciStatus == 'accepted' ||
+                          loan.ciStatus == 'in_progress') &&
+                      loan.status == 'ci_assigned') ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      loan.assignedRiderName != null
+                          ? 'Rider: ${loan.assignedRiderName}'
+                          : 'Rider Assigned',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.riderGreen,
+                          fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
               ),
             ),
             Expanded(
-              flex: 1,
-              child: IconButton(
-                onPressed: () => context.go(
-                  RouteConstants.hmLoanApplicationDetails
-                      .replaceFirst(':id', loan.id),
-                ),
-                icon: const Icon(Icons.chevron_right,
-                    size: 20, color: AppColors.textSecondary),
-                tooltip: 'View Details',
-              ),
+              flex: 4,
+              child: _buildActions(loan),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActions(LoanModel loan) {
+    final status = loan.status;
+    final canAssignRider = ['pending', 'under_review', 'ci_required'].contains(status);
+    final canApprove = [
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    ].contains(status);
+    final canRelease = status == 'approved';
+    final canReject = [
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    ].contains(status);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        if (canApprove)
+          _InlineActionButton(
+            label: 'Approve',
+            icon: Icons.check_circle_outline,
+            color: AppColors.success,
+            onPressed: () => _showApprove(loan),
+          ),
+        if (canRelease)
+          _InlineActionButton(
+            label: 'Release',
+            icon: Icons.account_balance_wallet_outlined,
+            color: AppColors.gold,
+            onPressed: () => _showRelease(loan),
+          ),
+        if (canAssignRider)
+          _InlineActionButton(
+            label: 'Assign Rider',
+            icon: Icons.delivery_dining,
+            color: AppColors.info,
+            onPressed: () => _showAssignRider(loan),
+          ),
+        if (canReject)
+          _InlineActionButton(
+            label: 'Reject',
+            icon: Icons.cancel_outlined,
+            color: AppColors.error,
+            onPressed: () => _showReject(loan),
+          ),
+        _InlineActionButton(
+          label: 'View',
+          icon: Icons.visibility_outlined,
+          color: AppColors.textSecondary,
+          onPressed: () => context.go(
+            RouteConstants.hmLoanApplicationDetails.replaceFirst(':id', loan.id),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showApprove(LoanModel loan) async {
+    await showDialog(
+      context: context,
+      builder: (_) => ApproveRejectModal(
+        loanId: loan.id,
+        isApprove: true,
+        onConfirm: (_, __) async {
+          final ok = await ref.read(hmLoanProvider.notifier).approveLoan(loan.id);
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok ? 'Loan approved successfully' : 'Approval failed'),
+              backgroundColor: ok ? AppColors.success : AppColors.error,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showRelease(LoanModel loan) async {
+    List<Map<String, dynamic>> riders = const [];
+    try {
+      final res = await sl<UserRemoteDataSource>().getUserList(
+        role: 'rider',
+        status: 'active',
+        page: 1,
+        limit: 100,
+      );
+      riders =
+          (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    } catch (_) {}
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (_) => DisburseModal(
+        loanId: loan.id,
+        loanAmount: loan.principalAmount,
+        lenderName: loan.lenderName ?? 'Lender',
+        availableRiders: riders,
+        onDisburse: (method, data) async {
+          final notifier = ref.read(hmDisbursementProvider.notifier);
+          if (method == 'gcash') {
+            await notifier.disburseGcash(
+                loanId: loan.id, gcashNumber: data['gcash_number'] ?? '');
+          } else if (method == 'office_cash') {
+            await notifier.disburseOfficeCash(loanId: loan.id);
+          } else {
+            await notifier.disburseRiderDelivery(
+              loanId: loan.id,
+              riderId: data['rider_id'] ?? '',
+              deliveryDate: data['delivery_date'],
+              notes: data['notes'],
+            );
+          }
+        },
+      ),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Loan released'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+    ref.read(hmLoanProvider.notifier).fetchLoans();
+  }
+
+  Future<void> _showAssignRider(LoanModel loan) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => CiAssignModal(loanId: loan.id),
+    );
+    if (assigned == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Rider assigned for credit investigation'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      ref.read(hmLoanProvider.notifier).fetchLoans();
+    }
+  }
+
+  Future<void> _showReject(LoanModel loan) async {
+    await showDialog(
+      context: context,
+      builder: (_) => ApproveRejectModal(
+        loanId: loan.id,
+        isApprove: false,
+        onConfirm: (_, reason) async {
+          final ok = await ref
+              .read(hmLoanProvider.notifier)
+              .rejectLoan(loan.id, reason ?? '');
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok ? 'Loan rejected' : 'Reject failed'),
+              backgroundColor: ok ? AppColors.error : AppColors.textSecondary,
+            ),
+          );
+        },
       ),
     );
   }
@@ -321,4 +515,35 @@ class _HmLoanApplicationsListScreenState
 
   String _capitalizeFirst(String s) =>
       s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+}
+
+class _InlineActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onPressed;
+
+  const _InlineActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 15, color: color),
+      label: Text(label,
+          style: TextStyle(
+              fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: Size.zero,
+        backgroundColor: color.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
 }

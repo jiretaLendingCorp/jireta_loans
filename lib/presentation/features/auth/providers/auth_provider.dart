@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/security/secure_storage.dart';
+import '../../../../core/services/realtime_service.dart';
 import '../../../../data/datasources/remote/auth_remote_datasource.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../shared/providers/auth_state_provider.dart';
@@ -39,6 +40,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       );
       _authState.setAuthenticated(user);
       state = const AsyncData(null);
+      RealtimeService.instance.reconnect();
       return true;
     } catch (e, s) {
       state = AsyncError(e, s);
@@ -82,6 +84,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       );
       _authState.setAuthenticated(user);
       state = const AsyncData(null);
+      RealtimeService.instance.reconnect();
       return true;
     } catch (e, s) {
       state = AsyncError(e, s);
@@ -162,6 +165,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       await _ds.logout();
     } catch (_) {}
+    await RealtimeService.instance.disconnect();
     await _authState.logout();
     state = const AsyncData(null);
   }

@@ -43,7 +43,7 @@ serve(async (req) => {
     if (search) query = query.or(`users.first_name.ilike.%${search}%,users.last_name.ilike.%${search}%,users.middle_name.ilike.%${search}%`);
 
     const { data, error, count } = await query
-      .order('uploaded_at', { ascending: false, foreignTable: 'kyc_documents' })
+      .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) return errorResponse(`Failed to fetch KYC list: ${error.message}`, 500, 'SERVER_ERROR');
 
@@ -54,11 +54,11 @@ serve(async (req) => {
       getLenderAddressBatch(db, lenderIds),
     ]);
 
-    // Flatten each lender_profile into rows. Lenders that submitted KYC but
-    // have no document rows are still listed so staff always see the
-    // submission. Each row's `id` is the real kyc_documents.id (needed for
-    // kyc-get-details + kyc-verify); fallback rows use the lender id.
-    const mapped = (rows ?? []).flatMap((row: any) => {
+    // One row per lender (NOT one per document). Staff should see a single
+    // submission per borrower with a document count; document-level review
+    // happens inside kyc-get-details / kyc-verify. `id` is the lender id so
+    // the client can navigate straight to the lender's KYC details.
+    const mapped = (rows ?? []).map((row: any) => {
       const address = addressMap[row.id] ?? null;
       const isBlacklisted = Boolean(blacklistMap[row.id]);
       const lender = {
@@ -89,33 +89,24 @@ serve(async (req) => {
       };
 
       const docs = row.kyc_documents ?? [];
-      if (docs.length === 0) {
-        return [
-          {
-            id: row.id,
-            lender_id: row.id,
-            document_type: 'other',
-            file_url: null,
-            status: row.kyc_status ?? 'submitted',
-            created_at: new Date().toISOString(),
-            lender,
-            emergency_contacts: row.emergency_contacts ?? [],
-          },
-        ];
-      }
-      return docs.map((d: any) => ({
-        id: d.id,
+      const docTypes = [...new Set(docs.map((d: any) => d.document_type))];
+      const latestUpload = docs.length
+        ? docs.reduce((a: any, b: any) =>
+            (a.uploaded_at ?? '') > (b.uploaded_at ?? '') ? a : b)
+        : null;
+
+      return {
+        id: row.id,
         lender_id: row.id,
-        document_type: d.document_type,
-        file_url: d.file_path,
-        status: d.status ?? row.kyc_status ?? 'pending',
-        created_at: d.uploaded_at,
-        rejection_notes: d.rejection_notes ?? null,
-        reviewed_by: d.reviewed_by ?? null,
-        reviewed_at: d.reviewed_at ?? null,
+        document_type: 'submission',
+        document_count: docs.length,
+        document_types: docTypes,
+        file_url: null,
+        status: row.kyc_status ?? (docs.length ? 'submitted' : 'not_submitted'),
+        created_at: latestUpload?.uploaded_at ?? row.updated_at ?? new Date().toISOString(),
         lender,
         emergency_contacts: row.emergency_contacts ?? [],
-      }));
+      };
     });
 
     return jsonResponse({

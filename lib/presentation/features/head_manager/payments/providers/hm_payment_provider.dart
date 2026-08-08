@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final hmPaymentProvider =
     StateNotifierProvider<HmPaymentNotifier, AsyncValue<Map<String, dynamic>>>(
@@ -10,10 +11,14 @@ final hmPaymentProvider =
 });
 
 class HmPaymentNotifier
-    extends StateNotifier<AsyncValue<Map<String, dynamic>>> {
+    extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+    with RealtimeRefreshMixin {
   final PaymentRemoteDataSource _ds;
   HmPaymentNotifier(this._ds)
-      : super(const AsyncData({'items': [], 'total': 0}));
+      : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(['payments'], refresh: loadList);
+    loadList();
+  }
 
   Future<void> loadList({String? method, String? status, int page = 1}) async {
     state = const AsyncLoading();

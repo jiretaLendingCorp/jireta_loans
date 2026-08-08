@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../../../../data/models/notification_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class HmNotificationState {
   final List<NotificationModel> notifications;
@@ -31,10 +32,12 @@ class HmNotificationState {
       );
 }
 
-class HmNotificationNotifier extends StateNotifier<HmNotificationState> {
+class HmNotificationNotifier extends StateNotifier<HmNotificationState>
+    with RealtimeRefreshMixin {
   final NotificationRemoteDataSource _ds;
 
   HmNotificationNotifier(this._ds) : super(const HmNotificationState()) {
+    bindRealtimeRefresh(['notifications'], refresh: loadNotifications);
     loadNotifications();
   }
 

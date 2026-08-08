@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class LenderProfileState {
   final UserModel? user;
@@ -31,10 +32,12 @@ class LenderProfileState {
       );
 }
 
-class LenderProfileNotifier extends StateNotifier<LenderProfileState> {
+class LenderProfileNotifier extends StateNotifier<LenderProfileState>
+    with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
 
   LenderProfileNotifier(this._ds) : super(const LenderProfileState()) {
+    bindRealtimeRefresh(['users', 'lender_profiles'], refresh: loadProfile);
     loadProfile();
   }
 

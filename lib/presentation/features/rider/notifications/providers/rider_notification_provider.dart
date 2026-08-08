@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../../../../data/models/notification_model.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class RiderNotificationState {
   final List<NotificationModel> notifications;
@@ -31,10 +32,12 @@ class RiderNotificationState {
       );
 }
 
-class RiderNotificationNotifier extends StateNotifier<RiderNotificationState> {
+class RiderNotificationNotifier extends StateNotifier<RiderNotificationState>
+    with RealtimeRefreshMixin {
   final NotificationRemoteDataSource _ds;
 
   RiderNotificationNotifier(this._ds) : super(const RiderNotificationState()) {
+    bindRealtimeRefresh(['notifications'], refresh: load);
     load();
   }
 

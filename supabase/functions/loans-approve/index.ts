@@ -30,16 +30,15 @@ serve(async (req) => {
       .eq('id', loan_id).single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
-    if (loan.status !== 'ci_completed') return errorResponse(`Loan must be in ci_completed status, current: ${loan.status}`, 400, 'INVALID_STATUS');
+    if (!['pending', 'under_review', 'ci_required', 'ci_assigned', 'ci_completed'].includes(loan.status)) {
+      return errorResponse(`Loan cannot be approved from ${loan.status} status`, 400, 'INVALID_STATUS');
+    }
 
     const lp = (loan as any).lender_profiles;
     if (lp?.kyc_status !== 'verified') return errorResponse('Lender KYC must be verified', 400, 'KYC_NOT_VERIFIED');
 
     const { data: blacklist } = await db.from('blacklist').select('id').eq('lender_id', loan.lender_id).eq('is_active', true).maybeSingle();
     if (blacklist) return errorResponse('Lender is blacklisted', 400, 'BLACKLISTED');
-
-    const { data: ci } = await db.from('credit_investigations').select('id, status').eq('loan_id', loan_id).eq('status', 'completed').maybeSingle();
-    if (!ci) return errorResponse('CI report must be completed before approval', 400, 'INVALID_STATUS');
 
     await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', loan_id);
 

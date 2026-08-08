@@ -76,7 +76,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     final userModel = ref.watch(lenderProfileProvider).user;
     final accountStatus = user.accountStatus as String?;
     final fullName = _buildFullName(userModel ?? user);
-    final kycStatus = (userModel?.kycStatus ?? 'pending').toLowerCase();
+    final kycStatus = (userModel?.kycStatus ?? 'not_submitted').toLowerCase();
     final isVerified = kycStatus == 'verified';
 
     return SingleChildScrollView(
@@ -405,7 +405,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   }
 
   Widget _buildKycCard(String? kycStatus) {
-    final status = (kycStatus ?? 'pending').toLowerCase();
+    final status = (kycStatus ?? 'not_submitted').toLowerCase();
     final (Color color, IconData icon, String label) = switch (status) {
       'verified' => (AppColors.success, Icons.verified_user, 'Verified'),
       'rejected' => (AppColors.error, Icons.cancel_outlined, 'Rejected'),
