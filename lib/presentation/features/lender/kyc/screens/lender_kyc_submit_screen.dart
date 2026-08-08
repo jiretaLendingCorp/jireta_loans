@@ -156,7 +156,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-      withData: false,
+      withData: true,
     );
     if (result != null && result.files.isNotEmpty) {
       setState(() => _selectedFiles[docType] = result.files.first);
@@ -207,15 +207,17 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
         final f = e.value;
         if (f == null) continue;
         final path = f.path;
-        String? contentBase64;
-        if (path != null) {
-          contentBase64 = base64Encode(await File(path).readAsBytes());
+        Uint8List? fileBytes;
+        if (f.bytes != null) {
+          fileBytes = f.bytes;
+        } else if (path != null) {
+          fileBytes = await File(path).readAsBytes();
         }
         docs.add({
           'document_type': e.key,
           'file_name': f.name,
           'file_size': f.size,
-          if (contentBase64 != null) 'content_base64': contentBase64,
+          if (fileBytes != null) 'content_base64': base64Encode(fileBytes),
         });
       }
 

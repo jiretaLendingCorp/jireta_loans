@@ -1,5 +1,4 @@
 // lib/presentation/shared/widgets/forms/app_file_picker.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -91,8 +90,7 @@ class AppFilePicker extends StatelessWidget {
     final img = await ImagePicker()
         .pickImage(source: ImageSource.camera, imageQuality: 85);
     if (img == null) return;
-    final file = File(img.path);
-    final size = await file.length();
+    final size = await img.length();
     if (size > maxSizeMb * 1024 * 1024) return;
     onChanged(PickedFile(
         name: img.name, path: img.path, mimeType: 'image/jpeg', bytes: size));
@@ -102,8 +100,7 @@ class AppFilePicker extends StatelessWidget {
     final img = await ImagePicker()
         .pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (img == null) return;
-    final file = File(img.path);
-    final size = await file.length();
+    final size = await img.length();
     if (size > maxSizeMb * 1024 * 1024) return;
     onChanged(PickedFile(
         name: img.name, path: img.path, mimeType: 'image/jpeg', bytes: size));

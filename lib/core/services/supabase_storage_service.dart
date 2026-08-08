@@ -1,5 +1,5 @@
 // lib/core/services/supabase_storage_service.dart
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../security/secure_storage.dart';
@@ -45,31 +45,29 @@ class SupabaseStorageService {
   }
 
   Future<String?> uploadFile({
-    required File file,
+    required Uint8List bytes,
+    required String fileName,
     required String bucket,
     required String folder,
+    String contentType = 'application/octet-stream',
     int maxBytes = maxSizeBytes,
   }) async {
     try {
       await _ensureSession();
 
-      final bytes = await file.length();
-      if (bytes > maxBytes) {
+      if (bytes.length > maxBytes) {
         throw Exception(
             'File exceeds maximum size of ${maxBytes ~/ 1024 ~/ 1024}MB');
       }
 
-      final ext = file.path.split('.').last.toLowerCase();
-      final fileName = '${_uuid.v4()}.$ext';
-      final path = '$folder/$fileName';
+      final ext = fileName.split('.').last.toLowerCase();
+      final storedName = '${_uuid.v4()}.$ext';
+      final path = '$folder/$storedName';
 
-      await _storage.from(bucket).upload(
+      await _storage.from(bucket).uploadBinary(
             path,
-            file,
-            fileOptions: FileOptions(
-              upsert: false,
-              contentType: _mimeFromExt(ext),
-            ),
+            bytes,
+            fileOptions: FileOptions(contentType: contentType),
           );
 
       return path;
@@ -86,19 +84,5 @@ class SupabaseStorageService {
   }) async {
     final url = await _storage.from(bucket).createSignedUrl(path, expiresIn);
     return url;
-  }
-
-  String _mimeFromExt(String ext) {
-    switch (ext) {
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'png':
-        return 'image/png';
-      case 'pdf':
-        return 'application/pdf';
-      default:
-        return 'application/octet-stream';
-    }
   }
 }

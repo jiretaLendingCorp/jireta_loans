@@ -17,7 +17,14 @@ import '../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../data/datasources/remote/report_remote_datasource.dart';
 import '../../data/datasources/remote/system_remote_datasource.dart'; // FIX: was missing — sl<SystemRemoteDataSource>() would throw StateError at runtime
 import '../../data/datasources/remote/user_remote_datasource.dart';
+import '../../data/repositories/loan_repository_impl.dart';
+import '../../data/repositories/system_repository_impl.dart';
+import '../../data/repositories/user_repository_impl.dart';
+import '../../domain/repositories/i_loan_repository.dart';
+import '../../domain/repositories/i_system_repository.dart';
+import '../../domain/repositories/i_user_repository.dart';
 import '../network/dio_client.dart';
+import '../services/supabase_storage_service.dart';
 
 final GetIt sl = GetIt.instance;
 
@@ -72,5 +79,18 @@ Future<void> setupDependencies() async {
   // FIX: SystemRemoteDataSource existed but was never registered — added here.
   sl.registerLazySingleton<SystemRemoteDataSource>(
     () => SystemRemoteDataSource(sl()),
+  );
+  // FIX: repositories were referenced by sl<...> but never registered — added here.
+  sl.registerLazySingleton<IUserRepository>(
+    () => UserRepositoryImpl(sl<UserRemoteDataSource>()),
+  );
+  sl.registerLazySingleton<ILoanRepository>(
+    () => LoanRepositoryImpl(sl<LoanRemoteDataSource>()),
+  );
+  sl.registerLazySingleton<ISystemRepository>(
+    () => SystemRepositoryImpl(sl<SystemRemoteDataSource>()),
+  );
+  sl.registerLazySingleton<SupabaseStorageService>(
+    () => SupabaseStorageService.instance,
   );
 }

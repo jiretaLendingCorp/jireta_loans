@@ -1,5 +1,4 @@
 // lib/presentation/features/rider/collections/screens/rider_upload_proof_screen.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +8,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../providers/rider_collection_provider.dart';
@@ -225,8 +225,7 @@ class _RiderUploadProofScreenState
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.file(File(photo.path),
-                      height: 180, width: double.infinity, fit: BoxFit.cover),
+                  child: XFilePreview(file: photo, height: 180, width: double.infinity),
                 ),
                 Positioned(
                   top: 8,

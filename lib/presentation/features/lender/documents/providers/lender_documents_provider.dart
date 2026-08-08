@@ -1,5 +1,5 @@
 // lib/presentation/features/lender/documents/providers/lender_documents_provider.dart
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/network/dio_client.dart';
@@ -61,7 +61,8 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState> {
   }
 
   Future<bool> uploadDocument({
-    required File file,
+    required Uint8List bytes,
+    required String fileName,
     required String docType,
     required String mimeType,
   }) async {
@@ -70,8 +71,10 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState> {
       state = state.copyWith(uploadProgress: 0.3);
       final url = await _storage.uploadFile(
         bucket: 'kyc-documents',
-        file: file,
+        bytes: bytes,
+        fileName: fileName,
         folder: 'kyc',
+        contentType: mimeType,
       );
       state = state.copyWith(uploadProgress: 0.7);
 
@@ -80,8 +83,8 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState> {
           {
             'document_type': docType,
             'file_url': url,
-            'file_name': file.path.split('\\').last.split('/').last,
-            'file_size': file.lengthSync(),
+            'file_name': fileName,
+            'file_size': bytes.length,
             'mime_type': mimeType,
           },
         ],

@@ -1,6 +1,5 @@
 // lib/presentation/features/rider/ci/providers/rider_ci_provider.dart
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/di/injection.dart';
@@ -130,7 +129,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState> {
 
   Future<bool> uploadDocument({
     required String ciId,
-    required File file,
+    required XFile file,
     required String documentType,
     String? caption,
   }) async {
@@ -141,9 +140,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState> {
         ciId: ciId,
         docs: [
           {
-            'file_name': file.uri.pathSegments.isEmpty
-                ? 'document.jpg'
-                : file.uri.pathSegments.last,
+            'file_name': file.name,
             'mime_type': 'image/jpeg',
             'content_base64': base64Encode(bytes),
             'document_type': documentType,

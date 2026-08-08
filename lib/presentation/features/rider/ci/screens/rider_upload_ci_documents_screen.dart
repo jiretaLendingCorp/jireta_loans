@@ -1,5 +1,4 @@
 // lib/presentation/features/rider/ci/screens/rider_upload_ci_documents_screen.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../providers/rider_ci_provider.dart';
 
@@ -107,7 +107,7 @@ class _RiderUploadCiDocumentsScreenState
       for (final photo in _photos) {
         final ok = await ref.read(riderCiProvider.notifier).uploadDocument(
               ciId: widget.ciId,
-              file: File(photo.file.path),
+              file: photo.file,
               documentType: photo.type,
               caption: photo.caption.isEmpty ? null : photo.caption,
             );
@@ -322,8 +322,8 @@ class _PhotoCardState extends State<_PhotoCard> {
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.file(File(widget.photo.file.path),
-                height: 150, width: double.infinity, fit: BoxFit.cover),
+            child: XFilePreview(file: widget.photo.file,
+                height: 150, width: double.infinity),
           ),
           const SizedBox(height: 10),
   DropdownButtonFormField<String>(

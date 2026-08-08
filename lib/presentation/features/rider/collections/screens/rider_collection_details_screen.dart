@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'dart:io';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
@@ -14,6 +13,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
+import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../providers/rider_collection_provider.dart';
 
 class RiderCollectionDetailsScreen extends ConsumerStatefulWidget {
@@ -370,7 +370,7 @@ class _PhotoPicker extends StatelessWidget {
                   )
                 : ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.file(File(photo!.path), fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+                    child: XFilePreview(file: photo!),
                   ),
           ),
         ),

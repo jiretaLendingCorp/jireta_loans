@@ -1,6 +1,4 @@
 // lib/presentation/features/rider/ci/screens/rider_ci_details_screen.dart
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +10,7 @@ import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/rider_ci_provider.dart';
@@ -311,8 +310,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
                 children: [
                   ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(File(_pickedImages[i].path),
-                          fit: BoxFit.cover)),
+                      child: XFilePreview(file: _pickedImages[i])),
                   Positioned(
                     top: 4,
                     right: 4,

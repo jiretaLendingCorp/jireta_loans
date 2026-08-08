@@ -1,5 +1,5 @@
 // lib/presentation/features/lender/documents/screens/lender_upload_document_screen.dart
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -57,18 +57,21 @@ class LenderUploadDocumentScreen extends ConsumerStatefulWidget {
 
 class _State extends ConsumerState<LenderUploadDocumentScreen> {
   String? _selectedType;
-  File? _selectedFile;
+  Uint8List? _selectedBytes;
   String? _mimeType;
   String? _fileName;
+  String? _fileSizeText;
 
   Future<void> _pickFromCamera() async {
     final img = await ImagePicker()
         .pickImage(source: ImageSource.camera, imageQuality: 80);
     if (img != null) {
+      final bytes = await img.readAsBytes();
       setState(() {
-        _selectedFile = File(img.path);
+        _selectedBytes = bytes;
         _mimeType = 'image/jpeg';
         _fileName = 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        _fileSizeText = _kb(bytes.length);
       });
     }
   }
@@ -77,10 +80,12 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      withData: true,
     );
     if (result != null && result.files.isNotEmpty) {
       final file = result.files.first;
       final ext = file.extension?.toLowerCase() ?? '';
+      final bytes = file.bytes;
       if (file.size > 5 * 1024 * 1024) {
         if (mounted) {
           showDialog(
@@ -91,20 +96,24 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
         return;
       }
       setState(() {
-        _selectedFile = File(file.path!);
+        _selectedBytes = bytes;
         _mimeType = ext == 'pdf'
             ? 'application/pdf'
             : 'image/${ext == 'jpg' ? 'jpeg' : ext}';
         _fileName = file.name;
+        _fileSizeText = _kb(bytes?.length ?? 0);
       });
     }
   }
 
+  String _kb(int length) => '${(length / 1024).toStringAsFixed(1)} KB';
+
   Future<void> _upload() async {
-    if (_selectedType == null || _selectedFile == null) return;
+    if (_selectedType == null || _selectedBytes == null) return;
     final success =
         await ref.read(lenderDocumentsProvider.notifier).uploadDocument(
-              file: _selectedFile!,
+              bytes: _selectedBytes!,
+              fileName: _fileName ?? 'document',
               docType: _selectedType!,
               mimeType: _mimeType ?? 'image/jpeg',
             );
@@ -163,7 +172,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
                     fontSize: 14,
                     color: AppColors.textPrimary)),
             const SizedBox(height: 8),
-            if (_selectedFile == null)
+            if (_selectedBytes == null)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -244,7 +253,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
                                   color: AppColors.textPrimary),
                               overflow: TextOverflow.ellipsis),
                           Text(
-                              '${(_selectedFile!.lengthSync() / 1024).toStringAsFixed(1)} KB',
+                              _fileSizeText ?? '',
                               style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary)),
@@ -253,9 +262,10 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
                     ),
                     IconButton(
                       onPressed: () => setState(() {
-                        _selectedFile = null;
+                        _selectedBytes = null;
                         _mimeType = null;
                         _fileName = null;
+                        _fileSizeText = null;
                       }),
                       icon: const Icon(Icons.close,
                           color: AppColors.textSecondary, size: 20),
@@ -299,7 +309,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
                 backgroundColor: AppColors.lenderPurple,
                 isLoading: state.isUploading,
                 onPressed: (_selectedType != null &&
-                        _selectedFile != null &&
+                        _selectedBytes != null &&
                         !state.isUploading)
                     ? _upload
                     : null,

@@ -1,5 +1,4 @@
 // lib/presentation/shared/widgets/profile_avatar_upload.dart
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/config/env_config.dart';
@@ -54,11 +53,13 @@ class _ProfileAvatarUploadState extends State<ProfileAvatarUpload> {
 
     setState(() => _uploading = true);
     try {
-      final file = File(picked.path);
+      final bytes = await picked.readAsBytes();
       final path = await SupabaseStorageService.instance.uploadFile(
         bucket: 'avatars',
-        file: file,
+        bytes: bytes,
+        fileName: picked.name,
         folder: 'profiles',
+        contentType: 'image/jpeg',
       );
       final publicUrl = '$_publicUrl$path';
       await widget.onUploaded(publicUrl);
