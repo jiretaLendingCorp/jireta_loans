@@ -8,11 +8,7 @@ class InOfficeApplicationEntity {
   final String? loanId;
   final String status;
   final int wizardStep;
-  final Map<String, dynamic>? step1Data;
-  final Map<String, dynamic>? step2Data;
-  final Map<String, dynamic>? step3Data;
-  final Map<String, dynamic>? step4Data;
-  final Map<String, dynamic>? step5Data;
+  final Map<String, dynamic>? personalInfo;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,11 +21,7 @@ class InOfficeApplicationEntity {
     this.loanId,
     required this.status,
     required this.wizardStep,
-    this.step1Data,
-    this.step2Data,
-    this.step3Data,
-    this.step4Data,
-    this.step5Data,
+    this.personalInfo,
     required this.createdAt,
     required this.updatedAt,
   });

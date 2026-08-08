@@ -24,11 +24,6 @@ serve(async (req) => {
         created_by: authResult.id,
         status: 'draft',
         wizard_step: 1,
-        step1_data: null,
-        step2_data: null,
-        step3_data: null,
-        step4_data: null,
-        step5_data: null,
       })
       .select()
       .single();

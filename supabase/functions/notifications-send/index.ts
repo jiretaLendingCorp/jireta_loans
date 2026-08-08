@@ -36,6 +36,15 @@ serve(async (req) => {
       return errorResponse('Cannot send notification to inactive user', 422, 'USER_INACTIVE');
     }
 
+    // notifications.type references notification_types.code (00025), so only a
+    // registered vocabulary value may be used.
+    const { data: typeRow } = await db
+      .from('notification_types')
+      .select('code')
+      .eq('code', type)
+      .maybeSingle();
+    if (!typeRow) return errorResponse(`Unknown notification type: ${type}`, 400, 'INVALID_NOTIFICATION_TYPE');
+
     const { data: notification, error: notifErr } = await db
       .from('notifications')
       .insert({

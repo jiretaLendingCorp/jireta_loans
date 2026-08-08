@@ -40,7 +40,16 @@ serve(async (req) => {
     const { data: ci } = await db.from('credit_investigations').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
     const { data: disbursements } = await db.from('disbursements').select('*').eq('loan_id', loanId).order('created_at', { ascending: false });
     const { data: penalties } = await db.from('penalty_logs').select('*').eq('loan_id', loanId).order('applied_at', { ascending: false });
-    const { data: coMakers } = await db.from('co_makers').select('*').eq('loan_id', loanId).order('created_at');
+    const { data: coMakerLinks } = await db
+      .from('loan_co_makers')
+      .select('relationship, co_maker:co_makers(*)')
+      .eq('loan_id', loanId)
+      .order('created_at');
+
+    const coMakers = (coMakerLinks ?? []).map((link: any) => ({
+      ...(link.co_maker ?? {}),
+      relationship: link.relationship,
+    }));
 
     const [financials, disbursement, penaltyApplied, blacklist] = await Promise.all([
       getLoanFinancials(db, loanId),

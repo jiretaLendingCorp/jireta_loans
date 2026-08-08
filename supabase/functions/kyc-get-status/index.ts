@@ -4,6 +4,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { getLenderBlacklist, getLenderAddress } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -40,6 +41,23 @@ serve(async (req) => {
       .select('id, name, relationship, phone_number, address')
       .eq('lender_id', lenderId);
 
+    const [blacklist, address] = await Promise.all([
+      getLenderBlacklist(db, lenderId),
+      getLenderAddress(db, lenderId),
+    ]);
+
+    const lender = profile
+      ? {
+          ...profile,
+          is_blacklisted: blacklist ? true : null,
+          street_address: address?.street ?? null,
+          barangay: address?.barangay ?? null,
+          city: address?.city ?? null,
+          province: address?.province ?? null,
+          zip_code: address?.zip_code ?? null,
+        }
+      : null;
+
     const documents = (docs ?? []).map((d: any) => ({
       ...d,
       file_url: d.file_path,
@@ -49,7 +67,7 @@ serve(async (req) => {
     return jsonResponse({
       kyc_status: profile?.kyc_status ?? 'not_submitted',
       lender_id: lenderId,
-      lender: profile ?? null,
+      lender,
       documents,
       emergency_contacts: emergencyContacts ?? [],
     });

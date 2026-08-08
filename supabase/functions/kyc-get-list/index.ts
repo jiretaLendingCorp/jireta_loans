@@ -5,6 +5,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
+import { getLenderBlacklistBatch, getLenderAddressBatch } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -29,9 +30,9 @@ serve(async (req) => {
 
     let query = db.from('lender_profiles')
       .select(`
-        id, kyc_status, street_address, barangay, city, province, zip_code,
+        id, kyc_status,
         source_of_funds, gender, civil_status, date_of_birth, employment_type,
-        employer_name, monthly_income, gcash_number, is_blacklisted,
+        employer_name, monthly_income, gcash_number,
         users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, suffix, phone_number, email, account_status, profile_photo_url),
         kyc_documents(id, document_type, file_path, status, uploaded_at, rejection_notes, reviewed_by, reviewed_at),
         emergency_contacts(id, name, relationship, phone_number, address)
@@ -46,11 +47,20 @@ serve(async (req) => {
       .range(offset, offset + limit - 1);
     if (error) return errorResponse(`Failed to fetch KYC list: ${error.message}`, 500, 'SERVER_ERROR');
 
+    const rows = data ?? [];
+    const lenderIds = rows.map((r: any) => r.id);
+    const [blacklistMap, addressMap] = await Promise.all([
+      getLenderBlacklistBatch(db, lenderIds),
+      getLenderAddressBatch(db, lenderIds),
+    ]);
+
     // Flatten each lender_profile into rows. Lenders that submitted KYC but
     // have no document rows are still listed so staff always see the
     // submission. Each row's `id` is the real kyc_documents.id (needed for
     // kyc-get-details + kyc-verify); fallback rows use the lender id.
-    const mapped = (data ?? []).flatMap((row: any) => {
+    const mapped = (rows ?? []).flatMap((row: any) => {
+      const address = addressMap[row.id] ?? null;
+      const isBlacklisted = Boolean(blacklistMap[row.id]);
       const lender = {
         id: row.users?.id ?? row.id,
         first_name: row.users?.first_name,
@@ -62,11 +72,11 @@ serve(async (req) => {
         account_status: row.users?.account_status,
         profile_photo_url: row.users?.profile_photo_url,
         kyc_status: row.kyc_status,
-        street_address: row.street_address,
-        barangay: row.barangay,
-        city: row.city,
-        province: row.province,
-        zip_code: row.zip_code,
+        street_address: address?.street ?? null,
+        barangay: address?.barangay ?? null,
+        city: address?.city ?? null,
+        province: address?.province ?? null,
+        zip_code: address?.zip_code ?? null,
         source_of_funds: row.source_of_funds,
         gender: row.gender,
         civil_status: row.civil_status,
@@ -75,7 +85,7 @@ serve(async (req) => {
         employer_name: row.employer_name,
         monthly_income: row.monthly_income,
         gcash_number: row.gcash_number,
-        is_blacklisted: row.is_blacklisted,
+        is_blacklisted: isBlacklisted,
       };
 
       const docs = row.kyc_documents ?? [];

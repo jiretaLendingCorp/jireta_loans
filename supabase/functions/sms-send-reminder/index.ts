@@ -3,6 +3,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sendSms } from '../_shared/sms.ts';
+import { getSchedulePayment } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -20,7 +21,7 @@ serve(async (req) => {
       .select(
         `id, due_date, amount_due,
          loan:loans!loan_schedules_loan_id_fkey(
-           loan_number, status, outstanding_balance,
+           loan_number, status,
            lender_profiles!loans_lender_id_fkey(
              id,
              users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)
@@ -28,7 +29,6 @@ serve(async (req) => {
          )`
       )
       .eq('due_date', targetDateStr)
-      .eq('status', 'pending')
       .in('loan.status', ['active', 'overdue']);
 
     if (error) return errorResponse('Failed to fetch due schedules', 500, 'DB_ERROR');
@@ -40,6 +40,9 @@ serve(async (req) => {
       if (!loan) continue;
       const lender = loan.lender;
       if (!lender?.phone_number) continue;
+
+      const schedulePayment = await getSchedulePayment(db, (schedule as any).id);
+      if (schedulePayment.amount_paid >= Number((schedule as any).amount_due)) continue;
 
       const name = `${lender.first_name} ${lender.last_name}`;
       const amount = new Intl.NumberFormat('en-PH', {

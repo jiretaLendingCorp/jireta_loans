@@ -7,6 +7,30 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 
+// Controlled vocabularies (00025): relationship and document_type are FKs to
+// relationship_types / document_types. Draft values are normalized to the
+// fallback code so converting an application never trips the FK.
+const RELATIONSHIPS = new Set([
+  'Spouse', 'Parent', 'Sibling', 'Child', 'Relative',
+  'Friend', 'Colleague', 'Employer', 'Other',
+]);
+const DOCUMENT_TYPES = new Set([
+  'valid_id', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
+  'proof_of_billing', 'certificate_of_employment', 'itr',
+  'business_registration', 'co_maker', 'ci_photo', 'evidence', 'site_photo',
+  'neighbor_interview', 'proof_of_residence', 'other',
+]);
+
+function normalizeRelationship(v?: string | null): string | null {
+  if (!v) return null;
+  return RELATIONSHIPS.has(v) ? v : 'Other';
+}
+
+function normalizeDocumentType(v?: string | null): string | null {
+  if (!v) return null;
+  return DOCUMENT_TYPES.has(v) ? v : 'other';
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -26,7 +50,7 @@ serve(async (req: Request) => {
 
     const { data: app, error: appErr } = await db
       .from('in_office_applications')
-      .select('*, step1_data, step2_data, step3_data, step4_data, step5_data')
+      .select('id, created_by, status, lender_id, borrower_signature')
       .eq('id', application_id)
       .eq('status', 'draft')
       .single();
@@ -37,19 +61,32 @@ serve(async (req: Request) => {
       authResult.role === 'head_manager' || app.created_by === authResult.id;
     if (!canAccess) return errorResponse('Access denied', 403, 'FORBIDDEN');
 
-    for (let step = 1; step <= 5; step++) {
-      if (!app[`step${step}_data`] || Object.keys(app[`step${step}_data`]).length === 0) {
-        return errorResponse(`Step ${step} data is incomplete`, 400, 'INCOMPLETE_WIZARD');
-      }
+    // Load the normalized wizard data.
+    const [personal, employment, addresses, emergencyContacts, loanDetails, coMakerRows, documents] =
+      await Promise.all([
+        db.from('application_personal_info').select('*').eq('application_id', application_id).maybeSingle(),
+        db.from('application_employment_info').select('*').eq('application_id', application_id).maybeSingle(),
+        db.from('application_addresses').select('*').eq('application_id', application_id'),
+        db.from('application_emergency_contacts').select('*').eq('application_id', application_id'),
+        db.from('application_loan_details').select('*').eq('application_id', application_id).maybeSingle(),
+        db.from('application_co_makers').select('*').eq('application_id', application_id'),
+        db.from('application_documents').select('*').eq('application_id', application_id'),
+      ]);
+
+    const s1 = personal.data;
+    const s2 = { addresses: addresses.data ?? [], emergency_contacts: emergencyContacts.data ?? [] };
+    const s3 = loanDetails.data;
+    const s4 = coMakerRows.data ?? [];
+    const s5 = { documents: documents.data ?? [] };
+
+    if (!s1 || !s3) {
+      return errorResponse('Application data is incomplete', 400, 'INCOMPLETE_WIZARD');
+    }
+    if (Object.keys(s1).length === 0 || !s3.principal_amount) {
+      return errorResponse('Step data is incomplete', 400, 'INCOMPLETE_WIZARD');
     }
 
-    const s1 = app.step1_data;
-    const s2 = app.step2_data;
-    const s3 = app.step3_data;
-    const s4 = app.step4_data;
-    const s5 = app.step5_data;
-
-    let lenderId = s1.lender_id;
+    let lenderId = app.lender_id ?? null;
 
     if (!lenderId) {
       const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
@@ -82,15 +119,15 @@ serve(async (req: Request) => {
         gender: s1.gender,
         civil_status: s1.civil_status,
         date_of_birth: s1.date_of_birth,
-        employment_type: s1.employment_type,
-        employer_name: s1.employer_name,
-        monthly_income: s1.monthly_income,
+        employment_type: s1.employment_type ?? employment.data?.employment_type,
+        employer_name: s1.employer_name ?? employment.data?.employer_name,
+        monthly_income: s1.monthly_income ?? employment.data?.monthly_income,
         gcash_number: s1.gcash_number,
         kyc_status: 'pending',
       });
     }
 
-    if (s2.addresses) {
+    if (s2.addresses.length > 0) {
       const addressRows = (s2.addresses as any[]).map((a: any) => ({
         user_id: lenderId,
         address_type: a.address_type,
@@ -105,12 +142,12 @@ serve(async (req: Request) => {
       await db.from('addresses').insert(addressRows);
     }
 
-    if (s2.emergency_contacts) {
+    if (s2.emergency_contacts.length > 0) {
       const ecRows = (s2.emergency_contacts as any[]).map((ec: any) => ({
         lender_id: lenderId,
-        name: ec.full_name,
-        relationship: ec.relationship,
-        phone_number: ec.contact_number,
+        name: ec.name,
+        relationship: normalizeRelationship(ec.relationship ?? null) ?? 'Other',
+        phone_number: ec.phone_number,
         address: ec.address,
       }));
       await db.from('emergency_contacts').insert(ecRows);
@@ -118,7 +155,7 @@ serve(async (req: Request) => {
 
     const interestRate = 0.20;
     const principalAmount = s3.principal_amount;
-    const frequency = s3.frequency;
+    const frequency = s3.payment_frequency ?? 'monthly';
     const interestAmount = principalAmount * interestRate;
     const totalPayable = principalAmount + interestAmount;
 
@@ -202,27 +239,34 @@ serve(async (req: Request) => {
 
     await db.from('loan_schedules').insert(scheduleRows);
 
-    if (s4 && s4.first_name) {
-      const { data: coMaker } = await db.from('co_makers').insert({
-        loan_id: loan.id,
-        first_name: s4.first_name,
-        last_name: s4.last_name,
-        relationship: s4.relationship,
-        phone_number: s4.contact_number,
-        address: s4.address,
-        date_of_birth: s4.birthday,
+    for (const coMaker of s4) {
+      const { data: person, error: cmErr } = await db.from('co_makers').insert({
+        first_name: coMaker.first_name,
+        last_name: coMaker.last_name,
+        phone_number: coMaker.phone_number,
+        date_of_birth: coMaker.date_of_birth,
+        address: coMaker.address,
       }).select().single();
 
-      if (coMaker && s4.documents) {
-        const docRows = (s4.documents as any[]).map((d: any) => ({
-          co_maker_id: coMaker.id,
-          document_type: d.document_type,
-          file_path: d.file_url,
-          file_name: d.file_name ?? 'document',
-          mime_type: d.mime_type ?? 'application/octet-stream',
-        }));
-        await db.from('co_maker_documents').insert(docRows);
-      }
+      if (cmErr || !person) return errorResponse('Failed to create co-maker', 500);
+
+      await db.from('loan_co_makers').insert({
+        loan_id: loan.id,
+        co_maker_id: person.id,
+        relationship: normalizeRelationship(coMaker.relationship ?? null) ?? 'Other',
+      });
+    }
+
+    if (s5.documents.length > 0) {
+      const docRows = (s5.documents as any[]).map((d: any) => ({
+        loan_id: loan.id,
+        document_type: normalizeDocumentType(d.document_type ?? null) ?? 'other',
+        file_path: d.file_path ?? d.file_url,
+        file_name: d.file_name ?? 'document',
+        mime_type: d.mime_type ?? 'application/octet-stream',
+        uploaded_by: authResult.id,
+      }));
+      await db.from('loan_documents').insert(docRows);
     }
 
     await db.from('in_office_applications')

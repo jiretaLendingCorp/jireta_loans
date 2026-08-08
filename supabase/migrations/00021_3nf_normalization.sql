@@ -13,6 +13,14 @@
 -- 5) Update RLS helper functions/policies that referenced the dropped columns.
 -- 6) Expose the computed financials through read-only views
 --    (`v_loan_financials`, `v_loan_schedules`) for direct SQL / reporting.
+--
+-- NOTE ON ORDERING: PostgreSQL refuses to drop a column while any object
+-- (policy, SQL-language function, index, constraint) still depends on it.
+-- The RLS policies `collection_assignments_read` / `payments_read` /
+-- `rider_locations_read` (00002) and the SQL helper functions
+-- `rider_assigned_loan_ids` / `rider_assigned_lender_ids` (00017) reference
+-- `collection_assignments.loan_id` / `payments.loan_id`, so they MUST be
+-- dropped/replaced BEFORE those columns are dropped, then recreated after.
 
 BEGIN;
 
@@ -60,39 +68,17 @@ ALTER TABLE loan_schedules
   DROP COLUMN IF EXISTS paid_at;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 4a) collection_assignments — drop loan_id (transitive via loan_schedule_id)
+-- 4a) Pre-drop dependent RLS objects. The policies below (from 00002) reference
+--     collection_assignments.loan_id / payments.loan_id directly; the SQL
+--     helper functions (from 00017) reference collection_assignments.loan_id.
+--     They must be dropped/replaced BEFORE the columns are dropped.
 -- ─────────────────────────────────────────────────────────────────────────────
-DROP INDEX IF EXISTS idx_coll_assign_loan_id;
+DROP POLICY IF EXISTS "collection_assignments_read" ON collection_assignments;
+DROP POLICY IF EXISTS "payments_read" ON payments;
+DROP POLICY IF EXISTS "rider_locations_read" ON rider_locations;
 
-ALTER TABLE collection_assignments
-  DROP CONSTRAINT IF EXISTS collection_assignments_loan_id_fkey,
-  DROP COLUMN IF EXISTS loan_id;
-
--- Restore the loan-delete cascade through the schedule FK.
-ALTER TABLE collection_assignments
-  DROP CONSTRAINT IF EXISTS collection_assignments_loan_schedule_id_fkey,
-  ADD CONSTRAINT collection_assignments_loan_schedule_id_fkey
-    FOREIGN KEY (loan_schedule_id) REFERENCES loan_schedules(id) ON DELETE CASCADE;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- 4b) payments — drop loan_id (transitive via loan_schedule_id /
---     collection_assignment_id)
--- ─────────────────────────────────────────────────────────────────────────────
-DROP INDEX IF EXISTS idx_payments_loan_id;
-
-ALTER TABLE payments
-  DROP CONSTRAINT IF EXISTS payments_loan_id_fkey,
-  DROP COLUMN IF EXISTS loan_id;
-
-ALTER TABLE payments
-  DROP CONSTRAINT IF EXISTS payments_loan_schedule_id_fkey,
-  ADD CONSTRAINT payments_loan_schedule_id_fkey
-    FOREIGN KEY (loan_schedule_id) REFERENCES loan_schedules(id) ON DELETE CASCADE;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- 5a) RLS helper functions — resolve loan ids through loan_schedules now that
---     collection_assignments.loan_id is gone.
--- ─────────────────────────────────────────────────────────────────────────────
+-- Replace the SQL helper functions with versions that resolve loan ids
+-- through loan_schedules (no more collection_assignments.loan_id).
 CREATE OR REPLACE FUNCTION rider_assigned_loan_ids()
 RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT loan_id FROM credit_investigations WHERE rider_id = auth.uid()
@@ -118,10 +104,39 @@ RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$
 $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 5b) RLS policies — collection_assignments_read / payments_read /
---     rider_locations_read previously referenced the dropped loan_id columns.
+-- 4b) collection_assignments — drop loan_id (transitive via loan_schedule_id)
 -- ─────────────────────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "collection_assignments_read" ON collection_assignments;
+DROP INDEX IF EXISTS idx_coll_assign_loan_id;
+
+ALTER TABLE collection_assignments
+  DROP CONSTRAINT IF EXISTS collection_assignments_loan_id_fkey,
+  DROP COLUMN IF EXISTS loan_id;
+
+-- Restore the loan-delete cascade through the schedule FK.
+ALTER TABLE collection_assignments
+  DROP CONSTRAINT IF EXISTS collection_assignments_loan_schedule_id_fkey,
+  ADD CONSTRAINT collection_assignments_loan_schedule_id_fkey
+    FOREIGN KEY (loan_schedule_id) REFERENCES loan_schedules(id) ON DELETE CASCADE;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 4c) payments — drop loan_id (transitive via loan_schedule_id /
+--     collection_assignment_id)
+-- ─────────────────────────────────────────────────────────────────────────────
+DROP INDEX IF EXISTS idx_payments_loan_id;
+
+ALTER TABLE payments
+  DROP CONSTRAINT IF EXISTS payments_loan_id_fkey,
+  DROP COLUMN IF EXISTS loan_id;
+
+ALTER TABLE payments
+  DROP CONSTRAINT IF EXISTS payments_loan_schedule_id_fkey,
+  ADD CONSTRAINT payments_loan_schedule_id_fkey
+    FOREIGN KEY (loan_schedule_id) REFERENCES loan_schedules(id) ON DELETE CASCADE;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 5) Recreate the RLS policies with definitions that go through
+--    loan_schedules (collection_assignments.loan_id is gone).
+-- ─────────────────────────────────────────────────────────────────────────────
 CREATE POLICY "collection_assignments_read" ON collection_assignments
   FOR SELECT TO authenticated
   USING (
@@ -136,7 +151,6 @@ CREATE POLICY "collection_assignments_read" ON collection_assignments
     )
   );
 
-DROP POLICY IF EXISTS "payments_read" ON payments;
 CREATE POLICY "payments_read" ON payments
   FOR SELECT TO authenticated
   USING (
@@ -158,7 +172,6 @@ CREATE POLICY "payments_read" ON payments
     )
   );
 
-DROP POLICY IF EXISTS "rider_locations_read" ON rider_locations;
 CREATE POLICY "rider_locations_read" ON rider_locations
   FOR SELECT TO authenticated
   USING (
@@ -179,7 +192,7 @@ CREATE POLICY "rider_locations_read" ON rider_locations
   );
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 5c) auto_mark_overdue_loans — loan_schedules.status no longer exists; derive
+-- 5b) auto_mark_overdue_loans — loan_schedules.status no longer exists; derive
 --     "unpaid" from the absence of verified payments.
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION auto_mark_overdue_loans()

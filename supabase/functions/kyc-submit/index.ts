@@ -136,8 +136,7 @@ serve(async (req) => {
     const { error: insertErr } = await db.from('kyc_documents').insert(docsToInsert);
     if (insertErr) return errorResponse(`Failed to save KYC documents: ${insertErr.message}`, 500, 'DB_ERROR');
 
-    // ── 2) Lender profile details + residence + source of funds ─────────────
-    const ai = address_info ?? {};
+    // ── 2) Lender profile details + source of funds ─────────────────────────
     const { error: profileErr } = await db.from('lender_profiles').update({
       gender: normalizeEnum(p.gender),
       civil_status: normalizeEnum(p.civil_status),
@@ -147,13 +146,40 @@ serve(async (req) => {
       monthly_income: Number(p.monthly_income),
       gcash_number: sanitizeString(p.gcash_number),
       source_of_funds: source_of_funds ? normalizeEnum(source_of_funds) : undefined,
-      street_address: ai.street_address ? sanitizeString(ai.street_address) : undefined,
-      barangay: ai.barangay ? sanitizeString(ai.barangay) : undefined,
-      city: ai.city ? sanitizeString(ai.city) : undefined,
-      province: ai.province ? sanitizeString(ai.province) : undefined,
-      zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : undefined,
     }).eq('id', user.id);
     if (profileErr) console.error('kyc-submit profile update error:', profileErr.message);
+
+    // ── 3) Residence — now lives in `addresses` (3NF), not lender_profiles. ──
+    const ai = address_info ?? {};
+    if (ai.street_address || ai.barangay || ai.city || ai.province) {
+      const { data: existingAddr } = await db
+        .from('addresses')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('address_type', 'home')
+        .eq('is_primary', true)
+        .maybeSingle();
+      if (existingAddr) {
+        await db.from('addresses').update({
+          street: ai.street_address ? sanitizeString(ai.street_address) : undefined,
+          barangay: ai.barangay ? sanitizeString(ai.barangay) : undefined,
+          city: ai.city ? sanitizeString(ai.city) : undefined,
+          province: ai.province ? sanitizeString(ai.province) : undefined,
+          zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : undefined,
+        }).eq('id', existingAddr.id);
+      } else {
+        await db.from('addresses').insert({
+          user_id: user.id,
+          address_type: 'home',
+          street: sanitizeString(ai.street_address),
+          barangay: sanitizeString(ai.barangay),
+          city: sanitizeString(ai.city),
+          province: sanitizeString(ai.province),
+          zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : null,
+          is_primary: true,
+        });
+      }
+    }
 
     // Emergency contact (one per lender is sufficient for KYC).
     if (emergency_contact?.name && emergency_contact?.phone_number) {

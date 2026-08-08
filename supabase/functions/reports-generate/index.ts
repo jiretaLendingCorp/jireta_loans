@@ -5,6 +5,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderBlacklistBatch } from '../_shared/loan_financials.ts';
 
 async function fetchReportData(
   db: ReturnType<typeof import('../_shared/db.ts').getAdminClient>,
@@ -17,25 +18,48 @@ async function fetchReportData(
   switch (templateKey) {
     case 'loan_report': {
       let q = db.from('loans').select(
-        `loan_number, principal_amount, total_payable, outstanding_balance,
-         status, payment_frequency, created_at, disbursed_at,
+        `id, loan_number, principal_amount, status, payment_frequency, created_at,
          lender:lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number))`
       );
       if (params.status) q = q.eq('status', params.status);
       if (dateFrom) q = q.gte('created_at', dateFrom);
       if (dateTo) q = q.lte('created_at', dateTo);
       const { data } = await q;
-      return data ?? [];
+      const rows = data ?? [];
+      const [finMap, disbMap] = await Promise.all([
+        getLoanFinancialsBatch(db, rows.map((r: any) => r.id)),
+        getLoanDisbursementsBatch(db, rows.map((r: any) => r.id)),
+      ]);
+      return rows.map(({ id, ...r }: any) => {
+        const fin = finMap[id] ?? {};
+        const disb = disbMap[id] ?? null;
+        return {
+          ...r,
+          total_payable: fin.total_payable ?? null,
+          outstanding_balance: fin.outstanding_balance ?? null,
+          disbursed_at: disb?.disbursed_at ?? null,
+        };
+      });
     }
     case 'payment_report': {
       let q = db.from('payments').select(
         `id, amount, payment_method, status, created_at,
-         loan:loans(loan_number)`
+         loan_schedule:loan_schedules(loan:loans(loan_number))`
       ).eq('status', 'verified');
       if (dateFrom) q = q.gte('created_at', dateFrom);
       if (dateTo) q = q.lte('created_at', dateTo);
       const { data } = await q;
-      return data ?? [];
+      return (data ?? []).map((p: any) => {
+        const schedule = p.loan_schedule ?? null;
+        return {
+          id: p.id,
+          amount: p.amount,
+          payment_method: p.payment_method,
+          status: p.status,
+          created_at: p.created_at,
+          loan: schedule?.loan ?? null,
+        };
+      });
     }
     case 'collection_report': {
       let q = db.from('collection_assignments').select(
@@ -52,18 +76,41 @@ async function fetchReportData(
     case 'borrower_report': {
       const { data } = await db.from('users').select(
         `id, first_name, last_name, phone_number, account_status, created_at, roles!inner(name),
-         lender_profiles(kyc_status, employment_type, monthly_income, is_blacklisted)`
+         lender_profiles(kyc_status, employment_type, monthly_income)`
       ).eq('roles.name', ROLES.LENDER);
-      return data ?? [];
+      const rows = data ?? [];
+      const blacklistMap = await getLenderBlacklistBatch(
+        db,
+        rows.filter((u: any) => u.lender_profiles).map((u: any) => u.id),
+      );
+      return rows.map((u: any) => ({
+        ...u,
+        lender_profiles: u.lender_profiles
+          ? { ...u.lender_profiles, is_blacklisted: Boolean(blacklistMap[u.id]) }
+          : u.lender_profiles,
+      }));
     }
     case 'overdue_report': {
       const { data } = await db.from('loans').select(
-        `loan_number, principal_amount, total_payable, outstanding_balance,
-         created_at, disbursed_at,
+        `id, loan_number, principal_amount, created_at,
          lender:lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number)),
          penalty_logs(penalty_amount, applied_at)`
       ).eq('status', 'overdue');
-      return data ?? [];
+      const rows = data ?? [];
+      const [finMap, disbMap] = await Promise.all([
+        getLoanFinancialsBatch(db, rows.map((r: any) => r.id)),
+        getLoanDisbursementsBatch(db, rows.map((r: any) => r.id)),
+      ]);
+      return rows.map(({ id, ...r }: any) => {
+        const fin = finMap[id] ?? {};
+        const disb = disbMap[id] ?? null;
+        return {
+          ...r,
+          total_payable: fin.total_payable ?? null,
+          outstanding_balance: fin.outstanding_balance ?? null,
+          disbursed_at: disb?.disbursed_at ?? null,
+        };
+      });
     }
     case 'financial_report': {
       const { data: payments } = await db.from('payments')

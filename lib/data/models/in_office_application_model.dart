@@ -6,11 +6,7 @@ class InOfficeApplicationModel {
   final String? lenderId;
   final String? loanId;
   final String createdBy;
-  final Map<String, dynamic>? step1Data;
-  final Map<String, dynamic>? step2Data;
-  final Map<String, dynamic>? step3Data;
-  final Map<String, dynamic>? step4Data;
-  final Map<String, dynamic>? step5Data;
+  final Map<String, dynamic>? personalInfo;
   final String? creatorName;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -22,11 +18,7 @@ class InOfficeApplicationModel {
     this.lenderId,
     this.loanId,
     required this.createdBy,
-    this.step1Data,
-    this.step2Data,
-    this.step3Data,
-    this.step4Data,
-    this.step5Data,
+    this.personalInfo,
     this.creatorName,
     required this.createdAt,
     required this.updatedAt,
@@ -40,11 +32,7 @@ class InOfficeApplicationModel {
       lenderId: json['lender_id'],
       loanId: json['loan_id'],
       createdBy: json['created_by'] ?? '',
-      step1Data: json['step1_data'] as Map<String, dynamic>?,
-      step2Data: json['step2_data'] as Map<String, dynamic>?,
-      step3Data: json['step3_data'] as Map<String, dynamic>?,
-      step4Data: json['step4_data'] as Map<String, dynamic>?,
-      step5Data: json['step5_data'] as Map<String, dynamic>?,
+      personalInfo: json['personal_info'] as Map<String, dynamic>?,
       creatorName: json['creator']?['first_name'] != null
           ? '${json['creator']['first_name']} ${json['creator']['last_name']}'
           : null,
@@ -62,7 +50,7 @@ class InOfficeApplicationModel {
   bool get isConverted => status == 'converted';
 
   String get borrowerName {
-    final s = step1Data;
+    final s = personalInfo;
     if (s == null) return 'Unknown';
     return '${s['first_name'] ?? ''} ${s['last_name'] ?? ''}'.trim();
   }

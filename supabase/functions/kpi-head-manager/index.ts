@@ -4,6 +4,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -47,10 +48,15 @@ serve(async (req) => {
       db.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'verified'),
     ]);
 
-    const { data: financials } = await db
+    const { data: loanRows } = await db
       .from('loans')
-      .select('principal_amount, total_payable, outstanding_balance')
+      .select('id, principal_amount')
       .in('status', ['active', 'completed', 'overdue']);
+
+    const financials = await getLoanFinancialsBatch(
+      db,
+      (loanRows ?? []).map((l: any) => l.id),
+    );
 
     const { data: payments } = await db
       .from('payments')
@@ -62,10 +68,11 @@ serve(async (req) => {
       .select('penalty_amount');
 
     let totalReleased = 0, totalOutstanding = 0, totalInterest = 0;
-    (financials ?? []).forEach((l: any) => {
+    (loanRows ?? []).forEach((l: any) => {
+      const fin = financials[l.id] ?? null;
       totalReleased += Number(l.principal_amount);
-      totalOutstanding += Number(l.outstanding_balance);
-      totalInterest += Math.max(0, Number(l.total_payable) - Number(l.principal_amount));
+      totalOutstanding += Number(fin?.outstanding_balance ?? 0);
+      totalInterest += Number(fin?.interest_amount ?? 0);
     });
 
     let totalCollected = 0;

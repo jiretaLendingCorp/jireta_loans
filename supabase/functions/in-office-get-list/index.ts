@@ -29,6 +29,9 @@ serve(async (req) => {
       .select(
         `id, status, wizard_step, created_at, submitted_at, updated_at,
          loan_id,
+         personal_info:application_personal_info!application_personal_info_application_id_fkey(
+           first_name, last_name, phone_number
+         ),
          created_by_user:users!in_office_applications_created_by_fkey(
            id, first_name, last_name, roles(name)
          ),
@@ -48,8 +51,16 @@ serve(async (req) => {
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch in-office applications', 500, 'DB_ERROR');
 
+    const rows = (data ?? []).map((row: any) => {
+      const pi = row.personal_info ?? null;
+      return {
+        ...row,
+        lender_name: pi ? `${pi.first_name ?? ''} ${pi.last_name ?? ''}`.trim() : null,
+      };
+    });
+
     return jsonResponse({
-      data,
+      data: rows,
       meta: {
         page,
         limit,

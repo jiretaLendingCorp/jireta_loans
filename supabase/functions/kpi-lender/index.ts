@@ -4,6 +4,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { getLoanFinancialsBatch, getLenderBlacklist } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -38,14 +39,19 @@ serve(async (req) => {
 
     const { data: loanData } = await db
       .from('loans')
-      .select('principal_amount, outstanding_balance, penalty_applied')
+      .select('id, principal_amount')
       .eq('lender_id', lenderId)
       .in('status', ['active', 'completed', 'overdue']);
 
+    const financials = await getLoanFinancialsBatch(
+      db,
+      (loanData ?? []).map((l: any) => l.id),
+    );
+
     const { data: paymentData } = await db
       .from('payments')
-      .select('amount, loans!payments_loan_id_fkey(lender_id)')
-      .eq('loans.lender_id', lenderId)
+      .select('amount, loan_schedules!inner(loan_id, loans!inner(lender_id))')
+      .eq('loan_schedules.loans.lender_id', lenderId)
       .eq('status', 'verified');
 
     const { data: penaltyData } = await db
@@ -55,14 +61,16 @@ serve(async (req) => {
 
     const { data: kycProfile } = await db
       .from('lender_profiles')
-      .select('kyc_status, is_blacklisted')
+      .select('kyc_status')
       .eq('id', lenderId)
       .single();
+
+    const blacklist = await getLenderBlacklist(db, lenderId);
 
     let totalBorrowed = 0, totalOutstanding = 0, totalInterestPaid = 0;
     (loanData ?? []).forEach((l: any) => {
       totalBorrowed += Number(l.principal_amount);
-      totalOutstanding += Number(l.outstanding_balance);
+      totalOutstanding += Number(financials[l.id]?.outstanding_balance ?? 0);
     });
 
     let totalPaid = 0;
@@ -85,7 +93,7 @@ serve(async (req) => {
       total_interest_paid: Math.max(0, totalInterestPaid),
       total_penalties_paid: totalPenaltiesPaid,
       kyc_status: kycProfile?.kyc_status ?? 'not_submitted',
-      is_blacklisted: kycProfile?.is_blacklisted ?? false,
+      is_blacklisted: blacklist ? true : false,
     });
   } catch (err) {
     console.error('kpi-lender error:', err);

@@ -4,6 +4,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { getLenderBlacklist, getLenderAddress } from '../_shared/loan_financials.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -76,6 +77,11 @@ serve(async (req) => {
       .select('id, name, relationship, phone_number, address')
       .eq('lender_id', targetLenderId!);
 
+    const [blacklist, address] = await Promise.all([
+      getLenderBlacklist(db, targetLenderId!),
+      getLenderAddress(db, targetLenderId!),
+    ]);
+
     const lender = {
       id: (userRow as any)?.id ?? targetLenderId,
       first_name: (userRow as any)?.first_name,
@@ -88,6 +94,12 @@ serve(async (req) => {
       profile_photo_url: (userRow as any)?.profile_photo_url,
       created_at: (userRow as any)?.created_at,
       ...(lenderProfile as any ?? {}),
+      is_blacklisted: blacklist ? true : null,
+      street_address: address?.street ?? null,
+      barangay: address?.barangay ?? null,
+      city: address?.city ?? null,
+      province: address?.province ?? null,
+      zip_code: address?.zip_code ?? null,
     };
 
     const documents = (docs ?? []).map((d: any) => ({

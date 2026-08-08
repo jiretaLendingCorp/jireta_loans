@@ -173,10 +173,8 @@ serve(async (req) => {
       const { data: coMakerRow, error: coErr } = await db
         .from('co_makers')
         .insert({
-          loan_id: loan.id,
           first_name: coMakerName,
           last_name: coMakerLast,
-          relationship: co_maker.relationship ? String(co_maker.relationship).trim() : 'Other',
           phone_number: co_maker.phone_number ? String(co_maker.phone_number).trim() : null,
           date_of_birth: dateOfBirth,
           address: co_maker.address ? String(co_maker.address).trim() : null,
@@ -188,6 +186,17 @@ serve(async (req) => {
       if (coMakerErr || !coMakerRow) {
         console.error('co_maker insert error:', coMakerErr);
         return errorResponse('Failed to save co-maker details', 500, 'SERVER_ERROR');
+      }
+
+      const { error: coMakerLinkErr } = await db.from('loan_co_makers').insert({
+        loan_id: loan.id,
+        co_maker_id: coMakerRow.id,
+        relationship: co_maker.relationship ? String(co_maker.relationship).trim() : 'Other',
+      });
+
+      if (coMakerLinkErr) {
+        console.error('loan_co_makers insert error:', coMakerLinkErr);
+        return errorResponse('Failed to save co-maker relationship', 500, 'SERVER_ERROR');
       }
     }
 
