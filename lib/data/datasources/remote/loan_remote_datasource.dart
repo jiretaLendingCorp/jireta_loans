@@ -13,6 +13,7 @@ class LoanRemoteDataSource {
     required String frequency,
     required String purpose,
     Map<String, dynamic>? coMaker,
+    Map<String, dynamic>? disbursement,
   }) async {
     final res = await _client.post(
       ApiEndpoints.loansApply,
@@ -21,6 +22,7 @@ class LoanRemoteDataSource {
         'frequency': frequency,
         'purpose': purpose,
         if (coMaker != null) 'co_maker': coMaker,
+        if (disbursement != null) 'disbursement': disbursement,
       },
     );
     return res.data as Map<String, dynamic>;

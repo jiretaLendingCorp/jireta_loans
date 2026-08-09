@@ -7,6 +7,8 @@ class LoanModel extends LoanEntity {
   final List<Map<String, dynamic>>? payments;
   final String? assignedRiderName;
   final String? ciStatus;
+  final String? disbursementAccount;
+  final Map<String, dynamic>? lenderAddress;
 
   const LoanModel({
     required super.id,
@@ -34,6 +36,8 @@ class LoanModel extends LoanEntity {
     this.payments,
     this.assignedRiderName,
     this.ciStatus,
+    this.disbursementAccount,
+    this.lenderAddress,
   });
 
   factory LoanModel.fromJson(Map<String, dynamic> json) {
@@ -41,9 +45,7 @@ class LoanModel extends LoanEntity {
       id: json['id'],
       loanNumber: json['loan_number'] ?? '',
       lenderId: json['lender_id'] ?? '',
-      lenderName: json['lender']?['first_name'] != null
-          ? '${json['lender']['first_name']} ${json['lender']['last_name']}'
-          : null,
+      lenderName: _parseLenderName(json),
       principalAmount: _toDouble(json['principal_amount']),
       interestRate: _toDouble(json['interest_rate']),
       interestAmount: _toDouble(json['interest_amount']),
@@ -76,10 +78,37 @@ class LoanModel extends LoanEntity {
       payments: (json['payments'] as List?)?.cast<Map<String, dynamic>>(),
       assignedRiderName: json['assigned_rider_name'],
       ciStatus: json['ci_status'],
+      disbursementAccount: json['disbursement_account'],
+      lenderAddress: json['lender_address'],
     );
   }
 
   static double _toDouble(dynamic v) => (v as num?)?.toDouble() ?? 0.0;
+
+  static String? _parseLenderName(Map<String, dynamic> json) {
+    final embedded = json['lender'];
+    if (embedded is Map) {
+      final first = embedded['first_name'];
+      final last = embedded['last_name'];
+      if (first != null || last != null) {
+        return '${first ?? ''} ${last ?? ''}'.trim();
+      }
+    }
+    final profile = json['lender_profile'];
+    if (profile is Map) {
+      final users = profile['users'];
+      if (users is Map) {
+        final first = users['first_name'];
+        final last = users['last_name'];
+        if (first != null || last != null) {
+          return '${first ?? ''} ${last ?? ''}'.trim();
+        }
+      }
+    }
+    final name = json['lender_name'];
+    if (name is String && name.trim().isNotEmpty) return name.trim();
+    return null;
+  }
 
   String get lenderFirstName {
     final lp = lenderProfile;
@@ -99,4 +128,19 @@ class LoanModel extends LoanEntity {
   }
 
   String get paymentFrequency => frequency;
+
+  String get formattedLenderAddress {
+    final a = lenderAddress;
+    if (a == null) return '';
+    final parts = [
+      a['street'],
+      a['barangay'],
+      a['city'],
+      a['province'],
+    ]
+        .where((e) => e != null && e.toString().isNotEmpty)
+        .map((e) => e.toString())
+        .toList();
+    return parts.join(', ');
+  }
 }

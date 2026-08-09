@@ -51,11 +51,12 @@ serve(async (req) => {
       relationship: link.relationship,
     }));
 
-    const [financials, disbursement, penaltyApplied, blacklist] = await Promise.all([
+    const [financials, disbursement, penaltyApplied, blacklist, disbPref] = await Promise.all([
       getLoanFinancials(db, loanId),
       getLoanDisbursement(db, loanId),
       hasPenaltyApplied(db, loanId),
       getLenderBlacklist(db, loan.lender_id),
+      db.from('loan_disbursement_preferences').select('method, account').eq('loan_id', loanId).maybeSingle(),
     ]);
 
     const lp = (loan as any).lender_profiles;
@@ -66,7 +67,8 @@ serve(async (req) => {
       interest_amount: financials?.interest_amount ?? null,
       penalty_applied: penaltyApplied,
       disbursed_at: disbursement?.disbursed_at ?? null,
-      disbursement_method: disbursement?.method ?? null,
+      disbursement_method: disbPref?.method ?? disbursement?.method ?? null,
+      disbursement_account: disbPref?.account ?? null,
       xendit_disbursement_id: disbursement?.xendit_id ?? null,
       frequency: loan.payment_frequency,
       lender: lp?.users ?? null,

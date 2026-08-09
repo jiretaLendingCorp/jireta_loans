@@ -22,8 +22,8 @@ class _RiderCollectionListScreenState
     extends ConsumerState<RiderCollectionListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
-  final _tabs = ['pending', 'accepted', 'completed', 'declined'];
-  final _tabLabels = ['Pending', 'Accepted', 'Completed', 'Declined'];
+  final _tabs = ['assigned', 'accepted', 'completed', 'declined'];
+  final _tabLabels = ['Assigned', 'Accepted', 'Completed', 'Declined'];
 
   @override
   void initState() {

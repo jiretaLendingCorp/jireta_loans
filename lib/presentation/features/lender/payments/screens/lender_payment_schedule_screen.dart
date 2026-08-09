@@ -6,7 +6,6 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -19,11 +18,6 @@ const _lenderNavItems = [
       activeIcon: Icons.home,
       label: 'Home',
       route: RouteConstants.lenderDashboard),
-  MobileNavItem(
-      icon: Icons.account_balance_outlined,
-      activeIcon: Icons.account_balance,
-      label: 'My Loan',
-      route: RouteConstants.lenderLoans),
   MobileNavItem(
       icon: Icons.payment_outlined,
       activeIcon: Icons.payment,
@@ -74,27 +68,27 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
           ? const ShimmerLoader()
           : loan == null
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.account_balance_outlined,
-                          size: 64,
-                          color: AppColors.textTertiary.withValues(alpha: 0.5)),
-                      const SizedBox(height: 16),
-                      const Text('No active loan found',
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.account_balance_outlined,
+                            size: 64,
+                            color: AppColors.textTertiary.withValues(alpha: 0.5)),
+                        const SizedBox(height: 16),
+                        const Text('No active loan found',
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 15)),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'You can apply for a loan from the My Loan tab once your account is verified.',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 15)),
-                      const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 40),
-                        child: AppButton(
-                          label: 'Apply for Loan',
-                          onPressed: () =>
-                              context.push(RouteConstants.lenderLoans),
-                          color: AppColors.lenderPurple,
+                              color: AppColors.textTertiary, fontSize: 12),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 )
               : Column(

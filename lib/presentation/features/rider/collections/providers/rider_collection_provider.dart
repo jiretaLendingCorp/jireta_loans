@@ -21,7 +21,7 @@ class RiderCollectionState {
     this.selectedCollection,
     this.isLoading = false,
     this.error,
-    this.activeTab = 'pending',
+    this.activeTab = 'assigned',
     this.isSubmitting = false,
   });
 

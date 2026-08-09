@@ -369,6 +369,9 @@ class _HmLoanApplicationsListScreenState
         loanAmount: loan.principalAmount,
         lenderName: loan.lenderName ?? 'Lender',
         availableRiders: riders,
+        preferredMethod: loan.disbursementMethod,
+        preferredGcashNumber: loan.disbursementAccount,
+        lenderAddress: loan.formattedLenderAddress,
         onDisburse: (method, data) async {
           final notifier = ref.read(hmDisbursementProvider.notifier);
           if (method == 'gcash') {

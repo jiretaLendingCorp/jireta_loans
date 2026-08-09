@@ -44,7 +44,7 @@ async function selfRegisterLender(db: any, phone: string) {
     account_status: 'active',
     force_password_change: false,
     created_by: null,
-  }).select('id, account_status, email, force_password_change, roles(name)').single();
+  }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)').single();
 
   if (userErr || !newUser) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});
@@ -111,7 +111,7 @@ serve(async (req) => {
 
     let { data: user } = await db
       .from('users')
-      .select('id, account_status, email, force_password_change, roles(name)')
+      .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)')
       .eq('phone_number', phone)
       .maybeSingle();
 
@@ -223,6 +223,9 @@ serve(async (req) => {
         id: (user as any).id,
         phone,
         role: (user as any)?.roles?.name,
+        first_name: (user as any)?.first_name ?? '',
+        last_name: (user as any)?.last_name ?? '',
+        phone_number: (user as any)?.phone_number ?? phone,
         force_password_change: (user as any)?.force_password_change,
       },
     });

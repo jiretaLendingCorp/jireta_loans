@@ -41,7 +41,7 @@ serve(async (req) => {
       .from('loans')
       .select('id, principal_amount')
       .eq('lender_id', lenderId)
-      .in('status', ['active', 'completed', 'overdue']);
+      .in('status', ['active', 'approved', 'completed', 'overdue']);
 
     const financials = await getLoanFinancialsBatch(
       db,

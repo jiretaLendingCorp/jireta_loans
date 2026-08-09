@@ -76,13 +76,21 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
       _error = null;
     });
     try {
-      await ref.read(hmCiProvider.notifier).assignCI(
+      final ok = await ref.read(hmCiProvider.notifier).assignCI(
             loanId: widget.loanId,
             riderId: _selectedRiderId!,
             notes: _notesCtrl.text.trim(),
             deadline: _deadline,
           );
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+      if (ok) {
+        Navigator.of(context).pop(true);
+      } else {
+        setState(() {
+          _loading = false;
+          _error = 'Failed to assign rider. Please try again.';
+        });
+      }
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');

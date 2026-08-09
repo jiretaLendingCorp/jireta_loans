@@ -9,6 +9,9 @@ class DisburseModal extends StatefulWidget {
   final Future<void> Function(String method, Map<String, dynamic> data)
       onDisburse;
   final List<Map<String, dynamic>> availableRiders;
+  final String? preferredMethod;
+  final String? preferredGcashNumber;
+  final String? lenderAddress;
 
   const DisburseModal({
     super.key,
@@ -17,6 +20,9 @@ class DisburseModal extends StatefulWidget {
     required this.lenderName,
     required this.onDisburse,
     this.availableRiders = const [],
+    this.preferredMethod,
+    this.preferredGcashNumber,
+    this.lenderAddress,
   });
 
   @override
@@ -35,7 +41,19 @@ class _DisburseModalState extends State<DisburseModal>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    _gcashCtrl.text = widget.preferredGcashNumber ?? '';
+    int initialIndex = 0;
+    switch (widget.preferredMethod) {
+      case 'office_cash':
+        initialIndex = 1;
+        break;
+      case 'rider_delivery':
+        initialIndex = 2;
+        break;
+      default:
+        initialIndex = 0;
+    }
+    _tabCtrl = TabController(length: 3, vsync: this, initialIndex: initialIndex);
   }
 
   @override
@@ -78,7 +96,7 @@ class _DisburseModalState extends State<DisburseModal>
             ),
             const SizedBox(height: 16),
             SizedBox(
-              height: 160,
+              height: 210,
               child: TabBarView(
                 controller: _tabCtrl,
                 children: [
@@ -112,79 +130,154 @@ class _DisburseModalState extends State<DisburseModal>
   }
 
   Widget _buildGcashTab() {
-    return Column(
-      children: [
-        const Text(
-            'Enter the lender\'s GCash number for fund transfer via Xendit.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            textAlign: TextAlign.center),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _gcashCtrl,
-          keyboardType: TextInputType.phone,
-          decoration: InputDecoration(
-            labelText: 'GCash Number',
-            prefixIcon: const Icon(Icons.phone_android, size: 18),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const Text(
+              'Enter the lender\'s GCash number for fund transfer via Xendit.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _gcashCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: InputDecoration(
+              labelText: 'GCash Number',
+              prefixIcon: const Icon(Icons.phone_android, size: 18),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
           ),
-        ),
-      ],
+          if (widget.lenderAddress != null &&
+              widget.lenderAddress!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.home_outlined,
+                    size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Registered: ${widget.lenderAddress}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   Widget _buildOfficeCashTab() {
-    return const Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.business_center, size: 40, color: AppColors.success),
-        SizedBox(height: 12),
-        Text(
-          'Confirm that the lender\'s KYC identity has been verified before releasing cash at the office.',
-          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          textAlign: TextAlign.center,
-        ),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const Icon(Icons.business_center, size: 40, color: AppColors.success),
+          const SizedBox(height: 12),
+          const Text(
+            'Confirm that the lender\'s KYC identity has been verified before releasing cash at the office.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Documents the lender must bring:',
+                    style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w600)),
+                SizedBox(height: 4),
+                Text('• Valid government-issued ID (original)',
+                    style: TextStyle(fontSize: 11, height: 1.4)),
+                Text('• Signed loan agreement / promissory note',
+                    style: TextStyle(fontSize: 11, height: 1.4)),
+                Text('• Loan reference number',
+                    style: TextStyle(fontSize: 11, height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildRiderTab() {
-    return Column(
-      children: [
-  DropdownButtonFormField<String>(
-    initialValue: _selectedRiderId,
-    decoration: InputDecoration(
-      labelText: 'Select Rider',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+Widget _buildRiderTab() {
+    final address = widget.lenderAddress;
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          if (address != null && address.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warningLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.home_outlined,
+                      size: 16, color: AppColors.warning),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Deliver to: $address',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          DropdownButtonFormField<String>(
+            initialValue: _selectedRiderId,
+            decoration: InputDecoration(
+              labelText: 'Select Rider',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+            items: widget.availableRiders.map((r) {
+              return DropdownMenuItem(
+                  value: r['id'] as String,
+                  child: Text(
+                      '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}'.trim()));
+            }).toList(),
+            onChanged: (v) => setState(() => _selectedRiderId = v),
           ),
-          items: widget.availableRiders.map((r) {
-            return DropdownMenuItem(
-                value: r['id'] as String,
-                child: Text(
-                    '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}'.trim()));
-          }).toList(),
-          onChanged: (v) => setState(() => _selectedRiderId = v),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () async {
-            final dt = await showDatePicker(
-              context: context,
-              initialDate: DateTime.now().add(const Duration(days: 1)),
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(const Duration(days: 30)),
-            );
-            if (dt != null) setState(() => _deliveryDate = dt);
-          },
-          icon: const Icon(Icons.calendar_today, size: 16),
-          label: Text(_deliveryDate != null
-              ? 'Delivery: ${_deliveryDate!.day}/${_deliveryDate!.month}/${_deliveryDate!.year}'
-              : 'Pick Delivery Date'),
-        ),
-      ],
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final dt = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now().add(const Duration(days: 1)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 30)),
+              );
+              if (dt != null) setState(() => _deliveryDate = dt);
+            },
+            icon: const Icon(Icons.calendar_today, size: 16),
+            label: Text(_deliveryDate != null
+                ? 'Delivery: ${_deliveryDate!.day}/${_deliveryDate!.month}/${_deliveryDate!.year}'
+                : 'Pick Delivery Date'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -193,12 +286,30 @@ class _DisburseModalState extends State<DisburseModal>
     try {
       final tab = _tabCtrl.index;
       if (tab == 0) {
+        final gcash = _gcashCtrl.text.trim();
+        if (gcash.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Please enter the lender\'s GCash number.'),
+                backgroundColor: AppColors.error),
+          );
+          setState(() => _loading = false);
+          return;
+        }
         await widget
-            .onDisburse('gcash', {'gcash_number': _gcashCtrl.text.trim()});
+            .onDisburse('gcash', {'gcash_number': gcash});
       } else if (tab == 1) {
         await widget.onDisburse('office_cash', {});
       } else {
-        if (_selectedRiderId == null) return;
+        if (_selectedRiderId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Please select a rider.'),
+                backgroundColor: AppColors.error),
+          );
+          setState(() => _loading = false);
+          return;
+        }
         await widget.onDisburse('rider_delivery', {
           'rider_id': _selectedRiderId!,
           if (_deliveryDate != null)

@@ -87,7 +87,7 @@ serve(async (req) => {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { principal: principalField, principal_amount, frequency, purpose, co_maker } = body;
+    const { principal: principalField, principal_amount, frequency, purpose, co_maker, disbursement } = body;
     const principal = principalField ?? principal_amount;
 
     if (!principal || !frequency || !purpose) {
@@ -98,6 +98,23 @@ serve(async (req) => {
     }
     if (!validateFrequency(frequency)) {
       return errorResponse('Invalid frequency. Use: daily, weekly, monthly', 400, 'VALIDATION_ERROR');
+    }
+
+    let disbursementMethod: string | null = null;
+    let disbursementAccount: string | null = null;
+    if (disbursement) {
+      const method = String(disbursement.method ?? '').toLowerCase();
+      if (method && !['gcash', 'office_cash', 'rider_delivery'].includes(method)) {
+        return errorResponse('Invalid disbursement method', 400, 'VALIDATION_ERROR');
+      }
+      if (method === 'gcash') {
+        const gcash = String(disbursement.gcash_number ?? disbursement.gcash ?? '').trim();
+        if (!/^09\d{9}$/.test(gcash)) {
+          return errorResponse('Valid GCash number is required (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
+        }
+        disbursementAccount = gcash;
+      }
+      disbursementMethod = method || null;
     }
 
     const db = getAdminClient();
@@ -152,6 +169,14 @@ serve(async (req) => {
     if (loanErr || !loan) {
       console.error('Loan insert error:', loanErr);
       return errorResponse('Failed to create loan', 500, 'SERVER_ERROR');
+    }
+
+    if (disbursementMethod || disbursementAccount) {
+      await db.from('loan_disbursement_preferences').insert({
+        loan_id: loan.id,
+        method: disbursementMethod,
+        account: disbursementAccount,
+      });
     }
 
     const scheduleRows = sched.dueDates.map((date, i) => ({

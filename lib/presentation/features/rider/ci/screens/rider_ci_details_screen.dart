@@ -205,7 +205,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
                 _InfoTile('Notes', ci.investigationNotes!),
             ],
           ),
-          if (ci.status == 'pending') ...[
+          if (ci.status == 'assigned') ...[
             const SizedBox(height: 16),
             Row(
               children: [

@@ -9,7 +9,10 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/signature_pad.dart';
+import '../../../../shared/widgets/status_badge.dart';
+import '../../../../../data/models/loan_model.dart';
 import '../../kyc/providers/lender_kyc_provider.dart';
 import '../providers/lender_loan_provider.dart';
 
@@ -29,6 +32,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   Map<String, dynamic>? _coMaker;
   int _step = 0;
   final _coMakerFormKey = GlobalKey<_CoMakerFormState>();
+  String? _coMakerSignature;
+  String? _signatureError;
+  String _disbursementMethod = 'gcash';
+  final _gcashCtrl = TextEditingController();
 
   static const _navItems = [
     MobileNavItem(
@@ -36,12 +43,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       activeIcon: Icons.home,
       label: 'Home',
       route: RouteConstants.lenderDashboard,
-    ),
-    MobileNavItem(
-      icon: Icons.account_balance_outlined,
-      activeIcon: Icons.account_balance,
-      label: 'My Loan',
-      route: RouteConstants.lenderLoans,
     ),
     MobileNavItem(
       icon: Icons.payment_outlined,
@@ -60,21 +61,16 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await ref.read(lenderKycProvider.notifier).loadStatus();
-      if (!mounted) return;
-      final status = ref.read(lenderKycProvider).status;
-      if (status != 'verified') {
-        context.go(status == 'not_submitted'
-            ? RouteConstants.lenderKyc
-            : RouteConstants.lenderKycStatus);
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(lenderKycProvider.notifier).loadStatus();
+      ref.read(lenderLoanProvider.notifier).loadLoans();
     });
   }
 
   @override
   void dispose() {
     _purposeCtrl.dispose();
+    _gcashCtrl.dispose();
     super.dispose();
   }
 
@@ -102,7 +98,30 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (!cmValid) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please complete the co-maker details and signature.'),
+          content: Text('Please complete the co-maker details.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
+      setState(() =>
+          _signatureError = 'Co-maker must sign the pad before submission');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please provide the co-maker signature.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (_disbursementMethod == 'gcash' &&
+        !RegExp(r'^09\d{9}$').hasMatch(_gcashCtrl.text.trim())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid 11-digit GCash number (09XXXXXXXXX).'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -120,11 +139,18 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
     if (confirmed != true) return;
 
+    final coMaker = Map<String, dynamic>.from(_coMaker ?? {})
+      ..['signature'] = _coMakerSignature;
     final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
           amount: _amount,
           frequency: _frequency,
           purpose: _purposeCtrl.text.trim(),
-          coMaker: _coMaker,
+          coMaker: coMaker,
+          disbursement: {
+            'method': _disbursementMethod,
+            if (_disbursementMethod == 'gcash')
+              'gcash_number': _gcashCtrl.text.trim(),
+          },
         );
 
     if (!mounted) return;
@@ -155,12 +181,24 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         );
         return;
       }
-    } else {
+    } else if (_step == 1) {
       final valid = _coMakerFormKey.currentState?.validate() ?? false;
       if (!valid) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please complete the co-maker details and signature.'),
+            content: Text('Please complete the co-maker details.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    } else if (_step == 2) {
+      if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
+        setState(() =>
+            _signatureError = 'Co-maker must sign the pad before submission');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please provide the co-maker signature to continue.'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -305,7 +343,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           const _SectionTitle('Co-Maker Information'),
           const SizedBox(height: 6),
           const Text(
-            'A co-maker is required for your loan application.',
+            'A co-maker is required for your loan application. You will be asked for their signature on the next step.',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 12),
@@ -320,24 +358,147 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
   }
 
-  Widget _buildReviewStep(NumberFormat fmt, Map<String, dynamic>? preview) {
+  Widget _buildSignatureStep() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle('Review & Confirm'),
-          const SizedBox(height: 12),
-          _ReviewCard(
-            amount: _amount,
-            frequency: _frequency,
-            purpose: _purposeCtrl.text.trim(),
-            coMaker: _coMaker,
-            fmt: fmt,
+          const _SectionTitle('Co-Maker Signature'),
+          const SizedBox(height: 6),
+          const Text(
+            'Ask your co-maker to sign below to consent to this loan.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
-          if (preview != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SignaturePad(
+                  onSignatureChanged: (sig) {
+                    setState(() {
+                      _coMakerSignature = sig;
+                      _signatureError = (sig != null && sig.isNotEmpty)
+                          ? null
+                          : 'Co-maker must sign the pad before submission';
+                    });
+                  },
+                  height: 200,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'The co-maker signature above serves as consent for this loan.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+                if (_signatureError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _signatureError!,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.error),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDisbursementStep(
+      NumberFormat fmt, Map<String, dynamic>? preview) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle('Disbursement Preference'),
+          const SizedBox(height: 6),
+          const Text(
+            'How would you like to receive the loan proceeds once approved?',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          _DisbursementOption(
+            selected: _disbursementMethod == 'gcash',
+            icon: Icons.phone_android,
+            title: 'GCash',
+            subtitle: 'Funds will be sent to a GCash number',
+            onTap: () => setState(() => _disbursementMethod = 'gcash'),
+          ),
+          const SizedBox(height: 8),
+          _DisbursementOption(
+            selected: _disbursementMethod == 'rider_delivery',
+            icon: Icons.delivery_dining,
+            title: 'Cash via Rider',
+            subtitle: 'A rider will deliver cash to your registered address',
+            onTap: () =>
+                setState(() => _disbursementMethod = 'rider_delivery'),
+          ),
+          const SizedBox(height: 8),
+          _DisbursementOption(
+            selected: _disbursementMethod == 'office_cash',
+            icon: Icons.business_center,
+            title: 'Pick Up at Office',
+            subtitle: 'Withdraw the cash at the Jireta Loans office',
+            onTap: () => setState(() => _disbursementMethod = 'office_cash'),
+          ),
+          if (_disbursementMethod == 'gcash') ...[
             const SizedBox(height: 16),
-            _SchedulePreview(preview: preview, loading: _previewLoading),
+            TextField(
+              controller: _gcashCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                labelText: 'GCash Number',
+                hintText: '09XXXXXXXXX',
+                prefixIcon: const Icon(Icons.phone_android, size: 18),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.lenderPurple),
+                ),
+              ),
+            ),
+          ] else if (_disbursementMethod == 'rider_delivery') ...[
+            const SizedBox(height: 16),
+            const _DisbursementNote(
+              icon: Icons.home_outlined,
+              text:
+                  'The rider will deliver the cash to the address registered in your KYC profile.',
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+            const _DisbursementNote(
+              icon: Icons.description_outlined,
+              text:
+                  'Bring a valid government ID and the loan reference number when picking up at the office.',
+            ),
+          ],
+          const SizedBox(height: 20),
+          if (preview != null) ...[
+            _ReviewCard(
+              amount: _amount,
+              frequency: _frequency,
+              purpose: _purposeCtrl.text.trim(),
+              coMaker: _coMaker,
+              fmt: fmt,
+              signatureProvided:
+                  _coMakerSignature != null && _coMakerSignature!.isNotEmpty,
+            ),
           ],
         ],
       ),
@@ -345,7 +506,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   }
 
   Widget _buildWizardBar(LenderLoanState state) {
-    final isLast = _step == 2;
+    final isLast = _step == 3;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: const BoxDecoration(
@@ -385,34 +546,72 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(lenderLoanProvider);
-    final preview = state.schedulePreview;
+    final loanState = ref.watch(lenderLoanProvider);
+    final kycState = ref.watch(lenderKycProvider);
     final fmt = NumberFormat('#,##0.00', 'en_PH');
 
     return MobileScaffold(
-      title: 'Apply for Loan',
+      title: 'My Loans',
       accentColor: AppColors.lenderPurple,
       navItems: _navItems,
       showBackButton: true,
-      body: state.activeLoan != null
-          ? _ActiveLoanBlock(state.activeLoan!, context)
-          : Column(
-              children: [
-                _StepIndicator(current: _step),
-                Expanded(
-                  child: IndexedStack(
-                    index: _step,
-                    children: [
-                      _buildLoanDetailsStep(fmt, preview),
-                      _buildCoMakerStep(),
-                      _buildReviewStep(fmt, preview),
-                    ],
-                  ),
-                ),
-                _buildWizardBar(state),
-              ],
-            ),
+      body: (loanState.isLoading || kycState.isLoading)
+          ? const ShimmerLoader()
+          : _buildFlow(loanState, kycState, fmt),
     );
+  }
+
+  Widget _buildFlow(
+      LenderLoanState loanState, LenderKycState kycState, NumberFormat fmt) {
+    final kyc = kycState.status;
+    final loans = loanState.loans;
+    final activeLoan = loanState.activeLoan;
+
+    if (kyc != 'verified' && kyc != 'approved') {
+      return _KycGate(status: kyc);
+    }
+    if (activeLoan != null) {
+      return _ActiveLoanView(loan: activeLoan);
+    }
+    final reviewLoan = _underReviewLoan(loans);
+    if (reviewLoan != null) {
+      return _ApplicationReviewView(loan: reviewLoan);
+    }
+
+    final state = loanState;
+    final preview = state.schedulePreview;
+    return Column(
+      children: [
+        _StepIndicator(current: _step),
+        Expanded(
+          child: IndexedStack(
+            index: _step,
+            children: [
+              _buildLoanDetailsStep(fmt, preview),
+              _buildCoMakerStep(),
+              _buildSignatureStep(),
+              _buildDisbursementStep(fmt, preview),
+            ],
+          ),
+        ),
+        _buildWizardBar(state),
+      ],
+    );
+  }
+
+  LoanModel? _underReviewLoan(List<LoanModel> loans) {
+    for (final loan in loans) {
+      if ([
+        'pending',
+        'under_review',
+        'ci_required',
+        'ci_assigned',
+        'ci_completed'
+      ].contains(loan.status)) {
+        return loan;
+      }
+    }
+    return null;
   }
 }
 
@@ -433,8 +632,6 @@ class _CoMakerFormState extends State<_CoMakerForm> {
   String? _relationship;
   DateTime? _dob;
   String? _dobError;
-  String? _signature;
-  String? _signatureError;
 
   static const _relationshipOptions = [
     'Spouse',
@@ -465,21 +662,17 @@ class _CoMakerFormState extends State<_CoMakerForm> {
       'relationship': _relationship,
       'address': _addressCtrl.text.trim(),
       'date_of_birth': _dob?.toIso8601String().substring(0, 10),
-      'signature': _signature,
     };
     widget.onChanged(map);
   }
 
   bool validate() {
     final dobOk = _dob != null;
-    final sigOk = _signature != null && _signature!.isNotEmpty;
     setState(() {
       _dobError = dobOk ? null : 'Date of birth is required';
-      _signatureError =
-          sigOk ? null : 'Co-maker must sign the pad before submission';
     });
     final formOk = _formKey.currentState?.validate() ?? false;
-    return formOk && dobOk && sigOk;
+    return formOk && dobOk;
   }
 
   Future<void> _pickDob() async {
@@ -612,32 +805,11 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               ),
             ),
             const SizedBox(height: 14),
-            SignaturePad(
-              onSignatureChanged: (sig) {
-                setState(() {
-                  _signature = sig;
-                  _signatureError =
-                      (sig != null && sig.isNotEmpty)
-                          ? null
-                          : 'Co-maker must sign the pad before submission';
-                });
-                _emit();
-              },
-              height: 160,
-            ),
-            const SizedBox(height: 4),
             const Text(
-              'The co-maker signature above serves as consent for this loan.',
-              style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+              'You will be asked for the co-maker\'s signature on the next step.',
+              style: TextStyle(
+                  fontSize: 11, color: AppColors.textTertiary),
             ),
-            if (_signatureError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _signatureError!,
-                  style: const TextStyle(fontSize: 12, color: AppColors.error),
-                ),
-              ),
           ],
         ),
       ),
@@ -847,7 +1019,12 @@ class _StepIndicator extends StatelessWidget {
   final int current;
   const _StepIndicator({required this.current});
 
-  static const _labels = ['Loan Details', 'Co-Maker', 'Review'];
+  static const _labels = [
+      'Loan Details',
+      'Co-Maker',
+      'Signature',
+      'Disbursement',
+    ];
 
   @override
   Widget build(BuildContext context) {
@@ -941,12 +1118,14 @@ class _ReviewCard extends StatelessWidget {
   final String purpose;
   final Map<String, dynamic>? coMaker;
   final NumberFormat fmt;
+  final bool signatureProvided;
   const _ReviewCard({
     required this.amount,
     required this.frequency,
     required this.purpose,
     required this.coMaker,
     required this.fmt,
+    required this.signatureProvided,
   });
 
   String _s(String key) {
@@ -956,7 +1135,6 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final signed = _s('signature').isNotEmpty;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -1003,18 +1181,22 @@ class _ReviewCard extends StatelessWidget {
           Row(
             children: [
               Icon(
-                signed ? Icons.check_circle : Icons.error_outline,
+                signatureProvided ? Icons.check_circle : Icons.error_outline,
                 size: 18,
-                color: signed ? AppColors.success : AppColors.error,
+                color: signatureProvided
+                    ? AppColors.success
+                    : AppColors.error,
               ),
               const SizedBox(width: 6),
               Text(
-                signed
+                signatureProvided
                     ? 'Co-maker signature provided'
                     : 'Co-maker signature missing',
                 style: TextStyle(
                   fontSize: 12,
-                  color: signed ? AppColors.success : AppColors.error,
+                  color: signatureProvided
+                      ? AppColors.success
+                      : AppColors.error,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1053,43 +1235,441 @@ class _ReviewCard extends StatelessWidget {
       );
 }
 
-class _ActiveLoanBlock extends StatelessWidget {
-  final dynamic loan;
-  final BuildContext ctx;
-  const _ActiveLoanBlock(this.loan, this.ctx);
+class _DisbursementOption extends StatelessWidget {
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _DisbursementOption({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.lenderPurpleLight : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? AppColors.lenderPurple
+                : AppColors.border,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                color: selected
+                    ? AppColors.lenderPurple
+                    : AppColors.textSecondary,
+                size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: selected
+                          ? AppColors.lenderPurple
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              selected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: selected
+                  ? AppColors.lenderPurple
+                  : AppColors.textTertiary,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisbursementNote extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _DisbursementNote({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.lenderPurple.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: AppColors.lenderPurple.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.lenderPurple, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.lenderPurple, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KycGate extends StatelessWidget {
+  final String status;
+  const _KycGate({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final isSubmitted = status == 'submitted' || status == 'pending';
+    final isRejected = status == 'rejected';
+
+    final Color fg;
+    final IconData icon;
+    final String title;
+    final String subtitle;
+    final String actionLabel;
+    final VoidCallback onAction;
+
+    if (isRejected) {
+      fg = AppColors.error;
+      icon = Icons.gpp_bad_outlined;
+      title = 'KYC Submission Rejected';
+      subtitle =
+          'Your KYC documents could not be approved. Please resubmit to continue.';
+      actionLabel = 'Resubmit KYC';
+      onAction = () => context.push(RouteConstants.lenderKyc);
+    } else if (isSubmitted) {
+      fg = AppColors.warning;
+      icon = Icons.hourglass_top_rounded;
+      title = 'KYC Under Review';
+      subtitle =
+          'Your documents are being reviewed. You can apply for a loan once your KYC is approved.';
+      actionLabel = 'View Status';
+      onAction = () => context.push(RouteConstants.lenderKycStatus);
+    } else {
+      fg = AppColors.warning;
+      icon = Icons.verified_user_outlined;
+      title = 'Complete Your KYC';
+      subtitle =
+          'Verify your identity to start borrowing with Jireta Loans.';
+      actionLabel = 'Verify Now';
+      onAction = () => context.push(RouteConstants.lenderKyc);
+    }
+
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.lock_outline, color: AppColors.warning, size: 64),
-            const SizedBox(height: 16),
-            const Text(
-              'You have an active loan',
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary),
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: fg.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: fg, size: 42),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Please complete your current loan before applying for a new one.',
+            const SizedBox(height: 20),
+            Text(
+              title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 10),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 28),
             AppButton(
-              label: 'View My Loan',
-              onTap: () => ctx.push(RouteConstants.lenderPayments),
+              label: actionLabel,
+              onPressed: onAction,
               color: AppColors.lenderPurple,
+              icon: Icons.arrow_forward,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ApplicationReviewView extends StatelessWidget {
+  final LoanModel loan;
+  const _ApplicationReviewView({required this.loan});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.lenderPurple.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.hourglass_top_rounded,
+                        color: Colors.white, size: 26),
+                    SizedBox(width: 10),
+                    Text(
+                      'Loan Application Under Review',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Your application has been submitted and is being reviewed by our team. We will notify you once a decision has been made.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _SummaryRow('Loan #', loan.loanNumber),
+                _SummaryRow('Amount', loan.principalAmount.toCurrency),
+                _SummaryRow('Total Payable', loan.totalPayable.toCurrency),
+                _SummaryRow(
+                    'Frequency', loan.paymentFrequency.toUpperCase()),
+                const SizedBox(height: 8),
+                StatusBadge(status: loan.status, small: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          AppButton(
+            label: 'View Application Status',
+            onPressed: () => context.push(
+              RouteConstants.lenderLoanApplicationStatus
+                  .replaceFirst(':id', loan.id),
+            ),
+            color: AppColors.lenderPurple,
+            icon: Icons.timeline_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveLoanView extends StatelessWidget {
+  final LoanModel loan;
+  const _ActiveLoanView({required this.loan});
+
+  @override
+  Widget build(BuildContext context) {
+    final outstanding = loan.outstandingBalance;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.lenderPurple.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      loan.status == 'approved'
+                          ? 'Loan Approved'
+                          : 'Active Loan',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    StatusBadge(status: loan.status, small: true),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Outstanding Balance',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  outstanding.toCurrency,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'PlayfairDisplay',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total Payable',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      loan.totalPayable.toCurrency,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          AppButton(
+            label: 'View Payment Schedule',
+            onPressed: () => context.push(RouteConstants.lenderPayments),
+            color: AppColors.lenderPurple,
+            icon: Icons.calendar_month_outlined,
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: 'Loan History',
+            onPressed: () => context.push(RouteConstants.lenderLoanHistory),
+            color: AppColors.lenderPurpleLight,
+            icon: Icons.history,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _SummaryRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary)),
+          const Spacer(),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary)),
+        ],
       ),
     );
   }

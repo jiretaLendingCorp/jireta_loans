@@ -51,7 +51,7 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
                 value: state.statusFilter,
                 options: [
                   'all',
-                  'pending',
+                  'assigned',
                   'accepted',
                   'declined',
                   'in_progress',

@@ -29,7 +29,7 @@
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Allow cleartext HTTP only to local-network hosts (dev Supabase at
-		     http://192.168.1.11:54321). TLS is still required for all public
+		     http://192.168.1.10:54321). TLS is still required for all public
 		     hosts. This is the iOS counterpart of Android's
 		     network_security_config.xml. -->
 		<key>NSAllowsLocalNetworking</key>

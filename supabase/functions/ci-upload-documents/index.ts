@@ -7,6 +7,32 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 
+const BUCKET = 'ci-documents';
+
+// Decode a base64 string into a Uint8Array without relying on atob.
+function base64ToBytes(base64: string): Uint8Array {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function mimeFromExt(ext: string): string {
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'pdf':
+      return 'application/pdf';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -28,16 +54,44 @@ serve(async (req) => {
 
     await db.from('credit_investigations').update({ status: 'in_progress' }).eq('id', ci_id);
 
-    const docsToInsert = documents.map((d: any) => ({
-      ci_id,
-      file_path: d.file_url,
-      document_type: d.document_type ?? 'site_photo',
-      file_name: d.file_name ?? 'ci_document',
-      mime_type: d.mime_type ?? 'application/octet-stream',
-      notes: d.caption ?? null,
-      latitude: d.latitude ?? null,
-      longitude: d.longitude ?? null,
-    }));
+    const docsToInsert = [];
+    for (let i = 0; i < documents.length; i++) {
+      const d = documents[i];
+      const ext = (d.file_name ?? 'document').split('.').pop()?.toLowerCase() ?? 'jpg';
+      const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext) ? ext : 'jpg';
+      const objectPath = `ci/${ci_id}/${crypto.randomUUID()}.${safeExt}`;
+
+      // The rider client sends content_base64 (no file_url). Mirror kyc-submit:
+      // upload to storage and keep the object path, never the raw base64.
+      let storedPath = d.file_url ?? null;
+      if (d.content_base64) {
+        const { error: uploadErr } = await db.storage
+          .from(BUCKET)
+          .upload(objectPath, base64ToBytes(d.content_base64), {
+            contentType: d.mime_type ?? mimeFromExt(safeExt),
+            upsert: false,
+          });
+        if (uploadErr) {
+          return errorResponse(`Failed to upload document (${d.document_type ?? 'ci_photo'}): ${uploadErr.message}`, 500, 'STORAGE_ERROR');
+        }
+        storedPath = objectPath;
+      }
+
+      if (!storedPath) {
+        return errorResponse('Each document must include content_base64 to store', 400, 'VALIDATION_ERROR');
+      }
+
+      docsToInsert.push({
+        ci_id,
+        file_path: storedPath,
+        document_type: d.document_type ?? 'site_photo',
+        file_name: d.file_name ?? 'ci_document',
+        mime_type: d.mime_type ?? 'image/jpeg',
+        notes: d.caption ?? null,
+        latitude: d.latitude ?? null,
+        longitude: d.longitude ?? null,
+      });
+    }
     await db.from('ci_documents').insert(docsToInsert);
     await writeAuditLog({ performedBy: user.id, action: 'ci_upload_documents', tableName: 'ci_documents', recordId: ci_id, ipAddress: ip });
     return jsonResponse({ message: 'Documents uploaded', count: docsToInsert.length }, 201);

@@ -93,7 +93,7 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
           const SizedBox(width: 12),
           _statusChip('all', 'All'),
           const SizedBox(width: 6),
-          _statusChip('pending', 'Pending'),
+          _statusChip('assigned', 'Assigned'),
           const SizedBox(width: 6),
           _statusChip('accepted', 'Accepted'),
           const SizedBox(width: 6),

@@ -36,7 +36,11 @@ class _EmpCiAssignModalState extends ConsumerState<EmpCiAssignModal> {
     final riders = await ref.read(empCiProvider.notifier).getAvailableRiders();
     if (mounted) {
       setState(() {
-        _riders = riders;
+        _riders = riders
+            .where((r) =>
+                r['rider_profiles']?['is_available'] == true &&
+                r['rider_profiles']?['is_available'] != null)
+            .toList();
         _loadingRiders = false;
       });
     }

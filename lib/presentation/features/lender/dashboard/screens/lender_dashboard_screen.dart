@@ -30,12 +30,6 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
       route: RouteConstants.lenderDashboard,
     ),
     MobileNavItem(
-      icon: Icons.account_balance_outlined,
-      activeIcon: Icons.account_balance,
-      label: 'My Loan',
-      route: RouteConstants.lenderLoans,
-    ),
-    MobileNavItem(
       icon: Icons.payment_outlined,
       activeIcon: Icons.payment,
       label: 'Payments',
@@ -88,7 +82,10 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                     children: [
                       _WelcomeBanner(kpi: state.kpi),
                       const SizedBox(height: 20),
-                      _KycStatusCard(kpi: state.kpi),
+                      state.kpi.kycStatus == 'verified' ||
+                              state.kpi.kycStatus == 'approved'
+                          ? const SizedBox.shrink()
+                          : _KycStatusCard(kpi: state.kpi),
                       const SizedBox(height: 20),
                       _QuickActions(context: context),
                       const SizedBox(height: 20),

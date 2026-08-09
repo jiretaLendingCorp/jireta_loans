@@ -71,12 +71,6 @@ class _LenderEditProfileScreenState
       route: RouteConstants.lenderDashboard,
     ),
     MobileNavItem(
-      icon: Icons.account_balance_outlined,
-      activeIcon: Icons.account_balance,
-      label: 'My Loan',
-      route: RouteConstants.lenderLoans,
-    ),
-    MobileNavItem(
       icon: Icons.payment_outlined,
       activeIcon: Icons.payment,
       label: 'Payments',

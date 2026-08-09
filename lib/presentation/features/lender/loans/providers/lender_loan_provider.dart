@@ -53,7 +53,10 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
     state = state.copyWith(isLoading: true, error: null);
     try {
       final loans = await _ds.getLoanList(page: 1);
-      final active = loans.where((l) => l.status == 'active').firstOrNull;
+      final active = loans
+          .where((l) =>
+              ['active', 'approved', 'overdue'].contains(l.status))
+          .firstOrNull;
       state =
           state.copyWith(loans: loans, activeLoan: active, isLoading: false);
     } catch (e) {
@@ -88,6 +91,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
     required String frequency,
     required String purpose,
     Map<String, dynamic>? coMaker,
+    Map<String, dynamic>? disbursement,
   }) async {
     state = state.copyWith(isSubmitting: true);
     try {
@@ -96,6 +100,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
         frequency: frequency,
         purpose: purpose,
         coMaker: coMaker,
+        disbursement: disbursement,
       );
       state = state.copyWith(isSubmitting: false);
       await loadLoans();

@@ -316,7 +316,7 @@ class _KycRowState extends State<_KycRow> {
                   color: AppColors.success,
                   onPressed: widget.onVerify,
                 ),
-              if (status != 'rejected') ...[
+              if (status != 'verified' && status != 'rejected') ...[
                 const SizedBox(width: 8),
                 _ActionButton(
                   icon: Icons.cancel_outlined,

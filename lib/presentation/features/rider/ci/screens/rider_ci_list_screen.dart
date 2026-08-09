@@ -30,7 +30,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
     MobileNavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile', route: RouteConstants.riderProfile),
   ];
 
-  final _tabs = ['Pending', 'Accepted', 'In Progress', 'Completed'];
+  final _tabs = ['Assigned', 'Accepted', 'In Progress', 'Completed'];
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    final statusMap = ['pending', 'accepted', 'in_progress', 'completed'];
+    final statusMap = ['assigned', 'accepted', 'in_progress', 'completed'];
     ref.read(riderCiProvider.notifier).setFilter(statusMap[_tabController.index]);
   }
 
@@ -172,7 +172,7 @@ class _CiCard extends StatelessWidget {
                 child: Text(ci.investigationNotes!, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
             ],
-            if (ci.status == 'pending') ...[
+            if (ci.status == 'assigned') ...[
               const SizedBox(height: 12),
               Row(
                 children: [

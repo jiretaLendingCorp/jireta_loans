@@ -55,7 +55,13 @@ class CreditInvestigationModel {
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'])
             : DateTime.now(),
-        loan: json['loan'] as Map<String, dynamic>?,
+        loan: json['loan'] as Map<String, dynamic>? ??
+            (json['loans'] is Map
+                ? (json['loans'] as Map).cast<String, dynamic>()
+                : (json['loans'] is List &&
+                          (json['loans'] as List).isNotEmpty
+                      ? (json['loans'] as List).first
+                      : null) as Map<String, dynamic>?),
         rider: json['rider'] as Map<String, dynamic>?,
         assignedByUser:
             json['assigner'] as Map<String, dynamic>? ??
@@ -65,12 +71,25 @@ class CreditInvestigationModel {
 
   String get loanNumber => loan?['loan_number'] ?? '';
   String get lenderName {
-    final l = loan?['users'] ?? loan?['lender'];
-    if (l == null) return '';
-    return '${l['first_name'] ?? ''} ${l['last_name'] ?? ''}'.trim();
+    final b = _borrower;
+    if (b == null) return '';
+    return '${b['first_name'] ?? ''} ${b['last_name'] ?? ''}'.trim();
   }
 
   Map<String, dynamic>? get _borrower {
+    // ci-get-list embeds the borrower as loans.lender_profile.users.
+    final profile = loan?['lender_profile'];
+    if (profile is Map) {
+      final u = profile['users'];
+      if (u is Map) return Map<String, dynamic>.from(u);
+      return Map<String, dynamic>.from(profile);
+    }
+    final lp = loan?['lender_profiles'];
+    if (lp is Map) {
+      final u = lp['users'];
+      if (u is Map) return Map<String, dynamic>.from(u);
+      return Map<String, dynamic>.from(lp);
+    }
     final b = loan?['users'];
     if (b is Map) return Map<String, dynamic>.from(b);
     final l = loan?['lender'];
@@ -88,13 +107,14 @@ class CreditInvestigationModel {
       (_borrower?['phone'] as String?) ?? (_borrower?['phone_number'] as String?) ?? '';
 
   String get borrowerAddress {
-    final a = loan?['address'];
+    final a = loan?['lender_address'] ?? loan?['address'];
     if (a == null) return '';
     if (a is Map) {
       final street = a['street'] ?? '';
+      final barangay = a['barangay'] ?? '';
       final city = a['city'] ?? '';
       final province = a['province'] ?? '';
-      return [street, city, province]
+      return [street, barangay, city, province]
           .where((e) => e.toString().isNotEmpty)
           .join(', ');
     }

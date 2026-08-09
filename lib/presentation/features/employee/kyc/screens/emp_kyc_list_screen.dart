@@ -209,7 +209,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
                     icon: Icons.check_circle_outline,
                     onPressed: () => _verifyAll(lenderId, 'verified'),
                   ),
-                if (status != 'rejected') ...[
+                if (status != 'verified' && status != 'rejected') ...[
                   const SizedBox(width: 8),
                   _EmpActionButton(
                     label: 'Reject',

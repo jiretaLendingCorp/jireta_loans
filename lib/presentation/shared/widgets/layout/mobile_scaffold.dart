@@ -93,7 +93,7 @@ class MobileScaffold extends ConsumerWidget {
         floatingActionButton: floatingActionButton,
         bottomNavigationBar: !showBottomNav || navItems.isEmpty
             ? null
-            : _BottomNav(
+            : _FloatingBottomNav(
                 items: navItems,
                 currentIndex: currentIndex < 0 ? 0 : currentIndex,
                 accentColor: accentColor,
@@ -120,13 +120,13 @@ class MobileNavItem {
   });
 }
 
-class _BottomNav extends StatelessWidget {
+class _FloatingBottomNav extends StatelessWidget {
   final List<MobileNavItem> items;
   final int currentIndex;
   final Color accentColor;
   final void Function(int) onTap;
 
-  const _BottomNav({
+  const _FloatingBottomNav({
     required this.items,
     required this.currentIndex,
     required this.accentColor,
@@ -136,95 +136,113 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 12, offset: Offset(0, -2)),
-        ],
-      ),
+      color: Colors.transparent,
       child: SafeArea(
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            children: items.asMap().entries.map((e) {
-              final i = e.key;
-              final item = e.value;
-              final isSelected = i == currentIndex;
-
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => onTap(i),
-                  behavior: HitTestBehavior.opaque,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? accentColor.withValues(alpha: 0.12)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              isSelected ? item.activeIcon : item.icon,
-                              size: 22,
-                              color: isSelected
-                                  ? accentColor
-                                  : AppColors.textTertiary,
-                            ),
-                          ),
-                          if ((item.badgeCount ?? 0) > 0)
-                            Positioned(
-                              top: -2,
-                              right: -4,
-                              child: Container(
-                                width: 16,
-                                height: 16,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.error,
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '${item.badgeCount}',
-                                  style: const TextStyle(
-                                    fontSize: 9,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w400,
-                          color:
-                              isSelected ? accentColor : AppColors.textTertiary,
-                          fontFamily: 'Inter',
-                        ),
-                        child: Text(item.label),
-                      ),
-                    ],
-                  ),
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+          child: Container(
+            height: 62,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border:
+                  Border.all(color: Colors.black.withValues(alpha: 0.05)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
                 ),
-              );
-            }).toList(),
+              ],
+            ),
+            child: Row(
+              children: _buildItems(context),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildItems(BuildContext context) {
+    return items.asMap().entries.map((e) {
+      final i = e.key;
+      final item = e.value;
+      final isSelected = i == currentIndex;
+
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => onTap(i),
+          behavior: HitTestBehavior.opaque,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? accentColor
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        isSelected ? item.activeIcon : item.icon,
+                        size: 21,
+                        color: isSelected
+                            ? Colors.white
+                            : AppColors.textTertiary,
+                      ),
+                    ),
+                    if ((item.badgeCount ?? 0) > 0)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: const BoxDecoration(
+                            color: AppColors.error,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${item.badgeCount}',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight:
+                        isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color:
+                        isSelected ? accentColor : AppColors.textTertiary,
+                    fontFamily: 'Inter',
+                  ),
+                  child: Text(item.label),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
   }
 }
 
@@ -263,12 +281,6 @@ List<MobileNavItem> lenderNavItems() => [
         activeIcon: Icons.home,
         label: 'Home',
         route: RouteConstants.lenderDashboard,
-      ),
-      const MobileNavItem(
-        icon: Icons.description_outlined,
-        activeIcon: Icons.description,
-        label: 'My Loans',
-        route: RouteConstants.lenderLoans,
       ),
       const MobileNavItem(
         icon: Icons.payments_outlined,

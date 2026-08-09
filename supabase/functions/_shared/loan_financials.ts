@@ -258,3 +258,17 @@ export async function getLenderAddressBatch(db: any, userIds: string[]) {
   for (const a of data ?? []) map[a.user_id] = a;
   return map;
 }
+
+// Disbursement preference per loan (1:1 with loans; separate from the
+// disbursements event table so the base loan row stays free of snapshots).
+export async function getLoanDisbursementPrefsBatch(db: any, loanIds: string[]) {
+  const ids = (loanIds ?? []).filter(Boolean);
+  const map: Record<string, any> = {};
+  if (ids.length === 0) return map;
+  const { data } = await db
+    .from('loan_disbursement_preferences')
+    .select('loan_id, method, account')
+    .in('loan_id', ids);
+  for (const p of data ?? []) map[p.loan_id] = p;
+  return map;
+}
