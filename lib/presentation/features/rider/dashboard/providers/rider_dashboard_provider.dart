@@ -80,7 +80,7 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
 }
 
 final riderDashboardProvider =
-    StateNotifierProvider<RiderDashboardNotifier, RiderDashboardState>((ref) {
+    AutoDisposeStateNotifierProvider<RiderDashboardNotifier, RiderDashboardState>((ref) {
   return RiderDashboardNotifier(
     sl<KpiRemoteDataSource>(),
     sl<CollectionRemoteDataSource>(),

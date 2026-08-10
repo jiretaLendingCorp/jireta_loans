@@ -32,7 +32,7 @@ class HmReportState {
 }
 
 final hmReportProvider =
-    StateNotifierProvider<HmReportNotifier, HmReportState>((ref) {
+    AutoDisposeStateNotifierProvider<HmReportNotifier, HmReportState>((ref) {
   return HmReportNotifier(sl<ReportRemoteDataSource>());
 });
 

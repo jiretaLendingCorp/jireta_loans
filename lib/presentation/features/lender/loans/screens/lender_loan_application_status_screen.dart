@@ -45,7 +45,7 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderLoanProvider);
-    final loan = state.activeLoan;
+    final loan = state.selectedLoan;
 
     return MobileScaffold(
       title: 'Application Status',

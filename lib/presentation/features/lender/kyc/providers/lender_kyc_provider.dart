@@ -80,6 +80,6 @@ class LenderKycNotifier extends StateNotifier<LenderKycState>
 }
 
 final lenderKycProvider =
-    StateNotifierProvider<LenderKycNotifier, LenderKycState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderKycNotifier, LenderKycState>((ref) {
   return LenderKycNotifier(sl<KycRemoteDataSource>());
 });

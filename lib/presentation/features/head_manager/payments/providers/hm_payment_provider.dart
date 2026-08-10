@@ -5,7 +5,7 @@ import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final hmPaymentProvider =
-    StateNotifierProvider<HmPaymentNotifier, AsyncValue<Map<String, dynamic>>>(
+    AutoDisposeStateNotifierProvider<HmPaymentNotifier, AsyncValue<Map<String, dynamic>>>(
         (ref) {
   return HmPaymentNotifier(sl<PaymentRemoteDataSource>());
 });

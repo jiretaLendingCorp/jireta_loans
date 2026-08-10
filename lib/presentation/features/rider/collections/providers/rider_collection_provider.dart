@@ -173,7 +173,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
 }
 
 final riderCollectionProvider =
-    StateNotifierProvider<RiderCollectionNotifier, RiderCollectionState>((ref) {
+    AutoDisposeStateNotifierProvider<RiderCollectionNotifier, RiderCollectionState>((ref) {
   return RiderCollectionNotifier(
     sl<CollectionRemoteDataSource>(),
   );

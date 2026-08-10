@@ -8,6 +8,7 @@ import '../../../../shared/providers/realtime_refresh_mixin.dart';
 class LenderLoanState {
   final List<LoanModel> loans;
   final LoanModel? activeLoan;
+  final LoanModel? selectedLoan;
   final Map<String, dynamic>? schedulePreview;
   final bool isLoading;
   final String? error;
@@ -16,6 +17,7 @@ class LenderLoanState {
   const LenderLoanState({
     this.loans = const [],
     this.activeLoan,
+    this.selectedLoan,
     this.schedulePreview,
     this.isLoading = false,
     this.error,
@@ -25,6 +27,7 @@ class LenderLoanState {
   LenderLoanState copyWith({
     List<LoanModel>? loans,
     LoanModel? activeLoan,
+    LoanModel? selectedLoan,
     Map<String, dynamic>? schedulePreview,
     bool? isLoading,
     String? error,
@@ -33,6 +36,7 @@ class LenderLoanState {
       LenderLoanState(
         loans: loans ?? this.loans,
         activeLoan: activeLoan ?? this.activeLoan,
+        selectedLoan: selectedLoan ?? this.selectedLoan,
         schedulePreview: schedulePreview ?? this.schedulePreview,
         isLoading: isLoading ?? this.isLoading,
         error: error,
@@ -53,10 +57,13 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
     state = state.copyWith(isLoading: true, error: null);
     try {
       final loans = await _ds.getLoanList(page: 1);
-      final active = loans
-          .where((l) =>
-              ['active', 'approved', 'overdue'].contains(l.status))
-          .firstOrNull;
+      // Active Loan also surfaces approved-but-not-yet-released loans.
+      // Prefer a real active/overdue loan over an approved one.
+      LoanModel? active;
+      for (final s in ['active', 'overdue', 'approved']) {
+        active = loans.where((l) => l.status == s).firstOrNull;
+        if (active != null) break;
+      }
       state =
           state.copyWith(loans: loans, activeLoan: active, isLoading: false);
     } catch (e) {
@@ -68,7 +75,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
     state = state.copyWith(isLoading: true, error: null);
     try {
       final loan = await _ds.getLoanDetails(loanId);
-      state = state.copyWith(activeLoan: loan, isLoading: false);
+      state = state.copyWith(selectedLoan: loan, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -128,6 +135,6 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
 }
 
 final lenderLoanProvider =
-    StateNotifierProvider<LenderLoanNotifier, LenderLoanState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderLoanNotifier, LenderLoanState>((ref) {
   return LenderLoanNotifier(sl<LoanRemoteDataSource>());
 });

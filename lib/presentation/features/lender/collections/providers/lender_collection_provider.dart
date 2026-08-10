@@ -6,7 +6,7 @@ import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../data/datasources/remote/location_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-final lenderCollectionProvider = StateNotifierProvider<LenderCollectionNotifier,
+final lenderCollectionProvider = AutoDisposeStateNotifierProvider<LenderCollectionNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
   return LenderCollectionNotifier(
       sl<LocationRemoteDataSource>(), sl<DioClient>());

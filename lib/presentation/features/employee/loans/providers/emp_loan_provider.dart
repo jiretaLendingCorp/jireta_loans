@@ -125,6 +125,6 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
   }
 }
 
-final empLoanProvider = StateNotifierProvider<EmpLoanNotifier, EmpLoanState>(
+final empLoanProvider = AutoDisposeStateNotifierProvider<EmpLoanNotifier, EmpLoanState>(
   (ref) => EmpLoanNotifier(sl<LoanRemoteDataSource>()),
 );

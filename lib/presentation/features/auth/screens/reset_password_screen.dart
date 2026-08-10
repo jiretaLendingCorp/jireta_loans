@@ -246,7 +246,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
               ),
             ),
             child: const Text(
-              'Sign In',
+              'Login',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
           ),

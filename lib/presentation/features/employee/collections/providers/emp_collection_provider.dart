@@ -5,7 +5,7 @@ import '../../../../../data/datasources/remote/collection_remote_datasource.dart
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-final empCollectionListProvider = StateNotifierProvider<EmpCollectionNotifier,
+final empCollectionListProvider = AutoDisposeStateNotifierProvider<EmpCollectionNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
   return EmpCollectionNotifier(
       sl<CollectionRemoteDataSource>(), sl<UserRemoteDataSource>());

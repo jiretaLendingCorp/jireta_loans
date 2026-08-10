@@ -5,7 +5,7 @@ import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final empPaymentListProvider =
-    StateNotifierProvider<EmpPaymentNotifier, AsyncValue<Map<String, dynamic>>>(
+    AutoDisposeStateNotifierProvider<EmpPaymentNotifier, AsyncValue<Map<String, dynamic>>>(
         (ref) {
   return EmpPaymentNotifier(sl<PaymentRemoteDataSource>());
 });

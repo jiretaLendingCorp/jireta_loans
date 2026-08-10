@@ -82,7 +82,7 @@ class LenderNotificationNotifier
 }
 
 final lenderNotificationProvider =
-    StateNotifierProvider<LenderNotificationNotifier, LenderNotificationState>(
+    AutoDisposeStateNotifierProvider<LenderNotificationNotifier, LenderNotificationState>(
         (ref) {
   return LenderNotificationNotifier(sl<NotificationRemoteDataSource>());
 });

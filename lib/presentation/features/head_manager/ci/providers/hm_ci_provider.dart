@@ -121,6 +121,6 @@ class HmCiNotifier extends StateNotifier<HmCiState>
   }
 }
 
-final hmCiProvider = StateNotifierProvider<HmCiNotifier, HmCiState>((ref) {
+final hmCiProvider = AutoDisposeStateNotifierProvider<HmCiNotifier, HmCiState>((ref) {
   return HmCiNotifier(sl<CiRemoteDataSource>());
 });

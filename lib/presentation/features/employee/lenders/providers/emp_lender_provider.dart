@@ -89,6 +89,6 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
 }
 
 final empLenderProvider =
-    StateNotifierProvider<EmpLenderNotifier, EmpLenderState>(
+    AutoDisposeStateNotifierProvider<EmpLenderNotifier, EmpLenderState>(
   (ref) => EmpLenderNotifier(sl<UserRemoteDataSource>()),
 );

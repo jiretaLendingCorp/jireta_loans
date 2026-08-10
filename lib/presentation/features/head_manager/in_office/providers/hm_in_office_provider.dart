@@ -29,7 +29,7 @@ class HmInOfficeState {
 }
 
 final hmInOfficeProvider =
-    StateNotifierProvider<HmInOfficeNotifier, HmInOfficeState>((ref) {
+    AutoDisposeStateNotifierProvider<HmInOfficeNotifier, HmInOfficeState>((ref) {
   return HmInOfficeNotifier(
       sl<InOfficeRemoteDataSource>(), sl<LoanRemoteDataSource>());
 });

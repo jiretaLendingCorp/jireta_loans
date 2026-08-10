@@ -13,8 +13,8 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/hm_loan_provider.dart';
 
 final hmActiveLoanProvider =
-    StateNotifierProvider<HmLoanNotifier, HmLoanState>((ref) {
-  return HmLoanNotifier(sl<LoanRemoteDataSource>())..setTab('active');
+    AutoDisposeStateNotifierProvider<HmLoanNotifier, HmLoanState>((ref) {
+  return HmLoanNotifier(sl<LoanRemoteDataSource>(), initialFilter: 'active');
 });
 
 class HmLoanListScreen extends ConsumerStatefulWidget {

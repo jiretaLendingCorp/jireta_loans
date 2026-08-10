@@ -118,6 +118,6 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
 }
 
 final hmEmployeeProvider =
-    StateNotifierProvider<HmEmployeeNotifier, HmEmployeeState>(
+    AutoDisposeStateNotifierProvider<HmEmployeeNotifier, HmEmployeeState>(
       (ref) => HmEmployeeNotifier(sl<UserRemoteDataSource>()),
     );

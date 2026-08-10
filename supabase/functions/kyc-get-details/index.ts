@@ -83,11 +83,15 @@ serve(async (req) => {
       const { data } = await db.storage
         .from(KYC_BUCKET)
         .createSignedUrl(path, 3600);
-      // createSignedUrl returns a path relative to the storage API
-      // (/object/sign/...); the app launches these URLs with url_launcher,
-      // which needs an absolute URL, so prefix with the storage base URL.
-      const signedPath = (data as any)?.signedUrl ?? null;
-      return signedPath ? `${supabaseUrl}/storage/v1${signedPath}` : null;
+      // createSignedUrl already returns an absolute URL (e.g.
+      // http://localhost:8000/storage/v1/object/sign/...). Only prefix with the
+      // storage base URL when the SDK returns a bare relative path so we never
+      // produce a doubled URL like .../storage/v1http://.../storage/v1/object.
+      const signedPath = (data as any)?.signedUrl as string | null ?? null;
+      if (!signedPath) return null;
+      return signedPath.startsWith('http')
+        ? signedPath
+        : `${supabaseUrl}/storage/v1${signedPath}`;
     };
     const signedUrls = new Map<string, string | null>();
     for (const d of (docs ?? [])) {

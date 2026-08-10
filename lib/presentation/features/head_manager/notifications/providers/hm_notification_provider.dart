@@ -89,6 +89,6 @@ class HmNotificationNotifier extends StateNotifier<HmNotificationState>
 }
 
 final hmNotificationProvider =
-    StateNotifierProvider<HmNotificationNotifier, HmNotificationState>(
+    AutoDisposeStateNotifierProvider<HmNotificationNotifier, HmNotificationState>(
   (ref) => HmNotificationNotifier(sl<NotificationRemoteDataSource>()),
 );

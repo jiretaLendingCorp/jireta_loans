@@ -61,7 +61,7 @@ class HmProfileNotifier extends StateNotifier<HmProfileState>
 }
 
 final hmProfileProvider =
-    StateNotifierProvider<HmProfileNotifier, HmProfileState>(
+    AutoDisposeStateNotifierProvider<HmProfileNotifier, HmProfileState>(
   (ref) =>
       HmProfileNotifier(sl<UserRemoteDataSource>(), sl<AuthRemoteDataSource>()),
 );

@@ -46,7 +46,7 @@ class _PenaltyNotifier extends StateNotifier<_PenaltyState>
 }
 
 final _penaltyProvider =
-    StateNotifierProvider<_PenaltyNotifier, _PenaltyState>((ref) {
+    AutoDisposeStateNotifierProvider<_PenaltyNotifier, _PenaltyState>((ref) {
   return _PenaltyNotifier(sl<LoanRemoteDataSource>());
 });
 

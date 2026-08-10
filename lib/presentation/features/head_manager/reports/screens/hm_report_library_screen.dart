@@ -55,7 +55,7 @@ class _ReportNotifier extends StateNotifier<_ReportState>
   }
 }
 
-final _reportProvider = StateNotifierProvider<_ReportNotifier, _ReportState>((ref) {
+final _reportProvider = AutoDisposeStateNotifierProvider<_ReportNotifier, _ReportState>((ref) {
   return _ReportNotifier(sl<ReportRemoteDataSource>());
 });
 

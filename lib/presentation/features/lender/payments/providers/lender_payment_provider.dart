@@ -105,6 +105,6 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
 }
 
 final lenderPaymentProvider =
-    StateNotifierProvider<LenderPaymentNotifier, LenderPaymentState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderPaymentNotifier, LenderPaymentState>((ref) {
   return LenderPaymentNotifier(sl<PaymentRemoteDataSource>());
 });

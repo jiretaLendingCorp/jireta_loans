@@ -43,7 +43,10 @@ serve(async (req) => {
     }
     // head_manager and employee see the full pipeline of loan applications.
 
-    if (status) query = query.eq('status', status);
+    if (status) {
+      const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
+      query = query.in('status', statuses);
+    }
     if (search) query = query.or(`loan_number.ilike.%${search}%,lender_profiles.users.first_name.ilike.%${search}%,lender_profiles.users.last_name.ilike.%${search}%`);
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo);

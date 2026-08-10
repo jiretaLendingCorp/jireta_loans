@@ -44,6 +44,6 @@ class HmSettingsNotifier extends StateNotifier<AsyncValue<void>> {
 }
 
 final hmSettingsProvider =
-    StateNotifierProvider<HmSettingsNotifier, AsyncValue<void>>(
+    AutoDisposeStateNotifierProvider<HmSettingsNotifier, AsyncValue<void>>(
   (ref) => HmSettingsNotifier(sl<ISystemRepository>()),
 );

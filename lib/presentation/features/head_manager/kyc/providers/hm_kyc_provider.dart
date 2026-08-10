@@ -128,6 +128,6 @@ class HmKycNotifier extends StateNotifier<HmKycState>
   }
 }
 
-final hmKycProvider = StateNotifierProvider<HmKycNotifier, HmKycState>((ref) {
+final hmKycProvider = AutoDisposeStateNotifierProvider<HmKycNotifier, HmKycState>((ref) {
   return HmKycNotifier(sl<KycRemoteDataSource>());
 });

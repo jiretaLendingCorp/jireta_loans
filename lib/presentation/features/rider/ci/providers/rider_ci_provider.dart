@@ -188,6 +188,6 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
 }
 
 final riderCiProvider =
-    StateNotifierProvider<RiderCiNotifier, RiderCiState>((ref) {
+    AutoDisposeStateNotifierProvider<RiderCiNotifier, RiderCiState>((ref) {
   return RiderCiNotifier(sl<CiRemoteDataSource>());
 });

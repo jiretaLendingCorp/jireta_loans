@@ -5,7 +5,7 @@ import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final empKycProvider =
-    StateNotifierProvider<EmpKycNotifier, AsyncValue<Map<String, dynamic>>>(
+    AutoDisposeStateNotifierProvider<EmpKycNotifier, AsyncValue<Map<String, dynamic>>>(
         (ref) {
   return EmpKycNotifier(sl<KycRemoteDataSource>());
 });

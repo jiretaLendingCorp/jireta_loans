@@ -49,12 +49,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final isLoading = ref.watch(authProvider).isLoading;
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: AppColors.surfaceWhite,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => context.go(RouteConstants.webLogin),
         ),
       ),
@@ -73,47 +73,27 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Widget _buildForm(bool isLoading) {
     return Column(
       children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.15),
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.gold),
-          ),
-          child: const Icon(
-            Icons.email_outlined,
-            color: AppColors.gold,
-            size: 36,
-          ),
-        ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 8),
         const Text(
           'Forgot Password?',
           style: TextStyle(
             fontFamily: 'PlayfairDisplay',
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: AppColors.deepNavy,
           ),
         ),
         const SizedBox(height: 8),
         const Text(
           'Enter your email and we\'ll send you a reset link.',
-          style: TextStyle(fontSize: 13, color: Colors.white60),
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 28),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
+        Form(
+          key: _formKey,
+          child: Column(
+            children: [
                 TextFormField(
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
@@ -159,14 +139,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () => context.go(RouteConstants.webLogin),
-                  child: const Text('Back to Sign In'),
+                  child: const Text('Back to Login'),
                 ),
               ],
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
   }
 
   Widget _buildSuccess() {
@@ -192,7 +171,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             fontFamily: 'PlayfairDisplay',
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: AppColors.deepNavy,
           ),
         ),
         const SizedBox(height: 8),
@@ -200,7 +179,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           'A password reset link has been sent to ${_emailCtrl.text}. Check your inbox.',
           style: const TextStyle(
             fontSize: 13,
-            color: Colors.white60,
+            color: AppColors.textSecondary,
             height: 1.6,
           ),
           textAlign: TextAlign.center,
@@ -219,7 +198,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               ),
             ),
             child: const Text(
-              'Back to Sign In',
+              'Back to Login',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
           ),

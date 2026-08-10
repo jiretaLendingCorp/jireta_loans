@@ -653,7 +653,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
           icon: const Icon(Icons.logout),
-          label: const Text('Sign Out',
+          label: const Text('Log Out',
               style: TextStyle(fontWeight: FontWeight.w600)),
           onPressed: () async {
             await ref.read(authProvider.notifier).logout();

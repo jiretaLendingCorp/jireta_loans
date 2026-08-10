@@ -38,7 +38,7 @@ class _AuditNotifier extends StateNotifier<_AuditState>
   }
 }
 
-final _auditProvider = StateNotifierProvider<_AuditNotifier, _AuditState>((ref) {
+final _auditProvider = AutoDisposeStateNotifierProvider<_AuditNotifier, _AuditState>((ref) {
   return _AuditNotifier(sl<AuditRemoteDataSource>());
 });
 

@@ -275,7 +275,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Sign Out',
+                    'Log Out',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -284,7 +284,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Sign out from your account on this device.',
+                    'Log out from your account on this device.',
                     style: TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
@@ -300,7 +300,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                 side: const BorderSide(color: AppColors.error),
               ),
               icon: const Icon(Icons.logout, size: 18),
-              label: const Text('Sign Out'),
+              label: const Text('Log Out'),
             ),
           ],
         ),
@@ -363,8 +363,8 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Sign Out?'),
-        content: const Text('Are you sure you want to sign out?'),
+        title: const Text('Log Out?'),
+        content: const Text('Are you sure you want to log out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -378,7 +378,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
               if (mounted) context.go(RouteConstants.webLogin);
             },
             child:
-                const Text('Sign Out', style: TextStyle(color: Colors.white)),
+                const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

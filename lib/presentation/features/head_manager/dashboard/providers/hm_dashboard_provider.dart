@@ -61,6 +61,6 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
 }
 
 final hmDashboardProvider =
-    StateNotifierProvider<HmDashboardNotifier, HmDashboardState>((ref) {
+    AutoDisposeStateNotifierProvider<HmDashboardNotifier, HmDashboardState>((ref) {
       return HmDashboardNotifier(sl<KpiRemoteDataSource>());
     });

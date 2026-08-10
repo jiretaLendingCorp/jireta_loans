@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -61,172 +62,62 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
     final isLoading = authAsync.isLoading;
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: AppColors.surfaceWhite,
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth > 800;
-            final isTall = constraints.maxHeight > 620;
-            return isWide
-                ? _buildWide(isLoading)
-                : _buildNarrow(isLoading, compact: !isTall);
-          },
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  _buildBrand(),
+                  const SizedBox(height: 24),
+                  _buildForm(isLoading),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildWide(bool isLoading) {
-    return Row(
+  Widget _buildBrand() {
+    return Column(
       children: [
-        Expanded(flex: 5, child: _buildBrandPanel(compact: false)),
-        Expanded(
-          flex: 4,
-          child: Container(
-            color: AppColors.surfaceWhite,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: _buildForm(isLoading),
-                ),
-              ),
-            ),
+        Container(
+          width: 64,
+          height: 64,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.gold),
+          ),
+          child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.contain),
+        ),
+        const SizedBox(height: 14),
+        const Text(
+          'JIRETA',
+          style: TextStyle(
+            fontFamily: 'PlayfairDisplay',
+            fontSize: 26,
+            fontWeight: FontWeight.w700,
+            color: AppColors.gold,
+            letterSpacing: 4,
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'LOANS & CREDIT CORP · 1966',
+          style: TextStyle(
+            fontSize: 9,
+            color: AppColors.textSecondary,
+            letterSpacing: 2,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildNarrow(bool isLoading, {required bool compact}) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: AppColors.deepNavy,
-            padding: EdgeInsets.symmetric(vertical: compact ? 20 : 28),
-            child: _buildBrandPanel(compact: compact),
-          ),
-          Container(
-            color: AppColors.surfaceWhite,
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
-            child: _buildForm(isLoading),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBrandPanel({required bool compact}) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 24 : 40),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: compact ? 44 : 56,
-                height: compact ? 44 : 56,
-                padding: EdgeInsets.all(compact ? 6 : 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.gold),
-                ),
-                child: Image.asset(AssetConstants.logoJpg,
-                    fit: BoxFit.contain),
-              ),
-              const SizedBox(width: 16),
-              const Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                  Text(
-                    'JIRETA',
-                    style: TextStyle(
-                      fontFamily: 'PlayfairDisplay',
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.gold,
-                      letterSpacing: 4,
-                    ),
-                  ),
-                  Text(
-                    'LOANS & CREDIT CORP · 1966',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: Colors.white54,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
-                ),
-              ),
-            ],
-          ),
-          if (!compact) ...[
-            const SizedBox(height: 40),
-            const Text(
-              'Enterprise\nLending Platform',
-              style: TextStyle(
-                fontFamily: 'PlayfairDisplay',
-                fontSize: 32,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Secure, compliant, and efficient loan management for your team.',
-              style: TextStyle(fontSize: 14, color: Colors.white60, height: 1.6),
-            ),
-            const SizedBox(height: 32),
-            Row(
-              children: [
-                _featurePill(Icons.verified_user, 'RBAC Security'),
-                const SizedBox(width: 8),
-                _featurePill(Icons.insights, 'Live KPIs'),
-                const SizedBox(width: 8),
-                _featurePill(Icons.receipt_long, 'Audit Logs'),
-              ],
-            ),
-          ] else ...[
-            const SizedBox(height: 16),
-            const Text(
-              'Secure lending management for your team.',
-              style: TextStyle(fontSize: 12, color: Colors.white60, height: 1.4),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _featurePill(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: AppColors.gold),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: AppColors.gold),
-          ),
-        ],
-      ),
     );
   }
 
@@ -240,18 +131,13 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Welcome back',
+              'Login to your account',
               style: TextStyle(
                 fontFamily: 'PlayfairDisplay',
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
                 color: AppColors.deepNavy,
               ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Sign in to your account',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 32),
             TextFormField(
@@ -333,28 +219,6 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.infoLight,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, size: 16, color: AppColors.info),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'For Riders & Lenders, use the mobile app.',
-                      style: TextStyle(fontSize: 12, color: AppColors.info),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

@@ -4,7 +4,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/blacklist_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-final hmBlacklistProvider = StateNotifierProvider<HmBlacklistNotifier,
+final hmBlacklistProvider = AutoDisposeStateNotifierProvider<HmBlacklistNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
   return HmBlacklistNotifier(sl<BlacklistRemoteDataSource>());
 });

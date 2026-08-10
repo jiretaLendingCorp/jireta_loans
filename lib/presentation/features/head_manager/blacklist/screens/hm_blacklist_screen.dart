@@ -76,7 +76,7 @@ class _BlacklistNotifier extends StateNotifier<_BlacklistState>
   }
 }
 
-final _blacklistProvider = StateNotifierProvider<_BlacklistNotifier, _BlacklistState>((ref) {
+final _blacklistProvider = AutoDisposeStateNotifierProvider<_BlacklistNotifier, _BlacklistState>((ref) {
   return _BlacklistNotifier(sl<BlacklistRemoteDataSource>());
 });
 

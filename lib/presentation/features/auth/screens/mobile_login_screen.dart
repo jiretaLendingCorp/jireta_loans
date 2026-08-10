@@ -147,7 +147,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Sign In',
+                        'Login',
                         style: TextStyle(
                           fontFamily: 'PlayfairDisplay',
                           fontSize: 22,

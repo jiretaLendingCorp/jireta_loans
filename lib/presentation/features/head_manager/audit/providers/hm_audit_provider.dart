@@ -5,7 +5,7 @@ import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final hmAuditProvider =
-    StateNotifierProvider<HmAuditNotifier, AsyncValue<Map<String, dynamic>>>(
+    AutoDisposeStateNotifierProvider<HmAuditNotifier, AsyncValue<Map<String, dynamic>>>(
         (ref) {
   return HmAuditNotifier(sl<AuditRemoteDataSource>());
 });

@@ -81,6 +81,6 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
 }
 
 final riderLocationProvider =
-    StateNotifierProvider<RiderLocationNotifier, RiderLocationState>((ref) {
+    AutoDisposeStateNotifierProvider<RiderLocationNotifier, RiderLocationState>((ref) {
   return RiderLocationNotifier(sl<LocationRemoteDataSource>());
 });

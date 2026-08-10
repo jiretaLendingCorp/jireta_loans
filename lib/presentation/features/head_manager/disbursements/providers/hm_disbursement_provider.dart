@@ -104,6 +104,6 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
 }
 
 final hmDisbursementProvider =
-    StateNotifierProvider<HmDisbursementNotifier, HmDisbursementState>(
+    AutoDisposeStateNotifierProvider<HmDisbursementNotifier, HmDisbursementState>(
   (ref) => HmDisbursementNotifier(sl<DisbursementRemoteDataSource>()),
 );

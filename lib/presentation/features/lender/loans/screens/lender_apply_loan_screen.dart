@@ -606,7 +606,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         'under_review',
         'ci_required',
         'ci_assigned',
-        'ci_completed'
+        'ci_completed',
+        'approved',
       ].contains(loan.status)) {
         return loan;
       }
@@ -1467,17 +1468,24 @@ class _ApplicationReviewView extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.hourglass_top_rounded,
-                        color: Colors.white, size: 26),
-                    SizedBox(width: 10),
+                    Icon(
+                      loan.status == 'approved'
+                          ? Icons.check_circle_rounded
+                          : Icons.hourglass_top_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                    const SizedBox(width: 10),
                     Text(
-                      'Loan Application Under Review',
-                      style: TextStyle(
+                      loan.status == 'approved'
+                          ? 'Loan Approved'
+                          : 'Loan Application Under Review',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -1485,10 +1493,12 @@ class _ApplicationReviewView extends StatelessWidget {
                     ),
                   ],
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
-                  'Your application has been submitted and is being reviewed by our team. We will notify you once a decision has been made.',
-                  style: TextStyle(
+                  loan.status == 'approved'
+                      ? 'Your loan has been approved. It will become active and available for payments once the funds are disbursed.'
+                      : 'Your application has been submitted and is being reviewed by our team. We will notify you once a decision has been made.',
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
                     height: 1.4,
@@ -1577,8 +1587,8 @@ class _ActiveLoanView extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      loan.status == 'approved'
-                          ? 'Loan Approved'
+                      loan.status == 'overdue'
+                          ? 'Overdue Loan'
                           : 'Active Loan',
                       style: const TextStyle(
                         color: Colors.white70,

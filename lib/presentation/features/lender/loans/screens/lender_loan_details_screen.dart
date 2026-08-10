@@ -51,7 +51,7 @@ class _LenderLoanDetailsScreenState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderLoanProvider);
-    final loan = state.activeLoan;
+    final loan = state.selectedLoan;
 
     return MobileScaffold(
       title: 'Loan Details',

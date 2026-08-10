@@ -108,6 +108,6 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
 }
 
 final lenderDocumentsProvider =
-    StateNotifierProvider<LenderDocumentsNotifier, LenderDocumentsState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderDocumentsNotifier, LenderDocumentsState>((ref) {
   return LenderDocumentsNotifier(sl<DioClient>(), sl<SupabaseStorageService>());
 });

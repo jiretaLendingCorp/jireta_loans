@@ -99,6 +99,6 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
 }
 
 final hmCollectionProvider =
-    StateNotifierProvider<HmCollectionNotifier, HmCollectionState>(
+    AutoDisposeStateNotifierProvider<HmCollectionNotifier, HmCollectionState>(
   (ref) => HmCollectionNotifier(sl<CollectionRemoteDataSource>()),
 );

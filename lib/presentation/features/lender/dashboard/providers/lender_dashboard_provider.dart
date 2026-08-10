@@ -53,6 +53,6 @@ class LenderDashboardNotifier extends StateNotifier<LenderDashboardState>
 }
 
 final lenderDashboardProvider =
-    StateNotifierProvider<LenderDashboardNotifier, LenderDashboardState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderDashboardNotifier, LenderDashboardState>((ref) {
   return LenderDashboardNotifier(sl<KpiRemoteDataSource>());
 });

@@ -6,7 +6,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 final empProfileProvider =
-    StateNotifierProvider<EmpProfileNotifier, AsyncValue<UserModel?>>((ref) {
+    AutoDisposeStateNotifierProvider<EmpProfileNotifier, AsyncValue<UserModel?>>((ref) {
   return EmpProfileNotifier(sl<UserRemoteDataSource>());
 });
 

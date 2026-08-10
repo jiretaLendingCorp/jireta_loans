@@ -33,9 +33,14 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_loan_status_flow ON loans;
 CREATE TRIGGER trg_loan_status_flow
-BEFORE INSERT OR UPDATE ON loans
+BEFORE UPDATE ON loans
 FOR EACH ROW
-WHEN (TG_OP = 'INSERT' OR NEW.status IS DISTINCT FROM OLD.status)
+WHEN (NEW.status IS DISTINCT FROM OLD.status)
+EXECUTE FUNCTION enforce_loan_status_flow();
+
+CREATE TRIGGER trg_loan_status_flow_insert
+BEFORE INSERT ON loans
+FOR EACH ROW
 EXECUTE FUNCTION enforce_loan_status_flow();
 
 -- Revert any 'active' loan that was never actually disbursed back to 'approved'.

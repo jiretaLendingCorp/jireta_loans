@@ -84,12 +84,12 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
 }
 
 final empRiderProvider =
-    StateNotifierProvider<EmpRiderStateNotifier, EmpRiderState>(
+    AutoDisposeStateNotifierProvider<EmpRiderStateNotifier, EmpRiderState>(
   (ref) => EmpRiderStateNotifier(sl<UserRemoteDataSource>()),
 );
 
 // Legacy provider for backward compat
-final empRiderListProvider = StateNotifierProvider<EmpRiderLegacyNotifier,
+final empRiderListProvider = AutoDisposeStateNotifierProvider<EmpRiderLegacyNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
   return EmpRiderLegacyNotifier(sl<UserRemoteDataSource>());
 });

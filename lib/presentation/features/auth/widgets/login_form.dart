@@ -122,7 +122,7 @@ class _LoginFormState extends State<LoginForm> {
                       ),
                     )
                   : const Text(
-                      'Sign In',
+                      'Login',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,

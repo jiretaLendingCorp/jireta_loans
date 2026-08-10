@@ -131,6 +131,6 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
   }
 }
 
-final empCiProvider = StateNotifierProvider<EmpCiNotifier, EmpCiState>((ref) {
+final empCiProvider = AutoDisposeStateNotifierProvider<EmpCiNotifier, EmpCiState>((ref) {
   return EmpCiNotifier(sl<CiRemoteDataSource>(), sl<UserRemoteDataSource>());
 });

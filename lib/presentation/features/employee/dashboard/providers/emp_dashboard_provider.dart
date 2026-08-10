@@ -60,6 +60,6 @@ class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
 }
 
 final empDashboardProvider =
-    StateNotifierProvider<EmpDashboardNotifier, EmpDashboardState>((ref) {
+    AutoDisposeStateNotifierProvider<EmpDashboardNotifier, EmpDashboardState>((ref) {
   return EmpDashboardNotifier(sl<KpiRemoteDataSource>());
 });

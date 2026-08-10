@@ -104,7 +104,7 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
   }
 }
 
-final hmLenderProvider = StateNotifierProvider<HmLenderNotifier, HmLenderState>(
+final hmLenderProvider = AutoDisposeStateNotifierProvider<HmLenderNotifier, HmLenderState>(
   (ref) => HmLenderNotifier(
     sl<UserRemoteDataSource>(),
     sl<BlacklistRemoteDataSource>(),

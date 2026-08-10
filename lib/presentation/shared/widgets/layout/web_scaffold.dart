@@ -243,7 +243,7 @@ class _UserAvatar extends ConsumerWidget {
             children: [
               Icon(Icons.logout, size: 18, color: AppColors.error),
               SizedBox(width: 10),
-              Text('Sign Out', style: TextStyle(color: AppColors.error)),
+              Text('Log Out', style: TextStyle(color: AppColors.error)),
             ],
           ),
         ),
@@ -297,7 +297,7 @@ class _Sidebar extends StatelessWidget {
             child: _SidebarItem(
               item: _NavItem(
                 Icons.logout,
-                'Sign Out',
+                'Log Out',
                 '',
                 onTap: () async {
                   await ref.read(authProvider.notifier).logout();

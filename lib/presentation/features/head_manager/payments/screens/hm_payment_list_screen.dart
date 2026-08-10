@@ -49,7 +49,7 @@ class _PaymentNotifier extends StateNotifier<_PaymentState>
   }
 }
 
-final _hmPaymentProvider = StateNotifierProvider<_PaymentNotifier, _PaymentState>((ref) {
+final _hmPaymentProvider = AutoDisposeStateNotifierProvider<_PaymentNotifier, _PaymentState>((ref) {
   return _PaymentNotifier(sl<PaymentRemoteDataSource>());
 });
 

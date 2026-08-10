@@ -68,6 +68,6 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
 }
 
 final lenderProfileProvider =
-    StateNotifierProvider<LenderProfileNotifier, LenderProfileState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderProfileNotifier, LenderProfileState>((ref) {
   return LenderProfileNotifier(sl<UserRemoteDataSource>());
 });

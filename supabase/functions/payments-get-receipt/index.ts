@@ -24,10 +24,14 @@ serve(async (req) => {
     if (!(payment as any).receipt_path) return errorResponse('Receipt not yet generated', 404, 'NOT_FOUND');
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const { data: signedUrl } = await db.storage.from('receipts').createSignedUrl((payment as any).receipt_path, 3600);
-    // createSignedUrl returns a path relative to the storage API (/object/sign/...);
-    // the app launches it with url_launcher, which needs an absolute URL.
+    // createSignedUrl already returns an absolute URL; only prefix with the
+    // storage base URL for bare relative paths so the URL never gets doubled.
     const signedPath = (signedUrl as any)?.signedUrl ?? null;
-    const fullUrl = signedPath ? `${supabaseUrl}/storage/v1${signedPath}` : null;
+    const fullUrl = signedPath
+      ? (String(signedPath).startsWith('http')
+          ? signedPath
+          : `${supabaseUrl}/storage/v1${signedPath}`)
+      : null;
     return jsonResponse({ signed_url: fullUrl, receipt_url: fullUrl, payment_id: paymentId });
   } catch (err) {
     console.error('payments-get-receipt error:', err);

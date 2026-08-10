@@ -74,7 +74,7 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
 }
 
 final riderProfileProvider =
-    StateNotifierProvider<RiderProfileNotifier, RiderProfileState>((ref) {
+    AutoDisposeStateNotifierProvider<RiderProfileNotifier, RiderProfileState>((ref) {
   return RiderProfileNotifier(
       sl<UserRemoteDataSource>());
 });

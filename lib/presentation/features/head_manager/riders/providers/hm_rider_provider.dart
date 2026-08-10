@@ -106,6 +106,6 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
   }
 }
 
-final hmRiderProvider = StateNotifierProvider<HmRiderNotifier, HmRiderState>(
+final hmRiderProvider = AutoDisposeStateNotifierProvider<HmRiderNotifier, HmRiderState>(
   (ref) => HmRiderNotifier(sl<UserRemoteDataSource>()),
 );

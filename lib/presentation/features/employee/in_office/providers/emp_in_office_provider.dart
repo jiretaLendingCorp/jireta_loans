@@ -5,7 +5,7 @@ import '../../../../../data/datasources/remote/in_office_remote_datasource.dart'
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-final empInOfficeProvider = StateNotifierProvider<EmpInOfficeNotifier,
+final empInOfficeProvider = AutoDisposeStateNotifierProvider<EmpInOfficeNotifier,
     AsyncValue<Map<String, dynamic>>>((ref) {
   return EmpInOfficeNotifier(
       sl<InOfficeRemoteDataSource>(), sl<LoanRemoteDataSource>());

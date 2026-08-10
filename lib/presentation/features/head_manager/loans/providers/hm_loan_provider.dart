@@ -51,13 +51,26 @@ class HmLoanState {
 class HmLoanNotifier extends StateNotifier<HmLoanState>
     with RealtimeRefreshMixin {
   final LoanRemoteDataSource _ds;
+  int _requestSeq = 0;
 
-  HmLoanNotifier(this._ds) : super(const HmLoanState()) {
+  static String _apiStatus(String tab) {
+    if (tab == 'all') return 'all';
+    // The Active tab also surfaces loans that were just approved but not yet
+    // released; they are treated as active loans of the borrower.
+    if (tab == 'active') return 'active,approved';
+    return tab;
+  }
+
+  HmLoanNotifier(this._ds, {String initialFilter = 'all'})
+      : super(HmLoanState(
+            statusFilter: _apiStatus(initialFilter),
+            tabFilter: initialFilter)) {
     bindRealtimeRefresh(['loans', 'loan_schedules'], refresh: fetchLoans);
     fetchLoans();
   }
 
   Future<void> fetchLoans({int page = 1}) async {
+    final seq = ++_requestSeq;
     state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.getList(
@@ -65,6 +78,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
       );
+      if (seq != _requestSeq) return;
       final loans = (res['data'] as List? ?? [])
           .map((e) => LoanModel.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -76,6 +90,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
         totalPages: meta['total_pages'] as int? ?? 1,
       );
     } catch (e) {
+      if (seq != _requestSeq) return;
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -92,7 +107,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
 
   void setTab(String tab) {
     state = state.copyWith(
-        tabFilter: tab, statusFilter: tab == 'all' ? 'all' : tab);
+        tabFilter: tab, statusFilter: _apiStatus(tab));
     fetchLoans();
   }
 
@@ -165,6 +180,6 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
 }
 
 final hmLoanProvider =
-    StateNotifierProvider<HmLoanNotifier, HmLoanState>((ref) {
+    AutoDisposeStateNotifierProvider<HmLoanNotifier, HmLoanState>((ref) {
   return HmLoanNotifier(sl<LoanRemoteDataSource>());
 });
