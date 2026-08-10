@@ -39,6 +39,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         route: RouteConstants.lenderProfile),
   ];
 
+  int _expandedSection = 0;
+
   @override
   void initState() {
     super.initState();
@@ -78,87 +80,77 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(children: [
         _buildHeader(fullName, firstName, phone, user.profilePhotoUrl as String?, accountStatus),
+        if (isVerified) ...[
+          const SizedBox(height: 14),
+          _buildEditProfileButton(),
+        ],
         const SizedBox(height: 22),
         _sectionTitle('Verification'),
         const SizedBox(height: 10),
         _buildKycCard(userModel?.kycStatus),
-        if (!isVerified) ...[
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.warningLight,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: AppColors.warning.withValues(alpha: 0.3)),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.lock_outline, color: AppColors.warning, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Your personal, financial, and emergency contact details '
-                    'will appear here once your KYC is verified by our staff.',
-                    style: TextStyle(fontSize: 13, color: AppColors.warning),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
         if (isVerified) ...[
-          const SizedBox(height: 22),
-          _sectionTitle('Personal Details'),
-          const SizedBox(height: 10),
-          _buildCard([
-            _infoRow(Icons.person, 'Full Name', fullName),
-            _infoRow(Icons.phone, 'Phone', phone.maskPhone()),
-            _infoRow(Icons.wc, 'Gender', _formatLabel(user.gender)),
-            _infoRow(Icons.favorite_border, 'Civil Status',
-                _formatLabel(user.civilStatus)),
-            _infoRow(Icons.cake_outlined, 'Date of Birth',
-                userModel?.dateOfBirth != null
-                    ? _formatDate(userModel!.dateOfBirth!)
-                    : '—'),
-            _infoRow(Icons.location_on_outlined, 'Address',
-                _buildAddress(userModel)),
-          ]),
-          const SizedBox(height: 22),
-          _sectionTitle('Financial Details'),
-          const SizedBox(height: 10),
-          _buildCard([
-            _infoRow(
-                Icons.account_balance_wallet,
-                'GCash',
-                user.gcashNumber != null
-                    ? (user.gcashNumber as String).maskPhone()
-                    : '—'),
-            _infoRow(Icons.work_outline, 'Employment',
-                _formatLabel(user.employmentType)),
-            _infoRow(Icons.business, 'Employer',
-                user.employerName?.toString() ?? '—'),
-            _infoRow(
-                Icons.payments,
-                'Monthly Income',
-                user.monthlyIncome != null
-                    ? (user.monthlyIncome as num).toDouble().toCurrency
-                    : '—'),
-            _infoRow(Icons.savings_outlined, 'Source of Funds',
-                _formatLabel(user.sourceOfFunds)),
-          ]),
-          const SizedBox(height: 22),
-          _sectionTitle('Emergency Contact'),
-          const SizedBox(height: 10),
-          _buildCard(_buildEmergencyRows(userModel?.emergencyContacts)),
+          const SizedBox(height: 16),
+          _CollapsibleSection(
+            icon: Icons.person_outline,
+            title: 'Personal Details',
+            isExpanded: _expandedSection == 0,
+            onToggle: () => setState(() => _expandedSection = 0),
+            children: [
+              _infoRow(Icons.person, 'Full Name', fullName),
+              _infoRow(Icons.phone, 'Phone', phone.maskPhone()),
+              _infoRow(Icons.wc, 'Gender', _formatLabel(user.gender)),
+              _infoRow(Icons.favorite_border, 'Civil Status',
+                  _formatLabel(user.civilStatus)),
+              _infoRow(Icons.cake_outlined, 'Date of Birth',
+                  userModel?.dateOfBirth != null
+                      ? _formatDate(userModel!.dateOfBirth!)
+                      : '—'),
+              _infoRow(Icons.location_on_outlined, 'Address',
+                  _buildAddress(userModel)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _CollapsibleSection(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'Financial Details',
+            isExpanded: _expandedSection == 1,
+            onToggle: () => setState(() => _expandedSection = 1),
+            children: [
+              _infoRow(
+                  Icons.account_balance_wallet,
+                  'GCash',
+                  user.gcashNumber != null
+                      ? (user.gcashNumber as String).maskPhone()
+                      : '—'),
+              _infoRow(Icons.work_outline, 'Employment',
+                  _formatLabel(user.employmentType)),
+              _infoRow(Icons.business, 'Employer',
+                  user.employerName?.toString() ?? '—'),
+              _infoRow(
+                  Icons.payments,
+                  'Monthly Income',
+                  user.monthlyIncome != null
+                      ? (user.monthlyIncome as num).toDouble().toCurrency
+                      : '—'),
+              _infoRow(Icons.savings_outlined, 'Source of Funds',
+                  _formatLabel(user.sourceOfFunds)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _CollapsibleSection(
+            icon: Icons.emergency_outlined,
+            title: 'Emergency Contact',
+            isExpanded: _expandedSection == 2,
+            onToggle: () => setState(() => _expandedSection = 2),
+            children: _buildEmergencyRows(userModel?.emergencyContacts),
+          ),
         ],
         const SizedBox(height: 22),
         _sectionTitle('Legal'),
         const SizedBox(height: 10),
         _buildLegalCard(context),
         const SizedBox(height: 22),
-        _buildActionButton(context),
+        _buildLogoutButton(),
         const SizedBox(height: 24),
       ]),
     );
@@ -268,15 +260,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             phone,
             style: const TextStyle(fontSize: 13, color: Colors.white70),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _roleChip(Icons.account_balance, 'Lender'),
-              const SizedBox(width: 8),
-              _roleChip(Icons.verified_outlined, 'Borrower'),
-            ],
-          ),
           const SizedBox(height: 12),
           const Text(
             'Tap the camera icon to change your profile picture',
@@ -324,31 +307,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
-  Widget _roleChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.gold, width: 1),
-        borderRadius: BorderRadius.circular(20),
-        color: AppColors.gold.withValues(alpha: 0.15),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: AppColors.goldLight),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.goldLight),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _sectionTitle(String title) {
     return Row(
       children: [
@@ -370,26 +328,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildCard(List<Widget> rows) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(children: rows),
     );
   }
 
@@ -623,47 +561,143 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
-  Widget _buildActionButton(BuildContext context) {
-    return Column(children: [
-      SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.lenderPurple,
-            foregroundColor: Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          icon: const Icon(Icons.edit_outlined),
-          label: const Text('Edit Profile',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          onPressed: () => context.push('${RouteConstants.lenderProfile}/edit'),
+  Widget _buildEditProfileButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.lenderPurple,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
         ),
+        icon: const Icon(Icons.edit_outlined),
+        label: const Text('Edit Profile',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        onPressed: () => context.push('${RouteConstants.lenderProfile}/edit'),
       ),
-      const SizedBox(height: 12),
-      SizedBox(
-        width: double.infinity,
-        child: OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.error,
-            side: const BorderSide(color: AppColors.error),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          icon: const Icon(Icons.logout),
-          label: const Text('Log Out',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          onPressed: () async {
-            await ref.read(authProvider.notifier).logout();
-            if (mounted && context.mounted) {
-              context.go(RouteConstants.mobileLogin);
-            }
-          },
-        ),
-      ),
-    ]);
+    );
   }
 
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.error,
+          side: const BorderSide(color: AppColors.error),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+        icon: const Icon(Icons.logout),
+        label: const Text('Log Out',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        onPressed: () async {
+          await ref.read(authProvider.notifier).logout();
+          if (mounted && context.mounted) {
+            context.go(RouteConstants.mobileLogin);
+          }
+        },
+      ),
+    );
+  }
+
+}
+
+class _CollapsibleSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  const _CollapsibleSection({
+    required this.icon,
+    required this.title,
+    required this.children,
+    required this.isExpanded,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.lenderPurple.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child:
+                        Icon(icon, size: 17, color: AppColors.lenderPurple),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepNavy,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Column(
+                    children: [
+                      const Divider(height: 1, color: AppColors.border),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                        child: Column(children: children),
+                      ),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
 }

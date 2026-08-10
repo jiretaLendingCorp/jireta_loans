@@ -28,6 +28,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   int _secondsLeft = AppConstants.otpResendSeconds;
   bool _loading = false;
   String _otp = '';
+  String? _error;
 
   @override
   void initState() {
@@ -63,6 +64,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   }
 
   void _onChanged(int index, String value) {
+    if (_error != null) setState(() => _error = null);
     if (value.length > 1) {
       final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
       for (int i = 0; i < digits.length && (index + i) < 6; i++) {
@@ -72,6 +74,11 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
       _focusNodes[next].requestFocus();
     } else if (value.isNotEmpty) {
       if (index < 5) _focusNodes[index + 1].requestFocus();
+    } else if (index > 0) {
+      // Deletion always starts from the end: pressing back on an empty box
+      // should drop focus to the previous box instead of making the user
+      // manually tap each field.
+      _focusNodes[index - 1].requestFocus();
     }
     _updateOtp();
   }
@@ -84,8 +91,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
 
   Future<void> _submit([String? forcedOtp]) async {
     final otp = forcedOtp ?? _otp;
-    if (otp.length != 6) return;
-    setState(() => _loading = true);
+    if (otp.length != 6) {
+      setState(() => _error = 'Please enter the complete 6-digit OTP code.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final ok = await ref
         .read(authProvider.notifier)
         .verifyOtp(phone: widget.phone, otp: otp);
@@ -158,6 +171,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
       for (final c in _controllers) {
         c.clear();
       }
+      setState(() => _error = null);
       _focusNodes[0].requestFocus();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -238,13 +252,23 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: List.generate(6, (i) => _buildOtpBox(i)),
                     ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: (_otp.length == 6 && !_loading)
-                            ? _submit
-                            : null,
+                        onPressed: _loading ? null : _submit,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -308,46 +332,68 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   }
 
   Widget _buildOtpBox(int index) {
+    final hasError = _error != null;
     return SizedBox(
       width: 44,
       height: 52,
-      child: TextFormField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        keyboardType: TextInputType.number,
-        textAlign: TextAlign.center,
-        maxLength: 1,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          color: AppColors.deepNavy,
-        ),
-        decoration: InputDecoration(
-          counterText: '',
-          contentPadding: EdgeInsets.zero,
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.border, width: 1.5),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.deepNavy, width: 2),
-          ),
-          filled: true,
-          fillColor: AppColors.surfaceVariant,
-        ),
-        onChanged: (v) => _onChanged(index, v),
-        onEditingComplete: () {
-          if (index < 5) {
-            _focusNodes[index + 1].requestFocus();
+      child: Focus(
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.backspace) {
+            if (_controllers[index].text.isEmpty && index > 0) {
+              _controllers[index - 1].clear();
+              _focusNodes[index - 1].requestFocus();
+              _updateOtp();
+              return KeyEventResult.handled;
+            }
           }
+          return KeyEventResult.ignored;
         },
-        onTap: () {
-          _controllers[index].selection = TextSelection.fromPosition(
-            TextPosition(offset: _controllers[index].text.length),
-          );
-        },
+        child: TextFormField(
+          controller: _controllers[index],
+          focusNode: _focusNodes[index],
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          maxLength: 1,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: AppColors.deepNavy,
+          ),
+          decoration: InputDecoration(
+            counterText: '',
+            contentPadding: EdgeInsets.zero,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: hasError ? AppColors.error : AppColors.border,
+                width: 1.5,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color: hasError ? AppColors.error : AppColors.deepNavy,
+                width: 2,
+              ),
+            ),
+            filled: true,
+            fillColor:
+                hasError ? AppColors.errorLight : AppColors.surfaceVariant,
+          ),
+          onChanged: (v) => _onChanged(index, v),
+          onEditingComplete: () {
+            if (index < 5) {
+              _focusNodes[index + 1].requestFocus();
+            }
+          },
+          onTap: () {
+            _controllers[index].selection = TextSelection.fromPosition(
+              TextPosition(offset: _controllers[index].text.length),
+            );
+          },
+        ),
       ),
     );
   }

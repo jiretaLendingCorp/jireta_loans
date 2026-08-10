@@ -373,23 +373,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
   }
 
   Widget _buildFieldCard(List<Widget> children) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(children: children),
-    );
+    return SizedBox(width: double.infinity, child: Column(children: children));
   }
 
   Future<void> _updateAvatar(String url) async {

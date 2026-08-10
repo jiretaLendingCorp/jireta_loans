@@ -7,6 +7,7 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 
 final _empRiderDetailProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
@@ -48,10 +49,12 @@ class EmpRiderDetailsScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
+                      ProfileAvatar(
+                        photoUrl: data['profile_photo_url'] as String?,
+                        name: (data['first_name'] as String? ?? ''),
+                        color: AppColors.riderGreen,
                         radius: 32,
-                        backgroundColor: AppColors.riderGreen.withValues(alpha: 0.12),
-                        child: const Icon(Icons.directions_bike,
+                        fallback: const Icon(Icons.directions_bike,
                             color: AppColors.riderGreen, size: 28),
                       ),
                       const SizedBox(width: 16),

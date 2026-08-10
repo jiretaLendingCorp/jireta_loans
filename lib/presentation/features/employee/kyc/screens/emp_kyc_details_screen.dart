@@ -8,6 +8,7 @@ import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_kyc_provider.dart';
 
 final _empKycDetailProvider =
@@ -137,6 +138,17 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
         title: 'Personal Information',
         icon: Icons.person_outline,
         children: [
+          Center(
+            child: ProfileAvatar(
+              photoUrl: lender?['profile_photo_url'] as String?,
+              name: name == 'N/A' ? '' : name,
+              color: AppColors.lenderPurple,
+              radius: 32,
+              fallback: const Icon(Icons.person_outline,
+                  size: 28, color: AppColors.lenderPurple),
+            ),
+          ),
+          const SizedBox(height: 12),
           _row('Full Name', name),
           _row('Phone', lender?['phone_number'] ?? 'N/A'),
           _row('KYC Status', kycStatus),

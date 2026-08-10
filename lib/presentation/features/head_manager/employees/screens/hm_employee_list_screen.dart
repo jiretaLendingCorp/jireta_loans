@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_employee_provider.dart';
 import '../widgets/create_employee_modal.dart';
 
@@ -154,18 +155,11 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
               flex: 3,
               child: Row(
                 children: [
-                  CircleAvatar(
+                  ProfileAvatar(
+                    photoUrl: user.profilePhotoUrl,
+                    name: user.firstName,
+                    color: AppColors.deepNavy,
                     radius: 18,
-                    backgroundColor: AppColors.deepNavy,
-                    child: Text(
-                      user.firstName.isNotEmpty
-                          ? user.firstName[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                   ),
                   const SizedBox(width: 10),
                   Flexible(

@@ -1,5 +1,6 @@
 // lib/presentation/shared/widgets/animated/count_up_animation.dart
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class CountUpAnimation extends StatefulWidget {
   final double value;
@@ -63,8 +64,10 @@ class _CountUpAnimationState extends State<CountUpAnimation>
   }
 
   String _format(double value) {
-    if (widget.decimalPlaces == 0) return value.toInt().toString();
-    return value.toStringAsFixed(widget.decimalPlaces);
+    final pattern = widget.decimalPlaces <= 0
+        ? '#,##0'
+        : '#,##0.${'0' * widget.decimalPlaces}';
+    return NumberFormat(pattern, 'en_PH').format(value);
   }
 
   @override
@@ -143,8 +146,10 @@ class _CountUpTextState extends State<CountUpText>
   }
 
   String _format(double value) {
-    if (widget.decimalPlaces == 0) return value.toInt().toString();
-    return value.toStringAsFixed(widget.decimalPlaces);
+    final pattern = widget.decimalPlaces <= 0
+        ? '#,##0'
+        : '#,##0.${'0' * widget.decimalPlaces}';
+    return NumberFormat(pattern, 'en_PH').format(value);
   }
 
   @override

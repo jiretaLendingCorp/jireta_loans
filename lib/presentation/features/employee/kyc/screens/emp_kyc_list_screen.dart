@@ -8,6 +8,7 @@ import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_kyc_provider.dart';
 
 class EmpKycListScreen extends ConsumerStatefulWidget {
@@ -171,11 +172,14 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
           Expanded(
               flex: 3,
               child: Row(children: [
-                CircleAvatar(
+                ProfileAvatar(
+                    photoUrl: lender?['profile_photo_url'] as String?,
+                    name: lender?['first_name'] as String? ?? '',
+                    color: AppColors.info,
                     radius: 16,
-                    backgroundColor: AppColors.info.withValues(alpha: 0.15),
-                    child: const Icon(Icons.person_outline,
-                        size: 16, color: AppColors.info)),
+                    fallback: const Icon(Icons.person_outline,
+                        size: 16, color: AppColors.info),
+                  ),
                 const SizedBox(width: 10),
                 Flexible(
                     child: Text(name,

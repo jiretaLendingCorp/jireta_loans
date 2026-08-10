@@ -98,13 +98,27 @@ class _LenderEditProfileScreenState
     return v;
   }
 
-  String _fromDbEnum(String? value) {
-    if (value == null || value.isEmpty) return '';
-    final display = value
-        .split('_')
-        .map((w) => w[0].toUpperCase() + w.substring(1))
-        .join(' ');
-    return display == 'Other' ? 'Prefer not to say' : display;
+  /// Pick the exact option label for a stored enum value so the dropdown value
+  /// always exists in its items list (otherwise DropdownButtonFormField throws
+  /// a "There should be exactly one item with [DropdownButton]'s value"
+  /// assertion). Falls back to null when the stored value doesn't match.
+  String? _normalizeOption(
+    String? value,
+    List<String> options, {
+    Map<String, String>? aliases,
+  }) {
+    if (value == null || value.isEmpty) return null;
+    final key = value.trim().toLowerCase();
+    if (aliases != null && aliases.containsKey(key)) {
+      final target = aliases[key]!;
+      return options.contains(target) ? target : null;
+    }
+    for (final opt in options) {
+      if (opt.toLowerCase().replaceAll(RegExp(r'[\s-]'), '_') == key) {
+        return opt;
+      }
+    }
+    return null;
   }
 
   void _initFromState() {
@@ -114,12 +128,14 @@ class _LenderEditProfileScreenState
     _firstNameCtrl.text = user.firstName;
     _lastNameCtrl.text = user.lastName;
     _middleNameCtrl.text = user.middleName ?? '';
-    _gender = user.gender != null ? _fromDbEnum(user.gender) : null;
-    _civilStatus = user.civilStatus != null ? _fromDbEnum(user.civilStatus) : null;
-    _employmentType =
-        user.employmentType != null ? _fromDbEnum(user.employmentType) : null;
-    _sourceOfFunds =
-        user.sourceOfFunds != null ? _fromDbEnum(user.sourceOfFunds) : null;
+    _gender =
+        _normalizeOption(user.gender, _genderOptions, aliases: {
+      'other': 'Prefer not to say',
+      'prefer_not_to_say': 'Prefer not to say',
+    });
+    _civilStatus = _normalizeOption(user.civilStatus, _civilOptions);
+    _employmentType = _normalizeOption(user.employmentType, _employmentOptions);
+    _sourceOfFunds = _normalizeOption(user.sourceOfFunds, _sourceOfFundsOptions);
     _dob = user.dateOfBirth;
     _gcashCtrl.text = user.gcashNumber ?? '';
     _employerCtrl.text = user.employerName ?? '';
@@ -489,49 +505,35 @@ class _LenderEditProfileScreenState
   }
 
   Widget _buildSectionCard(String title, IconData icon, List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, size: 18, color: AppColors.lenderPurple),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
+              child: Icon(icon, size: 18, color: AppColors.lenderPurple),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 16),
-          ...children,
-        ],
-      ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        const Divider(height: 1, color: AppColors.border),
+        const SizedBox(height: 16),
+        ...children,
+      ],
     );
   }
 

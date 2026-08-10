@@ -8,6 +8,7 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_rider_provider.dart';
 
 final _riderDetailProvider = FutureProvider.family<UserModel, String>((
@@ -65,17 +66,11 @@ class HmRiderDetailsScreen extends ConsumerWidget {
     ),
     child: Row(
       children: [
-        CircleAvatar(
+        ProfileAvatar(
+          photoUrl: user.profilePhotoUrl,
+          name: user.firstName,
+          color: AppColors.riderGreen,
           radius: 40,
-          backgroundColor: AppColors.riderGreen,
-          child: Text(
-            user.firstName.isNotEmpty ? user.firstName[0].toUpperCase() : '?',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
         ),
         const SizedBox(width: 20),
         Column(

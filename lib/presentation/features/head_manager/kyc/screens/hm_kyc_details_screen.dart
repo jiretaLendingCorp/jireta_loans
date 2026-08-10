@@ -10,6 +10,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 
 class HmKycDetailsScreen extends ConsumerStatefulWidget {
@@ -160,6 +161,19 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
                   title: 'Lender Information',
                   child: Column(
                     children: [
+                      Center(
+                        child: ProfileAvatar(
+                          photoUrl: lender['profile_photo_url'] as String?,
+                          name:
+                              '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
+                                  .trim(),
+                          color: AppColors.lenderPurple,
+                          radius: 32,
+                          fallback: const Icon(Icons.person_outline,
+                              size: 28, color: AppColors.lenderPurple),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       _InfoRow('Full Name',
                           '${lender['first_name'] ?? ''} ${lender['middle_name'] ?? ''} ${lender['last_name'] ?? ''}'
                               .replaceAll(RegExp(r'\s+'), ' ')

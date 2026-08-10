@@ -182,6 +182,16 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
     }
   }
 
+  bool _isAdult(DateTime dob) {
+    final now = DateTime.now();
+    var age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age >= 18;
+  }
+
   Future<void> _submit() async {
     final missing = _selectedFiles.entries
         .where((e) => e.value == null)
@@ -193,7 +203,22 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
-    if (_dob == null) return;
+    if (_dob == null) {
+      setState(() => _dobError = 'Date of birth is required');
+      return;
+    }
+    if (!_isAdult(_dob!)) {
+      setState(
+          () => _dobError = 'You must be at least 18 years old to submit KYC.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'You must be at least 18 years old to submit KYC documents.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     try {

@@ -45,9 +45,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   Future<void> _navigate() async {
     await Future.delayed(const Duration(milliseconds: 2000));
     if (!mounted) return;
+
+    // Make sure secure-storage session check finishes before deciding where to
+    // go. Otherwise a logged-in mobile user briefly lands on the login screen
+    // (and on the wrong platform's login at that) before the redirect fires.
+    var authState = ref.read(authStateProvider);
+    if (authState.isLoading) {
+      for (var i = 0; i < 50 && mounted; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        authState = ref.read(authStateProvider);
+        if (!authState.isLoading) break;
+      }
+    }
+    if (!mounted) return;
+
+    const loginRoute =
+        kIsWeb ? RouteConstants.webLogin : RouteConstants.mobileLogin;
     final prefs = await SharedPreferences.getInstance();
     final termsAccepted = prefs.getBool(AppConstants.termsAcceptedKey) ?? false;
-    final authState = ref.read(authStateProvider);
+    authState = ref.read(authStateProvider);
     if (!mounted) return;
     if (authState.isAuthenticated && !authState.forcePasswordChange) {
       final role = authState.role;
@@ -65,7 +81,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           context.go(RouteConstants.lenderDashboard);
           break;
         default:
-          context.go(RouteConstants.webLogin);
+          context.go(loginRoute);
       }
     } else if (authState.isAuthenticated && authState.forcePasswordChange) {
       final role = authState.role;
@@ -86,13 +102,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             context.go(RouteConstants.lenderDashboard);
             break;
           default:
-            context.go(RouteConstants.webLogin);
+            context.go(loginRoute);
         }
       }
     } else if (!termsAccepted && !kIsWeb) {
       context.go(RouteConstants.terms);
     } else {
-      context.go(RouteConstants.webLogin);
+      context.go(loginRoute);
     }
   }
 

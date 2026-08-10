@@ -7,6 +7,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../widgets/emp_edit_lender_modal.dart';
 
 final _lenderDetailProvider =
@@ -75,16 +76,12 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
+                ProfileAvatar(
+                  photoUrl: data['profile_photo_url'] as String?,
+                  name: (data['first_name'] as String? ?? 'L'),
+                  color: AppColors.lenderPurple,
                   radius: 32,
-                  backgroundColor: AppColors.lenderPurple.withValues(alpha: 0.12),
-                  child: Text(
-                    ((data['first_name'] as String? ?? 'L')[0]).toUpperCase(),
-                    style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.lenderPurple),
-                  ),
+                  textColor: AppColors.lenderPurple,
                 ),
                 const SizedBox(width: 16),
                 Expanded(

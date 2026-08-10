@@ -36,7 +36,7 @@ class WebScaffold extends ConsumerWidget {
       backgroundColor: const Color(0xFFF0F2F5),
       body: Row(
         children: [
-          _Sidebar(collapsed: collapsed, role: role, ref: ref),
+          _Sidebar(collapsed: collapsed, role: role),
           Expanded(
             child: Column(
               children: [
@@ -114,11 +114,20 @@ class _TopBar extends StatelessWidget {
           Consumer(
             builder: (context, ref, _) {
               const unread = 0;
+              final role = authState.role ?? '';
+              void onNotificationTap() {
+                if (role == AppConstants.roleHeadManager) {
+                  context.go(RouteConstants.hmNotifications);
+                } else if (role == AppConstants.roleEmployee) {
+                  context.go(RouteConstants.empNotifications);
+                }
+              }
+
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
                   IconButton(
-                    onPressed: () {},
+                    onPressed: onNotificationTap,
                     icon: const Icon(
                       Icons.notifications_outlined,
                       color: AppColors.textSecondary,
@@ -255,12 +264,10 @@ class _UserAvatar extends ConsumerWidget {
 class _Sidebar extends StatelessWidget {
   final bool collapsed;
   final String role;
-  final WidgetRef ref;
 
   const _Sidebar({
     required this.collapsed,
     required this.role,
-    required this.ref,
   });
 
   @override
@@ -289,22 +296,6 @@ class _Sidebar extends StatelessWidget {
               children: items
                   .map((item) => _SidebarItem(item: item, collapsed: collapsed))
                   .toList(),
-            ),
-          ),
-          const Divider(color: Colors.white12),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: _SidebarItem(
-              item: _NavItem(
-                Icons.logout,
-                'Log Out',
-                '',
-                onTap: () async {
-                  await ref.read(authProvider.notifier).logout();
-                  if (context.mounted) context.go(RouteConstants.webLogin);
-                },
-              ),
-              collapsed: collapsed,
             ),
           ),
         ],
@@ -351,13 +342,6 @@ class _Sidebar extends StatelessWidget {
             Icons.assessment_outlined, 'Reports', RouteConstants.hmReports),
         const _NavItem(
             Icons.history_outlined, 'Audit Logs', RouteConstants.hmAudit),
-        const _NavItem(
-          Icons.notifications_outlined,
-          'Notifications',
-          RouteConstants.hmNotifications,
-        ),
-        const _NavItem(
-            Icons.person_outlined, 'My Profile', RouteConstants.hmProfile),
       ];
 
   List<_NavItem> _empItems(BuildContext ctx) => [
@@ -392,13 +376,6 @@ class _Sidebar extends StatelessWidget {
         ),
         const _NavItem(
             Icons.payments_outlined, 'Payments', RouteConstants.empPayments),
-        const _NavItem(
-          Icons.notifications_outlined,
-          'Notifications',
-          RouteConstants.empNotifications,
-        ),
-        const _NavItem(
-            Icons.person_outlined, 'My Profile', RouteConstants.empProfile),
       ];
 }
 
@@ -466,8 +443,7 @@ class _NavItem {
   final IconData icon;
   final String label;
   final String route;
-  final VoidCallback? onTap;
-  const _NavItem(this.icon, this.label, this.route, {this.onTap});
+  const _NavItem(this.icon, this.label, this.route);
 }
 
 class _SidebarItem extends StatelessWidget {
@@ -485,8 +461,7 @@ class _SidebarItem extends StatelessWidget {
       message: collapsed ? item.label : '',
       preferBelow: false,
       child: InkWell(
-        onTap: item.onTap ??
-            (item.route.isNotEmpty ? () => context.go(item.route) : null),
+        onTap: item.route.isNotEmpty ? () => context.go(item.route) : null,
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),

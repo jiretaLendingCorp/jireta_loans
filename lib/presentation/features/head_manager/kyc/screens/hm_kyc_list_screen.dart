@@ -8,6 +8,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_kyc_provider.dart';
@@ -279,10 +280,12 @@ class _KycRowState extends State<_KycRow> {
           ),
           child: Row(
             children: [
-              CircleAvatar(
+              ProfileAvatar(
+                photoUrl: doc.lender?['profile_photo_url'] as String?,
+                name: doc.lenderName,
+                color: AppColors.info,
                 radius: 20,
-                backgroundColor: AppColors.info.withValues(alpha: 0.1),
-                child: const Icon(Icons.verified_user_outlined,
+                fallback: const Icon(Icons.verified_user_outlined,
                     size: 20, color: AppColors.info),
               ),
               const SizedBox(width: 14),

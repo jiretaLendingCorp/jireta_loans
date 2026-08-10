@@ -14,6 +14,7 @@ import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../kyc/providers/lender_kyc_provider.dart';
+import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_loan_provider.dart';
 
 class LenderApplyLoanScreen extends ConsumerStatefulWidget {
@@ -567,6 +568,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final loans = loanState.loans;
     final activeLoan = loanState.activeLoan;
 
+    final dob = ref.watch(lenderProfileProvider).user?.dateOfBirth;
+    if (dob != null && !_isAdult(dob)) {
+      return const _AgeGateView();
+    }
+
     if (kyc != 'verified' && kyc != 'approved') {
       return _KycGate(status: kyc);
     }
@@ -597,6 +603,16 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         _buildWizardBar(state),
       ],
     );
+  }
+
+  bool _isAdult(DateTime dob) {
+    final now = DateTime.now();
+    var age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age >= 18;
   }
 
   LoanModel? _underReviewLoan(List<LoanModel> loans) {
@@ -1431,6 +1447,54 @@ class _KycGate extends StatelessWidget {
               onPressed: onAction,
               color: AppColors.lenderPurple,
               icon: Icons.arrow_forward,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AgeGateView extends StatelessWidget {
+  const _AgeGateView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.verified_user_outlined,
+                  color: AppColors.error, size: 42),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Age Restriction',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'You must be at least 18 years old to apply for a loan with Jireta Loans.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
             ),
           ],
         ),
