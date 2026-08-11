@@ -3,7 +3,6 @@ import 'package:get_it/get_it.dart';
 
 import '../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../data/datasources/remote/auth_remote_datasource.dart';
-import '../../data/datasources/remote/blacklist_remote_datasource.dart';
 import '../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../data/datasources/remote/disbursement_remote_datasource.dart';
@@ -57,9 +56,6 @@ Future<void> setupDependencies() async {
   );
   sl.registerLazySingleton<PaymentRemoteDataSource>(
     () => PaymentRemoteDataSource(sl()),
-  );
-  sl.registerLazySingleton<BlacklistRemoteDataSource>(
-    () => BlacklistRemoteDataSource(sl()),
   );
   sl.registerLazySingleton<DisbursementRemoteDataSource>(
     () => DisbursementRemoteDataSource(sl()),

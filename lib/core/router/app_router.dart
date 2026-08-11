@@ -34,7 +34,6 @@ import '../../presentation/features/employee/profile/screens/emp_profile_screen.
 import '../../presentation/features/employee/riders/screens/emp_rider_details_screen.dart';
 import '../../presentation/features/employee/riders/screens/emp_rider_list_screen.dart';
 import '../../presentation/features/head_manager/audit/screens/hm_audit_logs_screen.dart';
-import '../../presentation/features/head_manager/blacklist/screens/hm_blacklist_screen.dart';
 import '../../presentation/features/head_manager/ci/screens/hm_ci_details_screen.dart';
 import '../../presentation/features/head_manager/ci/screens/hm_ci_list_screen.dart';
 import '../../presentation/features/head_manager/collections/screens/hm_collection_details_screen.dart';
@@ -304,9 +303,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmPenalties,
           builder: (ctx, s) => const HmPenaltyListScreen()),
-      GoRoute(
-          path: RouteConstants.hmBlacklist,
-          builder: (ctx, s) => const HmBlacklistScreen()),
       GoRoute(
           path: RouteConstants.hmReports,
           builder: (ctx, s) => const HmReportLibraryScreen()),

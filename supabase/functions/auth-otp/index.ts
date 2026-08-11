@@ -128,7 +128,6 @@ async function handleSendOtp(req: Request) {
 
   let userId: string | null = null;
   if (user) {
-    if (user.account_status === 'suspended') return errorResponse('Account suspended', 403, 'ACCOUNT_SUSPENDED');
     if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
     if (user.account_status === 'inactive') return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
 

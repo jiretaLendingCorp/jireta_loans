@@ -33,9 +33,6 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     return errorResponse('User not found', 401, 'UNAUTHORIZED');
   }
 
-  if (dbUser.account_status === 'suspended') {
-    return errorResponse('Account is suspended', 403, 'ACCOUNT_SUSPENDED');
-  }
   if (dbUser.account_status === 'archived') {
     return errorResponse('Account is archived', 403, 'ACCOUNT_ARCHIVED');
   }

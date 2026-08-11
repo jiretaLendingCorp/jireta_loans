@@ -34,7 +34,6 @@ class RouteConstants {
   static const String hmPayments = '/hm/payments';
   static const String hmPaymentDetails = '/hm/payments/:id';
   static const String hmPenalties = '/hm/penalties';
-  static const String hmBlacklist = '/hm/blacklist';
   static const String hmReports = '/hm/reports';
   static const String hmReportHistory = '/hm/report-history';
   static const String hmAudit = '/hm/audit';

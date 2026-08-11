@@ -16,7 +16,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination, validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
-import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied, getLenderBlacklist } from '../_shared/loan_financials.ts';
+import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
 
 // ── [moved from loans-get-schedule-preview] ─────────────────────────────────
 const INTEREST_RATE = 0.20;
@@ -237,11 +237,10 @@ async function handleGetDetails(req: Request) {
       relationship: link.relationship,
     }));
 
-    const [financials, disbursement, penaltyApplied, blacklist, disbPref] = await Promise.all([
+    const [financials, disbursement, penaltyApplied, disbPref] = await Promise.all([
       getLoanFinancials(db, loanId),
       getLoanDisbursement(db, loanId),
       hasPenaltyApplied(db, loanId),
-      getLenderBlacklist(db, loan.lender_id),
       db.from('loan_disbursement_preferences').select('method, account').eq('loan_id', loanId).maybeSingle(),
     ]);
 
@@ -258,8 +257,7 @@ async function handleGetDetails(req: Request) {
       xendit_disbursement_id: disbursement?.xendit_id ?? null,
       frequency: loan.payment_frequency,
       lender: lp?.users ?? null,
-      lender_profile: lp ? { ...lp, is_blacklisted: blacklist != null } : null,
-      is_blacklisted: blacklist != null,
+      lender_profile: lp ?? null,
       loan_schedules: schedule ?? [],
       payments: payments,
       credit_investigations: ci ?? [],

@@ -16,7 +16,7 @@ import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString, validatePhone } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
-import { getLenderBlacklist, getLenderAddress } from '../_shared/loan_financials.ts';
+import { getLenderAddress } from '../_shared/loan_financials.ts';
 
 // ── [moved from users-update-profile] ───────────────────────────────────────
 // Normalize display values (e.g. "Self-Employed") to the lowercase/underscored
@@ -223,7 +223,6 @@ async function handleGetProfile(req: Request) {
     .select('id, name, relationship, phone_number, address')
     .eq('lender_id', targetId);
 
-  const blacklist = await getLenderBlacklist(db, targetId);
   const address = await getLenderAddress(db, targetId);
 
   // Flatten nested profile rows onto the user so the mobile/web models can
@@ -250,7 +249,6 @@ async function handleGetProfile(req: Request) {
     monthly_income: lender?.monthly_income ?? null,
     gcash_number: lender?.gcash_number ?? null,
     kyc_status: lender?.kyc_status ?? null,
-    is_blacklisted: blacklist ? true : null,
     date_of_birth: lender?.date_of_birth ?? null,
     source_of_funds: lender?.source_of_funds ?? null,
     street_address: address?.street ?? null,

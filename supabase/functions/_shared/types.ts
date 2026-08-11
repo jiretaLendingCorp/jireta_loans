@@ -27,7 +27,7 @@ export type KycStatus =
   | 'verified'
   | 'rejected';
 
-export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived';
+export type AccountStatus = 'active' | 'inactive' | 'archived';
 export type PaymentMethod = 'gcash' | 'office_cash' | 'rider_collection';
 export type PaymentStatus = 'pending' | 'verified' | 'reversed' | 'failed';
 export type Frequency = 'daily' | 'weekly' | 'monthly';

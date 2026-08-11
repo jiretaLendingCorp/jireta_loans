@@ -155,7 +155,6 @@ class HmRiderDetailsScreen extends ConsumerWidget {
   );
 
   Widget _actionsCard(BuildContext context, WidgetRef ref, UserModel user) {
-    final isActive = user.accountStatus == 'active';
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -173,29 +172,6 @@ class HmRiderDetailsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await ref
-                      .read(hmRiderProvider.notifier)
-                      .suspendActivate(
-                        user.id,
-                        isActive ? 'suspend' : 'activate',
-                      );
-                  ref.invalidate(_riderDetailProvider(userId));
-                },
-                icon: Icon(
-                  isActive
-                      ? Icons.pause_circle_outline
-                      : Icons.play_circle_outline,
-                ),
-                label: Text(isActive ? 'Suspend' : 'Activate'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isActive
-                      ? AppColors.warning
-                      : AppColors.success,
-                ),
-              ),
-              const SizedBox(width: 12),
               ElevatedButton.icon(
                 onPressed: () async {
                   await ref.read(hmRiderProvider.notifier).archive(user.id);

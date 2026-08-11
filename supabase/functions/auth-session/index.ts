@@ -55,7 +55,6 @@ async function handleRefreshSession(req: Request) {
     .single();
 
   if (!dbUser) return errorResponse('User not found', 401, 'UNAUTHORIZED');
-  if (dbUser.account_status === 'suspended') return errorResponse('Account suspended', 403, 'ACCOUNT_SUSPENDED');
   if (dbUser.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
 
   return jsonResponse({

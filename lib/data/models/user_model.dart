@@ -16,7 +16,6 @@ class UserModel extends UserEntity {
   final String? gcashNumber;
   final String? kycStatus;
   final DateTime? dateOfBirth;
-  final bool? isBlacklisted;
   final String? sourceOfFunds;
   final String? streetAddress;
   final String? barangay;
@@ -53,7 +52,6 @@ class UserModel extends UserEntity {
     this.gcashNumber,
     this.kycStatus,
     this.dateOfBirth,
-    this.isBlacklisted,
     this.sourceOfFunds,
     this.streetAddress,
     this.barangay,
@@ -103,7 +101,6 @@ class UserModel extends UserEntity {
       dateOfBirth: json['date_of_birth'] != null
           ? DateTime.tryParse(json['date_of_birth'])
           : null,
-      isBlacklisted: json['is_blacklisted'],
       sourceOfFunds: json['source_of_funds'],
       streetAddress: json['street_address'],
       barangay: json['barangay'],
@@ -145,7 +142,6 @@ class UserModel extends UserEntity {
     'gcash_number': gcashNumber,
     'kyc_status': kycStatus,
     'date_of_birth': dateOfBirth?.toIso8601String(),
-    'is_blacklisted': isBlacklisted,
     'source_of_funds': sourceOfFunds,
     'street_address': streetAddress,
     'barangay': barangay,
@@ -195,7 +191,6 @@ class UserModel extends UserEntity {
       gcashNumber: gcashNumber,
       kycStatus: kycStatus,
       dateOfBirth: dateOfBirth,
-      isBlacklisted: isBlacklisted,
       sourceOfFunds: sourceOfFunds,
       streetAddress: streetAddress,
       barangay: barangay,

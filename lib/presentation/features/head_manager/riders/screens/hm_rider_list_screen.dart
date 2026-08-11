@@ -89,7 +89,6 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
           items: const [
             DropdownMenuItem(value: 'all', child: Text('All Status')),
             DropdownMenuItem(value: 'active', child: Text('Active')),
-            DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
           ],
           onChanged: (v) => ref.read(hmRiderProvider.notifier).setStatus(v!),
         ),
@@ -242,7 +241,7 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  isActive ? 'Active' : 'Suspended',
+                  isActive ? 'Active' : _statusLabel(user.accountStatus),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -266,21 +265,6 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
                       ),
                     ),
                   ),
-                  _btn(
-                    isActive
-                        ? Icons.pause_circle_outline
-                        : Icons.play_circle_outline,
-                    isActive ? 'Suspend' : 'Activate',
-                    isActive ? AppColors.warning : AppColors.success,
-                    () async {
-                      await ref
-                          .read(hmRiderProvider.notifier)
-                          .suspendActivate(
-                            user.id,
-                            isActive ? 'suspend' : 'activate',
-                          );
-                    },
-                  ),
                 ],
               ),
             ),
@@ -288,6 +272,17 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
         ),
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'inactive':
+        return 'Inactive';
+      case 'archived':
+        return 'Archived';
+      default:
+        return 'Inactive';
+    }
   }
 
   Widget _btn(IconData icon, String tip, Color color, VoidCallback onTap) =>

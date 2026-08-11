@@ -38,6 +38,5 @@ class UserEntity {
   ].where((p) => p != null && p.isNotEmpty).join(' ');
 
   bool get isActive => accountStatus == 'active';
-  bool get isSuspended => accountStatus == 'suspended';
   bool get isArchived => accountStatus == 'archived';
 }

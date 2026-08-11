@@ -87,7 +87,6 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Status')),
               DropdownMenuItem(value: 'active', child: Text('Active')),
-              DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
             ],
             onChanged: (v) => ref.read(empRiderProvider.notifier).setStatus(v!),
           ),
@@ -210,7 +209,7 @@ class _StatusBadge extends StatelessWidget {
         color: isActive ? AppColors.successLight : AppColors.statusRejectedBg,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(isActive ? 'Active' : 'Suspended',
+      child: Text(isActive ? 'Active' : 'Inactive',
           style: TextStyle(
               color: isActive ? AppColors.success : AppColors.error,
               fontSize: 11,

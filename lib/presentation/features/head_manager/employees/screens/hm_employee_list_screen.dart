@@ -84,16 +84,15 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          DropdownButton<String>(
-            value: state.statusFilter,
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('All Status')),
-              DropdownMenuItem(value: 'active', child: Text('Active')),
-              DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
-            ],
-            onChanged: (v) =>
-                ref.read(hmEmployeeProvider.notifier).setStatus(v!),
-          ),
+        DropdownButton<String>(
+          value: state.statusFilter,
+          items: const [
+            DropdownMenuItem(value: 'all', child: Text('All Status')),
+            DropdownMenuItem(value: 'active', child: Text('Active')),
+          ],
+          onChanged: (v) =>
+              ref.read(hmEmployeeProvider.notifier).setStatus(v!),
+        ),
         ],
       ),
     );
@@ -208,7 +207,7 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
             Expanded(
               flex: 1,
               child: _StatusBadge(
-                label: isActive ? 'Active' : 'Suspended',
+                label: isActive ? 'Active' : _statusLabel(user.accountStatus),
                 color: isActive ? AppColors.success : AppColors.error,
                 bgColor: isActive
                     ? AppColors.successLight
@@ -230,14 +229,6 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
                     ),
                   ),
                   _ActionBtn(
-                    icon: isActive
-                        ? Icons.pause_circle_outline
-                        : Icons.play_circle_outline,
-                    tooltip: isActive ? 'Suspend' : 'Activate',
-                    color: isActive ? AppColors.warning : AppColors.success,
-                    onTap: () => _confirmStatusChange(user, isActive),
-                  ),
-                  _ActionBtn(
                     icon: Icons.archive_outlined,
                     tooltip: 'Archive',
                     color: AppColors.error,
@@ -250,6 +241,17 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
         ),
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'inactive':
+        return 'Inactive';
+      case 'archived':
+        return 'Archived';
+      default:
+        return 'Inactive';
+    }
   }
 
   Widget _buildEmpty() => const Center(
@@ -275,38 +277,6 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
 
   void _showCreate(BuildContext context) {
     showDialog(context: context, builder: (_) => const CreateEmployeeModal());
-  }
-
-  void _confirmStatusChange(UserModel user, bool isActive) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(isActive ? 'Suspend Employee?' : 'Activate Employee?'),
-        content: Text(
-          isActive
-              ? 'This will suspend ${user.firstName} ${user.lastName}\'s account.'
-              : 'This will re-activate ${user.firstName} ${user.lastName}\'s account.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isActive ? AppColors.error : AppColors.success,
-            ),
-            onPressed: () async {
-              Navigator.pop(context);
-              await ref
-                  .read(hmEmployeeProvider.notifier)
-                  .suspendActivate(user.id, isActive ? 'suspend' : 'activate');
-            },
-            child: Text(isActive ? 'Suspend' : 'Activate'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _confirmArchive(UserModel user) {

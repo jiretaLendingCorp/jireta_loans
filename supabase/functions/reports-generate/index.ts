@@ -5,7 +5,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
-import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderBlacklistBatch } from '../_shared/loan_financials.ts';
+import { getLoanFinancialsBatch, getLoanDisbursementsBatch } from '../_shared/loan_financials.ts';
 
 async function fetchReportData(
   db: ReturnType<typeof import('../_shared/db.ts').getAdminClient>,
@@ -78,17 +78,7 @@ async function fetchReportData(
         `id, first_name, last_name, phone_number, account_status, created_at, roles!inner(name),
          lender_profiles(kyc_status, employment_type, monthly_income)`
       ).eq('roles.name', ROLES.LENDER);
-      const rows = data ?? [];
-      const blacklistMap = await getLenderBlacklistBatch(
-        db,
-        rows.filter((u: any) => u.lender_profiles).map((u: any) => u.id),
-      );
-      return rows.map((u: any) => ({
-        ...u,
-        lender_profiles: u.lender_profiles
-          ? { ...u.lender_profiles, is_blacklisted: Boolean(blacklistMap[u.id]) }
-          : u.lender_profiles,
-      }));
+      return data ?? [];
     }
     case 'overdue_report': {
       const { data } = await db.from('loans').select(

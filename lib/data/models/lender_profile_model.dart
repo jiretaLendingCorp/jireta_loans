@@ -10,8 +10,6 @@ class LenderProfileModel {
   final double? monthlyIncome;
   final String? gcashNumber;
   final String kycStatus;
-  final bool isBlacklisted;
-  final String? blacklistReason;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -26,8 +24,6 @@ class LenderProfileModel {
     this.monthlyIncome,
     this.gcashNumber,
     required this.kycStatus,
-    required this.isBlacklisted,
-    this.blacklistReason,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -46,8 +42,6 @@ class LenderProfileModel {
       monthlyIncome: (json['monthly_income'] as num?)?.toDouble(),
       gcashNumber: json['gcash_number'],
       kycStatus: json['kyc_status'] ?? 'not_submitted',
-      isBlacklisted: json['is_blacklisted'] ?? false,
-      blacklistReason: json['blacklist_reason'],
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),

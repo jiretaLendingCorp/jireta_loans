@@ -89,7 +89,6 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Status')),
               DropdownMenuItem(value: 'active', child: Text('Active')),
-              DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
             ],
             onChanged: (v) =>
                 ref.read(empLenderProvider.notifier).setStatus(v!),
@@ -193,7 +192,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
             Expanded(
               flex: 1,
               child: _StatusBadge(
-                label: isActive ? 'Active' : 'Suspended',
+                label: isActive ? 'Active' : _statusLabel(user.accountStatus),
                 color: isActive ? AppColors.success : AppColors.error,
                 bgColor:
                     isActive ? AppColors.successLight : AppColors.errorLight,
@@ -220,6 +219,17 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
         ),
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'inactive':
+        return 'Inactive';
+      case 'archived':
+        return 'Archived';
+      default:
+        return 'Inactive';
+    }
   }
 
   Widget _buildEmpty() => const Center(

@@ -19,7 +19,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
-import { getLenderBlacklistBatch, getLenderAddressBatch, getLenderBlacklist, getLenderAddress } from '../_shared/loan_financials.ts';
+import { getLenderAddressBatch, getLenderAddress } from '../_shared/loan_financials.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'verify';
@@ -173,10 +173,7 @@ async function handleGetList(req: Request) {
 
     const rows = data ?? [];
     const lenderIds = rows.map((r: any) => r.id);
-    const [blacklistMap, addressMap] = await Promise.all([
-      getLenderBlacklistBatch(db, lenderIds),
-      getLenderAddressBatch(db, lenderIds),
-    ]);
+    const addressMap = await getLenderAddressBatch(db, lenderIds);
 
     // One row per lender (NOT one per document). Staff should see a single
     // submission per borrower with a document count; document-level review
@@ -184,7 +181,6 @@ async function handleGetList(req: Request) {
     // the client can navigate straight to the lender's KYC details.
     const mapped = (rows ?? []).map((row: any) => {
       const address = addressMap[row.id] ?? null;
-      const isBlacklisted = Boolean(blacklistMap[row.id]);
       const lender = {
         id: row.users?.id ?? row.id,
         first_name: row.users?.first_name,
@@ -209,7 +205,6 @@ async function handleGetList(req: Request) {
         employer_name: row.employer_name,
         monthly_income: row.monthly_income,
         gcash_number: row.gcash_number,
-        is_blacklisted: isBlacklisted,
       };
 
       const docs = row.kyc_documents ?? [];
@@ -274,15 +269,11 @@ async function handleGetStatus(req: Request) {
       .select('id, name, relationship, phone_number, address')
       .eq('lender_id', lenderId);
 
-    const [blacklist, address] = await Promise.all([
-      getLenderBlacklist(db, lenderId),
-      getLenderAddress(db, lenderId),
-    ]);
+    const address = await getLenderAddress(db, lenderId);
 
     const lender = profile
       ? {
           ...profile,
-          is_blacklisted: blacklist ? true : null,
           street_address: address?.street ?? null,
           barangay: address?.barangay ?? null,
           city: address?.city ?? null,
@@ -401,10 +392,7 @@ async function handleGetDetails(req: Request) {
       .select('id, name, relationship, phone_number, address')
       .eq('lender_id', targetLenderId!);
 
-    const [blacklist, address] = await Promise.all([
-      getLenderBlacklist(db, targetLenderId!),
-      getLenderAddress(db, targetLenderId!),
-    ]);
+    const address = await getLenderAddress(db, targetLenderId!);
 
     const lender = {
       id: (userRow as any)?.id ?? targetLenderId,
@@ -418,7 +406,6 @@ async function handleGetDetails(req: Request) {
       profile_photo_url: (userRow as any)?.profile_photo_url,
       created_at: (userRow as any)?.created_at,
       ...(lenderProfile as any ?? {}),
-      is_blacklisted: blacklist ? true : null,
       street_address: address?.street ?? null,
       barangay: address?.barangay ?? null,
       city: address?.city ?? null,

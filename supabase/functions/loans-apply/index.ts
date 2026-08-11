@@ -129,14 +129,6 @@ serve(async (req) => {
     if (!profile) return errorResponse('Lender profile not found', 404, 'NOT_FOUND');
     if (profile.kyc_status !== 'verified') return errorResponse('KYC must be verified before applying', 403, 'KYC_NOT_VERIFIED');
 
-    const { data: blacklist } = await db
-      .from('blacklist')
-      .select('id')
-      .eq('lender_id', lenderId)
-      .eq('is_active', true)
-      .maybeSingle();
-    if (blacklist) return errorResponse('Account is blacklisted', 403, 'BLACKLISTED');
-
     const { count: activeLoanCount } = await db
       .from('loans')
       .select('*', { count: 'exact', head: true })

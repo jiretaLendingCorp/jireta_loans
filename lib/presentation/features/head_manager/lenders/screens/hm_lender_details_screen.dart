@@ -155,8 +155,6 @@ class HmLenderDetailsScreen extends ConsumerWidget {
   );
 
   Widget _actionsCard(BuildContext context, WidgetRef ref, UserModel user) {
-    final isActive = user.accountStatus == 'active';
-    final reasonCtrl = TextEditingController();
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -176,69 +174,6 @@ class HmLenderDetailsScreen extends ConsumerWidget {
             spacing: 12,
             runSpacing: 12,
             children: [
-              ElevatedButton.icon(
-                onPressed: () async {
-                  await ref
-                      .read(hmLenderProvider.notifier)
-                      .suspendActivate(
-                        user.id,
-                        isActive ? 'suspend' : 'activate',
-                      );
-                  ref.invalidate(_lenderDetailProvider(userId));
-                },
-                icon: Icon(
-                  isActive
-                      ? Icons.pause_circle_outline
-                      : Icons.play_circle_outline,
-                ),
-                label: Text(isActive ? 'Suspend' : 'Activate'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isActive
-                      ? AppColors.warning
-                      : AppColors.success,
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Blacklist Lender'),
-                      content: TextField(
-                        controller: reasonCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Reason',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Cancel'),
-                        ),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                          ),
-                          onPressed: () async {
-                            Navigator.pop(context);
-                            await ref
-                                .read(hmLenderProvider.notifier)
-                                .addBlacklist(user.id, reasonCtrl.text);
-                          },
-                          child: const Text('Blacklist'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.block),
-                label: const Text('Blacklist'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                ),
-              ),
               ElevatedButton.icon(
                 onPressed: () async {
                   await ref.read(hmLenderProvider.notifier).archive(user.id);

@@ -22,7 +22,6 @@ class ApiEndpoints {
   static const String usersUpdateProfile = 'users-manage?fn=update-profile';
   static const String usersGetProfile = 'users-manage?fn=get-profile';
   static const String usersGetList = 'users-admin?fn=get-list';
-  static const String usersSuspendActivate = 'users-admin?fn=suspend-activate';
   static const String usersArchive = 'users-admin?fn=archive';
 
   // KYC
@@ -79,11 +78,6 @@ class ApiEndpoints {
   static const String disbursementsXenditWebhook =
       'disbursements-xendit-webhook';
   static const String disbursementsGetList = 'disbursements-view?fn=get-list';
-
-  // Blacklist
-  static const String blacklistAdd = 'blacklist-manage?fn=add';
-  static const String blacklistRemove = 'blacklist-manage?fn=remove';
-  static const String blacklistGetList = 'blacklist-view?fn=get-list';
 
   // Location
   static const String locationUpdateRider = 'location-manage?fn=update-rider';

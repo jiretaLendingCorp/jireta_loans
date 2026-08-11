@@ -15,15 +15,6 @@ class ErrorInterceptor extends Interceptor {
       final code = _extractCode(data);
       switch (response.statusCode) {
         case 401:
-          if (code == 'ACCOUNT_SUSPENDED') {
-            return handler.reject(DioException(
-              requestOptions: err.requestOptions,
-              message: 'Your account has been suspended.',
-              error: const AccountSuspendedException(),
-              response: response,
-              type: err.type,
-            ));
-          }
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: message,
@@ -32,15 +23,6 @@ class ErrorInterceptor extends Interceptor {
             type: err.type,
           ));
         case 403:
-          if (code == 'ACCOUNT_SUSPENDED') {
-            return handler.reject(DioException(
-              requestOptions: err.requestOptions,
-              message: 'Your account has been suspended.',
-              error: const AccountSuspendedException(),
-              response: response,
-              type: err.type,
-            ));
-          }
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: message,

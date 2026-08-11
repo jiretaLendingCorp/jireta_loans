@@ -88,7 +88,6 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
           items: const [
             DropdownMenuItem(value: 'all', child: Text('All')),
             DropdownMenuItem(value: 'active', child: Text('Active')),
-            DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
           ],
           onChanged: (v) => ref.read(hmLenderProvider.notifier).setStatus(v!),
         ),
@@ -242,7 +241,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  isActive ? 'Active' : 'Suspended',
+                  isActive ? 'Active' : _statusLabel(user.accountStatus),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -266,25 +265,6 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                       ),
                     ),
                   ),
-                  _btn(
-                    isActive
-                        ? Icons.pause_circle_outline
-                        : Icons.play_circle_outline,
-                    isActive ? 'Suspend' : 'Activate',
-                    isActive ? AppColors.warning : AppColors.success,
-                    () => ref
-                        .read(hmLenderProvider.notifier)
-                        .suspendActivate(
-                          user.id,
-                          isActive ? 'suspend' : 'activate',
-                        ),
-                  ),
-                  _btn(
-                    Icons.block,
-                    'Blacklist',
-                    AppColors.error,
-                    () => _blacklistDialog(user),
-                  ),
                 ],
               ),
             ),
@@ -292,6 +272,17 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
         ),
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'inactive':
+        return 'Inactive';
+      case 'archived':
+        return 'Archived';
+      default:
+        return 'Inactive';
+    }
   }
 
   Widget _btn(IconData icon, String tip, Color color, VoidCallback onTap) =>
@@ -306,49 +297,6 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
           ),
         ),
       );
-
-  void _blacklistDialog(UserModel user) {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Blacklist Lender?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Blacklisting ${user.firstName} ${user.lastName} will prevent them from applying for new loans.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              decoration: const InputDecoration(
-                labelText: 'Reason',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () async {
-              Navigator.pop(context);
-              await ref
-                  .read(hmLenderProvider.notifier)
-                  .addBlacklist(user.id, ctrl.text);
-            },
-            child: const Text('Blacklist'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _empty() => const Center(
     child: Column(

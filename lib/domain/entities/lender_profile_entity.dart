@@ -10,7 +10,6 @@ class LenderProfileEntity {
   final double? monthlyIncome;
   final String? gcashNumber;
   final String kycStatus;
-  final bool isBlacklisted;
   final DateTime createdAt;
 
   const LenderProfileEntity({
@@ -24,7 +23,6 @@ class LenderProfileEntity {
     this.monthlyIncome,
     this.gcashNumber,
     required this.kycStatus,
-    required this.isBlacklisted,
     required this.createdAt,
   });
 

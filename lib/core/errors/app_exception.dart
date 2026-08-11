@@ -50,15 +50,6 @@ class AccountLockedException extends AppException {
     : super(code: 'ACCOUNT_LOCKED', statusCode: 429);
 }
 
-class AccountSuspendedException extends AppException {
-  const AccountSuspendedException()
-    : super(
-        'Your account has been suspended',
-        code: 'ACCOUNT_SUSPENDED',
-        statusCode: 403,
-      );
-}
-
 class ForcePasswordChangeException extends AppException {
   const ForcePasswordChangeException()
     : super('Password change required', code: 'FORCE_PASSWORD_CHANGE');

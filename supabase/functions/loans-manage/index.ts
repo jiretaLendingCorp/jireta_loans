@@ -86,9 +86,6 @@ async function handleApprove(req: Request) {
     const lp = (loan as any).lender_profiles;
     if (lp?.kyc_status !== 'verified') return errorResponse('Lender KYC must be verified', 400, 'KYC_NOT_VERIFIED');
 
-    const { data: blacklist } = await db.from('blacklist').select('id').eq('lender_id', loan.lender_id).eq('is_active', true).maybeSingle();
-    if (blacklist) return errorResponse('Lender is blacklisted', 400, 'BLACKLISTED');
-
     await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', loan_id);
 
     await writeAuditLog({ performedBy: user.id, action: 'loan_approve', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'approved' }, ipAddress: ip });

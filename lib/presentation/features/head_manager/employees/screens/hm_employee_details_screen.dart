@@ -54,7 +54,6 @@ class HmEmployeeDetailsScreen extends ConsumerWidget {
   }
 
   Widget _buildBody(BuildContext context, WidgetRef ref, UserModel user) {
-    final isActive = user.accountStatus == 'active';
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -64,7 +63,7 @@ class HmEmployeeDetailsScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           _buildInfoCard(user),
           const SizedBox(height: 20),
-          _buildActionsCard(context, ref, user, isActive),
+          _buildActionsCard(context, ref, user),
         ],
       ),
     );
@@ -190,7 +189,6 @@ class HmEmployeeDetailsScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     UserModel user,
-    bool isActive,
   ) => Container(
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
@@ -210,28 +208,6 @@ class HmEmployeeDetailsScreen extends ConsumerWidget {
           spacing: 12,
           runSpacing: 12,
           children: [
-            ElevatedButton.icon(
-              onPressed: () async {
-                await ref
-                    .read(hmEmployeeProvider.notifier)
-                    .suspendActivate(
-                      user.id,
-                      isActive ? 'suspend' : 'activate',
-                    );
-                ref.invalidate(_empDetailProvider(userId));
-              },
-              icon: Icon(
-                isActive
-                    ? Icons.pause_circle_outline
-                    : Icons.play_circle_outline,
-              ),
-              label: Text(isActive ? 'Suspend' : 'Activate'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isActive
-                    ? AppColors.warning
-                    : AppColors.success,
-              ),
-            ),
             ElevatedButton.icon(
               onPressed: () async {
                 await ref.read(hmEmployeeProvider.notifier).archive(user.id);

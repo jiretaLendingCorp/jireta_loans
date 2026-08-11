@@ -70,13 +70,6 @@ class UserRemoteDataSource {
     await _client.patch(ApiEndpoints.usersUpdateProfile, data: data);
   }
 
-  Future<void> suspendActivate(String userId, String action) async {
-    await _client.patch(
-      ApiEndpoints.usersSuspendActivate,
-      data: {'user_id': userId, 'action': action},
-    );
-  }
-
   Future<void> archive(String userId) async {
     await _client.patch(ApiEndpoints.usersArchive, data: {'user_id': userId});
   }

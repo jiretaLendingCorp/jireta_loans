@@ -337,8 +337,6 @@ class _Sidebar extends StatelessWidget {
         const _NavItem(
             Icons.payments_outlined, 'Payments', RouteConstants.hmPayments),
         const _NavItem(
-            Icons.block_outlined, 'Blacklist', RouteConstants.hmBlacklist),
-        const _NavItem(
             Icons.assessment_outlined, 'Reports', RouteConstants.hmReports),
         const _NavItem(
             Icons.history_outlined, 'Audit Logs', RouteConstants.hmAudit),

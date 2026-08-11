@@ -16,7 +16,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { getLoanFinancialsBatch, getLenderBlacklist } from '../_shared/loan_financials.ts';
+import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'head-manager';
@@ -295,8 +295,6 @@ async function handleLender(req: Request) {
     .eq('id', lenderId)
     .single();
 
-  const blacklist = await getLenderBlacklist(db, lenderId);
-
   let totalBorrowed = 0, totalOutstanding = 0, totalInterestPaid = 0;
   (loanData ?? []).forEach((l: any) => {
     totalBorrowed += Number(l.principal_amount);
@@ -323,6 +321,5 @@ async function handleLender(req: Request) {
     total_interest_paid: Math.max(0, totalInterestPaid),
     total_penalties_paid: totalPenaltiesPaid,
     kyc_status: kycProfile?.kyc_status ?? 'not_submitted',
-    is_blacklisted: blacklist ? true : false,
   });
 }

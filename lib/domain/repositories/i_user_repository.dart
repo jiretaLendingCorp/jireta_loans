@@ -15,6 +15,5 @@ abstract class IUserRepository {
   Future<void> createRider(Map<String, dynamic> data);
   Future<void> createLender(Map<String, dynamic> data);
   Future<void> updateProfile(String userId, Map<String, dynamic> data);
-  Future<void> suspendActivate(String userId, String action);
   Future<void> archive(String userId);
 }

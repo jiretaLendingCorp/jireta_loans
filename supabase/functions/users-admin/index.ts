@@ -4,7 +4,6 @@
 // function using the `?fn=<action>` query parameter.
 //
 //   users-get-list        →  ?fn=get-list
-//   users-suspend-activate →  ?fn=suspend-activate
 //   users-archive          →  ?fn=archive
 //
 // The original per-action logic is preserved verbatim below; each handler is
@@ -16,9 +15,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
-import { getLenderBlacklistBatch } from '../_shared/loan_financials.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
-import { sendPushNotification } from '../_shared/notifications.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -33,9 +30,6 @@ serve(async (req) => {
       case 'get-list':
         // ── [moved from functions/users-get-list/index.ts] ──────────────
         return await handleGetList(req);
-      case 'suspend-activate':
-        // ── [moved from functions/users-suspend-activate/index.ts] ──────
-        return await handleSuspendActivate(req);
       case 'archive':
         // ── [moved from functions/users-archive/index.ts] ───────────────
         return await handleArchive(req);
@@ -114,17 +108,9 @@ async function handleGetList(req: Request) {
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch users', 500, 'SERVER_ERROR');
 
-  const blacklistMap = await getLenderBlacklistBatch(
-    db,
-    (data ?? []).filter((u: any) => u.lender_profiles).map((u: any) => u.id),
-  );
-
   const mapped = (data ?? []).map((u: any) => {
-    const isBlacklisted = u.lender_profiles ? Boolean(blacklistMap[u.id]) : null;
     return {
       ...u,
-      lender_profiles: u.lender_profiles ? { ...u.lender_profiles, is_blacklisted: isBlacklisted } : u.lender_profiles,
-      is_blacklisted: isBlacklisted,
       phone: u.phone_number,
       gender: u.lender_profiles?.gender ?? u.employee_profiles?.gender ?? null,
       department: u.employee_profiles?.department ?? null,
@@ -139,39 +125,6 @@ async function handleGetList(req: Request) {
     limit,
     totalPages: Math.ceil((count ?? 0) / limit),
   });
-}
-
-// ── [moved from functions/users-suspend-activate/index.ts] ──────────────────
-async function handleSuspendActivate(req: Request) {
-  const authResult = await requireAuth(req);
-  if (!isAuthUser(authResult)) return authResult;
-  const user = authResult;
-
-  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
-  if (roleCheck) return roleCheck;
-
-  const { user_id, action } = await req.json();
-  if (!user_id || !['suspend', 'activate'].includes(action)) {
-    return errorResponse('user_id and action (suspend|activate) are required', 400, 'VALIDATION_ERROR');
-  }
-
-  const db = getAdminClient();
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
-
-  const { data: target } = await db.from('users').select('id, account_status, roles(name)').eq('id', user_id).single();
-  if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
-
-  if ((target as any).roles?.name === 'head_manager') {
-    return errorResponse('Cannot suspend a Head Manager account', 400, 'FORBIDDEN');
-  }
-
-  const newStatus = action === 'suspend' ? 'suspended' : 'active';
-  await db.from('users').update({ account_status: newStatus }).eq('id', user_id);
-
-  await writeAuditLog({ performedBy: user.id, action, tableName: 'users', recordId: user_id, oldValues: { account_status: target.account_status }, newValues: { account_status: newStatus }, ipAddress: ip });
-  await sendPushNotification({ userId: user_id, title: action === 'suspend' ? 'Account Suspended' : 'Account Activated', body: action === 'suspend' ? 'Your account has been suspended. Contact the office.' : 'Your account has been reactivated.', type: 'account_status_change' });
-
-  return jsonResponse({ message: `User ${action}d successfully` });
 }
 
 // ── [moved from functions/users-archive/index.ts] ───────────────────────────

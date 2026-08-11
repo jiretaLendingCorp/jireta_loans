@@ -72,6 +72,10 @@ Color statusColor(String status) {
     case 'suspended':
     case 'archived':
       return AppColors.textTertiary;
+    case 'blacklisted':
+      return AppColors.statusRejected;
+    case 'whitelisted':
+      return AppColors.statusActive;
     default:
       return AppColors.textSecondary;
   }

@@ -78,6 +78,8 @@ class StatusBadge extends StatelessWidget {
         return (AppColors.info, AppColors.infoLight, 'Submitted');
       case 'suspended':
         return (AppColors.error, AppColors.errorLight, 'Suspended');
+      case 'whitelisted':
+        return (AppColors.statusActive, AppColors.statusActiveBg, 'Whitelisted');
       case 'archived':
         return (AppColors.textSecondary, const Color(0xFFF5F5F5), 'Archived');
       case 'blacklisted':

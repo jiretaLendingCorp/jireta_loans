@@ -292,6 +292,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       'active' => 'Active',
       'suspended' => 'Suspended',
       'blacklisted' => 'Blacklisted',
+      'whitelisted' => 'Whitelisted',
       'deactivated' => 'Deactivated',
       _ => (status ?? 'Active'),
     };
@@ -299,6 +300,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       'active' => AppColors.success,
       'suspended' => AppColors.warning,
       'blacklisted' || 'deactivated' => AppColors.error,
+      'whitelisted' => AppColors.success,
       _ => AppColors.goldLight,
     };
     return Container(

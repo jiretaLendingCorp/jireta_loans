@@ -211,11 +211,6 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             _buildInfoGrid([
               _InfoItem('Status', data['account_status'] ?? '—'),
-              _InfoItem(
-                  'Blacklisted',
-                  (data['lender_profiles']?['is_blacklisted'] == true)
-                      ? 'Yes'
-                      : 'No'),
               _InfoItem('Created At',
                   (data['created_at'] ?? '').toString().substring(0, 10)),
             ]),

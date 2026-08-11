@@ -2,7 +2,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
-import '../../../../../data/datasources/remote/blacklist_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
@@ -39,9 +38,8 @@ class HmLenderState {
 class HmLenderNotifier extends StateNotifier<HmLenderState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
-  final BlacklistRemoteDataSource _blds;
-  HmLenderNotifier(this._ds, this._blds) : super(const HmLenderState()) {
-    bindRealtimeRefresh(['users', 'lender_profiles', 'blacklist'],
+  HmLenderNotifier(this._ds) : super(const HmLenderState()) {
+    bindRealtimeRefresh(['users', 'lender_profiles'],
         refresh: load);
     load();
   }
@@ -75,23 +73,8 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
     await load();
   }
 
-  Future<void> suspendActivate(String userId, String action) async {
-    await _ds.suspendActivate(userId, action);
-    await load();
-  }
-
   Future<void> archive(String userId) async {
     await _ds.archive(userId);
-    await load();
-  }
-
-  Future<void> addBlacklist(String lenderId, String reason) async {
-    await _blds.addBlacklist(lenderId: lenderId, reason: reason);
-    await load();
-  }
-
-  Future<void> removeBlacklist(String lenderId) async {
-    await _blds.removeBlacklist(lenderId: lenderId);
     await load();
   }
 
@@ -107,6 +90,5 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
 final hmLenderProvider = AutoDisposeStateNotifierProvider<HmLenderNotifier, HmLenderState>(
   (ref) => HmLenderNotifier(
     sl<UserRemoteDataSource>(),
-    sl<BlacklistRemoteDataSource>(),
   ),
 );

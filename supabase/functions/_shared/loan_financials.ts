@@ -131,17 +131,6 @@ export async function hasPenaltyApplied(db: any, loanId: string): Promise<boolea
   return (count ?? 0) > 0;
 }
 
-// Active blacklist entry for a lender (lender_profiles no longer carries it).
-export async function getLenderBlacklist(db: any, lenderId: string) {
-  const { data } = await db
-    .from('blacklist')
-    .select('reason, added_by, added_at, removed_by, removed_at, is_active')
-    .eq('lender_id', lenderId)
-    .eq('is_active', true)
-    .maybeSingle();
-  return data ?? null;
-}
-
 // Primary (home) address for a user (lender_profiles no longer carries it).
 export async function getLenderAddress(db: any, userId: string) {
   const { data } = await db
@@ -228,20 +217,6 @@ export async function getLoanDisbursementsBatch(db: any, loanIds: string[]) {
   for (const d of data ?? []) {
     if (!map[d.loan_id]) map[d.loan_id] = d;
   }
-  return map;
-}
-
-// Active blacklist per lender.
-export async function getLenderBlacklistBatch(db: any, lenderIds: string[]) {
-  const ids = (lenderIds ?? []).filter(Boolean);
-  const map: Record<string, any> = {};
-  if (ids.length === 0) return map;
-  const { data } = await db
-    .from('blacklist')
-    .select('lender_id')
-    .eq('is_active', true)
-    .in('lender_id', ids);
-  for (const b of data ?? []) map[b.lender_id] = b;
   return map;
 }
 

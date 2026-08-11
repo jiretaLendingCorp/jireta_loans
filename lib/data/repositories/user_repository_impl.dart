@@ -48,9 +48,5 @@ class UserRepositoryImpl implements IUserRepository {
       _ds.updateProfile(data);
 
   @override
-  Future<void> suspendActivate(String userId, String action) =>
-      _ds.suspendActivate(userId, action);
-
-  @override
   Future<void> archive(String userId) => _ds.archive(userId);
 }

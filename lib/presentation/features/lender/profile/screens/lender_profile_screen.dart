@@ -276,6 +276,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       'active' => 'Active',
       'suspended' => 'Suspended',
       'blacklisted' => 'Blacklisted',
+      'whitelisted' => 'Whitelisted',
       'deactivated' => 'Deactivated',
       _ => (status ?? 'Active'),
     };
@@ -283,6 +284,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       'active' => AppColors.success,
       'suspended' => AppColors.warning,
       'blacklisted' || 'deactivated' => AppColors.error,
+      'whitelisted' => AppColors.success,
       _ => AppColors.goldLight,
     };
     return Container(

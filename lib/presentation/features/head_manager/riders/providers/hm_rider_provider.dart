@@ -95,11 +95,6 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
     await load();
   }
 
-  Future<void> suspendActivate(String userId, String action) async {
-    await _ds.suspendActivate(userId, action);
-    await load();
-  }
-
   Future<void> archive(String userId) async {
     await _ds.archive(userId);
     await load();
