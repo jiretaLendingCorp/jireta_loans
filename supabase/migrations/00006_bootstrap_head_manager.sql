@@ -25,6 +25,8 @@
 -- IDEMPOTENT — safe to re-run; skips if the email already exists.
 -- ═══════════════════════════════════════════════════════════════════════════
 
+SET search_path = public, extensions;
+
 DO $$
 DECLARE
   -- ── CHANGE THESE THREE VALUES ─────────────────────────────────────────

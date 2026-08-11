@@ -3,108 +3,120 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   // Auth
-  static const String authLogin = 'auth-login';
-  static const String authSendOtp = 'auth-send-otp';
-  static const String authVerifyOtp = 'auth-verify-otp';
-  static const String authForceChangePassword = 'auth-force-change-password';
-  static const String authForgotPassword = 'auth-forgot-password';
-  static const String authResetPassword = 'auth-reset-password';
-  static const String authLogout = 'auth-logout';
-  static const String authRefreshSession = 'auth-refresh-session';
-  static const String authTermsAccept = 'auth-terms-accept';
+  static const String authLogin = 'auth-login?fn=login';
+  static const String authSendOtp = 'auth-otp?fn=send-otp';
+  static const String authVerifyOtp = 'auth-otp?fn=verify-otp';
+  static const String authForceChangePassword =
+      'auth-password?fn=force-change-password';
+  static const String authForgotPassword = 'auth-password?fn=forgot-password';
+  static const String authResetPassword = 'auth-password?fn=reset-password';
+  static const String authLogout = 'auth-logout?fn=logout';
+  static const String authRefreshSession = 'auth-session?fn=refresh-session';
+  static const String authTermsAccept = 'auth-session?fn=terms-accept';
 
   // Users
-  static const String usersCreateEmployee = 'users-create-employee';
-  static const String usersCreateRider = 'users-create-rider';
-  static const String usersCreateLender = 'users-create-lender';
-  static const String usersUpdateProfile = 'users-update-profile';
-  static const String usersGetProfile = 'users-get-profile';
-  static const String usersGetList = 'users-get-list';
-  static const String usersSuspendActivate = 'users-suspend-activate';
-  static const String usersArchive = 'users-archive';
+  static const String usersCreateEmployee = 'users-create?fn=create-employee';
+  static const String usersCreateRider = 'users-create?fn=create-rider';
+  static const String usersCreateLender = 'users-create?fn=create-lender';
+  static const String usersUpdateProfile = 'users-manage?fn=update-profile';
+  static const String usersGetProfile = 'users-manage?fn=get-profile';
+  static const String usersGetList = 'users-admin?fn=get-list';
+  static const String usersSuspendActivate = 'users-admin?fn=suspend-activate';
+  static const String usersArchive = 'users-admin?fn=archive';
 
   // KYC
-  static const String kycSubmit = 'kyc-submit';
-  static const String kycVerify = 'kyc-verify';
-  static const String kycGetList = 'kyc-get-list';
-  static const String kycGetStatus = 'kyc-get-status';
-  static const String kycGetDetails = 'kyc-get-details';
+  static const String kycSubmit = 'kyc-submit?fn=submit';
+  static const String kycVerify = 'kyc-view?fn=verify';
+  static const String kycGetList = 'kyc-view?fn=get-list';
+  static const String kycGetStatus = 'kyc-view?fn=get-status';
+  static const String kycGetDetails = 'kyc-view?fn=get-details';
 
   // Loans
-  static const String loansApply = 'loans-apply';
-  static const String loansApprove = 'loans-approve';
-  static const String loansReject = 'loans-reject';
-  static const String loansCancel = 'loans-cancel';
-  static const String loansGetList = 'loans-get-list';
-  static const String loansGetDetails = 'loans-get-details';
-  static const String loansGetSchedulePreview = 'loans-get-schedule-preview';
-  static const String loansApplyPenalty = 'loans-apply-penalty';
-  static const String loansRequestCi = 'loans-request-ci';
+  static const String loansApply = 'loans-apply?fn=apply';
+  static const String loansApprove = 'loans-manage?fn=approve';
+  static const String loansReject = 'loans-manage?fn=reject';
+  static const String loansCancel = 'loans-manage?fn=cancel';
+  static const String loansGetList = 'loans-view?fn=get-list';
+  static const String loansGetDetails = 'loans-view?fn=get-details';
+  static const String loansGetSchedulePreview =
+      'loans-view?fn=get-schedule-preview';
+  static const String loansApplyPenalty = 'loans-manage?fn=apply-penalty';
+  static const String loansRequestCi = 'loans-manage?fn=request-ci';
 
   // Credit Investigation
-  static const String ciAssign = 'ci-assign';
-  static const String ciAccept = 'ci-accept';
-  static const String ciDecline = 'ci-decline';
-  static const String ciUploadDocuments = 'ci-upload-documents';
-  static const String ciSubmitReport = 'ci-submit-report';
-  static const String ciGetList = 'ci-get-list';
+  static const String ciAssign = 'ci-manage?fn=assign';
+  static const String ciAccept = 'ci-manage?fn=accept';
+  static const String ciDecline = 'ci-manage?fn=decline';
+  static const String ciUploadDocuments = 'ci-submit?fn=upload-documents';
+  static const String ciSubmitReport = 'ci-submit?fn=submit-report';
+  static const String ciGetList = 'ci-view?fn=get-list';
 
   // Collections
-  static const String collectionsAssign = 'collections-assign';
-  static const String collectionsAccept = 'collections-accept';
-  static const String collectionsDecline = 'collections-decline';
-  static const String collectionsRecord = 'collections-record';
-  static const String collectionsUploadProof = 'collections-upload-proof';
-  static const String collectionsGetList = 'collections-get-list';
+  static const String collectionsAssign = 'collections-manage?fn=assign';
+  static const String collectionsAccept = 'collections-manage?fn=accept';
+  static const String collectionsDecline = 'collections-manage?fn=decline';
+  static const String collectionsRecord = 'collections-manage?fn=record';
+  static const String collectionsUploadProof =
+      'collections-manage?fn=upload-proof';
+  static const String collectionsGetList = 'collections-view?fn=get-list';
 
   // Payments
-  static const String paymentsRecordOffice = 'payments-record-office';
+  static const String paymentsRecordOffice = 'payments-manage?fn=record-office';
   static const String paymentsGenerateXenditLink =
-      'payments-generate-xendit-link';
+      'payments-xendit-link?fn=generate';
   static const String paymentsXenditWebhook = 'payments-xendit-webhook';
-  static const String paymentsReverse = 'payments-reverse';
-  static const String paymentsGetReceipt = 'payments-get-receipt';
-  static const String paymentsGetList = 'payments-get-list';
+  static const String paymentsReverse = 'payments-manage?fn=reverse';
+  static const String paymentsGetReceipt = 'payments-view?fn=get-receipt';
+  static const String paymentsGetList = 'payments-view?fn=get-list';
 
   // Disbursements
-  static const String disbursementsGcash = 'disbursements-gcash';
-  static const String disbursementsOfficeCash = 'disbursements-office-cash';
+  static const String disbursementsGcash = 'disbursements-gcash?fn=gcash';
+  static const String disbursementsOfficeCash =
+      'disbursements-delivery?fn=office-cash';
   static const String disbursementsRiderDelivery =
-      'disbursements-rider-delivery';
+      'disbursements-delivery?fn=rider-delivery';
   static const String disbursementsXenditWebhook =
       'disbursements-xendit-webhook';
+  static const String disbursementsGetList = 'disbursements-view?fn=get-list';
 
   // Blacklist
-  static const String blacklistAdd = 'blacklist-add';
-  static const String blacklistRemove = 'blacklist-remove';
-  static const String blacklistGetList = 'blacklist-get-list';
+  static const String blacklistAdd = 'blacklist-manage?fn=add';
+  static const String blacklistRemove = 'blacklist-manage?fn=remove';
+  static const String blacklistGetList = 'blacklist-view?fn=get-list';
 
   // Location
-  static const String locationUpdateRider = 'location-update-rider';
-  static const String locationGetRider = 'location-get-rider';
+  static const String locationUpdateRider = 'location-manage?fn=update-rider';
+  static const String locationGetRider = 'location-manage?fn=get-rider';
 
   // Notifications
-  static const String notificationsSend = 'notifications-send';
-  static const String notificationsGetList = 'notifications-get-list';
-  static const String notificationsMarkRead = 'notifications-mark-read';
+  static const String notificationsSend = 'notifications-send?fn=send';
+  static const String notificationsGetList = 'notifications-view?fn=get-list';
+  static const String notificationsMarkRead = 'notifications-view?fn=mark-read';
 
   // Reports
-  static const String reportsGenerate = 'reports-generate';
-  static const String reportsGetList = 'reports-get-list';
-  static const String reportsGetHistory = 'reports-get-history';
+  static const String reportsGenerate = 'reports-generate?fn=generate';
+  static const String reportsGetList = 'reports-view?fn=get-list';
+  static const String reportsGetHistory = 'reports-view?fn=get-history';
 
   // In-Office
-  static const String inOfficeCreateDraft = 'in-office-create-draft';
-  static const String inOfficeSaveStep = 'in-office-save-step';
-  static const String inOfficeSubmit = 'in-office-submit';
-  static const String inOfficeGetList = 'in-office-get-list';
+  static const String inOfficeCreateDraft = 'in-office-create?fn=create-draft';
+  static const String inOfficeSaveStep = 'in-office-create?fn=save-step';
+  static const String inOfficeSubmit = 'in-office-view?fn=submit';
+  static const String inOfficeGetList = 'in-office-view?fn=get-list';
 
   // KPIs
-  static const String kpiHeadManager = 'kpi-head-manager';
-  static const String kpiEmployee = 'kpi-employee';
-  static const String kpiRider = 'kpi-rider';
-  static const String kpiLender = 'kpi-lender';
+  static const String kpiHeadManager = 'kpi-view?fn=head-manager';
+  static const String kpiEmployee = 'kpi-view?fn=employee';
+  static const String kpiRider = 'kpi-view?fn=rider';
+  static const String kpiLender = 'kpi-view?fn=lender';
+
+  // System
+  static const String systemGetConfig = 'system-view?fn=get-config';
+  static const String systemUpdateConfig = 'system-update-config';
+  static const String systemGetSmsTemplates = 'system-view?fn=get-sms-templates';
+  static const String systemUpdateSmsTemplate =
+      'system-view?fn=update-sms-template';
 
   // Audit
-  static const String auditGetLogs = 'audit-get-logs';
+  static const String auditGetLogs = 'audit-get-logs?fn=get-logs';
 }

@@ -14,7 +14,7 @@ class DisbursementRemoteDataSource {
     int limit = 20,
   }) async {
     final res = await _client.get(
-      'disbursements-get-list',
+      ApiEndpoints.disbursementsGetList,
       queryParams: {
         if (method != null) 'method': method,
         if (status != null) 'status': status,
@@ -96,7 +96,7 @@ class DisbursementRemoteDataSource {
   Future<DisbursementModel?> getDisbursementDetail(String disbursementId) async {
     try {
       final res = await _client.get(
-        'disbursements-get-list',
+        ApiEndpoints.disbursementsGetList,
         queryParams: {'disbursement_id': disbursementId, 'limit': 1},
       );
       final data = res.data;

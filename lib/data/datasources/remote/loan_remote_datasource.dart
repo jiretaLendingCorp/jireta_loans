@@ -134,7 +134,7 @@ class LoanRemoteDataSource {
       {int page = 1, int limit = 50}) async {
     try {
       final res = await _client.get(
-        'loans-get-list',
+        ApiEndpoints.loansGetList,
         queryParams: {'include_penalties': true, 'page': page, 'limit': limit},
       );
       final list = (res.data['penalty_logs'] as List?) ?? [];

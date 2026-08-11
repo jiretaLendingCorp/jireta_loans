@@ -1,0 +1,106 @@
+// supabase/functions/blacklist-view/index.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// MERGED EDGE FUNCTION — routes multiple actions through ONE deployable
+// function using the `?fn=<action>` query parameter.
+//
+//   blacklist-get-list  →  ?fn=get-list
+//
+// The original per-action logic is preserved verbatim below; each handler is
+// only wrapped so it can live in a single `serve()`.
+// ─────────────────────────────────────────────────────────────────────────────
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
+import { requireAuth, isAuthUser } from '../_shared/auth.ts';
+import { requireRole, ROLES } from '../_shared/rbac.ts';
+import { getAdminClient } from '../_shared/db.ts';
+
+// ══ ROUTER ══════════════════════════════════════════════════════════════════
+const DEFAULT_ACTION = 'get-list';
+
+serve(async (req) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  try {
+    const fn = new URL(req.url).searchParams.get('fn') ?? DEFAULT_ACTION;
+    switch (fn) {
+      case 'get-list':
+        // ── [moved from functions/blacklist-get-list/index.ts] ──────────
+        return await handleGetList(req);
+      default:
+        return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
+    }
+  } catch (err) {
+    console.error('blacklist-view error:', err);
+    return errorResponse('Internal server error', 500, 'SERVER_ERROR');
+  }
+});
+
+// ── [moved from functions/blacklist-get-list/index.ts] ──────────────────────
+async function handleGetList(req: Request) {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  try {
+    const authResult = await requireAuth(req);
+    if (!isAuthUser(authResult)) return authResult;
+    const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER);
+    if (roleCheck) return roleCheck;
+
+    const db = getAdminClient();
+    const url = new URL(req.url);
+    const page = parseInt(url.searchParams.get('page') ?? '1');
+    const limit = parseInt(url.searchParams.get('limit') ?? '20');
+    const search = url.searchParams.get('search') ?? '';
+    const isActive = url.searchParams.get('is_active');
+    const dateFrom = url.searchParams.get('date_from');
+    const dateTo = url.searchParams.get('date_to');
+    const offset = (page - 1) * limit;
+
+    let query = db
+      .from('blacklist')
+      .select(
+        `id, reason, is_active, added_at, removed_at,
+         lender:lender_profiles!blacklist_lender_id_fkey(
+           id,
+           users!lender_profiles_id_fkey(id, first_name, last_name, phone_number),
+           gcash_number, kyc_status
+         ),
+         added_by_user:users!blacklist_added_by_fkey(id, first_name, last_name),
+         removed_by_user:users!blacklist_removed_by_fkey(id, first_name, last_name)`,
+        { count: 'exact' }
+      )
+      .order('added_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (isActive !== null && isActive !== '') query = query.eq('is_active', isActive === 'true');
+    if (dateFrom) query = query.gte('added_at', dateFrom);
+    if (dateTo) query = query.lte('added_at', dateTo);
+
+    const { data, error, count } = await query;
+    if (error) return errorResponse('Failed to fetch blacklist', 500, 'DB_ERROR');
+
+    let filtered = data ?? [];
+    if (search) {
+      const s = search.toLowerCase();
+      filtered = filtered.filter((b: any) => {
+        const borrower = b.lender?.users ?? b.lender;
+        const name = `${borrower?.first_name} ${borrower?.last_name}`.toLowerCase();
+        return name.includes(s) || borrower?.phone_number?.includes(s);
+      });
+    }
+
+    return jsonResponse({
+      data: filtered,
+      meta: {
+        page,
+        limit,
+        total: count ?? 0,
+        total_pages: Math.ceil((count ?? 0) / limit),
+      },
+    });
+  } catch (err) {
+    console.error('blacklist-get-list error:', err);
+    return errorResponse('Internal server error', 500, 'SERVER_ERROR');
+  }
+}

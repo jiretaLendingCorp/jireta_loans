@@ -8,12 +8,12 @@ import '../../security/secure_storage.dart';
 // Endpoints that don't own a session — a 401 from them means bad credentials,
 // NOT an expired token. Never attempt a refresh for these paths.
 const _noRefreshPaths = {
-  'auth-login',
-  'auth-send-otp',
-  'auth-verify-otp',
-  'auth-forgot-password',
-  'auth-reset-password',
-  'auth-logout',
+  'auth-login?fn=login',
+  'auth-otp?fn=send-otp',
+  'auth-otp?fn=verify-otp',
+  'auth-password?fn=forgot-password',
+  'auth-password?fn=reset-password',
+  'auth-logout?fn=logout',
 };
 
 class AuthInterceptor extends Interceptor {

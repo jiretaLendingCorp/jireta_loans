@@ -24,7 +24,7 @@ class AppConstants {
   static const String userIdKey = 'user_id';
   static const String userRoleKey = 'user_role';
 
-  static const String authRefreshPath = 'auth-refresh-session';
+  static const String authRefreshPath = 'auth-session?fn=refresh-session';
 
   static const String roleHeadManager = 'head_manager';
   static const String roleEmployee = 'employee';

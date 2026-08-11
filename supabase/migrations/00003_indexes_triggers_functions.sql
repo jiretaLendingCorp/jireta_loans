@@ -1,6 +1,8 @@
 -- supabase/migrations/00003_indexes_triggers_functions.sql
 BEGIN;
 
+SET search_path = public, extensions;
+
 CREATE TABLE IF NOT EXISTS rate_limit_logs (
   id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   key        TEXT        NOT NULL,

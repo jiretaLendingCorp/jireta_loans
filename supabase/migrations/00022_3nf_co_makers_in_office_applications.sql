@@ -18,6 +18,8 @@
 
 BEGIN;
 
+SET search_path = public, extensions;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 1) co_makers → person entity + loan_co_makers relationship table
 -- ─────────────────────────────────────────────────────────────────────────────
