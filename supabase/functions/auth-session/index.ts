@@ -13,6 +13,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { isAuthUser, requireAuth } from '../_shared/auth.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { singleWithObjectEmbeds } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'refresh-session';
@@ -48,11 +49,12 @@ async function handleRefreshSession(req: Request) {
   const { data, error } = await db.auth.refreshSession({ refresh_token });
   if (error || !data.session) return errorResponse('Invalid or expired refresh token', 401, 'UNAUTHORIZED');
 
-  const { data: dbUser } = await db
+  const { data: dbUserRow } = await db
     .from('users')
     .select('id, account_status, force_password_change, roles(name)')
     .eq('id', data.user!.id)
     .single();
+  const dbUser = singleWithObjectEmbeds(dbUserRow);
 
   if (!dbUser) return errorResponse('User not found', 401, 'UNAUTHORIZED');
   if (dbUser.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
@@ -62,7 +64,7 @@ async function handleRefreshSession(req: Request) {
     refresh_token: data.session.refresh_token,
     user: {
       id: dbUser.id,
-      role: (dbUser as any).roles?.name,
+      role: dbUser?.roles?.name,
       force_password_change: dbUser.force_password_change,
     },
   });

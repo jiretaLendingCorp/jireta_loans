@@ -2,11 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
-import '../../../shared/providers/auth_state_provider.dart';
 
 class ForceChangePasswordScreen extends ConsumerStatefulWidget {
   const ForceChangePasswordScreen({super.key});
@@ -68,24 +66,9 @@ class _ForceChangePasswordScreenState
         );
     if (!mounted) return;
     if (ok) {
-      final state = ref.read(authStateProvider);
-      final role = state.role;
-      switch (role) {
-        case AppConstants.roleHeadManager:
-          context.go(RouteConstants.hmDashboard);
-          break;
-        case AppConstants.roleEmployee:
-          context.go(RouteConstants.empDashboard);
-          break;
-        case AppConstants.roleRider:
-          context.go(RouteConstants.riderDashboard);
-          break;
-        case AppConstants.roleLender:
-          context.go(RouteConstants.lenderDashboard);
-          break;
-        default:
-          context.go(RouteConstants.webLogin);
-      }
+      await ref.read(authProvider.notifier).logout();
+      if (!mounted) return;
+      context.go(RouteConstants.webLogin);
     } else {
       final err = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(

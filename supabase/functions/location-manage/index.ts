@@ -70,8 +70,8 @@ async function handleUpdateRider(req: Request) {
     if (roleCheck) return roleCheck;
 
     const rateLimitKey = `location_update_${authResult.id}`;
-    const limited = await checkRateLimit(rateLimitKey, 2, 60);
-    if (limited) return errorResponse('Rate limit exceeded. One update per 30s.', 429, 'RATE_LIMIT');
+    const limited = await checkRateLimit({ key: rateLimitKey, maxAttempts: 2, windowMinutes: 60 });
+    if (limited.allowed === false) return errorResponse('Rate limit exceeded. One update per 30s.', 429, 'RATE_LIMIT');
 
     const body = await req.json();
     const { latitude, longitude, accuracy } = body;
@@ -144,21 +144,23 @@ async function handleGetRider(req: Request) {
     const db = getAdminClient();
 
     if (authResult.role === ROLES.LENDER) {
+      const { data: loanRows } = await db
+        .from('loans')
+        .select('id')
+        .eq('lender_id', authResult.id);
+      const loanIds = (loanRows ?? []).map((r) => r.id);
+      const { data: scheduleRows } = await db
+        .from('loan_schedules')
+        .select('id')
+        .in('loan_id', loanIds);
+      const scheduleIds = (scheduleRows ?? []).map((r) => r.id);
+
       const { data: assignment } = await db
         .from('collection_assignments')
         .select('id, status, rider_id')
         .eq('rider_id', riderId)
         .eq('status', 'accepted')
-        .in(
-          'loan_schedule_id',
-          db
-            .from('loan_schedules')
-            .select('id')
-            .in(
-              'loan_id',
-              db.from('loans').select('id').eq('lender_id', authResult.id)
-            )
-        )
+        .in('loan_schedule_id', scheduleIds)
         .limit(1)
         .single();
 

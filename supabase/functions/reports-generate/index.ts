@@ -6,6 +6,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { getLoanFinancialsBatch, getLoanDisbursementsBatch } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 async function fetchReportData(
   db: ReturnType<typeof import('../_shared/db.ts').getAdminClient>,
@@ -27,11 +28,11 @@ async function fetchReportData(
       const { data } = await q;
       const rows = data ?? [];
       const [finMap, disbMap] = await Promise.all([
-        getLoanFinancialsBatch(db, rows.map((r: any) => r.id)),
-        getLoanDisbursementsBatch(db, rows.map((r: any) => r.id)),
+        getLoanFinancialsBatch(db, rows.map((r) => r.id)),
+        getLoanDisbursementsBatch(db, rows.map((r) => r.id)),
       ]);
-      return rows.map(({ id, ...r }: any) => {
-        const fin = finMap[id] ?? {};
+      return rows.map(({ id, ...r }) => {
+        const fin = finMap[id] ?? { total_payable: null, outstanding_balance: null };
         const disb = disbMap[id] ?? null;
         return {
           ...r,
@@ -49,8 +50,8 @@ async function fetchReportData(
       if (dateFrom) q = q.gte('created_at', dateFrom);
       if (dateTo) q = q.lte('created_at', dateTo);
       const { data } = await q;
-      return (data ?? []).map((p: any) => {
-        const schedule = p.loan_schedule ?? null;
+      return (data ?? []).map((p) => {
+        const schedule = embedAsObject(p.loan_schedule);
         return {
           id: p.id,
           amount: p.amount,
@@ -88,11 +89,11 @@ async function fetchReportData(
       ).eq('status', 'overdue');
       const rows = data ?? [];
       const [finMap, disbMap] = await Promise.all([
-        getLoanFinancialsBatch(db, rows.map((r: any) => r.id)),
-        getLoanDisbursementsBatch(db, rows.map((r: any) => r.id)),
+        getLoanFinancialsBatch(db, rows.map((r) => r.id)),
+        getLoanDisbursementsBatch(db, rows.map((r) => r.id)),
       ]);
-      return rows.map(({ id, ...r }: any) => {
-        const fin = finMap[id] ?? {};
+      return rows.map(({ id, ...r }) => {
+        const fin = finMap[id] ?? { total_payable: null, outstanding_balance: null };
         const disb = disbMap[id] ?? null;
         return {
           ...r,

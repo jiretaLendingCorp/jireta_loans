@@ -56,11 +56,12 @@ async function handleGenerate(req: Request) {
   const { data: schedule } = await db.from('loan_schedules').select('id, amount_due, due_date').eq('id', loan_schedule_id).eq('loan_id', loan_id).single();
   if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
   const schedulePayment = await getSchedulePayment(db, loan_schedule_id);
-  if (scheduleStatus(schedulePayment) === 'paid') return errorResponse('Installment already paid', 400, 'PAYMENT_ALREADY_MADE');
+  if (scheduleStatus(schedulePayment.amount_paid, schedule.amount_due, schedule.due_date) === 'paid') return errorResponse('Installment already paid', 400, 'PAYMENT_ALREADY_MADE');
   const { data: userInfo } = await db.from('users').select('email, first_name, last_name').eq('id', user.id).single();
   const externalId = `${loan.loan_number}-SCHED-${loan_schedule_id}-${Date.now()}`;
   const invoice = await createInvoice({ externalId, amount: schedule.amount_due, payerEmail: userInfo?.email ?? undefined, description: `Payment for ${loan.loan_number} installment due ${schedule.due_date}` });
   const { data: payment } = await db.from('payments').insert({ loan_schedule_id, amount: schedule.amount_due, payment_method: 'gcash_xendit', status: 'pending', xendit_payment_id: invoice.id, xendit_reference: externalId }).select('id').single();
+  if (!payment) return errorResponse('Failed to create payment record', 500, 'DB_ERROR');
   await db.from('xendit_logs').insert({ loan_id, payment_id: payment.id, event_type: 'payment', xendit_id: invoice.id, payload: invoice, status: 'created' });
   await writeAuditLog({ performedBy: user.id, action: 'generate_gcash_link', tableName: 'payments', recordId: payment.id, ipAddress: ip });
   return jsonResponse({ invoice_url: invoice.invoiceUrl, xendit_invoice_id: invoice.id, payment_id: payment.id });

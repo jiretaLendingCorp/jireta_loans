@@ -21,6 +21,7 @@ import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLoanFinancials, hasPenaltyApplied } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from loans-apply-penalty] ────────────────────────────────────────
 const PENALTY_RATE = 0.20;
@@ -83,7 +84,7 @@ async function handleApprove(req: Request) {
       return errorResponse(`Loan cannot be approved from ${loan.status} status`, 400, 'INVALID_STATUS');
     }
 
-    const lp = (loan as any).lender_profiles;
+    const lp = embedAsObject(loan?.lender_profiles);
     if (lp?.kyc_status !== 'verified') return errorResponse('Lender KYC must be verified', 400, 'KYC_NOT_VERIFIED');
 
     await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', loan_id);

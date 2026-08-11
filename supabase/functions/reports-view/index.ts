@@ -14,6 +14,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from reports-get-list] ───────────────────────────────────────────
 const REPORT_TEMPLATES = [
@@ -114,19 +115,21 @@ async function handleGetHistory(req: Request) {
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch report history', 500, 'DB_ERROR');
 
-    const reports = (data ?? []).map((r: any) => ({
-      id: r.id,
-      template_key: r.report_type,
-      template_name: r.title,
-      format: r.file_path_pdf ? 'pdf' : r.file_path_excel ? 'xlsx' : 'pdf',
-      file_url: r.file_path_pdf ?? r.file_path_excel ?? null,
-      generated_by:
-        r.generated_by_user
-          ? `${r.generated_by_user.first_name} ${r.generated_by_user.last_name}`.trim()
+    const reports = (data ?? []).map((r) => {
+      const generatedByUser = embedAsObject(r.generated_by_user);
+      return {
+        id: r.id,
+        template_key: r.report_type,
+        template_name: r.title,
+        format: r.file_path_pdf ? 'pdf' : r.file_path_excel ? 'xlsx' : 'pdf',
+        file_url: r.file_path_pdf ?? r.file_path_excel ?? null,
+        generated_by: generatedByUser
+          ? `${generatedByUser.first_name} ${generatedByUser.last_name}`.trim()
           : r.generated_by,
-      parameters: r.parameters,
-      created_at: r.generated_at ?? r.created_at,
-    }));
+        parameters: r.parameters,
+        created_at: r.generated_at ?? r.created_at,
+      };
+    });
 
     return jsonResponse({
       data: reports,

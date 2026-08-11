@@ -16,6 +16,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -76,7 +77,7 @@ async function handleGetList(req: Request) {
       .from('roles')
       .select('id')
       .eq('name', role);
-    roleIds = (roleRows ?? []).map((r: any) => r.id);
+    roleIds = (roleRows ?? []).map((r) => r.id);
     if (roleIds.length === 0) {
       return errorResponse('Invalid role', 400, 'VALIDATION_ERROR');
     }
@@ -97,7 +98,7 @@ async function handleGetList(req: Request) {
       .from('roles')
       .select('id')
       .in('name', ['rider', 'lender']);
-    query = query.in('role_id', (memberRows ?? []).map((r: any) => r.id));
+    query = query.in('role_id', (memberRows ?? []).map((r) => r.id));
   }
 
   if (status) query = query.eq('account_status', status);
@@ -108,13 +109,15 @@ async function handleGetList(req: Request) {
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch users', 500, 'SERVER_ERROR');
 
-  const mapped = (data ?? []).map((u: any) => {
+  const mapped = (data ?? []).map((u) => {
+    const lenderProfile = embedAsObject(u.lender_profiles);
+    const employeeProfile = embedAsObject(u.employee_profiles);
     return {
       ...u,
       phone: u.phone_number,
-      gender: u.lender_profiles?.gender ?? u.employee_profiles?.gender ?? null,
-      department: u.employee_profiles?.department ?? null,
-      position: u.employee_profiles?.position ?? null,
+      gender: lenderProfile?.gender ?? employeeProfile?.gender ?? null,
+      department: employeeProfile?.department ?? null,
+      position: employeeProfile?.position ?? null,
     };
   });
 
@@ -144,7 +147,7 @@ async function handleArchive(req: Request) {
 
   const { data: target } = await db.from('users').select('id, account_status, roles(name)').eq('id', user_id).single();
   if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
-  if ((target as any).roles?.name === 'head_manager') return errorResponse('Cannot archive a Head Manager', 400, 'FORBIDDEN');
+  if (embedAsObject(target?.roles)?.name === 'head_manager') return errorResponse('Cannot archive a Head Manager', 400, 'FORBIDDEN');
   if (target.account_status === 'archived') return errorResponse('User already archived', 400, 'INVALID_STATUS');
 
   const { count: activeLoans } = await db.from('loans').select('*', { count: 'exact', head: true })

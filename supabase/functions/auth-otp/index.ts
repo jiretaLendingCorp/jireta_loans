@@ -14,6 +14,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePhone, sanitizeString } from '../_shared/validators.ts';
 import { sendSms } from '../_shared/sms.ts';
+import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 3;
@@ -34,7 +35,7 @@ function toE164(phone: string): string {
 }
 
 // ── [moved from auth-verify-otp] ────────────────────────────────────────────
-async function selfRegisterLender(db: any, phone: string) {
+async function selfRegisterLender(db: DbClient, phone: string) {
   const { data: roleData } = await db.from('roles').select('id').eq('name', 'lender').single();
   if (!roleData) return null;
 
@@ -48,6 +49,7 @@ async function selfRegisterLender(db: any, phone: string) {
     password: OTP_PASSWORD(phone),
     phone_confirm: true,
     email_confirm: true,
+    app_metadata: { role: 'lender' },
   });
   if (authErr || !authUser?.user) return null;
 
@@ -76,11 +78,11 @@ async function selfRegisterLender(db: any, phone: string) {
   });
   if (profileErr) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});
-    await db.from('users').delete().eq('id', newUser.id).catch(() => {});
+    await Promise.resolve(db.from('users').delete().eq('id', newUser.id)).catch(() => {});
     return null;
   }
 
-  return newUser;
+  return singleWithObjectEmbeds(newUser);
 }
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
@@ -120,18 +122,19 @@ async function handleSendOtp(req: Request) {
   // Lenders may self-register via OTP: an unregistered phone is allowed to
   // request an OTP. Riders must be registered by the head manager first, so
   // once a phone IS registered we only allow OTP for rider/lender roles.
-  const { data: user } = await db
+  const { data: userRow } = await db
     .from('users')
     .select('id, account_status, roles(name)')
     .eq('phone_number', phone)
     .maybeSingle();
+  const user = singleWithObjectEmbeds(userRow);
 
   let userId: string | null = null;
   if (user) {
     if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
     if (user.account_status === 'inactive') return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
 
-    const role = (user as any).roles?.name;
+    const role = user?.roles?.name;
     if (!['rider', 'lender'].includes(role)) return errorResponse('OTP login not available for this role', 403, 'FORBIDDEN');
     userId = user.id;
   }
@@ -218,16 +221,17 @@ async function handleVerifyOtp(req: Request) {
     await db.from('otp_codes').update({ used: true }).eq('id', otpRow.id);
   }
 
-  let { data: user } = await db
+  const { data: userRow } = await db
     .from('users')
     .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)')
     .eq('phone_number', phone)
     .maybeSingle();
+  let user = singleWithObjectEmbeds(userRow);
 
   // Self-registration: an unregistered phone that passes OTP becomes a
   // lender automatically (head-manager pre-registration no longer required).
   if (!user) {
-    user = await selfRegisterLender(db, phone);
+    user = singleWithObjectEmbeds(await selfRegisterLender(db, phone));
     if (!user) return errorResponse('Failed to create account', 500, 'SERVER_ERROR');
   }
 
@@ -249,7 +253,7 @@ async function handleVerifyOtp(req: Request) {
       () => db.auth.signInWithPassword({ email: tempEmail, password }),
     ];
     for (const attempt of attempts) {
-      const { data, error } = await attempt().catch((e: any) => {
+      const { data, error } = await attempt().catch((e) => {
         console.error('[auth-verify-otp] signInWithPassword error:', e?.message ?? e);
         return { data: null, error: e };
       });
@@ -271,7 +275,7 @@ async function handleVerifyOtp(req: Request) {
   // JWT — sending it as a Bearer token makes GoTrue reject every subsequent
   // request with "Invalid JWT format". Recovery only ever issues REAL sessions.
   if (!session) {
-    const adminUserId = (user as any)?.id;
+    const adminUserId = user?.id;
 
     // 1) The auth user may already exist with an unknown password. The phone
     //    was just OTP-verified, so reset its password (+ temp email) and sign in.
@@ -283,7 +287,7 @@ async function handleVerifyOtp(req: Request) {
           phone_confirm: true,
           email_confirm: true,
         })
-        .catch((e: any) => {
+        .catch((e) => {
           console.error('[auth-verify-otp] updateUserById error:', e?.message ?? e);
           return { error: e };
         });
@@ -302,8 +306,9 @@ async function handleVerifyOtp(req: Request) {
           password: OTP_PASSWORD(phone),
           phone_confirm: true,
           email_confirm: true,
+          app_metadata: { role: 'lender' },
         })
-        .catch((e: any) => {
+        .catch((e) => {
           console.error('[auth-verify-otp] createUser error:', e?.message ?? e);
           return { data: null, error: e };
         });
@@ -319,23 +324,23 @@ async function handleVerifyOtp(req: Request) {
   }
 
   await db.from('auth_logs').insert({
-    user_id: (user as any).id,
+    user_id: user.id,
     event_type: 'login_success',
     ip_address: req.headers.get('x-forwarded-for') ?? 'unknown',
   });
-  await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', (user as any).id);
+  await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
 
   return jsonResponse({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
     user: {
-      id: (user as any).id,
+      id: user.id,
       phone,
-      role: (user as any)?.roles?.name,
-      first_name: (user as any)?.first_name ?? '',
-      last_name: (user as any)?.last_name ?? '',
-      phone_number: (user as any)?.phone_number ?? phone,
-      force_password_change: (user as any)?.force_password_change,
+      role: user?.roles?.name,
+      first_name: user?.first_name ?? '',
+      last_name: user?.last_name ?? '',
+      phone_number: user?.phone_number ?? phone,
+      force_password_change: user?.force_password_change,
     },
   });
 }

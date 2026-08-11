@@ -20,6 +20,7 @@ import { validatePagination } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddressBatch, getLenderAddress } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'verify';
@@ -83,7 +84,7 @@ async function handleVerify(req: Request) {
     if (kyc_doc_id) {
       const { data: doc } = await db.from('kyc_documents').select('id, lender_id, status').eq('id', kyc_doc_id).single();
       if (!doc) return errorResponse('KYC document not found', 404, 'NOT_FOUND');
-      targetLenderId = (doc as any).lender_id;
+      targetLenderId = doc?.lender_id;
       singleDocId = kyc_doc_id;
     }
 
@@ -100,8 +101,8 @@ async function handleVerify(req: Request) {
     if (updateError) return errorResponse('Failed to update KYC documents', 500, 'DB_ERROR');
 
     const { data: allDocs } = await db.from('kyc_documents').select('status').eq('lender_id', targetLenderId);
-    const anyRejected = allDocs?.some((d: any) => d.status === 'rejected');
-    const allVerified = allDocs?.every((d: any) => d.status === 'verified');
+    const anyRejected = allDocs?.some((d) => d.status === 'rejected');
+    const allVerified = allDocs?.every((d) => d.status === 'verified');
 
     let newKycStatus = 'submitted';
     if (anyRejected) newKycStatus = 'rejected';
@@ -113,17 +114,17 @@ async function handleVerify(req: Request) {
       performedBy: user.id,
       action: singleDocId ? `kyc_doc_${action}` : `kyc_all_${action}`,
       tableName: 'kyc_documents',
-      recordId: singleDocId ?? targetLenderId,
+      recordId: singleDocId ?? targetLenderId ?? kyc_doc_id ?? '',
       ipAddress: ip,
     });
     await sendPushNotification({
-      userId: targetLenderId,
+      userId: targetLenderId ?? kyc_doc_id ?? '',
       title: action === 'verified' ? 'KYC Verified' : 'KYC Rejected',
       body: action === 'verified'
         ? 'All of your KYC documents have been verified.'
         : `KYC rejected: ${rejection_notes}`,
       type: 'kyc_update',
-      referenceId: singleDocId ?? targetLenderId,
+      referenceId: singleDocId ?? targetLenderId ?? '',
       sentBy: user.id,
     });
 
@@ -154,7 +155,7 @@ async function handleGetList(req: Request) {
 
     let query = db.from('lender_profiles')
       .select(`
-        id, kyc_status,
+        id, kyc_status, updated_at,
         source_of_funds, gender, civil_status, date_of_birth, employment_type,
         employer_name, monthly_income, gcash_number,
         users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, suffix, phone_number, email, account_status, profile_photo_url),
@@ -172,25 +173,26 @@ async function handleGetList(req: Request) {
     if (error) return errorResponse(`Failed to fetch KYC list: ${error.message}`, 500, 'SERVER_ERROR');
 
     const rows = data ?? [];
-    const lenderIds = rows.map((r: any) => r.id);
+    const lenderIds = rows.map((r) => r.id);
     const addressMap = await getLenderAddressBatch(db, lenderIds);
 
     // One row per lender (NOT one per document). Staff should see a single
     // submission per borrower with a document count; document-level review
     // happens inside kyc-get-details / kyc-verify. `id` is the lender id so
     // the client can navigate straight to the lender's KYC details.
-    const mapped = (rows ?? []).map((row: any) => {
+    const mapped = (rows ?? []).map((row) => {
       const address = addressMap[row.id] ?? null;
+      const users = embedAsObject(row.users);
       const lender = {
-        id: row.users?.id ?? row.id,
-        first_name: row.users?.first_name,
-        middle_name: row.users?.middle_name,
-        last_name: row.users?.last_name,
-        suffix: row.users?.suffix,
-        phone_number: row.users?.phone_number,
-        email: row.users?.email,
-        account_status: row.users?.account_status,
-        profile_photo_url: row.users?.profile_photo_url,
+        id: users?.id ?? row.id,
+        first_name: users?.first_name,
+        middle_name: users?.middle_name,
+        last_name: users?.last_name,
+        suffix: users?.suffix,
+        phone_number: users?.phone_number,
+        email: users?.email,
+        account_status: users?.account_status,
+        profile_photo_url: users?.profile_photo_url,
         kyc_status: row.kyc_status,
         street_address: address?.street ?? null,
         barangay: address?.barangay ?? null,
@@ -208,9 +210,9 @@ async function handleGetList(req: Request) {
       };
 
       const docs = row.kyc_documents ?? [];
-      const docTypes = [...new Set(docs.map((d: any) => d.document_type))];
+      const docTypes = [...new Set(docs.map((d) => d.document_type))];
       const latestUpload = docs.length
-        ? docs.reduce((a: any, b: any) =>
+        ? docs.reduce((a, b) =>
             (a.uploaded_at ?? '') > (b.uploaded_at ?? '') ? a : b)
         : null;
 
@@ -282,7 +284,7 @@ async function handleGetStatus(req: Request) {
         }
       : null;
 
-    const documents = (docs ?? []).map((d: any) => ({
+    const documents = (docs ?? []).map((d) => ({
       ...d,
       file_url: d.file_path,
       created_at: d.uploaded_at,
@@ -318,7 +320,7 @@ async function handleGetDetails(req: Request) {
 
     // Resolve the lender_id from either the document id or a direct lender id.
     let targetLenderId = lenderId;
-    let document: any = null;
+    let document: Record<string, unknown> | null = null;
     if (kycDocId) {
       const { data: raw, error } = await db
         .from('kyc_documents')
@@ -326,18 +328,18 @@ async function handleGetDetails(req: Request) {
         .eq('id', kycDocId)
         .single();
       if (error || !raw) return errorResponse('KYC document not found', 404, 'NOT_FOUND');
-      targetLenderId = (raw as any).lender_id;
+      targetLenderId = raw?.lender_id;
       document = {
-        id: (raw as any).id,
-        lender_id: (raw as any).lender_id,
-        document_type: (raw as any).document_type,
-        file_url: (raw as any).file_path,
-        file_name: (raw as any).file_name,
-        status: (raw as any).status,
-        created_at: (raw as any).uploaded_at,
-        rejection_notes: (raw as any).rejection_notes,
-        reviewed_by: (raw as any).reviewed_by,
-        reviewed_at: (raw as any).reviewed_at,
+        id: raw.id,
+        lender_id: raw.lender_id,
+        document_type: raw.document_type,
+        file_url: raw.file_path,
+        file_name: raw.file_name,
+        status: raw.status,
+        created_at: raw.uploaded_at,
+        rejection_notes: raw.rejection_notes,
+        reviewed_by: raw.reviewed_by,
+        reviewed_at: raw.reviewed_at,
       };
     }
 
@@ -375,7 +377,7 @@ async function handleGetDetails(req: Request) {
       // http://localhost:8000/storage/v1/object/sign/...). Only prefix with the
       // storage base URL when the SDK returns a bare relative path so we never
       // produce a doubled URL like .../storage/v1http://.../storage/v1/object.
-      const signedPath = (data as any)?.signedUrl as string | null ?? null;
+      const signedPath = data?.signedUrl as string | null ?? null;
       if (!signedPath) return null;
       return signedPath.startsWith('http')
         ? signedPath
@@ -383,8 +385,8 @@ async function handleGetDetails(req: Request) {
     };
     const signedUrls = new Map<string, string | null>();
     for (const d of (docs ?? [])) {
-      const p = (d as any).file_path as string;
-      if (p) signedUrls.set((d as any).id, await signOne(p));
+      const p = d.file_path as string;
+      if (p) signedUrls.set(d.id, await signOne(p));
     }
 
     const { data: emergencyContacts } = await db
@@ -395,17 +397,17 @@ async function handleGetDetails(req: Request) {
     const address = await getLenderAddress(db, targetLenderId!);
 
     const lender = {
-      id: (userRow as any)?.id ?? targetLenderId,
-      first_name: (userRow as any)?.first_name,
-      middle_name: (userRow as any)?.middle_name,
-      last_name: (userRow as any)?.last_name,
-      suffix: (userRow as any)?.suffix,
-      phone_number: (userRow as any)?.phone_number,
-      email: (userRow as any)?.email,
-      account_status: (userRow as any)?.account_status,
-      profile_photo_url: (userRow as any)?.profile_photo_url,
-      created_at: (userRow as any)?.created_at,
-      ...(lenderProfile as any ?? {}),
+      id: userRow?.id ?? targetLenderId,
+      first_name: userRow?.first_name,
+      middle_name: userRow?.middle_name,
+      last_name: userRow?.last_name,
+      suffix: userRow?.suffix,
+      phone_number: userRow?.phone_number,
+      email: userRow?.email,
+      account_status: userRow?.account_status,
+      profile_photo_url: userRow?.profile_photo_url,
+      created_at: userRow?.created_at,
+      ...(lenderProfile ?? {}),
       street_address: address?.street ?? null,
       barangay: address?.barangay ?? null,
       city: address?.city ?? null,
@@ -413,7 +415,7 @@ async function handleGetDetails(req: Request) {
       zip_code: address?.zip_code ?? null,
     };
 
-    const documents = (docs ?? []).map((d: any) => ({
+    const documents = (docs ?? []).map((d) => ({
       id: d.id,
       lender_id: d.lender_id,
       document_type: d.document_type,
@@ -430,7 +432,7 @@ async function handleGetDetails(req: Request) {
     return jsonResponse({
       document,
       lender_id: targetLenderId,
-      kyc_status: (lenderProfile as any)?.kyc_status ?? 'not_submitted',
+      kyc_status: lenderProfile?.kyc_status ?? 'not_submitted',
       lender,
       documents,
       emergency_contacts: emergencyContacts ?? [],

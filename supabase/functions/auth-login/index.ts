@@ -13,6 +13,7 @@ import {
   sanitizeString,
   validateEmail,
 } from '../_shared/validators.ts';
+import { singleWithObjectEmbeds } from '../_shared/types.ts';
 
 const MAX_FAILED      = 5;
 const LOCKOUT_MINUTES = 15;
@@ -52,11 +53,12 @@ serve(async (req) => {
     // Users MUST be created through the users-create-employee / users-create-
     // rider / users-create-lender Edge Functions, or bootstrapped via the
     // 00006_bootstrap_head_manager.sql migration script.
-   const { data: user, error: userErr } = await db
+   const { data: userRow, error: userErr } = await db
   .from('users')
   .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
   .eq('email', cleanEmail)
   .single();
+  const user = singleWithObjectEmbeds(userRow);
 
     if (userErr || !user) {
       // ── DIAGNOSTIC ────────────────────────────────────────────────────────
@@ -78,7 +80,7 @@ serve(async (req) => {
     }
 
     // ── Step 5: role check ────────────────────────────────────────────────
-    const role = (user as any).roles?.name as string | undefined;
+    const role = user?.roles?.name as string | undefined;
 
     if (!role) {
       // roles(name) join returned null → role_id FK is broken or roles table
@@ -111,7 +113,7 @@ serve(async (req) => {
       .order('created_at', { ascending: false });
 
     const failCount = recentLogs?.length ?? 0;
-    const isLocked  = recentLogs?.some((l: any) => l.is_locked) ?? false;
+    const isLocked  = recentLogs?.some((l) => l.is_locked) ?? false;
 
     if (isLocked || failCount >= MAX_FAILED) {
       return errorResponse(

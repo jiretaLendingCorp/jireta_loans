@@ -47,7 +47,7 @@ function normalizeDocumentType(v?: string | null): string | null {
 
 // ── [moved from in-office-save-step] ────────────────────────────────────────
 interface StepHandlers {
-  [step: number]: (applicationId: string, data: any) => Promise<void>;
+  [step: number]: (applicationId: string, data: Record<string, unknown>) => Promise<void>;
 }
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
@@ -150,7 +150,7 @@ async function handleSaveStep(req: Request) {
 
   try {
     await handlers[step](application_id, data);
-  } catch (err: any) {
+  } catch (err) {
     console.error('save-step handler error:', err);
     return errorResponse('Failed to save step data', 500, 'DB_ERROR');
   }
@@ -177,7 +177,7 @@ async function handleSaveStep(req: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
-async function saveStep1(applicationId: string, data: any) {
+async function saveStep1(applicationId: string, data: Record<string, unknown>) {
   const client = db();
   await client.from('application_personal_info').upsert({
     application_id: applicationId,
@@ -202,13 +202,13 @@ async function saveStep1(applicationId: string, data: any) {
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
-async function saveStep2(applicationId: string, data: any) {
+async function saveStep2(applicationId: string, data: Record<string, unknown>) {
   const client = db();
   await client.from('application_addresses').delete().eq('application_id', applicationId);
   const addresses = Array.isArray(data.addresses) ? data.addresses : [];
   if (addresses.length > 0) {
     await client.from('application_addresses').insert(
-      addresses.map((a: any) => ({
+      addresses.map((a) => ({
         application_id: applicationId,
         address_type: a.address_type ?? 'home',
         street: a.street ?? null,
@@ -227,7 +227,7 @@ async function saveStep2(applicationId: string, data: any) {
   const contacts = Array.isArray(data.emergency_contacts) ? data.emergency_contacts : [];
   if (contacts.length > 0) {
     await client.from('application_emergency_contacts').insert(
-      contacts.map((c: any) => ({
+      contacts.map((c) => ({
         application_id: applicationId,
         name: c.name ?? c.full_name ?? null,
         relationship: normalizeRelationship(c.relationship ?? null),
@@ -239,7 +239,7 @@ async function saveStep2(applicationId: string, data: any) {
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
-async function saveStep3(applicationId: string, data: any) {
+async function saveStep3(applicationId: string, data: Record<string, unknown>) {
   const client = db();
   await client.from('application_loan_details').upsert({
     application_id: applicationId,
@@ -253,15 +253,16 @@ async function saveStep3(applicationId: string, data: any) {
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
-async function saveStep4(applicationId: string, data: any) {
+async function saveStep4(applicationId: string, data: Record<string, unknown>) {
   const client = db();
   await client.from('application_co_makers').delete().eq('application_id', applicationId);
   if (data.first_name || data.last_name) {
+    const relationship = typeof data.relationship === 'string' ? data.relationship : null;
     await client.from('application_co_makers').insert({
       application_id: applicationId,
       first_name: data.first_name ?? null,
       last_name: data.last_name ?? null,
-      relationship: normalizeRelationship(data.relationship ?? null),
+      relationship: normalizeRelationship(relationship),
       phone_number: data.phone_number ?? data.contact_number ?? null,
       date_of_birth: data.date_of_birth ?? data.birthday ?? null,
       address: data.address ?? null,
@@ -270,13 +271,13 @@ async function saveStep4(applicationId: string, data: any) {
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
-async function saveStep5(applicationId: string, data: any) {
+async function saveStep5(applicationId: string, data: Record<string, unknown>) {
   const client = db();
   await client.from('application_documents').delete().eq('application_id', applicationId);
   const documents = Array.isArray(data.documents) ? data.documents : [];
   if (documents.length > 0) {
     await client.from('application_documents').insert(
-      documents.map((d: any) => ({
+      documents.map((d) => ({
         application_id: applicationId,
         document_type: normalizeDocumentType(d.document_type ?? null),
         file_path: d.file_url ?? d.file_path ?? null,

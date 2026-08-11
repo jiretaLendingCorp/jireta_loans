@@ -14,6 +14,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { sendSms } from '../_shared/sms.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { getSchedulePayment } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'send-otp';
@@ -98,13 +99,14 @@ async function handleSendReminder(req: Request) {
   const results: Record<string, string>[] = [];
 
   for (const schedule of dueSchedules ?? []) {
-    const loan = (schedule as any).loan;
+    const loan = embedAsObject(schedule?.loan);
     if (!loan) continue;
-    const lender = loan.lender;
+    const lp = embedAsObject(loan.lender_profiles);
+    const lender = lp ? embedAsObject(lp.users) : null;
     if (!lender?.phone_number) continue;
 
-    const schedulePayment = await getSchedulePayment(db, (schedule as any).id);
-    if (schedulePayment.amount_paid >= Number((schedule as any).amount_due)) continue;
+    const schedulePayment = await getSchedulePayment(db, schedule.id);
+    if (schedulePayment.amount_paid >= Number(schedule.amount_due)) continue;
 
     const name = `${lender.first_name} ${lender.last_name}`;
     const amount = new Intl.NumberFormat('en-PH', {

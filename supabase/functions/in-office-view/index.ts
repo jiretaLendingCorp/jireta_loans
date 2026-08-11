@@ -16,6 +16,7 @@ import { checkPermission, requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from in-office-submit] ───────────────────────────────────────────
 // Controlled vocabularies (00025): relationship and document_type are FKs to
@@ -134,6 +135,7 @@ async function handleSubmit(req: Request) {
         phone: e164Phone,
         password: '12345678',
         phone_confirm: true,
+        app_metadata: { role: 'lender' },
       });
       if (!authUser?.user) return errorResponse('Failed to create lender auth account', 500);
 
@@ -166,7 +168,7 @@ async function handleSubmit(req: Request) {
     }
 
     if (s2.addresses.length > 0) {
-      const addressRows = (s2.addresses as any[]).map((a: any) => ({
+      const addressRows = s2.addresses.map((a) => ({
         user_id: lenderId,
         address_type: a.address_type,
         street: a.street,
@@ -181,7 +183,7 @@ async function handleSubmit(req: Request) {
     }
 
     if (s2.emergency_contacts.length > 0) {
-      const ecRows = (s2.emergency_contacts as any[]).map((ec: any) => ({
+      const ecRows = s2.emergency_contacts.map((ec) => ({
         lender_id: lenderId,
         name: ec.name,
         relationship: normalizeRelationship(ec.relationship ?? null) ?? 'Other',
@@ -235,7 +237,12 @@ async function handleSubmit(req: Request) {
 
     if (loanErr || !loan) return errorResponse('Failed to create loan', 500);
 
-    const scheduleRows: any[] = [];
+    const scheduleRows: {
+      loan_id: string;
+      installment_number: number;
+      due_date: string;
+      amount_due: number;
+    }[] = [];
     if (frequency === 'daily') {
       for (let i = 0; i < termDays; i++) {
         const d = new Date(releaseDate);
@@ -296,7 +303,7 @@ async function handleSubmit(req: Request) {
     }
 
     if (s5.documents.length > 0) {
-      const docRows = (s5.documents as any[]).map((d: any) => ({
+      const docRows = s5.documents.map((d) => ({
         loan_id: loan.id,
         document_type: normalizeDocumentType(d.document_type ?? null) ?? 'other',
         file_path: d.file_path ?? d.file_url,
@@ -333,8 +340,9 @@ async function handleSubmit(req: Request) {
       loan_number: loanNumber,
       lender_id: lenderId,
     });
-  } catch (err: any) {
-    return errorResponse(err.message ?? 'Internal server error', 500);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : undefined;
+    return errorResponse(message ?? 'Internal server error', 500);
   }
 }
 
@@ -381,8 +389,8 @@ async function handleGetList(req: Request) {
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch in-office applications', 500, 'DB_ERROR');
 
-  const rows = (data ?? []).map((row: any) => {
-    const pi = row.personal_info ?? null;
+  const rows = (data ?? []).map((row) => {
+    const pi = embedAsObject(row.personal_info);
     return {
       ...row,
       lender_name: pi ? `${pi.first_name ?? ''} ${pi.last_name ?? ''}`.trim() : null,

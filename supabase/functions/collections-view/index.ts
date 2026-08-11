@@ -14,6 +14,7 @@ import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -63,12 +64,13 @@ async function handleCollectionGetList(req: Request) {
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch collections', 500, 'SERVER_ERROR');
 
-  const loanIds = (data ?? []).map((r: any) => r.loan_schedule?.loan?.id).filter(Boolean);
+  const loanIds = (data ?? []).map((r) => embedAsObject(embedAsObject(r.loan_schedule)?.loan)?.id).filter(Boolean);
   const financials = await getLoanFinancialsBatch(db, loanIds);
-  const mapped = (data ?? []).map((r: any) => {
-    const schedule = r.loan_schedule ?? null;
-    const loan = schedule?.loan
-      ? { ...schedule.loan, outstanding_balance: financials[schedule.loan.id]?.outstanding_balance ?? null }
+  const mapped = (data ?? []).map((r) => {
+    const schedule = embedAsObject(r.loan_schedule);
+    const loanEmbed = schedule ? embedAsObject(schedule.loan) : null;
+    const loan = loanEmbed
+      ? { ...loanEmbed, outstanding_balance: financials[loanEmbed.id]?.outstanding_balance ?? null }
       : null;
     return {
       ...r,

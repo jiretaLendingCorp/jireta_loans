@@ -1,6 +1,7 @@
 // supabase/functions/_shared/auth.ts
 import { getAdminClient } from './db.ts';
 import { errorResponse } from './cors.ts';
+import { singleWithObjectEmbeds } from './types.ts';
 
 export interface AuthUser {
   id: string;
@@ -23,13 +24,18 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     return errorResponse('Invalid or expired token', 401, 'UNAUTHORIZED');
   }
 
-  const { data: dbUser, error: dbErr } = await supabase
+  const { data: dbUserRow, error: dbErr } = await supabase
     .from('users')
     .select('id, account_status, roles(name)')
     .eq('id', user.id)
     .single();
 
-  if (dbErr || !dbUser) {
+  if (dbErr || !dbUserRow) {
+    return errorResponse('User not found', 401, 'UNAUTHORIZED');
+  }
+
+  const dbUser = singleWithObjectEmbeds(dbUserRow);
+  if (!dbUser) {
     return errorResponse('User not found', 401, 'UNAUTHORIZED');
   }
 
@@ -39,7 +45,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
 
   return {
     id: dbUser.id,
-    role: (dbUser as any).roles?.name ?? '',
+    role: dbUser?.roles?.name ?? '',
     email: user.email,
     phone: user.phone,
   };

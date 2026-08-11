@@ -5,6 +5,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { verifyWebhookToken } from '../_shared/xendit.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -41,8 +42,7 @@ serve(async (req) => {
     const xenditStatus = status.toUpperCase();
     const isCompleted = xenditStatus === 'COMPLETED' || xenditStatus === 'SUCCESS';
     const isFailed = xenditStatus === 'FAILED';
-    const loanData = (disbursement as any).loans;
-    const lenderId = loanData?.lender_id;
+    const lenderId = embedAsObject(disbursement?.loans)?.lender_id;
 
     await db
       .from('disbursements')

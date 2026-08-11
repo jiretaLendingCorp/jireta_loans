@@ -95,7 +95,7 @@ async function handleHeadManager(req: Request) {
 
   const financials = await getLoanFinancialsBatch(
     db,
-    (loanRows ?? []).map((l: any) => l.id),
+    (loanRows ?? []).map((l) => l.id),
   );
 
   const { data: payments } = await db
@@ -108,7 +108,7 @@ async function handleHeadManager(req: Request) {
     .select('penalty_amount');
 
   let totalReleased = 0, totalOutstanding = 0, totalInterest = 0;
-  (loanRows ?? []).forEach((l: any) => {
+  (loanRows ?? []).forEach((l) => {
     const fin = financials[l.id] ?? null;
     totalReleased += Number(l.principal_amount);
     totalOutstanding += Number(fin?.outstanding_balance ?? 0);
@@ -116,10 +116,10 @@ async function handleHeadManager(req: Request) {
   });
 
   let totalCollected = 0;
-  (payments ?? []).forEach((p: any) => { totalCollected += Number(p.amount); });
+  (payments ?? []).forEach((p) => { totalCollected += Number(p.amount); });
 
   let totalPenalties = 0;
-  (penalties ?? []).forEach((p: any) => { totalPenalties += Number(p.penalty_amount); });
+  (penalties ?? []).forEach((p) => { totalPenalties += Number(p.penalty_amount); });
 
   return jsonResponse({
     total_employees: totalEmployees ?? 0,
@@ -226,7 +226,7 @@ async function handleRider(req: Request) {
     .eq('status', 'verified');
 
   const totalCollected = (paymentData ?? []).reduce(
-    (sum: number, p: any) => sum + Number(p.amount), 0
+    (sum: number, p) => sum + Number(p.amount), 0
   );
 
   return jsonResponse({
@@ -275,7 +275,7 @@ async function handleLender(req: Request) {
 
   const financials = await getLoanFinancialsBatch(
     db,
-    (loanData ?? []).map((l: any) => l.id),
+    (loanData ?? []).map((l) => l.id),
   );
 
   const { data: paymentData } = await db
@@ -296,16 +296,16 @@ async function handleLender(req: Request) {
     .single();
 
   let totalBorrowed = 0, totalOutstanding = 0, totalInterestPaid = 0;
-  (loanData ?? []).forEach((l: any) => {
+  (loanData ?? []).forEach((l) => {
     totalBorrowed += Number(l.principal_amount);
     totalOutstanding += Number(financials[l.id]?.outstanding_balance ?? 0);
   });
 
   let totalPaid = 0;
-  (paymentData ?? []).forEach((p: any) => { totalPaid += Number(p.amount); });
+  (paymentData ?? []).forEach((p) => { totalPaid += Number(p.amount); });
 
   let totalPenaltiesPaid = 0;
-  (penaltyData ?? []).forEach((p: any) => { totalPenaltiesPaid += Number(p.penalty_amount); });
+  (penaltyData ?? []).forEach((p) => { totalPenaltiesPaid += Number(p.penalty_amount); });
 
   totalInterestPaid = totalPaid - (totalBorrowed - totalOutstanding);
 

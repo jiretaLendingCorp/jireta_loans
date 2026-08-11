@@ -313,6 +313,11 @@ class _Sidebar extends StatelessWidget {
         const _NavItem(
             Icons.person_outline, 'Lenders', RouteConstants.hmLenders),
         const _NavItem(
+          Icons.storefront_outlined,
+          'In-Office Application',
+          RouteConstants.hmInOffice,
+        ),
+        const _NavItem(
           Icons.description_outlined,
           'Loan Applications',
           RouteConstants.hmLoanApplications,
@@ -359,6 +364,11 @@ class _Sidebar extends StatelessWidget {
           Icons.description_outlined,
           'Loan Applications',
           RouteConstants.empLoans,
+        ),
+        const _NavItem(
+          Icons.storefront_outlined,
+          'In-Office Application',
+          RouteConstants.empInOffice,
         ),
         const _NavItem(
             Icons.verified_user_outlined, 'KYC Review', RouteConstants.empKyc),

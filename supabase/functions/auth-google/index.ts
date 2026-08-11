@@ -15,6 +15,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
+import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 
 const DEFAULT_ACTION = 'exchange';
 
@@ -85,20 +86,23 @@ async function handleExchange(req: Request) {
   }
 
   // ── Step 2: resolve the lender by email (or auto-register) ────────────────
-  let { data: user } = await db
+  const { data: userRow } = await db
     .from('users')
     .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
     .eq('email', email)
     .maybeSingle();
+  let user = singleWithObjectEmbeds(userRow);
 
   if (!user) {
     // Google sign-in is lender-only: unknown accounts self-register as lenders
     // (mirrors the OTP self-registration flow for phone-based lenders).
-    user = await selfRegisterGoogleLender(db, authUser.id, email, authUser.user_metadata);
+    user = singleWithObjectEmbeds(
+      await selfRegisterGoogleLender(db, authUser.id, email, authUser.user_metadata),
+    );
     if (!user) return errorResponse('Failed to create account', 500, 'SERVER_ERROR');
   }
 
-  const role = (user as any).roles?.name;
+  const role = user?.roles?.name;
 
   if (role !== 'lender') {
     return errorResponse(
@@ -179,10 +183,10 @@ async function handleExchange(req: Request) {
 }
 
 async function selfRegisterGoogleLender(
-  db: any,
+  db: DbClient,
   authUserId: string,
   email: string,
-  metadata: any,
+  metadata: Record<string, unknown>,
 ) {
   const { data: roleData, error: roleErr } = await db
     .from('roles')
@@ -232,7 +236,7 @@ async function selfRegisterGoogleLender(
     kyc_status: 'not_submitted',
   });
   if (profileErr) {
-    await db.from('users').delete().eq('id', newUser.id).catch(() => {});
+    await Promise.resolve(db.from('users').delete().eq('id', newUser.id)).catch(() => {});
     console.error('[auth-google] step=create_profile FAILED', {
       reason: profileErr.message,
     });

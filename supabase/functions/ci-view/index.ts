@@ -14,6 +14,7 @@ import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { getLenderAddressBatch } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -65,14 +66,14 @@ async function handleCiGetList(req: Request) {
   if (error) return errorResponse('Failed to fetch CI list', 500, 'SERVER_ERROR');
 
   const lenderIds = (data ?? [])
-    .map((r: any) => r.loans?.lender_id ?? r.loans?.[0]?.lender_id)
+    .map((r) => embedAsObject(r.loans)?.lender_id)
     .filter(Boolean);
   const lenderAddresses = await getLenderAddressBatch(db, lenderIds);
 
-  const rows = (data ?? []).map((r: any) => {
-    const loan = r.loans ?? null;
-    const lp = loan?.lender_profiles ?? null;
-    const users = lp?.users ?? null;
+  const rows = (data ?? []).map((r) => {
+    const loan = embedAsObject(r.loans);
+    const lp = loan ? embedAsObject(loan.lender_profiles) : null;
+    const users = lp ? embedAsObject(lp.users) : null;
     const lenderId = loan?.lender_id ?? null;
     return {
       ...r,

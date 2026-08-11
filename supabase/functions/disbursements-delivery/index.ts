@@ -83,7 +83,7 @@ async function handleOfficeCash(req: Request) {
   if (!kycDocs || kycDocs.length === 0) {
     return errorResponse('KYC documents not found. Identity verification required before office cash release.', 400, 'KYC_NOT_VERIFIED');
   }
-  const allVerified = kycDocs.every((d: any) => d.status === 'verified');
+  const allVerified = kycDocs.every((d) => d.status === 'verified');
   if (!allVerified) {
     return errorResponse('All KYC documents must be verified before releasing office cash.', 400, 'KYC_NOT_VERIFIED');
   }

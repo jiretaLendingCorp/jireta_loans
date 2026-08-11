@@ -14,6 +14,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -85,13 +86,18 @@ async function handleGetList(req: Request) {
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch disbursements', 500, 'SERVER_ERROR');
 
-  const mapped = (data ?? []).map((r: any) => ({
-    ...r,
-    lender_name: r.loan?.lender_profiles?.users
-      ? `${r.loan.lender_profiles.users.first_name} ${r.loan.lender_profiles.users.last_name}`.trim()
-      : null,
-    loan_number: r.loan?.loan_number ?? null,
-  }));
+  const mapped = (data ?? []).map((r) => {
+    const loan = embedAsObject(r.loan);
+    const lp = loan ? embedAsObject(loan.lender_profiles) : null;
+    const users = lp ? embedAsObject(lp.users) : null;
+    return {
+      ...r,
+      lender_name: users
+        ? `${users.first_name} ${users.last_name}`.trim()
+        : null,
+      loan_number: loan?.loan_number ?? null,
+    };
+  });
 
   return jsonResponse({
     data: mapped,

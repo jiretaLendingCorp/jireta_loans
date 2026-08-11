@@ -105,6 +105,7 @@ async function handleCreateEmployee(req: Request) {
     email: email.trim().toLowerCase(),
     password: DEFAULT_PASSWORD,
     email_confirm: true,
+    app_metadata: { role: 'employee' },
   });
 
   if (createErr || !authUser?.user) {
@@ -189,6 +190,7 @@ async function handleCreateRider(req: Request) {
     phone: toE164(phone.trim()),
     password: riderDefaultPassword,
     phone_confirm: true,
+    app_metadata: { role: 'rider' },
   });
   if (authErr || !authUser.user) return errorResponse('Failed to create auth user: ' + authErr?.message, 500, 'SERVER_ERROR');
 
@@ -259,6 +261,7 @@ async function handleCreateLender(req: Request) {
     phone: lenderToE164(phone.trim()),
     password: lenderDefaultPassword,
     phone_confirm: true,
+    app_metadata: { role: 'lender' },
   });
   if (authErr || !authUser.user) return errorResponse('Failed to create auth user: ' + authErr?.message, 500, 'SERVER_ERROR');
 

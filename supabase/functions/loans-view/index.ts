@@ -17,6 +17,7 @@ import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination, validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
 import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from loans-get-schedule-preview] ─────────────────────────────────
 const INTEREST_RATE = 0.20;
@@ -142,8 +143,8 @@ async function handleGetList(req: Request) {
     const { data, error, count } = await query;
     if (error) return errorResponse('Failed to fetch loans', 500, 'SERVER_ERROR');
 
-    const loanIds = (data ?? []).map((r: any) => r.id);
-    const lenderIds = (data ?? []).map((r: any) => r.lender_id);
+    const loanIds = (data ?? []).map((r) => r.id);
+    const lenderIds = (data ?? []).map((r) => r.lender_id);
     const [financials, disbursements, lenderAddresses, disbPrefs] = await Promise.all([
       getLoanFinancialsBatch(db, loanIds),
       getLoanDisbursementsBatch(db, loanIds),
@@ -151,19 +152,21 @@ async function handleGetList(req: Request) {
       getLoanDisbursementPrefsBatch(db, loanIds),
     ]);
 
-    const mapped = (data ?? []).map((r: any) => {
-      const borrower = r.lender_profiles?.users;
-      const fin = financials[r.id] ?? {};
+    const mapped = (data ?? []).map((r) => {
+      const lp = embedAsObject(r.lender_profiles);
+      const borrower = lp ? embedAsObject(lp.users) : null;
+      const fin = financials[r.id] ?? { interest_amount: null, total_payable: null, outstanding_balance: null };
       const disb = disbursements[r.id];
       const pref = disbPrefs[r.id];
       const lenderAddress = lenderAddresses[r.lender_id];
       // Latest credit investigation for the loan (rider assigned for CI).
       const cis = r.credit_investigations ?? [];
       const latestCi = cis.length
-        ? cis.sort((a: any, b: any) =>
+        ? cis.sort((a, b) =>
             (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0]
         : null;
-      const ciRider = latestCi?.rider?.users;
+      const ciRiderEmbed = latestCi ? embedAsObject(latestCi.rider) : null;
+      const ciRider = ciRiderEmbed ? embedAsObject(ciRiderEmbed.users) : null;
       return {
         id: r.id,
         loan_number: r.loan_number,
@@ -217,8 +220,8 @@ async function handleGetDetails(req: Request) {
     if (user.role === ROLES.RIDER) return errorResponse('Access denied', 403, 'FORBIDDEN');
 
     const { data: schedule } = await db.from('loan_schedules').select('*').eq('loan_id', loanId).order('installment_number');
-    const scheduleIds = (schedule ?? []).map((s: any) => s.id);
-    let payments: any[] = [];
+    const scheduleIds = (schedule ?? []).map((s) => s.id);
+    let payments: Record<string, unknown>[] = [];
     if (scheduleIds.length > 0) {
       const { data: payRows } = await db.from('payments').select('*').in('loan_schedule_id', scheduleIds).order('created_at', { ascending: false });
       payments = payRows ?? [];
@@ -232,7 +235,7 @@ async function handleGetDetails(req: Request) {
       .eq('loan_id', loanId)
       .order('created_at');
 
-    const coMakers = (coMakerLinks ?? []).map((link: any) => ({
+    const coMakers = (coMakerLinks ?? []).map((link) => ({
       ...(link.co_maker ?? {}),
       relationship: link.relationship,
     }));
@@ -244,7 +247,7 @@ async function handleGetDetails(req: Request) {
       db.from('loan_disbursement_preferences').select('method, account').eq('loan_id', loanId).maybeSingle(),
     ]);
 
-    const lp = (loan as any).lender_profiles;
+    const lp = loan?.lender_profiles;
     const loanOut: Record<string, unknown> = {
       ...loan,
       total_payable: financials?.total_payable ?? null,
@@ -252,8 +255,8 @@ async function handleGetDetails(req: Request) {
       interest_amount: financials?.interest_amount ?? null,
       penalty_applied: penaltyApplied,
       disbursed_at: disbursement?.disbursed_at ?? null,
-      disbursement_method: disbPref?.method ?? disbursement?.method ?? null,
-      disbursement_account: disbPref?.account ?? null,
+      disbursement_method: disbPref?.data?.method ?? disbursement?.method ?? null,
+      disbursement_account: disbPref?.data?.account ?? null,
       xendit_disbursement_id: disbursement?.xendit_id ?? null,
       frequency: loan.payment_frequency,
       lender: lp?.users ?? null,

@@ -15,6 +15,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -66,10 +67,11 @@ async function handleGetList(req: Request) {
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch payments', 500, 'SERVER_ERROR');
-  const mapped = (data ?? []).map((p: any) => {
-    const schedule = p.loan_schedules ?? null;
-    const loan = schedule?.loans ?? null;
-    const lender = loan?.lender_profiles?.users ?? null;
+  const mapped = (data ?? []).map((p) => {
+    const schedule = embedAsObject(p.loan_schedules);
+    const loanEmbed = schedule ? embedAsObject(schedule.loans) : null;
+    const lp = loanEmbed ? embedAsObject(loanEmbed.lender_profiles) : null;
+    const lender = lp ? embedAsObject(lp.users) : null;
     return {
       id: p.id,
       loan_id: schedule?.loan_id ?? null,
@@ -82,7 +84,7 @@ async function handleGetList(req: Request) {
       receipt_url: p.receipt_path,
       created_at: p.created_at,
       paid_at: p.paid_at,
-      loan: loan ? { ...loan, lender } : null,
+      loan: loanEmbed ? { ...loanEmbed, lender } : null,
     };
   });
   return jsonResponse({ data: mapped, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
@@ -99,14 +101,15 @@ async function handleGetReceipt(req: Request) {
   const db = getAdminClient();
   const { data: payment } = await db.from('payments').select('id, status, receipt_path, loan_schedules(loan_id, loans(lender_id))').eq('id', paymentId).single();
   if (!payment) return errorResponse('Payment not found', 404, 'NOT_FOUND');
-  if (user.role === ROLES.LENDER && (payment as any).loan_schedules?.loans?.lender_id !== user.id) return errorResponse('Access denied', 403, 'FORBIDDEN');
+  const paymentLenderId = embedAsObject(embedAsObject(payment?.loan_schedules)?.loans)?.lender_id;
+  if (user.role === ROLES.LENDER && paymentLenderId !== user.id) return errorResponse('Access denied', 403, 'FORBIDDEN');
   if (user.role === ROLES.RIDER) return errorResponse('Access denied', 403, 'FORBIDDEN');
-  if (!(payment as any).receipt_path) return errorResponse('Receipt not yet generated', 404, 'NOT_FOUND');
+  if (!payment?.receipt_path) return errorResponse('Receipt not yet generated', 404, 'NOT_FOUND');
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const { data: signedUrl } = await db.storage.from('receipts').createSignedUrl((payment as any).receipt_path, 3600);
+  const { data: signedUrl } = await db.storage.from('receipts').createSignedUrl(payment?.receipt_path, 3600);
   // createSignedUrl already returns an absolute URL; only prefix with the
   // storage base URL for bare relative paths so the URL never gets doubled.
-  const signedPath = (signedUrl as any)?.signedUrl ?? null;
+  const signedPath = signedUrl?.signedUrl ?? null;
   const fullUrl = signedPath
     ? (String(signedPath).startsWith('http')
         ? signedPath

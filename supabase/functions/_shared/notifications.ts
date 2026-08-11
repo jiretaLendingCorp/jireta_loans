@@ -1,5 +1,6 @@
 // supabase/functions/_shared/notifications.ts
 import { getAdminClient } from './db.ts';
+import { rowsWithObjectEmbeds } from './types.ts';
 
 export async function sendPushNotification(params: {
   userId: string;
@@ -67,15 +68,12 @@ export async function notifyStaff(params: {
       .select('id, roles(name)')
       .eq('account_status', 'active');
 
-    const staff = (users ?? []).filter(
-      (u: any) =>
-        u?.roles?.name === 'head_manager' || u?.roles?.name === 'employee'
+    const staff = (rowsWithObjectEmbeds(users) ?? []).filter(
+      (u) => u?.roles?.name === 'head_manager' || u?.roles?.name === 'employee'
     );
     if (staff.length === 0) return;
     await Promise.all(
-      staff.map((u: { id: string }) =>
-        sendPushNotification({ ...params, userId: u.id })
-      )
+      staff.map((u) => sendPushNotification({ ...params, userId: u.id }))
     );
   } catch (err) {
     console.error('Notify staff failed:', err);

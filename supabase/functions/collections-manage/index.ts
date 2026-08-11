@@ -19,6 +19,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { embedAsObject } from '../_shared/types.ts';
 import {
   getSchedulePayment,
   scheduleStatus,
@@ -106,7 +107,7 @@ async function handleCollectionAssign(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
   const { data: schedule } = await db.from('loan_schedules').select('id, loan_id, amount_due, due_date, loans(status)').eq('id', loan_schedule_id).single();
   if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
-  if ((schedule as any).loans?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');
+  if (embedAsObject(schedule?.loans)?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');
   const payment = await getSchedulePayment(db, loan_schedule_id);
   if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
   const { data: rider } = await db.from('rider_profiles').select('is_available').eq('id', rider_id).single();
@@ -192,8 +193,9 @@ async function handleCollectionRecord(req: Request) {
   if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
   if (!['accepted'].includes(assignment.status)) return errorResponse('Assignment must be accepted first', 400, 'INVALID_STATUS');
 
-  const loanId = (assignment as any).loan_schedule?.loan_id;
-  const loanData = (assignment as any).loan_schedule?.loans;
+  const loanSchedule = embedAsObject(assignment?.loan_schedule);
+  const loanId = loanSchedule?.loan_id;
+  const loanData = embedAsObject(loanSchedule?.loans);
   const financials = await getLoanFinancials(db, loanId);
   if (!loanId || !loanData || !financials) return errorResponse('Loan not found', 404, 'NOT_FOUND');
   if (amount_collected > financials.outstanding_balance) return errorResponse('Amount exceeds outstanding balance', 400, 'VALIDATION_ERROR');
@@ -271,7 +273,7 @@ async function handleCollectionUploadProof(req: Request) {
       updates[column] = `data:${mime};base64,${proof.content_base64}`;
     } else {
       const { data: signedUrl } = await db.storage.from(BUCKET).createSignedUrl(path, 3600 * 24 * 7);
-      updates[column] = (signedUrl as any)?.signedUrl ?? path;
+      updates[column] = signedUrl?.signedUrl ?? path;
     }
   }
 

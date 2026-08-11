@@ -21,6 +21,7 @@ import {
   validateEmail,
   validatePasswordComplexity,
 } from '../_shared/validators.ts';
+import { singleWithObjectEmbeds } from '../_shared/types.ts';
 
 // ── [moved from auth-force-change-password] ─────────────────────────────────
 const PASSWORD_HISTORY_LIMIT = 5;
@@ -71,13 +72,14 @@ async function handleForgotPassword(req: Request) {
 
   const db = getAdminClient();
 
-  const { data: user } = await db
+  const { data: userRow } = await db
     .from('users')
     .select('id, account_status, roles!inner(name)')
     .eq('email', cleanEmail)
     .single();
+  const user = singleWithObjectEmbeds(userRow);
 
-  if (!user || !['head_manager', 'employee'].includes((user as any).roles?.name)) {
+  if (!user || !['head_manager', 'employee'].includes(user?.roles?.name)) {
     return jsonResponse({ message: 'If that email is registered, a reset link has been sent.' });
   }
 

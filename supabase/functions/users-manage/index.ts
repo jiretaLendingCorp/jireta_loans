@@ -17,6 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString, validatePhone } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from users-update-profile] ───────────────────────────────────────
 // Normalize display values (e.g. "Self-Employed") to the lowercase/underscored
@@ -197,7 +198,7 @@ async function handleGetProfile(req: Request) {
     if (user.role === ROLES.EMPLOYEE) {
       const db = getAdminClient();
       const { data: targetUser } = await db.from('users').select('roles(name)').eq('id', targetId).single();
-      const targetRole = (targetUser as any)?.roles?.name;
+      const targetRole = embedAsObject(targetUser?.roles)?.name;
       if (!['rider', 'lender'].includes(targetRole)) {
         return errorResponse('Access denied', 403, 'FORBIDDEN');
       }
@@ -227,12 +228,12 @@ async function handleGetProfile(req: Request) {
 
   // Flatten nested profile rows onto the user so the mobile/web models can
   // read department, position, plate_number, etc. straight off the object.
-  const emp = (data as any).employee_profiles ?? null;
-  const rider = (data as any).rider_profiles ?? null;
-  const lender = (data as any).lender_profiles ?? null;
+  const emp = embedAsObject(data?.employee_profiles);
+  const rider = embedAsObject(data?.rider_profiles);
+  const lender = embedAsObject(data?.lender_profiles);
 
   const flattened = {
-    ...(data as any),
+    ...data,
     department: emp?.department ?? null,
     position: emp?.position ?? null,
     hired_at: emp?.hired_at ?? null,

@@ -212,6 +212,12 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
   Widget _buildQuickActions(BuildContext context) {
     final actions = [
       _QuickAction(
+        Icons.storefront_outlined,
+        'In-Office',
+        AppColors.deepNavy,
+        () => context.go(RouteConstants.hmInOffice),
+      ),
+      _QuickAction(
         Icons.person_add_outlined,
         'Add Employee',
         AppColors.deepNavy,
