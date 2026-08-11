@@ -1,5 +1,14 @@
--- supabase/migrations/00004_seed_data.sql
+-- =====================================================================
+-- Jireta Loans & Credit Corp 1966
+-- Migration : 00004_seed_data.sql
+-- Purpose   : Consolidated seed data — roles, SMS templates, report
+--             templates, and system configuration (from 00004_seed_data).
+--             All inserts are idempotent (ON CONFLICT DO NOTHING).
+-- =====================================================================
+
 BEGIN;
+
+SET search_path = public, extensions;
 
 INSERT INTO roles (name, description) VALUES
   ('head_manager', 'Full system access - web portal'),
