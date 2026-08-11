@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 
@@ -189,9 +190,11 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         ? '${widget.phone.substring(0, 4)}****${widget.phone.substring(8)}'
         : widget.phone;
 
-    return Scaffold(
-      backgroundColor: AppColors.deepNavy,
-      appBar: AppBar(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.navyOverlay,
+      child: Scaffold(
+        backgroundColor: AppColors.deepNavy,
+        appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -327,6 +330,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

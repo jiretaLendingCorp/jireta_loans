@@ -7,6 +7,7 @@ import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../shared/providers/connectivity_provider.dart';
 import '../providers/auth_provider.dart';
 
 class WebLoginScreen extends ConsumerStatefulWidget {
@@ -29,8 +30,14 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
     super.dispose();
   }
 
+  bool get _isOnline => ref.read(connectivityProvider).valueOrNull ?? true;
+
   Future<void> _submit() async {
     if (ref.read(authProvider).isLoading) return;
+    if (!_isOnline) {
+      _showNoInternetToast();
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     final notifier = ref.read(authProvider.notifier);
     final ok = await notifier.login(
@@ -43,6 +50,30 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
         notifier.extractErrorMessage(err ?? 'Error') ?? 'Login failed.',
       );
     }
+  }
+
+  void _showNoInternetToast() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.wifi_off, color: Colors.white, size: 18),
+              SizedBox(width: 8),
+              Text('No Internet Connection'),
+            ],
+          ),
+          duration: const Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.deepNavy,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      );
   }
 
   void _showError(String msg) {
@@ -58,8 +89,17 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(
+      connectivityProvider.select((v) => v.valueOrNull ?? true),
+      (previous, next) {
+        if (previous == true && next == false) {
+          _showNoInternetToast();
+        }
+      },
+    );
     final authAsync = ref.watch(authProvider);
     final isLoading = authAsync.isLoading;
+    final isOnline = ref.watch(connectivityProvider).valueOrNull ?? true;
 
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
@@ -73,7 +113,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
                 children: [
                   _buildBrand(),
                   const SizedBox(height: 24),
-                  _buildForm(isLoading),
+                  _buildForm(isLoading, isOnline),
                 ],
               ),
             ),
@@ -121,7 +161,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
     );
   }
 
-  Widget _buildForm(bool isLoading) {
+  Widget _buildForm(bool isLoading, bool isOnline) {
     return Padding(
       padding: const EdgeInsets.all(32),
       child: Form(
@@ -193,7 +233,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isLoading ? null : _submit,
+                onPressed: (isLoading || !isOnline) ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(

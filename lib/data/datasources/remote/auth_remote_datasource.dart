@@ -50,6 +50,20 @@ class AuthRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  /// Exchanges a Google OAuth session (obtained via Supabase Auth) for an app
+  /// session mapped to a lender account. The Edge Function verifies the token,
+  /// resolves/auto-creates the lender, and returns fresh tokens + user info.
+  Future<Map<String, dynamic>> googleExchange({
+    required String accessToken,
+    String? refreshToken,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.authGoogle,
+      data: {'access_token': accessToken, 'refresh_token': refreshToken},
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<void> forceChangePassword({
     required String newPassword,
     required String currentPassword,

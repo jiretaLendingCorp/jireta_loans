@@ -1,10 +1,22 @@
 // lib/core/theme/app_theme.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'app_colors.dart';
 import 'app_typography.dart';
 
 class AppTheme {
   AppTheme._();
+
+  /// System bars for navy-background screens (auth): light status-bar icons
+  /// so time/battery/signal stay readable on the dark background, and a navy
+  /// system navigation bar so the bottom gesture/button area matches instead
+  /// of clashing with the screen. SafeArea handles the actual content insets.
+  static const SystemUiOverlayStyle navyOverlay = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: AppColors.deepNavy,
+    systemNavigationBarIconBrightness: Brightness.light,
+  );
 
   static ThemeData get lightTheme {
     return ThemeData(

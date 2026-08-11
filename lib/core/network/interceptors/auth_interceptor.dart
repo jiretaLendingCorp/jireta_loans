@@ -14,6 +14,7 @@ const _noRefreshPaths = {
   'auth-password?fn=forgot-password',
   'auth-password?fn=reset-password',
   'auth-logout?fn=logout',
+  'auth-google?fn=exchange',
 };
 
 class AuthInterceptor extends Interceptor {

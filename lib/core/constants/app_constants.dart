@@ -26,6 +26,10 @@ class AppConstants {
 
   static const String authRefreshPath = 'auth-session?fn=refresh-session';
 
+  /// Deep link Supabase redirects to after Google OAuth completes on mobile.
+  /// Must match the Android intent-filter scheme and the iOS URL scheme.
+  static const String googleOAuthRedirectUri = 'com.jireta.loans://login-callback';
+
   static const String roleHeadManager = 'head_manager';
   static const String roleEmployee = 'employee';
   static const String roleRider = 'rider';

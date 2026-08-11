@@ -1,8 +1,12 @@
 // lib/presentation/features/auth/providers/auth_provider.dart
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:gotrue/gotrue.dart' as gotrue;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/services/realtime_service.dart';
@@ -57,6 +61,108 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     } catch (e, s) {
       state = AsyncError(e, s);
       return false;
+    }
+  }
+
+  /// Google OAuth sign-in (mobile only).
+  ///
+  /// Opens the Google sign-in page in the system browser / secure web view.
+  /// Google shows the account picker when several accounts exist and falls
+  /// back to the "Enter your email" screen when none do. Once the user
+  /// completes the flow, supabase_flutter restores the session via the deep
+  /// link, and the exchange Edge Function maps it to a lender account
+  /// (auto-creating one if the Google email is not registered yet).
+  Future<bool> signInWithGoogle() async {
+    state = const AsyncLoading();
+    try {
+      final session = await _performGoogleOAuth();
+      if (session == null) {
+        state = const AsyncData(null);
+        return false;
+      }
+      final res = await _ds.googleExchange(
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+      );
+      final token = res['access_token'] as String;
+      final refresh = res['refresh_token'] as String? ?? '';
+      final userData = res['user'] as Map<String, dynamic>;
+      await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
+      await SecureStorage.saveUserInfo(
+        userId: userData['id'],
+        role: userData['role'],
+      );
+      final user = UserModel(
+        id: userData['id'],
+        role: userData['role'],
+        email: userData['email'],
+        firstName: userData['first_name'] ?? '',
+        lastName: userData['last_name'] ?? '',
+        accountStatus: 'active',
+        forcePasswordChange: userData['force_password_change'] ?? false,
+        createdAt: DateTime.now(),
+      );
+      _authState.setAuthenticated(user);
+      state = const AsyncData(null);
+      RealtimeService.instance.reconnect();
+      return true;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return false;
+    }
+  }
+
+  /// Launches the browser OAuth flow and waits until supabase_flutter captures
+  /// the session through the deep link. Returns null if the user cancels.
+  Future<Session?> _performGoogleOAuth() async {
+    final client = Supabase.instance.client;
+
+    // Always start from a signed-out state. Reusing an existing session (e.g.
+    // a phone-OTP login) would exchange the WRONG identity — its synthetic
+    // `...@jireta.temp` email is not a Google account and the server rejects
+    // the self-registration. A fresh flow guarantees the token below belongs
+    // to the account the user just picked in the Google picker.
+    try {
+      await client.auth.signOut();
+    } catch (e) {
+      debugPrint('[auth] google OAuth pre-signout error: $e');
+    }
+
+    final completer = Completer<Session?>();
+    final sub = client.auth.onAuthStateChange.listen((data) {
+      // Only a freshly-completed sign-in counts. `initialSession` replays any
+      // persisted session and a stale session's `tokenRefreshed` would hand us
+      // the wrong identity — both are ignored so the exchange always uses the
+      // Google session the user just authorized.
+      if (!completer.isCompleted &&
+          data.event == AuthChangeEvent.signedIn &&
+          data.session != null) {
+        completer.complete(data.session);
+      }
+    });
+
+    try {
+      await client.auth.signInWithOAuth(
+        gotrue.OAuthProvider.google,
+        redirectTo: AppConstants.googleOAuthRedirectUri,
+        // Always show the Google account chooser (or the "enter your email"
+        // screen) instead of auto-completing with the single already-authorized
+        // account, so the user can pick which email to sign in with.
+        queryParams: const {'prompt': 'select_account'},
+      );
+    } catch (e) {
+      sub.cancel();
+      debugPrint('[auth] google OAuth launch error: $e');
+      rethrow;
+    }
+
+    try {
+      return await completer.future.timeout(const Duration(minutes: 5));
+    } catch (e) {
+      // Timeout = the user never completed the browser flow.
+      sub.cancel();
+      debugPrint('[auth] google OAuth flow did not complete: $e');
+      return null;
     }
   }
 

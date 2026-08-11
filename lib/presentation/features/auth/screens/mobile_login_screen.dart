@@ -1,6 +1,6 @@
 // lib/presentation/features/auth/screens/mobile_login_screen.dart
 import 'package:flutter/material.dart';
-// flutter/services.dart removed — FilteringTextInputFormatter was conflicting with MaskFormatter
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
@@ -8,6 +8,8 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../shared/providers/connectivity_provider.dart';
 import '../providers/auth_provider.dart';
 
 class MobileLoginScreen extends ConsumerStatefulWidget {
@@ -25,6 +27,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     filter: {'#': RegExp(r'[0-9]')},
   );
   bool _loading = false;
+  bool _googleLoading = false;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
 
@@ -54,7 +57,10 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   bool get _isPhoneValid =>
       _rawPhone.length == 11 && _rawPhone.startsWith('09');
 
+  bool get _isOnline => ref.read(connectivityProvider).valueOrNull ?? true;
+
   Future<void> _sendOtp() async {
+    if (!_isOnline) return;
     if (!_isPhoneValid) {
       _showError('Enter a valid Philippine mobile number (09XXXXXXXXX).');
       return;
@@ -74,6 +80,22 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    if (!_isOnline) return;
+    if (_googleLoading || _loading) return;
+    setState(() => _googleLoading = true);
+    final ok = await ref.read(authProvider.notifier).signInWithGoogle();
+    if (!mounted) return;
+    setState(() => _googleLoading = false);
+    if (!ok) {
+      final err = ref.read(authProvider).error;
+      _showError(
+        ref.read(authProvider.notifier).extractErrorMessage(err ?? '') ??
+            'Google sign-in failed.',
+      );
+    }
+  }
+
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -87,10 +109,20 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.deepNavy,
-      body: SafeArea(
-        child: FadeTransition(
+    // Live offline state: when connectivity drops, a persistent banner with a
+    // spinner is rendered below the Continue with Google button and stays until
+    // the connection is restored. The button gating below also reads this value
+    // so the user cannot submit while offline.
+    final isOnline = ref.watch(
+      connectivityProvider.select((v) => v.valueOrNull ?? true),
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.navyOverlay,
+      child: Scaffold(
+        backgroundColor: AppColors.deepNavy,
+        body: SafeArea(
+          child: FadeTransition(
           opacity: _fadeAnim,
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(28),
@@ -185,8 +217,12 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed:
-                              (_isPhoneValid && !_loading) ? _sendOtp : null,
+                          onPressed: (_isPhoneValid &&
+                                  !_loading &&
+                                  !_googleLoading &&
+                                  _isOnline)
+                              ? _sendOtp
+                              : null,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -215,7 +251,9 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                       const Divider(),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
-                        onPressed: () {},
+                        onPressed: (_loading || _googleLoading || !_isOnline)
+                            ? null
+                            : _signInWithGoogle,
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 52),
                           shape: RoundedRectangleBorder(
@@ -226,13 +264,23 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                             width: 1.5,
                           ),
                         ),
-                        icon: Image.network(
-                          'https://www.google.com/favicon.ico',
-                          width: 20,
-                          height: 20,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.g_mobiledata, size: 24),
-                        ),
+                        icon: _googleLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.deepNavy,
+                                ),
+                              )
+                            : Image.network(
+                                'https://www.google.com/favicon.ico',
+                                width: 20,
+                                height: 20,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.g_mobiledata,
+                                    size: 24),
+                              ),
                         label: const Text(
                           'Continue with Google',
                           style: TextStyle(
@@ -242,28 +290,49 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 16, color: Colors.white54),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Don't have an account? Contact our office.",
-                          style: TextStyle(fontSize: 12, color: Colors.white60),
+                      if (!isOnline) ...[
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.errorLight,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: AppColors.error,
+                                width: 1,
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'No Internet Connection',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -271,6 +340,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
             ),
           ),
         ),
+      ),
       ),
     );
   }

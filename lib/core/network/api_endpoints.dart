@@ -13,6 +13,7 @@ class ApiEndpoints {
   static const String authLogout = 'auth-logout?fn=logout';
   static const String authRefreshSession = 'auth-session?fn=refresh-session';
   static const String authTermsAccept = 'auth-session?fn=terms-accept';
+  static const String authGoogle = 'auth-google?fn=exchange';
 
   // Users
   static const String usersCreateEmployee = 'users-create?fn=create-employee';

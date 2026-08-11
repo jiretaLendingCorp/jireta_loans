@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 
 class TermsConditionsScreen extends ConsumerStatefulWidget {
@@ -57,9 +59,11 @@ class _TermsConditionsScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.deepNavy,
-      body: SafeArea(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AppTheme.navyOverlay,
+      child: Scaffold(
+        backgroundColor: AppColors.deepNavy,
+        body: SafeArea(
         child: Column(
           children: [
             Padding(
@@ -230,6 +234,7 @@ class _TermsConditionsScreenState
             ),
           ],
         ),
+      ),
       ),
     );
   }
