@@ -164,7 +164,7 @@ async function handleSubmit(req: Request) {
         employer_name: s1.employer_name ?? employment.data?.employer_name,
         monthly_income: s1.monthly_income ?? employment.data?.monthly_income,
         gcash_number: s1.gcash_number,
-        kyc_status: 'not_submitted',
+        account_upgrade_status: 'not_submitted',
       });
     }
 

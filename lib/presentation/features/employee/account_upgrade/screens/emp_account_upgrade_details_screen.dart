@@ -1,4 +1,4 @@
-// lib/presentation/features/employee/kyc/screens/emp_kyc_details_screen.dart
+// lib/presentation/features/employee/account_upgrade/screens/emp_account_upgrade_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -9,21 +9,23 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
-import '../providers/emp_kyc_provider.dart';
+import '../providers/emp_account_upgrade_provider.dart';
 
-final _empKycDetailProvider =
+final _empAccountUpgradeDetailProvider =
     FutureProvider.family<Map<String, dynamic>?, String>((ref, lenderId) {
-  return ref.read(empKycProvider.notifier).getDetails(lenderId: lenderId);
+  return ref
+      .read(empAccountUpgradeProvider.notifier)
+      .getDetails(lenderId: lenderId);
 });
 
-class EmpKycDetailsScreen extends ConsumerStatefulWidget {
+class EmpAccountUpgradeDetailsScreen extends ConsumerStatefulWidget {
   final String lenderId;
-  const EmpKycDetailsScreen({super.key, required this.lenderId});
+  const EmpAccountUpgradeDetailsScreen({super.key, required this.lenderId});
   @override
-  ConsumerState<EmpKycDetailsScreen> createState() => _State();
+  ConsumerState<EmpAccountUpgradeDetailsScreen> createState() => _State();
 }
 
-class _State extends ConsumerState<EmpKycDetailsScreen> {
+class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
   bool _busy = false;
 
   Future<void> _openDocument(Map<String, dynamic> doc) async {
@@ -37,7 +39,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
         url = filePath;
       } else if (filePath != null) {
         url = await SupabaseStorageService.instance
-            .getSignedUrl(bucket: 'kyc-documents', path: filePath);
+            .getSignedUrl(bucket: 'account-upgrade-documents', path: filePath);
       } else {
         return;
       }
@@ -60,9 +62,9 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(_empKycDetailProvider(widget.lenderId));
+    final async = ref.watch(_empAccountUpgradeDetailProvider(widget.lenderId));
     return WebScaffold(
-      title: 'KYC Review',
+      title: 'Account Upgrade Review',
       body: async.when(
         loading: () => const Padding(
             padding: EdgeInsets.all(24), child: ShimmerLoader(height: 400)),
@@ -70,7 +72,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
             child: Text('Error: $e',
                 style: const TextStyle(color: AppColors.error))),
         data: (data) => data == null
-            ? const Center(child: Text('KYC data not found'))
+            ? const Center(child: Text('Account upgrade data not found'))
             : _buildBody(data),
       ),
     );
@@ -79,7 +81,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
   Widget _buildBody(Map<String, dynamic> data) {
     final docs = (data['documents'] as List?) ?? [];
     final lender = data['lender'] as Map<String, dynamic>?;
-    final kycStatus = data['kyc_status'] ?? 'pending';
+    final accountUpgradeStatus = data['account_upgrade_status'] ?? 'pending';
     final contacts = (data['emergency_contacts'] as List?) ?? [];
 
     return SingleChildScrollView(
@@ -88,7 +90,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
         Expanded(
             flex: 2,
             child: Column(children: [
-              _infoCard(lender, kycStatus),
+              _infoCard(lender, accountUpgradeStatus),
               const SizedBox(height: 16),
               _financialCard(lender),
               const SizedBox(height: 16),
@@ -97,7 +99,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
               _docsCard(docs),
             ])),
         const SizedBox(width: 16),
-        Expanded(child: _actionCard(docs, kycStatus)),
+        Expanded(child: _actionCard(docs, accountUpgradeStatus)),
       ]),
     );
   }
@@ -122,7 +124,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
     return parts.isEmpty ? '—' : parts.join(', ');
   }
 
-  Widget _infoCard(Map<String, dynamic>? lender, String kycStatus) {
+  Widget _infoCard(Map<String, dynamic>? lender, String accountUpgradeStatus) {
     final name = lender != null
         ? [
             lender['first_name'],
@@ -151,7 +153,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
           const SizedBox(height: 12),
           _row('Full Name', name),
           _row('Phone', lender?['phone_number'] ?? 'N/A'),
-          _row('KYC Status', kycStatus),
+          _row('Account Upgrade Status', accountUpgradeStatus),
           _row('Gender', _label(lender?['gender'])),
           _row('Civil Status', _label(lender?['civil_status'])),
           _row('Date of Birth', lender?['date_of_birth'] ?? '—'),
@@ -277,7 +279,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
         ]);
   }
 
-  Widget _actionCard(List docs, String kycStatus) {
+  Widget _actionCard(List docs, String accountUpgradeStatus) {
     final pendingDocs = docs
         .where((d) => (d as Map<String, dynamic>)['status'] == 'pending')
         .toList();
@@ -288,7 +290,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
           const SizedBox(height: 8),
           if (pendingDocs.isNotEmpty) ...[
             const Text(
-                'One action verifies the lender\'s entire KYC submission.',
+                'One action verifies the lender\'s entire account upgrade submission.',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             const SizedBox(height: 12),
             ElevatedButton.icon(
@@ -322,7 +324,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
   Future<void> _verifyAll(String action) async {
     setState(() => _busy = true);
     final ok = await ref
-        .read(empKycProvider.notifier)
+        .read(empAccountUpgradeProvider.notifier)
         .verifyAll(lenderId: widget.lenderId, action: action);
     if (mounted) {
       setState(() => _busy = false);
@@ -331,7 +333,7 @@ class _State extends ConsumerState<EmpKycDetailsScreen> {
             Text(ok ? 'All documents $action successfully' : 'Action failed'),
         backgroundColor: ok ? AppColors.success : AppColors.error,
       ));
-      if (ok) ref.invalidate(_empKycDetailProvider(widget.lenderId));
+      if (ok) ref.invalidate(_empAccountUpgradeDetailProvider(widget.lenderId));
     }
   }
 

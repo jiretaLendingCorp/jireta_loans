@@ -1,13 +1,13 @@
-// lib/data/datasources/remote/kyc_remote_datasource.dart
+// lib/data/datasources/remote/account_upgrade_remote_datasource.dart
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/api_endpoints.dart';
-import '../../models/kyc_document_model.dart';
+import '../../models/account_upgrade_document_model.dart';
 
-class KycRemoteDataSource {
+class AccountUpgradeRemoteDataSource {
   final DioClient _client;
-  KycRemoteDataSource(this._client);
+  AccountUpgradeRemoteDataSource(this._client);
 
-  Future<Map<String, dynamic>> getKycList({
+  Future<Map<String, dynamic>> accountUpgradeGetList({
     String? status,
     String? lenderName,
     String? startDate,
@@ -16,7 +16,7 @@ class KycRemoteDataSource {
     int limit = 20,
   }) async {
     final res = await _client.get(
-      ApiEndpoints.kycGetList,
+      ApiEndpoints.accountUpgradeGetList,
       queryParams: {
         if (status != null) 'status': status,
         if (lenderName != null) 'lender_name': lenderName,
@@ -44,7 +44,7 @@ class KycRemoteDataSource {
     int limit = 20,
   }) async {
     final res = await _client.get(
-      ApiEndpoints.kycGetList,
+      ApiEndpoints.accountUpgradeGetList,
       queryParams: {
         if (status != null) 'status': status,
         if (search != null) 'lender_name': search,
@@ -59,65 +59,67 @@ class KycRemoteDataSource {
     };
   }
 
-  Future<KycStatusModel> getKycStatus() async {
-    final res = await _client.get(ApiEndpoints.kycGetStatus);
-    return KycStatusModel.fromJson(res.data as Map<String, dynamic>);
+  Future<AccountUpgradeStatusModel> accountUpgradeGetStatus() async {
+    final res = await _client.get(ApiEndpoints.accountUpgradeGetStatus);
+    return AccountUpgradeStatusModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<KycDocumentModel> getKycDetails({required String kycDocId}) async {
+  Future<AccountUpgradeDocumentModel> accountUpgradeGetDetails(
+      {required String accountUpgradeDocId}) async {
     final res = await _client.get(
-      ApiEndpoints.kycGetDetails,
-      queryParams: {'kyc_doc_id': kycDocId},
+      ApiEndpoints.accountUpgradeGetDetails,
+      queryParams: {'account_upgrade_doc_id': accountUpgradeDocId},
     );
-    return KycDocumentModel.fromJson(
+    return AccountUpgradeDocumentModel.fromJson(
       (res.data as Map<String, dynamic>)['document'] as Map<String, dynamic>,
     );
   }
 
   Future<Map<String, dynamic>?> getStatus({required String lenderId}) async {
     final res = await _client.get(
-      ApiEndpoints.kycGetStatus,
+      ApiEndpoints.accountUpgradeGetStatus,
       queryParams: {'lender_id': lenderId},
     );
     return res.data as Map<String, dynamic>?;
   }
 
   Future<Map<String, dynamic>?> getDetails({
-    String? kycDocId,
+    String? accountUpgradeDocId,
     String? lenderId,
   }) async {
     final res = await _client.get(
-      ApiEndpoints.kycGetDetails,
+      ApiEndpoints.accountUpgradeGetDetails,
       queryParams: {
-        if (kycDocId != null) 'kyc_doc_id': kycDocId,
+        if (accountUpgradeDocId != null)
+          'account_upgrade_doc_id': accountUpgradeDocId,
         if (lenderId != null) 'lender_id': lenderId,
       },
     );
     return res.data as Map<String, dynamic>?;
   }
 
-  Future<void> verifyKyc({
-    required String kycDocId,
+  Future<void> verifyAccountUpgrade({
+    required String accountUpgradeDocId,
     required String action,
     String? rejectionNotes,
   }) async {
     await _client.patch(
-      ApiEndpoints.kycVerify,
+      ApiEndpoints.accountUpgradeVerify,
       data: {
-        'kyc_doc_id': kycDocId,
+        'account_upgrade_doc_id': accountUpgradeDocId,
         'action': action,
         if (rejectionNotes != null) 'rejection_notes': rejectionNotes,
       },
     );
   }
 
-  Future<void> verifyAllKyc({
+  Future<void> verifyAllAccountUpgrade({
     required String lenderId,
     required String action,
     String? rejectionNotes,
   }) async {
     await _client.patch(
-      ApiEndpoints.kycVerify,
+      ApiEndpoints.accountUpgradeVerify,
       data: {
         'lender_id': lenderId,
         'action': action,
@@ -127,21 +129,21 @@ class KycRemoteDataSource {
   }
 
   Future<void> verify({
-    required String kycDocId,
+    required String accountUpgradeDocId,
     required String action,
     String? rejectionNotes,
   }) =>
-      verifyKyc(
-        kycDocId: kycDocId,
+      verifyAccountUpgrade(
+        accountUpgradeDocId: accountUpgradeDocId,
         action: action,
         rejectionNotes: rejectionNotes,
       );
 
-  Future<void> submitKyc(
+  Future<void> submitAccountUpgrade(
     List<Map<String, dynamic>> documents, {
     Map<String, dynamic>? info,
   }) async {
-    await _client.post(ApiEndpoints.kycSubmit, data: {
+    await _client.post(ApiEndpoints.accountUpgradeSubmit, data: {
       'documents': documents,
       if (info != null) ...info,
     });

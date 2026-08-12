@@ -69,7 +69,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
               Expanded(
                   flex: 2,
                   child: Column(children: [
-                    _buildKycStatus(data),
+                    _buildAccountUpgradeStatus(data),
                     const SizedBox(height: 16),
                     if (canAct) _buildActionPanel(context, ref, data),
                   ])),
@@ -137,7 +137,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                     ? '₱${profile['monthly_income']}'
                     : '—'),
             _row('GCash', profile['gcash_number'] ?? '—'),
-            _row('KYC Status', profile['kyc_status'] ?? '—'),
+            _row('Account Upgrade Status', profile['account_upgrade_status'] ?? '—'),
           ],
         ),
       ),
@@ -172,27 +172,27 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildKycStatus(Map<String, dynamic> data) {
-    final kyc = data['kyc_status'] ?? 'unknown';
+  Widget _buildAccountUpgradeStatus(Map<String, dynamic> data) {
+    final accountUpgrade = data['account_upgrade_status'] ?? 'unknown';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('KYC Verification',
+            const Text('Account Upgrade Verification',
                 style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppColors.deepNavy)),
             const Divider(height: 20),
             Row(children: [
-              StatusBadge(status: kyc),
+              StatusBadge(status: accountUpgrade),
               const SizedBox(width: 8),
               Text(
-                  kyc == 'verified'
-                      ? 'KYC documents verified'
-                      : 'KYC not yet verified',
+                  accountUpgrade == 'verified'
+                      ? 'Account upgrade documents verified'
+                      : 'Account upgrade not yet verified',
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.textSecondary)),
             ]),

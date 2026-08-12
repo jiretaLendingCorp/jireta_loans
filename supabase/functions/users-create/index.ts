@@ -296,7 +296,7 @@ async function handleCreateLender(req: Request) {
     monthly_income: monthly_income ? Number(monthly_income) : null,
     gcash_number: gcash_number ? sanitizeString(gcash_number) : null,
     source_of_funds: source_of_funds ? sanitizeString(source_of_funds).toLowerCase() : null,
-    kyc_status: 'not_submitted',
+    account_upgrade_status: 'not_submitted',
   });
 
   if (lenderProfileErr) {

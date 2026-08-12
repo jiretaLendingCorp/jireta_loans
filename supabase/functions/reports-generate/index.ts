@@ -77,7 +77,7 @@ async function fetchReportData(
     case 'borrower_report': {
       const { data } = await db.from('users').select(
         `id, first_name, last_name, phone_number, account_status, created_at, roles!inner(name),
-         lender_profiles(kyc_status, employment_type, monthly_income)`
+         lender_profiles(account_upgrade_status, employment_type, monthly_income)`
       ).eq('roles.name', ROLES.LENDER);
       return data ?? [];
     }

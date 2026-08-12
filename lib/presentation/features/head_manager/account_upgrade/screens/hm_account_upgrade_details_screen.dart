@@ -1,11 +1,11 @@
-// lib/presentation/features/head_manager/kyc/screens/hm_kyc_details_screen.dart
+// lib/presentation/features/head_manager/account_upgrade/screens/hm_account_upgrade_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
+import '../../../../../data/datasources/remote/account_upgrade_remote_datasource.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -13,16 +13,19 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 
-class HmKycDetailsScreen extends ConsumerStatefulWidget {
+class HmAccountUpgradeDetailsScreen extends ConsumerStatefulWidget {
   final String lenderId;
-  const HmKycDetailsScreen({super.key, required this.lenderId});
+  const HmAccountUpgradeDetailsScreen(
+      {super.key, required this.lenderId});
 
   @override
-  ConsumerState<HmKycDetailsScreen> createState() => _HmKycDetailsScreenState();
+  ConsumerState<HmAccountUpgradeDetailsScreen> createState() =>
+      _HmAccountUpgradeDetailsScreenState();
 }
 
-class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
-  final _ds = sl<KycRemoteDataSource>();
+class _HmAccountUpgradeDetailsScreenState
+    extends ConsumerState<HmAccountUpgradeDetailsScreen> {
+  final _ds = sl<AccountUpgradeRemoteDataSource>();
   Map<String, dynamic>? _data;
   bool _loading = true;
   String? _error;
@@ -66,8 +69,8 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
       context,
       title: action == 'verified' ? 'Verify All Documents' : 'Reject All Documents',
       message: action == 'verified'
-          ? 'Verify the lender\'s entire KYC submission at once?'
-          : 'Reject the lender\'s entire KYC submission? They will be notified.',
+          ? 'Verify the lender\'s entire account upgrade submission at once?'
+          : 'Reject the lender\'s entire account upgrade submission? They will be notified.',
       confirmLabel: action == 'verified' ? 'Verify All' : 'Reject All',
       isDangerous: action == 'rejected',
     );
@@ -75,7 +78,7 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
 
     setState(() => _submitting = true);
     try {
-      await _ds.verifyAllKyc(
+      await _ds.verifyAllAccountUpgrade(
         lenderId: widget.lenderId,
         action: action,
         rejectionNotes: action == 'rejected' ? _rejectionCtrl.text.trim() : null,
@@ -108,7 +111,7 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
         url = filePath;
       } else if (filePath != null) {
         url = await SupabaseStorageService.instance
-            .getSignedUrl(bucket: 'kyc-documents', path: filePath);
+            .getSignedUrl(bucket: 'account-upgrade-documents', path: filePath);
       } else {
         return;
       }
@@ -126,13 +129,13 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return WebScaffold(
-      title: 'KYC Details',
+      title: 'Account Upgrade Details',
       body: _loading
           ? const ShimmerLoader()
           : _error != null
               ? Center(child: Text(_error!))
               : _data == null
-                  ? const Center(child: Text('KYC data not found.'))
+                  ? const Center(child: Text('Account upgrade data not found.'))
                   : _buildContent(),
     );
   }
@@ -142,7 +145,8 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
     final lender = (data['lender'] as Map<String, dynamic>?) ?? {};
     final docs = (data['documents'] as List?) ?? [];
     final contacts = (data['emergency_contacts'] as List?) ?? [];
-    final kycStatus = (data['kyc_status'] as String?) ?? 'pending';
+    final accountUpgradeStatus =
+        (data['account_upgrade_status'] as String?) ?? 'pending';
 
     final pendingDocs =
         docs.where((d) => (d as Map<String, dynamic>)['status'] == 'pending').toList();
@@ -180,7 +184,7 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
                               .trim()),
                       _InfoRow('Phone', lender['phone_number'] ?? '—'),
                       _InfoRow('Email', lender['email'] ?? '—'),
-                      _InfoRow('KYC Status', kycStatus),
+                      _InfoRow('Account Upgrade Status', accountUpgradeStatus),
                       _InfoRow(
                         'Address',
                         [
@@ -345,7 +349,7 @@ class _HmKycDetailsScreenState extends ConsumerState<HmKycDetailsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const Text(
-                              'One action verifies the lender\'s entire KYC submission.',
+                              'One action verifies the lender\'s entire account upgrade submission.',
                               style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,

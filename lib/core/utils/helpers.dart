@@ -63,7 +63,7 @@ class AppHelpers {
     }
   }
 
-  static String kycStatusLabel(String status) {
+  static String accountUpgradeStatusLabel(String status) {
     switch (status) {
       case 'pending':
         return 'Pending';
@@ -128,7 +128,7 @@ String loanStatusLabel(String status) {
   }
 }
 
-String kycStatusLabel(String status) {
+String accountUpgradeStatusLabel(String status) {
   switch (status) {
     case 'pending':
       return 'Pending';

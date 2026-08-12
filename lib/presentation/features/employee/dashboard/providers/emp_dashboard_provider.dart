@@ -40,7 +40,7 @@ class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
       'payments',
       'collection_assignments',
       'credit_investigations',
-      'kyc_documents',
+      'account_upgrade_documents',
       'notifications',
     ], refresh: loadKpis);
     loadKpis();

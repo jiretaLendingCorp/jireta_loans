@@ -1,12 +1,12 @@
-// lib/presentation/features/head_manager/kyc/providers/hm_kyc_provider.dart
+// lib/presentation/features/head_manager/account_upgrade/providers/hm_account_upgrade_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
-import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
-import '../../../../../data/models/kyc_document_model.dart';
+import '../../../../../data/datasources/remote/account_upgrade_remote_datasource.dart';
+import '../../../../../data/models/account_upgrade_document_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-class HmKycState {
-  final List<KycDocumentModel> docs;
+class HmAccountUpgradeState {
+  final List<AccountUpgradeDocumentModel> docs;
   final bool isLoading;
   final String? error;
   final int currentPage;
@@ -15,7 +15,7 @@ class HmKycState {
   final String statusFilter;
   final String search;
 
-  const HmKycState({
+  const HmAccountUpgradeState({
     this.docs = const [],
     this.isLoading = false,
     this.error,
@@ -26,8 +26,8 @@ class HmKycState {
     this.search = '',
   });
 
-  HmKycState copyWith({
-    List<KycDocumentModel>? docs,
+  HmAccountUpgradeState copyWith({
+    List<AccountUpgradeDocumentModel>? docs,
     bool? isLoading,
     String? error,
     int? currentPage,
@@ -36,7 +36,7 @@ class HmKycState {
     String? statusFilter,
     String? search,
   }) =>
-      HmKycState(
+      HmAccountUpgradeState(
         docs: docs ?? this.docs,
         isLoading: isLoading ?? this.isLoading,
         error: error,
@@ -48,25 +48,27 @@ class HmKycState {
       );
 }
 
-class HmKycNotifier extends StateNotifier<HmKycState>
+class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
     with RealtimeRefreshMixin {
-  final KycRemoteDataSource _ds;
+  final AccountUpgradeRemoteDataSource _ds;
 
-  HmKycNotifier(this._ds) : super(const HmKycState()) {
-    bindRealtimeRefresh(['kyc_documents', 'lender_profiles'], refresh: fetch);
+  HmAccountUpgradeNotifier(this._ds) : super(const HmAccountUpgradeState()) {
+    bindRealtimeRefresh(
+        ['account_upgrade_documents', 'lender_profiles'], refresh: fetch);
     fetch();
   }
 
   Future<void> fetch({int page = 1}) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final res = await _ds.getKycList(
+      final res = await _ds.accountUpgradeGetList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         page: page,
         lenderName: state.search.isEmpty ? null : state.search,
       );
       final list = (res['data'] as List? ?? [])
-          .map((e) => KycDocumentModel.fromJson(e as Map<String, dynamic>))
+          .map((e) =>
+              AccountUpgradeDocumentModel.fromJson(e as Map<String, dynamic>))
           .toList();
       final meta = res['meta'] as Map<String, dynamic>? ?? {};
       state = state.copyWith(
@@ -92,13 +94,13 @@ class HmKycNotifier extends StateNotifier<HmKycState>
   }
 
   Future<bool> verifyDoc({
-    required String kycDocId,
+    required String accountUpgradeDocId,
     required String action,
     String? rejectionNotes,
   }) async {
     try {
-      await _ds.verifyKyc(
-        kycDocId: kycDocId,
+      await _ds.verifyAccountUpgrade(
+        accountUpgradeDocId: accountUpgradeDocId,
         action: action,
         rejectionNotes: rejectionNotes,
       );
@@ -115,7 +117,7 @@ class HmKycNotifier extends StateNotifier<HmKycState>
     String? rejectionNotes,
   }) async {
     try {
-      await _ds.verifyAllKyc(
+      await _ds.verifyAllAccountUpgrade(
         lenderId: lenderId,
         action: action,
         rejectionNotes: rejectionNotes,
@@ -128,6 +130,7 @@ class HmKycNotifier extends StateNotifier<HmKycState>
   }
 }
 
-final hmKycProvider = AutoDisposeStateNotifierProvider<HmKycNotifier, HmKycState>((ref) {
-  return HmKycNotifier(sl<KycRemoteDataSource>());
+final hmAccountUpgradeProvider = AutoDisposeStateNotifierProvider<
+    HmAccountUpgradeNotifier, HmAccountUpgradeState>((ref) {
+  return HmAccountUpgradeNotifier(sl<AccountUpgradeRemoteDataSource>());
 });

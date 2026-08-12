@@ -20,8 +20,8 @@ import '../../presentation/features/employee/collections/screens/emp_collection_
 import '../../presentation/features/employee/collections/screens/emp_collection_list_screen.dart';
 import '../../presentation/features/employee/dashboard/screens/emp_dashboard_screen.dart';
 import '../../presentation/features/employee/in_office/screens/emp_in_office_list_screen.dart';
-import '../../presentation/features/employee/kyc/screens/emp_kyc_details_screen.dart';
-import '../../presentation/features/employee/kyc/screens/emp_kyc_list_screen.dart';
+import '../../presentation/features/employee/account_upgrade/screens/emp_account_upgrade_details_screen.dart';
+import '../../presentation/features/employee/account_upgrade/screens/emp_account_upgrade_list_screen.dart';
 import '../../presentation/features/employee/lenders/screens/emp_lender_details_screen.dart';
 import '../../presentation/features/employee/lenders/screens/emp_lender_list_screen.dart';
 import '../../presentation/features/employee/loans/screens/emp_loan_application_details_screen.dart';
@@ -44,8 +44,8 @@ import '../../presentation/features/head_manager/disbursements/screens/hm_disbur
 import '../../presentation/features/head_manager/employees/screens/hm_employee_details_screen.dart';
 import '../../presentation/features/head_manager/employees/screens/hm_employee_list_screen.dart';
 import '../../presentation/features/head_manager/in_office/screens/hm_in_office_list_screen.dart';
-import '../../presentation/features/head_manager/kyc/screens/hm_kyc_details_screen.dart';
-import '../../presentation/features/head_manager/kyc/screens/hm_kyc_list_screen.dart';
+import '../../presentation/features/head_manager/account_upgrade/screens/hm_account_upgrade_details_screen.dart';
+import '../../presentation/features/head_manager/account_upgrade/screens/hm_account_upgrade_list_screen.dart';
 import '../../presentation/features/head_manager/lenders/screens/hm_lender_details_screen.dart';
 import '../../presentation/features/head_manager/lenders/screens/hm_lender_list_screen.dart';
 import '../../presentation/features/head_manager/loans/screens/hm_loan_application_details_screen.dart';
@@ -68,8 +68,8 @@ import '../../presentation/features/lender/collections/screens/lender_track_ride
 import '../../presentation/features/lender/dashboard/screens/lender_dashboard_screen.dart';
 import '../../presentation/features/lender/documents/screens/lender_documents_screen.dart';
 import '../../presentation/features/lender/documents/screens/lender_upload_document_screen.dart';
-import '../../presentation/features/lender/kyc/screens/lender_kyc_status_screen.dart';
-import '../../presentation/features/lender/kyc/screens/lender_kyc_submit_screen.dart';
+import '../../presentation/features/lender/account_upgrade/screens/lender_account_upgrade_status_screen.dart';
+import '../../presentation/features/lender/account_upgrade/screens/lender_account_upgrade_submit_screen.dart';
 import '../../presentation/features/lender/loans/screens/lender_apply_loan_screen.dart';
 import '../../presentation/features/lender/loans/screens/lender_loan_application_status_screen.dart';
 import '../../presentation/features/lender/loans/screens/lender_loan_details_screen.dart';
@@ -266,12 +266,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           builder: (ctx, s) =>
               HmLoanDetailsScreen(loanId: s.pathParameters['id']!)),
       GoRoute(
-          path: RouteConstants.hmKyc,
-          builder: (ctx, s) => const HmKycListScreen()),
+          path: RouteConstants.hmAccountUpgrade,
+          builder: (ctx, s) => const HmAccountUpgradeListScreen()),
       GoRoute(
-          path: RouteConstants.hmKycDetails,
+          path: RouteConstants.hmAccountUpgradeDetails,
           builder: (ctx, s) =>
-              HmKycDetailsScreen(lenderId: s.pathParameters['id']!)),
+              HmAccountUpgradeDetailsScreen(lenderId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.hmCi,
           builder: (ctx, s) => const HmCiListScreen()),
@@ -355,12 +355,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           builder: (ctx, s) =>
               EmpLoanDetailsScreen(loanId: s.pathParameters['id']!)),
       GoRoute(
-          path: RouteConstants.empKyc,
-          builder: (ctx, s) => const EmpKycListScreen()),
+          path: RouteConstants.empAccountUpgrade,
+          builder: (ctx, s) => const EmpAccountUpgradeListScreen()),
       GoRoute(
-          path: RouteConstants.empKycDetails,
+          path: RouteConstants.empAccountUpgradeDetails,
           builder: (ctx, s) =>
-              EmpKycDetailsScreen(lenderId: s.pathParameters['id']!)),
+              EmpAccountUpgradeDetailsScreen(lenderId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.empCi,
           builder: (ctx, s) => const EmpCiListScreen()),
@@ -454,11 +454,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.lenderDashboard,
           builder: (ctx, s) => const LenderDashboardScreen()),
       GoRoute(
-          path: RouteConstants.lenderKyc,
-          builder: (ctx, s) => const LenderKycSubmitScreen()),
+          path: RouteConstants.lenderAccountUpgrade,
+          builder: (ctx, s) => const LenderAccountUpgradeSubmitScreen()),
       GoRoute(
-          path: RouteConstants.lenderKycStatus,
-          builder: (ctx, s) => const LenderKycStatusScreen()),
+          path: RouteConstants.lenderAccountUpgradeStatus,
+          builder: (ctx, s) => const LenderAccountUpgradeStatusScreen()),
       GoRoute(
           path: RouteConstants.lenderLoans,
           builder: (ctx, s) => const LenderApplyLoanScreen()),

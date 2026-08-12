@@ -13,7 +13,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../../data/models/loan_model.dart';
-import '../../kyc/providers/lender_kyc_provider.dart';
+import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_loan_provider.dart';
 
@@ -61,7 +61,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(lenderKycProvider.notifier).loadStatus();
+      ref.read(lenderAccountUpgradeProvider.notifier).loadStatus();
       ref.read(lenderLoanProvider.notifier).loadLoans();
       _refreshPreview();
     });
@@ -199,8 +199,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _InfoCard(),
-          const SizedBox(height: 20),
           const _SectionTitle('Loan Amount'),
           const SizedBox(height: 4),
           Text(
@@ -300,18 +298,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               ),
             ),
           ),
-          if (preview != null) ...[
-            const SizedBox(height: 20),
-            _SchedulePreview(preview: preview, loading: _previewLoading),
-          ] else ...[
-            const SizedBox(height: 20),
-            AppButton(
-              label: 'Preview Schedule',
-              onTap: _refreshPreview,
-              color: AppColors.lenderPurpleLight,
-              isLoading: _previewLoading,
-            ),
-          ],
+          const SizedBox(height: 20),
+          _SchedulePreview(preview: preview, loading: _previewLoading),
         ],
       ),
     );
@@ -472,7 +460,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   @override
   Widget build(BuildContext context) {
     final loanState = ref.watch(lenderLoanProvider);
-    final kycState = ref.watch(lenderKycProvider);
+    final accountUpgradeState = ref.watch(lenderAccountUpgradeProvider);
     final fmt = NumberFormat('#,##0.00', 'en_PH');
 
     return MobileScaffold(
@@ -480,15 +468,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       accentColor: AppColors.lenderPurple,
       navItems: _navItems,
       showBackButton: true,
-      body: (loanState.isLoading || kycState.isLoading)
+      body: (loanState.isLoading || accountUpgradeState.isLoading)
           ? const ShimmerLoader()
-          : _buildFlow(loanState, kycState, fmt),
+          : _buildFlow(loanState, accountUpgradeState, fmt),
     );
   }
 
-  Widget _buildFlow(
-      LenderLoanState loanState, LenderKycState kycState, NumberFormat fmt) {
-    final kyc = kycState.status;
+  Widget _buildFlow(LenderLoanState loanState,
+      LenderAccountUpgradeState accountUpgradeState, NumberFormat fmt) {
+    final accountUpgrade = accountUpgradeState.status;
     final loans = loanState.loans;
     final activeLoan = loanState.activeLoan;
 
@@ -497,8 +485,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       return const _AgeGateView();
     }
 
-    if (kyc != 'verified' && kyc != 'approved') {
-      return _KycGate(status: kyc);
+    if (accountUpgrade != 'verified' && accountUpgrade != 'approved') {
+      return _AccountUpgradeGate(status: accountUpgrade);
     }
     // Approved-but-not-yet-released loan → lender chooses how to receive funds.
     final approvedLoan = _approvedUnreleasedLoan(loans);
@@ -794,33 +782,6 @@ class _CoMakerFormState extends State<_CoMakerForm> {
   }
 }
 
-class _InfoCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.lenderPurple.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.lenderPurple.withValues(alpha: 0.15)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.info_outline, color: AppColors.lenderPurple, size: 20),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'All amounts, interest, and schedules are computed by our system. Interest rate is 20% of loan amount.',
-              style: TextStyle(
-                  fontSize: 12, color: AppColors.lenderPurple, height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);
@@ -837,15 +798,32 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _SchedulePreview extends StatelessWidget {
-  final Map<String, dynamic> preview;
+  final Map<String, dynamic>? preview;
   final bool loading;
-  const _SchedulePreview({required this.preview, required this.loading});
+  const _SchedulePreview({this.preview, required this.loading});
 
   @override
   Widget build(BuildContext context) {
     if (loading) {
       return const Center(
           child: CircularProgressIndicator(color: AppColors.lenderPurple));
+    }
+    final preview = this.preview;
+    if (preview == null) {
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Center(
+          child: Text('Unable to load payment schedule. Please try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary)),
+        ),
+      );
     }
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final principal = (preview['principal'] ?? 0).toDouble();
@@ -1274,9 +1252,9 @@ class _ReviewCard extends StatelessWidget {
       );
 }
 
-class _KycGate extends StatelessWidget {
+class _AccountUpgradeGate extends StatelessWidget {
   final String status;
-  const _KycGate({required this.status});
+  const _AccountUpgradeGate({required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -1293,27 +1271,27 @@ class _KycGate extends StatelessWidget {
     if (isRejected) {
       fg = AppColors.error;
       icon = Icons.gpp_bad_outlined;
-      title = 'KYC Submission Rejected';
+      title = 'Account Upgrade Submission Rejected';
       subtitle =
-          'Your KYC documents could not be approved. Please resubmit to continue.';
-      actionLabel = 'Resubmit KYC';
-      onAction = () => context.push(RouteConstants.lenderKyc);
+          'Your account upgrade documents could not be approved. Please resubmit to continue.';
+      actionLabel = 'Resubmit Account Upgrade';
+      onAction = () => context.push(RouteConstants.lenderAccountUpgrade);
     } else if (isSubmitted) {
       fg = AppColors.warning;
       icon = Icons.hourglass_top_rounded;
-      title = 'KYC Under Review';
+      title = 'Account Upgrade Under Review';
       subtitle =
-          'Your documents are being reviewed. You can apply for a loan once your KYC is approved.';
+          'Your documents are being reviewed. You can apply for a loan once your account upgrade is approved.';
       actionLabel = 'View Status';
-      onAction = () => context.push(RouteConstants.lenderKycStatus);
+      onAction = () => context.push(RouteConstants.lenderAccountUpgradeStatus);
     } else {
       fg = AppColors.warning;
       icon = Icons.verified_user_outlined;
-      title = 'Complete Your KYC';
+      title = 'Complete Your Account Upgrade';
       subtitle =
           'Verify your identity to start borrowing with Jireta Loans.';
       actionLabel = 'Verify Now';
-      onAction = () => context.push(RouteConstants.lenderKyc);
+      onAction = () => context.push(RouteConstants.lenderAccountUpgrade);
     }
 
     return Center(
@@ -1699,7 +1677,7 @@ class _ChooseDisbursementViewState
         message: _method == 'gcash'
             ? 'Receive loan proceeds via GCash? The funds will be released immediately.'
             : _method == 'rider_delivery'
-                ? 'A rider will deliver your cash to the address in your KYC profile. A rider will be scheduled to deliver it.'
+                ? 'A rider will deliver your cash to the address in your account upgrade profile. A rider will be scheduled to deliver it.'
                 : 'You will pick up the cash at the Jireta Loans office. We will notify you when it is ready.',
         confirmLabel: 'Confirm',
         confirmColor: AppColors.lenderPurple,

@@ -81,7 +81,7 @@ class _RolesPermissionsTab extends StatelessWidget {
       'Riders',
       'Lenders',
       'Loans',
-      'KYC',
+      'Account Upgrade',
       'Collections',
       'Payments',
       'Reports',
@@ -468,9 +468,9 @@ class _ReportTemplatesTab extends StatelessWidget {
         'formats': ['PDF', 'Excel'],
       },
       {
-        'key': 'kyc_report',
-        'name': 'KYC Verification Report',
-        'desc': 'KYC submission and verification status summary.',
+        'key': 'account_upgrade_report',
+        'name': 'Account Upgrade Verification Report',
+        'desc': 'Account upgrade submission and verification status summary.',
         'formats': ['PDF', 'Excel'],
       },
       {

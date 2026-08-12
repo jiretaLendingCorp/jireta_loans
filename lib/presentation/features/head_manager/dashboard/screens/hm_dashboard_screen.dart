@@ -231,9 +231,9 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
       ),
       _QuickAction(
         Icons.verified_user_outlined,
-        'KYC Review',
+        'Account Upgrade Review',
         AppColors.info,
-        () => context.go(RouteConstants.hmKyc),
+        () => context.go(RouteConstants.hmAccountUpgrade),
       ),
       _QuickAction(
         Icons.assessment_outlined,
@@ -307,8 +307,8 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
         isCurrency: false,
       ),
       _KpiCard(
-        label: 'Pending KYC',
-        value: kpi.totalPendingKyc.toString(),
+        label: 'Pending Account Upgrade',
+        value: kpi.totalPendingAccountUpgrade.toString(),
         icon: Icons.verified_user_outlined,
         color: AppColors.warning,
         isCurrency: false,

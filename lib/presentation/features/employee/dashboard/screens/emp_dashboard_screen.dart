@@ -208,9 +208,9 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
       ),
       _QuickAction(
         Icons.verified_user_outlined,
-        'KYC Review',
+        'Account Upgrade Review',
         AppColors.info,
-        () => context.go(RouteConstants.empKyc),
+        () => context.go(RouteConstants.empAccountUpgrade),
       ),
       _QuickAction(
         Icons.payments_outlined,

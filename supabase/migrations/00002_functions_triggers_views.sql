@@ -62,7 +62,7 @@ DECLARE
   t TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'user_account_statuses','kyc_statuses','loan_statuses','payment_statuses',
+    'user_account_statuses','account_upgrade_statuses','loan_statuses','payment_statuses',
     'payment_methods','disbursement_methods','disbursement_statuses',
     'collection_assignment_statuses','credit_investigation_statuses',
     'notification_types','relationship_types','payment_frequencies',

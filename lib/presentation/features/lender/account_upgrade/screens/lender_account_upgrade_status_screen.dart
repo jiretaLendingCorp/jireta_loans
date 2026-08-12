@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/kyc/screens/lender_kyc_status_screen.dart
+// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_status_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +9,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../providers/lender_kyc_provider.dart';
+import '../providers/lender_account_upgrade_provider.dart';
 
 const _lenderNavItems = [
   MobileNavItem(
@@ -29,27 +29,29 @@ const _lenderNavItems = [
       route: RouteConstants.lenderProfile),
 ];
 
-class LenderKycStatusScreen extends ConsumerStatefulWidget {
-  const LenderKycStatusScreen({super.key});
+class LenderAccountUpgradeStatusScreen extends ConsumerStatefulWidget {
+  const LenderAccountUpgradeStatusScreen({super.key});
 
   @override
-  ConsumerState<LenderKycStatusScreen> createState() =>
-      _LenderKycStatusScreenState();
+  ConsumerState<LenderAccountUpgradeStatusScreen> createState() =>
+      _LenderAccountUpgradeStatusScreenState();
 }
 
-class _LenderKycStatusScreenState extends ConsumerState<LenderKycStatusScreen> {
+class _LenderAccountUpgradeStatusScreenState
+    extends ConsumerState<LenderAccountUpgradeStatusScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(lenderKycProvider.notifier).loadStatus());
+    Future.microtask(
+        () => ref.read(lenderAccountUpgradeProvider.notifier).loadStatus());
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(lenderKycProvider);
+    final state = ref.watch(lenderAccountUpgradeProvider);
 
     return MobileScaffold(
-      title: 'KYC Status',
+      title: 'Account Upgrade Status',
       accentColor: AppColors.lenderPurple,
       navItems: _lenderNavItems,
       body: state.isLoading
@@ -57,7 +59,7 @@ class _LenderKycStatusScreenState extends ConsumerState<LenderKycStatusScreen> {
           : RefreshIndicator(
               color: AppColors.lenderPurple,
               onRefresh: () =>
-                  ref.read(lenderKycProvider.notifier).loadStatus(),
+                  ref.read(lenderAccountUpgradeProvider.notifier).loadStatus(),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
@@ -77,7 +79,8 @@ class _LenderKycStatusScreenState extends ConsumerState<LenderKycStatusScreen> {
                       const SizedBox(height: 16),
                       AppButton(
                         label: 'Resubmit Documents',
-                        onPressed: () => context.push(RouteConstants.lenderKyc),
+                        onPressed: () => context
+                            .push(RouteConstants.lenderAccountUpgrade),
                         color: AppColors.lenderPurple,
                       ),
                     ],
@@ -88,11 +91,11 @@ class _LenderKycStatusScreenState extends ConsumerState<LenderKycStatusScreen> {
     );
   }
 
-  Widget _buildTimeline(LenderKycState state) {
+  Widget _buildTimeline(LenderAccountUpgradeState state) {
     final steps = [
       _TimelineStep(
           'Documents Submitted',
-          'Your KYC documents have been submitted for review.',
+          'Your account upgrade documents have been submitted for review.',
           state.status != 'not_submitted',
           Icons.upload_file),
       _TimelineStep(
@@ -145,12 +148,13 @@ class _StatusBanner extends StatelessWidget {
       case 'verified':
         color = AppColors.success;
         icon = Icons.verified_user;
-        message = 'Your KYC is verified. You can now apply for a loan.';
+        message = 'Your account upgrade is verified. You can now apply for a loan.';
         break;
       case 'rejected':
         color = AppColors.error;
         icon = Icons.cancel;
-        message = 'Your KYC was rejected. Please resubmit your documents.';
+        message =
+            'Your account upgrade was rejected. Please resubmit your documents.';
         break;
       case 'under_review':
         color = AppColors.warning;
@@ -165,7 +169,8 @@ class _StatusBanner extends StatelessWidget {
       default:
         color = AppColors.textSecondary;
         icon = Icons.help_outline;
-        message = 'Please submit your KYC documents to proceed.';
+        message =
+            'Please submit your account upgrade documents to proceed.';
     }
 
     return Container(

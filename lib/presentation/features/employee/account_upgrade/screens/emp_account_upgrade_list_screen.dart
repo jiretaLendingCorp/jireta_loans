@@ -1,4 +1,4 @@
-// lib/presentation/features/employee/kyc/screens/emp_kyc_list_screen.dart
+// lib/presentation/features/employee/account_upgrade/screens/emp_account_upgrade_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,15 +9,17 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
-import '../providers/emp_kyc_provider.dart';
+import '../providers/emp_account_upgrade_provider.dart';
 
-class EmpKycListScreen extends ConsumerStatefulWidget {
-  const EmpKycListScreen({super.key});
+class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
+  const EmpAccountUpgradeListScreen({super.key});
   @override
-  ConsumerState<EmpKycListScreen> createState() => _EmpKycListScreenState();
+  ConsumerState<EmpAccountUpgradeListScreen> createState() =>
+      _EmpAccountUpgradeListScreenState();
 }
 
-class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
+class _EmpAccountUpgradeListScreenState
+    extends ConsumerState<EmpAccountUpgradeListScreen> {
   final _searchCtrl = TextEditingController();
   String? _statusFilter;
 
@@ -25,7 +27,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(empKycProvider.notifier).loadList();
+      ref.read(empAccountUpgradeProvider.notifier).loadList();
     });
   }
 
@@ -37,13 +39,13 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final kycState = ref.watch(empKycProvider);
+    final accountUpgradeState = ref.watch(empAccountUpgradeProvider);
     return WebScaffold(
-      title: 'KYC Review',
+      title: 'Account Upgrade Review',
       body: Column(children: [
         _buildFilters(),
         Expanded(
-            child: kycState.when(
+            child: accountUpgradeState.when(
           loading: () => ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: 5,
@@ -80,7 +82,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
           onChanged: (v) => ref
-              .read(empKycProvider.notifier)
+              .read(empAccountUpgradeProvider.notifier)
               .loadList(search: v, status: _statusFilter),
         )),
         const SizedBox(width: 12),
@@ -96,7 +98,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
           onChanged: (v) {
             setState(() => _statusFilter = v);
             ref
-                .read(empKycProvider.notifier)
+                .read(empAccountUpgradeProvider.notifier)
                 .loadList(status: v, search: _searchCtrl.text);
           },
         ),
@@ -104,8 +106,9 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
         IconButton(
           icon: const Icon(Icons.refresh),
           tooltip: 'Refresh',
-          onPressed: () =>
-              ref.read(empKycProvider.notifier).loadList(status: _statusFilter),
+          onPressed: () => ref
+              .read(empAccountUpgradeProvider.notifier)
+              .loadList(status: _statusFilter),
         ),
       ]),
     );
@@ -147,23 +150,25 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
     );
   }
 
-  Widget _buildRow(Map<String, dynamic> kyc, bool isEven) {
-    final lender = kyc['lender'] as Map<String, dynamic>?;
+  Widget _buildRow(Map<String, dynamic> accountUpgrade, bool isEven) {
+    final lender = accountUpgrade['lender'] as Map<String, dynamic>?;
     final name =
         lender != null ? '${lender['first_name']} ${lender['last_name']}' : '—';
-    final submittedAt = kyc['submitted_at'] != null
-        ? DateTime.parse(kyc['submitted_at']).toDisplayDate
-        : kyc['created_at'] != null
-            ? DateTime.tryParse(kyc['created_at'])?.toDisplayDate ?? '—'
+    final submittedAt = accountUpgrade['submitted_at'] != null
+        ? DateTime.parse(accountUpgrade['submitted_at']).toDisplayDate
+        : accountUpgrade['created_at'] != null
+            ? DateTime.tryParse(accountUpgrade['created_at'])?.toDisplayDate ??
+                '—'
             : '—';
-    final docCount = (kyc['document_count'] as num?)?.toInt() ?? 0;
-    final status = kyc['status'] ?? 'pending';
-    final lenderId =
-        kyc['lender_id'] as String? ?? kyc['id'] as String? ?? '';
+    final docCount = (accountUpgrade['document_count'] as num?)?.toInt() ?? 0;
+    final status = accountUpgrade['status'] ?? 'pending';
+    final lenderId = accountUpgrade['lender_id'] as String? ??
+        accountUpgrade['id'] as String? ??
+        '';
 
     return InkWell(
-      onTap: () => context
-          .go(RouteConstants.empKycDetails.replaceFirst(':id', lenderId)),
+      onTap: () => context.go(RouteConstants.empAccountUpgradeDetails
+          .replaceFirst(':id', lenderId)),
       child: Container(
         color:
             isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
@@ -190,7 +195,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
               flex: 2,
               child: Text(
                   docCount <= 0
-                      ? 'KYC Submission'
+                      ? 'Account Upgrade Submission'
                       : docCount == 1
                           ? '1 document'
                           : '$docCount documents',
@@ -231,7 +236,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
   }
 
   Future<void> _verifyAll(String lenderId, String action) async {
-    final ok = await ref.read(empKycProvider.notifier).verifyAll(
+    final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(
           lenderId: lenderId,
           action: action,
         );
@@ -240,8 +245,8 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
       SnackBar(
         content: Text(ok
             ? (action == 'verified'
-                ? 'KYC documents verified'
-                : 'KYC documents rejected')
+                ? 'Account upgrade documents verified'
+                : 'Account upgrade documents rejected')
             : 'Action failed'),
         backgroundColor: ok ? AppColors.success : AppColors.error,
       ),
@@ -258,7 +263,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
           children: [
             Icon(Icons.cancel_outlined, color: AppColors.error, size: 24),
             SizedBox(width: 10),
-            Text('Reject KYC'),
+            Text('Reject Account Upgrade'),
           ],
         ),
         content: SizedBox(
@@ -315,7 +320,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
     );
     if (confirmed == true) {
       if (!mounted) return;
-      final ok = await ref.read(empKycProvider.notifier).verifyAll(
+      final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(
             lenderId: lenderId,
             action: 'rejected',
             rejectionNotes: notesCtrl.text.trim(),
@@ -323,7 +328,8 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ok ? 'KYC documents rejected' : 'Action failed'),
+          content: Text(
+              ok ? 'Account upgrade documents rejected' : 'Action failed'),
           backgroundColor: ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -336,7 +342,7 @@ class _EmpKycListScreenState extends ConsumerState<EmpKycListScreen> {
       Icon(Icons.verified_user_outlined,
           size: 64, color: AppColors.textTertiary),
       SizedBox(height: 16),
-      Text('No KYC submissions found',
+      Text('No account upgrade submissions found',
           style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
     ]));
   }

@@ -233,7 +233,7 @@ async function selfRegisterGoogleLender(
 
   const { error: profileErr } = await db.from('lender_profiles').insert({
     id:         newUser.id,
-    kyc_status: 'not_submitted',
+    account_upgrade_status: 'not_submitted',
   });
   if (profileErr) {
     await Promise.resolve(db.from('users').delete().eq('id', newUser.id)).catch(() => {});

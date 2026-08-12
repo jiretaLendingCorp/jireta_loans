@@ -70,7 +70,7 @@ async function handleHeadManager(req: Request) {
     { count: totalOverdue },
     { count: totalCi },
     { count: totalReports },
-    { count: totalPendingKyc },
+    { count: totalPendingAccountUpgrade },
     { count: totalCollectionTx },
   ] = await Promise.all([
     db.from('users').select('*, roles!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'),
@@ -84,7 +84,7 @@ async function handleHeadManager(req: Request) {
     db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'overdue'),
     db.from('credit_investigations').select('*', { count: 'exact', head: true }),
     db.from('reports').select('*', { count: 'exact', head: true }),
-    db.from('lender_profiles').select('*', { count: 'exact', head: true }).eq('kyc_status', 'submitted'),
+    db.from('lender_profiles').select('*', { count: 'exact', head: true }).eq('account_upgrade_status', 'submitted'),
     db.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'verified'),
   ]);
 
@@ -140,7 +140,7 @@ async function handleHeadManager(req: Request) {
     total_collection_transactions: totalCollectionTx ?? 0,
     total_ci_assignments: totalCi ?? 0,
     total_report_exports: totalReports ?? 0,
-    total_pending_kyc: totalPendingKyc ?? 0,
+    total_pending_account_upgrade: totalPendingAccountUpgrade ?? 0,
   });
 }
 
@@ -289,9 +289,9 @@ async function handleLender(req: Request) {
     .select('penalty_amount, loans!penalty_logs_loan_id_fkey(lender_id)')
     .eq('loans.lender_id', lenderId);
 
-  const { data: kycProfile } = await db
+  const { data: accountUpgradeProfile } = await db
     .from('lender_profiles')
-    .select('kyc_status')
+    .select('account_upgrade_status')
     .eq('id', lenderId)
     .single();
 
@@ -320,6 +320,6 @@ async function handleLender(req: Request) {
     remaining_balance: totalOutstanding,
     total_interest_paid: Math.max(0, totalInterestPaid),
     total_penalties_paid: totalPenaltiesPaid,
-    kyc_status: kycProfile?.kyc_status ?? 'not_submitted',
+    account_upgrade_status: accountUpgradeProfile?.account_upgrade_status ?? 'not_submitted',
   });
 }

@@ -272,7 +272,7 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
         children: [
           _InfoRow('Name', loan.lenderName ?? 'N/A'),
           if (lp != null) ...[
-            _InfoRow('KYC Status', lp['kyc_status'] ?? 'N/A'),
+            _InfoRow('Account Upgrade Status', lp['account_upgrade_status'] ?? 'N/A'),
             _InfoRow('Employment', lp['employment_type'] ?? 'N/A'),
             _InfoRow('Monthly Income',
                 (lp['monthly_income'] as num?)?.toDouble().toCurrency ?? 'N/A'),

@@ -35,7 +35,7 @@ class HmActivityFeed extends StatelessWidget {
         return Icons.check_circle_outline;
       case 'loan_rejected':
         return Icons.cancel_outlined;
-      case 'kyc_submitted':
+      case 'account_upgrade_submitted':
         return Icons.person_add_outlined;
       case 'payment':
         return Icons.payments_outlined;
@@ -60,7 +60,7 @@ class HmActivityFeed extends StatelessWidget {
         return AppColors.riderGreen;
       case 'collection':
         return AppColors.info;
-      case 'kyc_submitted':
+      case 'account_upgrade_submitted':
         return AppColors.lenderPurple;
       case 'disbursement':
         return AppColors.gold;

@@ -76,7 +76,7 @@ async function handleApprove(req: Request) {
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
     const { data: loan } = await db.from('loans')
-      .select('id, status, lender_id, lender_profiles(kyc_status)')
+      .select('id, status, lender_id, lender_profiles(account_upgrade_status)')
       .eq('id', loan_id).single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
@@ -85,7 +85,7 @@ async function handleApprove(req: Request) {
     }
 
     const lp = embedAsObject(loan?.lender_profiles);
-    if (lp?.kyc_status !== 'verified') return errorResponse('Lender KYC must be verified', 400, 'KYC_NOT_VERIFIED');
+    if (lp?.account_upgrade_status !== 'verified') return errorResponse('Lender Account Upgrade must be completed', 400, 'ACCOUNT_UPGRADE_NOT_VERIFIED');
 
     await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', loan_id);
 

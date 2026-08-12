@@ -1,5 +1,5 @@
-// lib/data/models/kyc_document_model.dart
-class KycDocumentModel {
+// lib/data/models/account_upgrade_document_model.dart
+class AccountUpgradeDocumentModel {
   final String id;
   final String lenderId;
   final String documentType;
@@ -13,7 +13,7 @@ class KycDocumentModel {
   final int documentCount;
   final List<String> documentTypes;
 
-  const KycDocumentModel({
+  const AccountUpgradeDocumentModel({
     required this.id,
     required this.lenderId,
     required this.documentType,
@@ -28,8 +28,8 @@ class KycDocumentModel {
     this.documentTypes = const [],
   });
 
-  factory KycDocumentModel.fromJson(Map<String, dynamic> json) =>
-      KycDocumentModel(
+  factory AccountUpgradeDocumentModel.fromJson(Map<String, dynamic> json) =>
+      AccountUpgradeDocumentModel(
         id: json['id'] ?? '',
         lenderId: json['lender_id'] ?? '',
         documentType: json['document_type'] ?? '',
@@ -51,7 +51,7 @@ class KycDocumentModel {
       );
 
   String get documentCountLabel => documentCount <= 0
-      ? 'KYC Submission'
+      ? 'Account Upgrade Submission'
       : documentCount == 1
           ? '1 document'
           : '$documentCount documents';
@@ -78,26 +78,27 @@ class KycDocumentModel {
   DateTime get submittedAt => createdAt;
 }
 
-class KycStatusModel {
+class AccountUpgradeStatusModel {
   final String lenderId;
-  final String kycStatus;
-  final List<KycDocumentModel> documents;
+  final String accountUpgradeStatus;
+  final List<AccountUpgradeDocumentModel> documents;
 
-  const KycStatusModel({
+  const AccountUpgradeStatusModel({
     required this.lenderId,
-    required this.kycStatus,
+    required this.accountUpgradeStatus,
     required this.documents,
   });
 
-  factory KycStatusModel.fromJson(Map<String, dynamic> json) => KycStatusModel(
+  factory AccountUpgradeStatusModel.fromJson(Map<String, dynamic> json) =>
+      AccountUpgradeStatusModel(
     lenderId: json['lender_id'] ?? '',
-    kycStatus: json['kyc_status'] ?? 'not_submitted',
+    accountUpgradeStatus: json['account_upgrade_status'] ?? 'not_submitted',
     documents: (json['documents'] as List? ?? [])
-        .map((e) => KycDocumentModel.fromJson(e as Map<String, dynamic>))
+        .map((e) => AccountUpgradeDocumentModel.fromJson(e as Map<String, dynamic>))
         .toList(),
   );
 
   bool get isNotEmpty => documents.isNotEmpty;
   bool get isEmpty => documents.isEmpty;
-  KycDocumentModel get first => documents.first;
+  AccountUpgradeDocumentModel get first => documents.first;
 }

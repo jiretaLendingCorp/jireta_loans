@@ -18,7 +18,7 @@ class KpiHeadManagerModel {
   final int totalCollectionTransactions;
   final int totalCiAssignments;
   final int totalReportExports;
-  final int totalPendingKyc;
+  final int totalPendingAccountUpgrade;
 
   const KpiHeadManagerModel({
     required this.totalEmployees,
@@ -39,7 +39,7 @@ class KpiHeadManagerModel {
     required this.totalCollectionTransactions,
     required this.totalCiAssignments,
     required this.totalReportExports,
-    required this.totalPendingKyc,
+    required this.totalPendingAccountUpgrade,
   });
 
   int get totalApproved => totalApprovedLoans;
@@ -82,7 +82,7 @@ class KpiHeadManagerModel {
           (json['total_collection_transactions'] as num?)?.toInt() ?? 0,
       totalCiAssignments: (json['total_ci_assignments'] as num?)?.toInt() ?? 0,
       totalReportExports: (json['total_report_exports'] as num?)?.toInt() ?? 0,
-      totalPendingKyc: (json['total_pending_kyc'] as num?)?.toInt() ?? 0,
+      totalPendingAccountUpgrade: (json['total_pending_account_upgrade'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -105,6 +105,6 @@ class KpiHeadManagerModel {
     totalCollectionTransactions: 0,
     totalCiAssignments: 0,
     totalReportExports: 0,
-    totalPendingKyc: 0,
+    totalPendingAccountUpgrade: 0,
   );
 }

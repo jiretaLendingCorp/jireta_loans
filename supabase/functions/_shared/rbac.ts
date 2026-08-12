@@ -18,7 +18,7 @@ const MODULE_PERMISSIONS: Record<string, Record<string, string[]>> = {
     list:    [ROLES.HEAD_MANAGER, ROLES.EMPLOYEE],
     save:    [ROLES.HEAD_MANAGER, ROLES.EMPLOYEE],
   },
-  kyc: {
+  account_upgrade: {
     verify: [ROLES.HEAD_MANAGER, ROLES.EMPLOYEE],
     list:   [ROLES.HEAD_MANAGER, ROLES.EMPLOYEE],
   },

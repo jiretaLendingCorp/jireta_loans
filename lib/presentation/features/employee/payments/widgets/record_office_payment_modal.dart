@@ -115,7 +115,7 @@ class _RecordOfficePaymentModalState
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Verify the lender\'s KYC identity before recording payment.',
+                        'Verify the lender\'s account upgrade identity before recording payment.',
                         style: TextStyle(fontSize: 12, color: AppColors.info),
                       ),
                     ),

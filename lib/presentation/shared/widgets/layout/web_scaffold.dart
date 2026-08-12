@@ -327,8 +327,8 @@ class _Sidebar extends StatelessWidget {
           'Active Loans',
           RouteConstants.hmLoans,
         ),
-        const _NavItem(
-            Icons.verified_user_outlined, 'KYC Review', RouteConstants.hmKyc),
+        const _NavItem(Icons.verified_user_outlined, 'Account Upgrade Review',
+            RouteConstants.hmAccountUpgrade),
         const _NavItem(
           Icons.search_outlined,
           'Credit Investigation',
@@ -370,8 +370,8 @@ class _Sidebar extends StatelessWidget {
           'In-Office Application',
           RouteConstants.empInOffice,
         ),
-        const _NavItem(
-            Icons.verified_user_outlined, 'KYC Review', RouteConstants.empKyc),
+        const _NavItem(Icons.verified_user_outlined, 'Account Upgrade Review',
+            RouteConstants.empAccountUpgrade),
         const _NavItem(
           Icons.search_outlined,
           'Credit Investigation',

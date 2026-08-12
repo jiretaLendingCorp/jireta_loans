@@ -9,7 +9,7 @@ class LenderProfileEntity {
   final String? employerName;
   final double? monthlyIncome;
   final String? gcashNumber;
-  final String kycStatus;
+  final String accountUpgradeStatus;
   final DateTime createdAt;
 
   const LenderProfileEntity({
@@ -22,10 +22,11 @@ class LenderProfileEntity {
     this.employerName,
     this.monthlyIncome,
     this.gcashNumber,
-    required this.kycStatus,
+    required this.accountUpgradeStatus,
     required this.createdAt,
   });
 
-  bool get isKycVerified => kycStatus == 'verified';
-  bool get isKycPending => kycStatus == 'pending' || kycStatus == 'submitted';
+  bool get isAccountUpgradeVerified => accountUpgradeStatus == 'verified';
+  bool get isAccountUpgradePending =>
+      accountUpgradeStatus == 'pending' || accountUpgradeStatus == 'submitted';
 }

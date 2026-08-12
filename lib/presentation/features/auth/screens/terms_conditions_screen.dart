@@ -132,13 +132,13 @@ class _TermsConditionsScreenState
                       ),
                       _sectionTitle('2. Loan Services'),
                       _body(
-                        'Jireta Loans & Credit Corp 1966 offers lending services ranging from ₱3,000 to ₱500,000 with an interest rate of 20% per loan term. Loan amounts and terms are subject to credit evaluation, KYC verification, and credit investigation.',
+                        'Jireta Loans & Credit Corp 1966 offers lending services ranging from ₱3,000 to ₱500,000 with an interest rate of 20% per loan term. Loan amounts and terms are subject to credit evaluation, account upgrade verification, and credit investigation.',
                       ),
                       _sectionTitle('3. Interest & Penalties'),
                       _body(
                         'All loans carry a 20% interest rate on the principal amount. A penalty of 20% on the total payable amount will be applied if payment is delayed by one (1) month or more.',
                       ),
-                      _sectionTitle('4. KYC Requirements'),
+                      _sectionTitle('4. Account Upgrade Requirements'),
                       _body(
                         'You are required to submit valid government-issued identification, proof of billing, selfie verification, and proof of income. All documents are subject to verification by authorized personnel.',
                       ),

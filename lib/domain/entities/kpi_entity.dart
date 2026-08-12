@@ -18,7 +18,7 @@ class KpiHeadManagerEntity {
   final int totalCollectionTransactions;
   final int totalCiAssignments;
   final int totalReportExports;
-  final int totalPendingKyc;
+  final int totalPendingAccountUpgrade;
 
   const KpiHeadManagerEntity({
     required this.totalEmployees,
@@ -39,7 +39,7 @@ class KpiHeadManagerEntity {
     required this.totalCollectionTransactions,
     required this.totalCiAssignments,
     required this.totalReportExports,
-    required this.totalPendingKyc,
+    required this.totalPendingAccountUpgrade,
   });
 }
 

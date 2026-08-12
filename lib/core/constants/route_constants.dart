@@ -23,8 +23,8 @@ class RouteConstants {
   static const String hmLoanApplicationDetails = '/hm/loan-applications/:id';
   static const String hmLoans = '/hm/loans';
   static const String hmLoanDetails = '/hm/loans/:id';
-  static const String hmKyc = '/hm/kyc';
-  static const String hmKycDetails = '/hm/kyc/:id';
+  static const String hmAccountUpgrade = '/hm/account-upgrade';
+  static const String hmAccountUpgradeDetails = '/hm/account-upgrade/:id';
   static const String hmCi = '/hm/ci';
   static const String hmCiDetails = '/hm/ci/:id';
   static const String hmCollections = '/hm/collections';
@@ -51,8 +51,8 @@ class RouteConstants {
   static const String empLoans = '/employee/loans';
   static const String empLoanApplicationDetails = '/employee/loans/:id';
   static const String empLoanDetails = '/employee/loan-details/:id';
-  static const String empKyc = '/employee/kyc';
-  static const String empKycDetails = '/employee/kyc/:id';
+  static const String empAccountUpgrade = '/employee/account-upgrade';
+  static const String empAccountUpgradeDetails = '/employee/account-upgrade/:id';
   static const String empCi = '/employee/ci';
   static const String empCiDetails = '/employee/ci/:id';
   static const String empCollections = '/employee/collections';
@@ -83,8 +83,8 @@ class RouteConstants {
 
   // Lender
   static const String lenderDashboard = '/lender/dashboard';
-  static const String lenderKyc = '/lender/kyc';
-  static const String lenderKycStatus = '/lender/kyc-status';
+  static const String lenderAccountUpgrade = '/lender/account-upgrade';
+  static const String lenderAccountUpgradeStatus = '/lender/account-upgrade-status';
   static const String lenderLoans = '/lender/loans';
   static const String lenderLoanDetails = '/lender/loans/:id';
   static const String lenderLoanApplicationStatus = '/lender/loan-status/:id';

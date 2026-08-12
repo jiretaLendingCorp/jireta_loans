@@ -34,7 +34,8 @@ class LenderDashboardNotifier extends StateNotifier<LenderDashboardState>
 
   LenderDashboardNotifier(this._ds)
       : super(const LenderDashboardState(kpi: KpiLenderModel())) {
-    bindRealtimeRefresh(['loans', 'loan_schedules', 'payments', 'kyc_documents'],
+    bindRealtimeRefresh(
+        ['loans', 'loan_schedules', 'payments', 'account_upgrade_documents'],
         refresh: load);
     load();
   }

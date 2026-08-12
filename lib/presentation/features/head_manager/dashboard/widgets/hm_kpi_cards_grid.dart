@@ -49,8 +49,8 @@ class HmKpiCardsGrid extends StatelessWidget {
           Icons.assignment_outlined, AppColors.info),
       _KpiDef('Report Exports', kpi.totalReportExports, Icons.download_outlined,
           AppColors.riderGreenDark),
-      _KpiDef('Pending KYC', kpi.totalPendingKyc, Icons.pending_actions,
-          AppColors.warning),
+      _KpiDef('Pending Account Upgrade', kpi.totalPendingAccountUpgrade,
+          Icons.pending_actions, AppColors.warning),
     ];
 
     return LayoutBuilder(

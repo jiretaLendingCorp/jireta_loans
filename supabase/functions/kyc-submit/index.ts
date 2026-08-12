@@ -67,7 +67,7 @@ serve(async (req) => {
       if (!ALLOWED_TYPES.includes(doc.document_type)) return errorResponse(`Invalid document_type: ${doc.document_type}`, 400, 'VALIDATION_ERROR');
     }
 
-    // The lender fills out their ENTIRE profile here during KYC — identity,
+    // The lender fills out their ENTIRE profile here during Account Upgrade — identity,
     // personal details, employment, income, GCash. The profile screen is a
     // read-only view of this data, so nothing may be left blank.
     const p = profile ?? {};
@@ -85,7 +85,7 @@ serve(async (req) => {
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-    // ── 1) Identity (users) — names are captured here in KYC, never auto-filled.
+    // ── 1) Identity (users) — names are captured here in Account Upgrade, never auto-filled.
     const { error: userErr } = await db.from('users').update({
       first_name: sanitizeString(p.first_name),
       middle_name: p.middle_name ? sanitizeString(p.middle_name) : null,
@@ -94,7 +94,7 @@ serve(async (req) => {
     }).eq('id', user.id);
     if (userErr) console.error('kyc-submit user update error:', userErr.message);
 
-    // Upload each document to the kyc-documents storage bucket (service role)
+    // Upload each document to the account-upgrade-documents storage bucket (service role)
     // and store the returned object path — NOT the raw base64 payload which
     // would overflow the VARCHAR(255) file_path column.
     const docsToInsert = [];
@@ -102,12 +102,12 @@ serve(async (req) => {
       const doc = documents[i];
       const ext = (doc.file_name ?? 'document').split('.').pop()?.toLowerCase() ?? 'jpg';
       const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext) ? ext : 'jpg';
-      const objectPath = `kyc/${user.id}/${crypto.randomUUID()}.${safeExt}`;
+      const objectPath = `account-upgrade/${user.id}/${crypto.randomUUID()}.${safeExt}`;
 
       let storedPath = doc.file_url ?? null;
       if (doc.content_base64) {
         const { error: uploadErr } = await db.storage
-          .from('kyc-documents')
+          .from('account-upgrade-documents')
           .upload(objectPath, base64ToBytes(doc.content_base64), {
             contentType: doc.mime_type ?? mimeFromExt(safeExt),
             upsert: false,
@@ -133,13 +133,13 @@ serve(async (req) => {
       });
     }
 
-    const { error: insertErr } = await db.from('kyc_documents').insert(docsToInsert);
-    if (insertErr) return errorResponse(`Failed to save KYC documents: ${insertErr.message}`, 500, 'DB_ERROR');
+    const { error: insertErr } = await db.from('account_upgrade_documents').insert(docsToInsert);
+    if (insertErr) return errorResponse(`Failed to save Account Upgrade documents: ${insertErr.message}`, 500, 'DB_ERROR');
 
     // ── 2) Lender profile details + source of funds ─────────────────────────
     // profileErr must NOT be swallowed: this is an atomic UPDATE whose FK/CHECK
     // violations silently wipe every field, which is exactly how a lender
-    // "submits KYC but staff sees nothing". Surface it so it can be fixed.
+    // "submits Account Upgrade but staff sees nothing". Surface it so it can be fixed.
     const { error: profileErr } = await db.from('lender_profiles').update({
       gender: normalizeEnum(p.gender),
       civil_status: normalizeEnum(p.civil_status),
@@ -187,7 +187,7 @@ serve(async (req) => {
       }
     }
 
-    // Emergency contact (one per lender is sufficient for KYC).
+    // Emergency contact (one per lender is sufficient for Account Upgrade).
     if (emergency_contact?.name && emergency_contact?.phone_number) {
       const { error: ecErr } = await db.from('emergency_contacts').upsert({
         lender_id: user.id,
@@ -199,13 +199,13 @@ serve(async (req) => {
       if (ecErr) console.error('kyc-submit emergency contact error:', ecErr.message);
     }
 
-    const { error: statusErr } = await db.from('lender_profiles').update({ kyc_status: 'submitted' }).eq('id', user.id);
-    if (statusErr) return errorResponse('Failed to update KYC status', 500, 'DB_ERROR');
+    const { error: statusErr } = await db.from('lender_profiles').update({ account_upgrade_status: 'submitted' }).eq('id', user.id);
+    if (statusErr) return errorResponse('Failed to update Account Upgrade status', 500, 'DB_ERROR');
 
-    await writeAuditLog({ performedBy: user.id, action: 'kyc_submit', tableName: 'kyc_documents', recordId: user.id, ipAddress: ip });
-    await notifyStaff({ title: 'KYC Submitted', body: 'A lender has submitted KYC documents for review.', type: 'kyc_submitted', referenceId: user.id, sentBy: user.id });
+    await writeAuditLog({ performedBy: user.id, action: 'account_upgrade_submit', tableName: 'account_upgrade_documents', recordId: user.id, ipAddress: ip });
+    await notifyStaff({ title: 'Account Upgrade Submitted', body: 'A lender has submitted Account Upgrade documents for review.', type: 'account_upgrade_submitted', referenceId: user.id, sentBy: user.id });
 
-    return jsonResponse({ message: 'KYC documents submitted successfully' }, 201);
+    return jsonResponse({ message: 'Account Upgrade documents submitted successfully' }, 201);
   } catch (err) {
     console.error('kyc-submit error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

@@ -9,7 +9,7 @@ class LenderProfileModel {
   final String? employerName;
   final double? monthlyIncome;
   final String? gcashNumber;
-  final String kycStatus;
+  final String accountUpgradeStatus;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -23,7 +23,7 @@ class LenderProfileModel {
     this.employerName,
     this.monthlyIncome,
     this.gcashNumber,
-    required this.kycStatus,
+    required this.accountUpgradeStatus,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -41,7 +41,7 @@ class LenderProfileModel {
       employerName: json['employer_name'],
       monthlyIncome: (json['monthly_income'] as num?)?.toDouble(),
       gcashNumber: json['gcash_number'],
-      kycStatus: json['kyc_status'] ?? 'not_submitted',
+      accountUpgradeStatus: json['account_upgrade_status'] ?? 'not_submitted',
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),
@@ -51,8 +51,8 @@ class LenderProfileModel {
     );
   }
 
-  bool get isKycVerified => kycStatus == 'verified';
-  bool get isKycPending => kycStatus == 'pending';
-  bool get isKycSubmitted => kycStatus == 'submitted';
-  bool get isKycRejected => kycStatus == 'rejected';
+  bool get isAccountUpgradeVerified => accountUpgradeStatus == 'verified';
+  bool get isAccountUpgradePending => accountUpgradeStatus == 'pending';
+  bool get isAccountUpgradeSubmitted => accountUpgradeStatus == 'submitted';
+  bool get isAccountUpgradeRejected => accountUpgradeStatus == 'rejected';
 }

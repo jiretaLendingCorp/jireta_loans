@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/kyc/screens/lender_kyc_submit_screen.dart
+// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_submit_screen.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,17 +17,18 @@ import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../providers/lender_kyc_provider.dart';
+import '../providers/lender_account_upgrade_provider.dart';
 
-class LenderKycSubmitScreen extends ConsumerStatefulWidget {
-  const LenderKycSubmitScreen({super.key});
+class LenderAccountUpgradeSubmitScreen extends ConsumerStatefulWidget {
+  const LenderAccountUpgradeSubmitScreen({super.key});
 
   @override
-  ConsumerState<LenderKycSubmitScreen> createState() =>
-      _LenderKycSubmitScreenState();
+  ConsumerState<LenderAccountUpgradeSubmitScreen> createState() =>
+      _LenderAccountUpgradeSubmitScreenState();
 }
 
-class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
+class _LenderAccountUpgradeSubmitScreenState
+    extends ConsumerState<LenderAccountUpgradeSubmitScreen> {
   static const _navItems = [
     MobileNavItem(
         icon: Icons.home_outlined,
@@ -208,12 +209,11 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
       return;
     }
     if (!_isAdult(_dob!)) {
-      setState(
-          () => _dobError = 'You must be at least 18 years old to submit KYC.');
+      setState(() => _dobError = 'You must be at least 18 years old to submit account upgrade.');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'You must be at least 18 years old to submit KYC documents.'),
+              'You must be at least 18 years old to submit account upgrade documents.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -241,8 +241,8 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
         });
       }
 
-      // Everything the lender fills in KYC lives on their profile — the
-      // profile screen only displays these details afterwards.
+      // Everything the lender fills in the account upgrade lives on their
+      // profile — the profile screen only displays these details afterwards.
       final payload = <String, dynamic>{
         'profile': {
           'first_name': _firstNameCtrl.text.trim(),
@@ -275,15 +275,16 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
       };
 
       final ok = await ref
-          .read(lenderKycProvider.notifier)
-          .submitKyc(docs, info: payload);
+          .read(lenderAccountUpgradeProvider.notifier)
+          .submitAccountUpgrade(docs, info: payload);
       // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
         if (!mounted) return;
         await showDialog(
           context: context,
           builder: (_) => const SuccessDialog(
-            message: 'KYC documents submitted successfully. Under review.',
+            message:
+                'Account upgrade documents submitted successfully. Under review.',
           ),
         );
         if (!mounted) return;
@@ -293,7 +294,8 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
         showDialog(
           context: context,
           builder: (_) => const ErrorDialog(
-            message: 'Failed to submit KYC documents. Please try again.',
+            message:
+                'Failed to submit account upgrade documents. Please try again.',
           ),
         );
       }
@@ -304,10 +306,10 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(lenderKycProvider);
+    final state = ref.watch(lenderAccountUpgradeProvider);
 
     return MobileScaffold(
-      title: 'KYC Verification',
+      title: 'Account Upgrade Verification',
       accentColor: AppColors.lenderPurple,
       navItems: _navItems,
       body: state.isLoading
@@ -358,7 +360,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
                           SizedBox(width: 10),
                           Expanded(
                               child: Text(
-                                  'Your KYC is under review. We will notify you once verified.',
+                                  'Your account upgrade is under review. We will notify you once verified.',
                                   style: TextStyle(
                                       fontSize: 13, color: AppColors.warning))),
                         ],
@@ -368,7 +370,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
                     AppButton(
                       label: _isSubmitting
                           ? 'Submitting...'
-                          : 'Submit KYC Documents',
+                          : 'Submit Account Upgrade Documents',
                       onPressed: _isSubmitting ? null : _submit,
                       color: AppColors.lenderPurple,
                     ),
@@ -760,7 +762,7 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
     );
   }
 
-  Widget _buildStatusBanner(LenderKycState state) {
+  Widget _buildStatusBanner(LenderAccountUpgradeState state) {
     Color bgColor;
     Color textColor;
     IconData icon;
@@ -784,13 +786,14 @@ class _LenderKycSubmitScreenState extends ConsumerState<LenderKycSubmitScreen> {
         bgColor = AppColors.errorLight;
         textColor = AppColors.error;
         icon = Icons.cancel_outlined;
-        message = state.rejectionNotes ?? 'KYC rejected. Please resubmit.';
+        message =
+            state.rejectionNotes ?? 'Account upgrade rejected. Please resubmit.';
         break;
       default:
         bgColor = AppColors.infoLight;
         textColor = AppColors.info;
         icon = Icons.info_outline;
-        message = 'Complete KYC to apply for a loan';
+        message = 'Complete Account Upgrade to apply for a loan';
     }
 
     return Container(

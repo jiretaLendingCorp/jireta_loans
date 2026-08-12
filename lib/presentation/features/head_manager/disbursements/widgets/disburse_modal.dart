@@ -180,7 +180,7 @@ class _DisburseModalState extends State<DisburseModal>
           const Icon(Icons.business_center, size: 40, color: AppColors.success),
           const SizedBox(height: 12),
           const Text(
-            'Confirm that the lender\'s KYC identity has been verified before releasing cash at the office.',
+            'Confirm that the lender\'s account upgrade identity has been verified before releasing cash at the office.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             textAlign: TextAlign.center,
           ),

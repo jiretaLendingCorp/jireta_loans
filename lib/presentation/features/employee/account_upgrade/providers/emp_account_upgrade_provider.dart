@@ -1,20 +1,22 @@
-// lib/presentation/features/employee/kyc/providers/emp_kyc_provider.dart
+// lib/presentation/features/employee/account_upgrade/providers/emp_account_upgrade_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
-import '../../../../../data/datasources/remote/kyc_remote_datasource.dart';
+import '../../../../../data/datasources/remote/account_upgrade_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-final empKycProvider =
-    AutoDisposeStateNotifierProvider<EmpKycNotifier, AsyncValue<Map<String, dynamic>>>(
-        (ref) {
-  return EmpKycNotifier(sl<KycRemoteDataSource>());
+final empAccountUpgradeProvider = AutoDisposeStateNotifierProvider<
+    EmpAccountUpgradeNotifier, AsyncValue<Map<String, dynamic>>>((ref) {
+  return EmpAccountUpgradeNotifier(sl<AccountUpgradeRemoteDataSource>());
 });
 
-class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
+class EmpAccountUpgradeNotifier
+    extends StateNotifier<AsyncValue<Map<String, dynamic>>>
     with RealtimeRefreshMixin {
-  final KycRemoteDataSource _ds;
-  EmpKycNotifier(this._ds) : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(['kyc_documents', 'lender_profiles'], refresh: loadList);
+  final AccountUpgradeRemoteDataSource _ds;
+  EmpAccountUpgradeNotifier(this._ds)
+      : super(const AsyncData({'items': [], 'total': 0})) {
+    bindRealtimeRefresh(
+        ['account_upgrade_documents', 'lender_profiles'], refresh: loadList);
   }
 
   Future<void> loadList({String? status, String? search, int page = 1}) async {
@@ -29,12 +31,14 @@ class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   }
 
   Future<bool> verify(
-      {required String kycDocId,
+      {required String accountUpgradeDocId,
       required String action,
       String? rejectionNotes}) async {
     try {
       await _ds.verify(
-          kycDocId: kycDocId, action: action, rejectionNotes: rejectionNotes);
+          accountUpgradeDocId: accountUpgradeDocId,
+          action: action,
+          rejectionNotes: rejectionNotes);
       return true;
     } catch (e) {
       return false;
@@ -46,7 +50,7 @@ class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
       required String action,
       String? rejectionNotes}) async {
     try {
-      await _ds.verifyAllKyc(
+      await _ds.verifyAllAccountUpgrade(
           lenderId: lenderId,
           action: action,
           rejectionNotes: rejectionNotes);
@@ -66,9 +70,10 @@ class EmpKycNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   }
 
   Future<Map<String, dynamic>?> getDetails(
-      {String? kycDocId, String? lenderId}) async {
+      {String? accountUpgradeDocId, String? lenderId}) async {
     try {
-      return await _ds.getDetails(kycDocId: kycDocId, lenderId: lenderId);
+      return await _ds.getDetails(
+          accountUpgradeDocId: accountUpgradeDocId, lenderId: lenderId);
     } catch (e) {
       return null;
     }

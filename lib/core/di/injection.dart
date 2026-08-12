@@ -8,7 +8,7 @@ import '../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../data/datasources/remote/disbursement_remote_datasource.dart';
 import '../../data/datasources/remote/in_office_remote_datasource.dart';
 import '../../data/datasources/remote/kpi_remote_datasource.dart';
-import '../../data/datasources/remote/kyc_remote_datasource.dart';
+import '../../data/datasources/remote/account_upgrade_remote_datasource.dart';
 import '../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../data/datasources/remote/location_remote_datasource.dart';
 import '../../data/datasources/remote/notification_remote_datasource.dart';
@@ -45,8 +45,8 @@ Future<void> setupDependencies() async {
   sl.registerLazySingleton<NotificationRemoteDataSource>(
     () => NotificationRemoteDataSource(sl()),
   );
-  sl.registerLazySingleton<KycRemoteDataSource>(
-    () => KycRemoteDataSource(sl()),
+  sl.registerLazySingleton<AccountUpgradeRemoteDataSource>(
+    () => AccountUpgradeRemoteDataSource(sl()),
   );
   sl.registerLazySingleton<CiRemoteDataSource>(
     () => CiRemoteDataSource(sl()),

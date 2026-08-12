@@ -61,7 +61,7 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
             const SizedBox(height: 20),
           _buildAccountStatus(data),
           const SizedBox(height: 20),
-          _buildKycStatus(data),
+          _buildAccountUpgradeStatus(data),
         ],
       ),
     );
@@ -220,21 +220,22 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildKycStatus(Map<String, dynamic> data) {
-    final kycStatus = data['lender_profiles']?['kyc_status'] ?? 'not_submitted';
+  Widget _buildAccountUpgradeStatus(Map<String, dynamic> data) {
+    final accountUpgradeStatus =
+        data['lender_profiles']?['account_upgrade_status'] ?? 'not_submitted';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle('KYC Status'),
+            _buildSectionTitle('Account Upgrade Status'),
             const SizedBox(height: 12),
             Row(
               children: [
-                StatusBadge(status: kycStatus),
+                StatusBadge(status: accountUpgradeStatus),
                 const SizedBox(width: 12),
-                const Text('KYC verification status',
+                const Text('Account upgrade verification status',
                     style: TextStyle(color: AppColors.textSecondary)),
               ],
             ),

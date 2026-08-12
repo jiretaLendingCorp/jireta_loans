@@ -111,7 +111,7 @@ class _NotifTile extends StatelessWidget {
         return Icons.account_balance_wallet_outlined;
       case 'collection':
         return Icons.delivery_dining_outlined;
-      case 'kyc':
+      case 'account_upgrade':
         return Icons.verified_user_outlined;
       default:
         return Icons.notifications_outlined;

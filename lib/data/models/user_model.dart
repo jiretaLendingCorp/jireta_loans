@@ -14,7 +14,7 @@ class UserModel extends UserEntity {
   final String? employerName;
   final double? monthlyIncome;
   final String? gcashNumber;
-  final String? kycStatus;
+  final String? accountUpgradeStatus;
   final DateTime? dateOfBirth;
   final String? sourceOfFunds;
   final String? streetAddress;
@@ -50,7 +50,7 @@ class UserModel extends UserEntity {
     this.employerName,
     this.monthlyIncome,
     this.gcashNumber,
-    this.kycStatus,
+    this.accountUpgradeStatus,
     this.dateOfBirth,
     this.sourceOfFunds,
     this.streetAddress,
@@ -97,7 +97,7 @@ class UserModel extends UserEntity {
           ? (json['monthly_income'] as num).toDouble()
           : null,
       gcashNumber: json['gcash_number'],
-      kycStatus: json['kyc_status'],
+      accountUpgradeStatus: json['account_upgrade_status'],
       dateOfBirth: json['date_of_birth'] != null
           ? DateTime.tryParse(json['date_of_birth'])
           : null,
@@ -140,7 +140,7 @@ class UserModel extends UserEntity {
     'employer_name': employerName,
     'monthly_income': monthlyIncome,
     'gcash_number': gcashNumber,
-    'kyc_status': kycStatus,
+    'account_upgrade_status': accountUpgradeStatus,
     'date_of_birth': dateOfBirth?.toIso8601String(),
     'source_of_funds': sourceOfFunds,
     'street_address': streetAddress,
@@ -189,7 +189,7 @@ class UserModel extends UserEntity {
       employerName: employerName,
       monthlyIncome: monthlyIncome,
       gcashNumber: gcashNumber,
-      kycStatus: kycStatus,
+      accountUpgradeStatus: accountUpgradeStatus,
       dateOfBirth: dateOfBirth,
       sourceOfFunds: sourceOfFunds,
       streetAddress: streetAddress,

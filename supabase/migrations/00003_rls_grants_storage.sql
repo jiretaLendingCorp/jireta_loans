@@ -29,7 +29,7 @@ ALTER TABLE rider_profiles         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_profiles      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE addresses              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE emergency_contacts     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE kyc_documents          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE account_upgrade_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE loans                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE loan_schedules         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE co_makers              ENABLE ROW LEVEL SECURITY;
@@ -86,7 +86,7 @@ DECLARE
   t TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'user_account_statuses','kyc_statuses','loan_statuses','payment_statuses',
+    'user_account_statuses','account_upgrade_statuses','loan_statuses','payment_statuses',
     'payment_methods','disbursement_methods','disbursement_statuses',
     'collection_assignment_statuses','credit_investigation_statuses',
     'notification_types','relationship_types','payment_frequencies',
@@ -186,8 +186,8 @@ CREATE POLICY "emergency_contacts_read" ON emergency_contacts
     )
   );
 
--- KYC DOCUMENTS — lender reads own; HM/Employee read all
-CREATE POLICY "kyc_documents_read" ON kyc_documents
+-- ACCOUNT UPGRADE DOCUMENTS — lender reads own; HM/Employee read all
+CREATE POLICY "account_upgrade_documents_read" ON account_upgrade_documents
   FOR SELECT TO authenticated
   USING (
     lender_id = auth.uid()
@@ -424,7 +424,7 @@ DECLARE
   t TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
-    'user_account_statuses','kyc_statuses','loan_statuses','payment_statuses',
+    'user_account_statuses','account_upgrade_statuses','loan_statuses','payment_statuses',
     'payment_methods','disbursement_methods','disbursement_statuses',
     'collection_assignment_statuses','credit_investigation_statuses',
     'notification_types','relationship_types','payment_frequencies',
@@ -487,7 +487,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 -- ─────────────────────────────────────────────────────────────────────
 -- 5) Storage buckets + policies (00013, 00015, 00030)
 --    avatars: public read + authenticated upload
---    kyc-documents / ci-documents: private, owner-scoped
+--    account-upgrade-documents / ci-documents: private, owner-scoped
 -- ─────────────────────────────────────────────────────────────────────
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -495,7 +495,7 @@ VALUES ('avatars', 'avatars', TRUE, 5242880, ARRAY['image/png','image/jpeg','ima
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('kyc-documents', 'kyc-documents', FALSE, 10485760,
+VALUES ('account-upgrade-documents', 'account-upgrade-documents', FALSE, 10485760,
         ARRAY['image/png','image/jpeg','image/webp','application/pdf']::text[])
 ON CONFLICT (id) DO NOTHING;
 
@@ -525,39 +525,39 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'kyc_docs_own_read'
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'account_upgrade_docs_own_read'
   ) THEN
-    CREATE POLICY "kyc_docs_own_read" ON storage.objects
+    CREATE POLICY "account_upgrade_docs_own_read" ON storage.objects
       FOR SELECT TO authenticated
-      USING (bucket_id = 'kyc-documents' AND owner = auth.uid());
+      USING (bucket_id = 'account-upgrade-documents' AND owner = auth.uid());
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'kyc_docs_own_upload'
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'account_upgrade_docs_own_upload'
   ) THEN
-    CREATE POLICY "kyc_docs_own_upload" ON storage.objects
+    CREATE POLICY "account_upgrade_docs_own_upload" ON storage.objects
       FOR INSERT TO authenticated
-      WITH CHECK (bucket_id = 'kyc-documents' AND owner = auth.uid());
+      WITH CHECK (bucket_id = 'account-upgrade-documents' AND owner = auth.uid());
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'kyc_docs_own_update'
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'account_upgrade_docs_own_update'
   ) THEN
-    CREATE POLICY "kyc_docs_own_update" ON storage.objects
+    CREATE POLICY "account_upgrade_docs_own_update" ON storage.objects
       FOR UPDATE TO authenticated
-      USING (bucket_id = 'kyc-documents' AND owner = auth.uid())
-      WITH CHECK (bucket_id = 'kyc-documents' AND owner = auth.uid());
+      USING (bucket_id = 'account-upgrade-documents' AND owner = auth.uid())
+      WITH CHECK (bucket_id = 'account-upgrade-documents' AND owner = auth.uid());
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'kyc_docs_own_delete'
+    WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'account_upgrade_docs_own_delete'
   ) THEN
-    CREATE POLICY "kyc_docs_own_delete" ON storage.objects
+    CREATE POLICY "account_upgrade_docs_own_delete" ON storage.objects
       FOR DELETE TO authenticated
-      USING (bucket_id = 'kyc-documents' AND owner = auth.uid());
+      USING (bucket_id = 'account-upgrade-documents' AND owner = auth.uid());
   END IF;
 
   IF NOT EXISTS (
@@ -593,7 +593,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.payments;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.collection_assignments;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.credit_investigations;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.ci_documents;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.kyc_documents;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.account_upgrade_documents;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.lender_profiles;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.rider_profiles;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.employee_profiles;

@@ -46,12 +46,11 @@ class LenderNotificationNotifier
   Future<void> load() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final list = await _ds.getList(page: 1);
-      final unread = list.where((n) => !n.isRead).length;
+      final result = await _ds.getListWithUnread(page: 1);
       state = state.copyWith(
-        notifications: list,
+        notifications: result.items,
         isLoading: false,
-        unreadCount: unread,
+        unreadCount: result.unreadCount,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -60,13 +59,24 @@ class LenderNotificationNotifier
 
   Future<void> markRead(String notificationId) async {
     try {
-      await _ds.markRead(notificationId: notificationId);
+      final prevUnread = state.unreadCount;
       final updated = state.notifications
           .map((n) => n.id == notificationId ? n.copyWith(isRead: true) : n)
           .toList();
-      final unread = updated.where((n) => !n.isRead).length;
-      state = state.copyWith(notifications: updated, unreadCount: unread);
-    } catch (_) {}
+      final decrement =
+          (state.notifications.any((n) => n.id == notificationId && !n.isRead))
+              ? 1
+              : 0;
+      await _ds.markRead(notificationId: notificationId);
+      state = state.copyWith(
+        notifications: updated,
+        unreadCount: (prevUnread - decrement).clamp(0, prevUnread),
+        error: null,
+      );
+    } catch (_) {
+      // Re-fetch on failure so local state stays in sync with the server.
+      await load();
+    }
   }
 
   Future<void> markAllRead() async {
@@ -75,7 +85,9 @@ class LenderNotificationNotifier
       final updated =
           state.notifications.map((n) => n.copyWith(isRead: true)).toList();
       state = state.copyWith(notifications: updated, unreadCount: 0);
-    } catch (_) {}
+    } catch (_) {
+      await load();
+    }
   }
 
   Future<void> refresh() => load();

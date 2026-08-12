@@ -68,12 +68,12 @@ serve(async (req) => {
 
     const { data: profile } = await db
       .from('lender_profiles')
-      .select('kyc_status')
+      .select('account_upgrade_status')
       .eq('id', lenderId)
       .single();
 
     if (!profile) return errorResponse('Lender profile not found', 404, 'NOT_FOUND');
-    if (profile.kyc_status !== 'verified') return errorResponse('KYC must be verified before applying', 403, 'KYC_NOT_VERIFIED');
+    if (profile.account_upgrade_status !== 'verified') return errorResponse('Account upgrade must be completed before applying', 403, 'ACCOUNT_UPGRADE_NOT_VERIFIED');
 
     const { count: activeLoanCount } = await db
       .from('loans')

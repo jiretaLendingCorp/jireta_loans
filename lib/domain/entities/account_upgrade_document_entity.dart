@@ -1,5 +1,5 @@
-// lib/domain/entities/kyc_document_entity.dart
-class KycDocumentEntity {
+// lib/domain/entities/account_upgrade_document_entity.dart
+class AccountUpgradeDocumentEntity {
   final String id;
   final String lenderId;
   final String documentType;
@@ -10,7 +10,7 @@ class KycDocumentEntity {
   final DateTime? verifiedAt;
   final DateTime createdAt;
 
-  const KycDocumentEntity({
+  const AccountUpgradeDocumentEntity({
     required this.id,
     required this.lenderId,
     required this.documentType,

@@ -31,7 +31,7 @@ CREATE TABLE user_account_statuses (
   updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE kyc_statuses (
+CREATE TABLE account_upgrade_statuses (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code        VARCHAR(100) NOT NULL UNIQUE,
   label       VARCHAR(100) NOT NULL,
@@ -251,7 +251,7 @@ INSERT INTO user_account_statuses (code, label, sort_order) VALUES
   ('inactive', 'Inactive', 2),
   ('archived', 'Archived', 4);
 
-INSERT INTO kyc_statuses (code, label, sort_order) VALUES
+INSERT INTO account_upgrade_statuses (code, label, sort_order) VALUES
   ('not_submitted', 'Not Submitted', 0),
   ('pending',       'Pending',       1),
   ('submitted',     'Submitted',     2),
@@ -260,7 +260,7 @@ INSERT INTO kyc_statuses (code, label, sort_order) VALUES
 
 INSERT INTO loan_statuses (code, label, sort_order) VALUES
   ('pending',       'Pending',          1),
-  ('kyc_required',  'KYC Required',     2),
+  ('account_upgrade_required',  'Account Upgrade Required',     2),
   ('under_review',  'Under Review',     3),
   ('ci_assigned',   'CI Assigned',      4),
   ('ci_completed',  'CI Completed',     5),
@@ -312,9 +312,9 @@ INSERT INTO notification_types (code, label, sort_order) VALUES
   ('loan_applied',           'Loan Applied',            1),
   ('loan_approved',          'Loan Approved',           2),
   ('loan_rejected',          'Loan Rejected',           3),
-  ('kyc_required',           'KYC Required',            4),
-  ('kyc_submitted',          'KYC Submitted',           5),
-  ('kyc_update',             'KYC Update',              6),
+  ('account_upgrade_required',  'Account Upgrade Required',     4),
+  ('account_upgrade_submitted', 'Account Upgrade Submitted',    5),
+  ('account_upgrade_update',    'Account Upgrade Update',       6),
   ('ci_required',            'CI Required',             7),
   ('ci_assigned',            'CI Assigned',             8),
   ('ci_completed',           'CI Completed',            9),
@@ -518,15 +518,15 @@ CREATE TABLE lender_profiles (
   employer_name        VARCHAR(255),
   monthly_income       DECIMAL(12,2)   CHECK (monthly_income >= 0),
   gcash_number         VARCHAR(20),
-  kyc_status           VARCHAR(20)     NOT NULL DEFAULT 'not_submitted'
-                       REFERENCES kyc_statuses(code),
-  kyc_rejection_notes  TEXT,
+  account_upgrade_status           VARCHAR(20)     NOT NULL DEFAULT 'not_submitted'
+                       REFERENCES account_upgrade_statuses(code),
+  account_upgrade_rejection_notes  TEXT,
   source_of_funds      VARCHAR(50),
   created_at           TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
   updated_at           TIMESTAMPTZ     NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_lender_kyc_status ON lender_profiles(kyc_status);
+CREATE INDEX idx_lender_account_upgrade_status ON lender_profiles(account_upgrade_status);
 
 -- rider_profiles
 CREATE TABLE rider_profiles (
@@ -592,8 +592,8 @@ CREATE TABLE emergency_contacts (
 CREATE INDEX idx_emergency_lender_id ON emergency_contacts(lender_id);
 CREATE UNIQUE INDEX idx_emergency_lender_id_unique ON emergency_contacts(lender_id);
 
--- kyc_documents
-CREATE TABLE kyc_documents (
+-- account_upgrade_documents
+CREATE TABLE account_upgrade_documents (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   lender_id        UUID         NOT NULL REFERENCES lender_profiles(id) ON DELETE CASCADE,
   document_type    VARCHAR(50)  NOT NULL REFERENCES document_types(code),
@@ -602,15 +602,15 @@ CREATE TABLE kyc_documents (
   file_size        INT          NOT NULL CHECK (file_size > 0),
   mime_type        VARCHAR(100) NOT NULL,
   status           VARCHAR(20)  NOT NULL DEFAULT 'pending'
-                   REFERENCES kyc_statuses(code),
+                   REFERENCES account_upgrade_statuses(code),
   rejection_notes  TEXT,
   reviewed_by      UUID REFERENCES users(id),
   reviewed_at      TIMESTAMPTZ,
   uploaded_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_kyc_docs_lender_id ON kyc_documents(lender_id);
-CREATE INDEX idx_kyc_docs_status    ON kyc_documents(status);
+CREATE INDEX idx_account_upgrade_docs_lender_id ON account_upgrade_documents(lender_id);
+CREATE INDEX idx_account_upgrade_docs_status    ON account_upgrade_documents(status);
 
 -- loans
 CREATE TABLE loans (

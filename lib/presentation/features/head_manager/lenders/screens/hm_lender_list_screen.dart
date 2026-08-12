@@ -138,7 +138,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
         Expanded(
           flex: 2,
           child: Text(
-            'KYC Status',
+            'Account Upgrade Status',
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 13,

@@ -5,11 +5,11 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/network/dio_client.dart';
 import '../../../../../core/network/api_endpoints.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
-import '../../../../../data/models/kyc_document_model.dart';
+import '../../../../../data/models/account_upgrade_document_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
 class LenderDocumentsState {
-  final List<KycDocumentModel> documents;
+  final List<AccountUpgradeDocumentModel> documents;
   final bool isLoading;
   final bool isUploading;
   final double uploadProgress;
@@ -24,7 +24,7 @@ class LenderDocumentsState {
   });
 
   LenderDocumentsState copyWith({
-    List<KycDocumentModel>? documents,
+    List<AccountUpgradeDocumentModel>? documents,
     bool? isLoading,
     bool? isUploading,
     double? uploadProgress,
@@ -46,17 +46,18 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
 
   LenderDocumentsNotifier(this._client, this._storage)
       : super(const LenderDocumentsState()) {
-    bindRealtimeRefresh(['kyc_documents'], refresh: loadDocuments);
+    bindRealtimeRefresh(['account_upgrade_documents'], refresh: loadDocuments);
     loadDocuments();
   }
 
   Future<void> loadDocuments() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final res = await _client.get(ApiEndpoints.kycGetStatus);
+      final res = await _client.get(ApiEndpoints.accountUpgradeGetStatus);
       final data = res.data as Map<String, dynamic>;
       final docs = (data['documents'] as List?)
-              ?.map((d) => KycDocumentModel.fromJson(d as Map<String, dynamic>))
+              ?.map((d) =>
+                  AccountUpgradeDocumentModel.fromJson(d as Map<String, dynamic>))
               .toList() ??
           [];
       state = state.copyWith(documents: docs, isLoading: false);
@@ -75,15 +76,15 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
     try {
       state = state.copyWith(uploadProgress: 0.3);
       final url = await _storage.uploadFile(
-        bucket: 'kyc-documents',
+        bucket: 'account-upgrade-documents',
         bytes: bytes,
         fileName: fileName,
-        folder: 'kyc',
+        folder: 'account-upgrade',
         contentType: mimeType,
       );
       state = state.copyWith(uploadProgress: 0.7);
 
-      await _client.post(ApiEndpoints.kycSubmit, data: {
+      await _client.post(ApiEndpoints.accountUpgradeSubmit, data: {
         'documents': [
           {
             'document_type': docType,

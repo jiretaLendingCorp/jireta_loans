@@ -10,7 +10,7 @@ class KpiLenderModel {
   final double remainingBalance;
   final double totalInterestPaid;
   final double totalPenaltiesPaid;
-  final String kycStatus;
+  final String accountUpgradeStatus;
 
   const KpiLenderModel({
     this.totalApplications = 0,
@@ -23,7 +23,7 @@ class KpiLenderModel {
     this.remainingBalance = 0,
     this.totalInterestPaid = 0,
     this.totalPenaltiesPaid = 0,
-    this.kycStatus = 'not_submitted',
+    this.accountUpgradeStatus = 'not_submitted',
   });
 
   factory KpiLenderModel.fromJson(Map<String, dynamic> json) => KpiLenderModel(
@@ -39,6 +39,6 @@ class KpiLenderModel {
             (json['total_interest_paid'] as num?)?.toDouble() ?? 0,
         totalPenaltiesPaid:
             (json['total_penalties_paid'] as num?)?.toDouble() ?? 0,
-        kycStatus: json['kyc_status'] as String? ?? 'not_submitted',
+        accountUpgradeStatus: json['account_upgrade_status'] as String? ?? 'not_submitted',
       );
 }

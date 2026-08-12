@@ -17,9 +17,9 @@ export type LoanStatus =
   | 'rejected'
   | 'cancelled';
 
-// Matches lender_profiles.kyc_status CHECK constraint after migration 00006
+// Matches lender_profiles.account_upgrade_status CHECK constraint after migration 00006
 // (adds 'not_submitted' and 'under_review' which were in types but missing from DB)
-export type KycStatus =
+export type AccountUpgradeStatus =
   | 'not_submitted'
   | 'pending'
   | 'submitted'

@@ -47,8 +47,8 @@ class AppConstants {
   static const String loanStatusCancelled = 'cancelled';
   static const String loanStatusOverdue = 'overdue';
 
-  static const String kycStatusPending = 'pending';
-  static const String kycStatusSubmitted = 'submitted';
-  static const String kycStatusVerified = 'verified';
-  static const String kycStatusRejected = 'rejected';
+  static const String accountUpgradeStatusPending = 'pending';
+  static const String accountUpgradeStatusSubmitted = 'submitted';
+  static const String accountUpgradeStatusVerified = 'verified';
+  static const String accountUpgradeStatusRejected = 'rejected';
 }

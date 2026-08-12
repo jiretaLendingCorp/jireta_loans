@@ -1,4 +1,4 @@
-// lib/presentation/features/head_manager/kyc/screens/hm_kyc_list_screen.dart
+// lib/presentation/features/head_manager/account_upgrade/screens/hm_account_upgrade_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,16 +11,18 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
-import '../providers/hm_kyc_provider.dart';
+import '../providers/hm_account_upgrade_provider.dart';
 
-class HmKycListScreen extends ConsumerStatefulWidget {
-  const HmKycListScreen({super.key});
+class HmAccountUpgradeListScreen extends ConsumerStatefulWidget {
+  const HmAccountUpgradeListScreen({super.key});
 
   @override
-  ConsumerState<HmKycListScreen> createState() => _HmKycListScreenState();
+  ConsumerState<HmAccountUpgradeListScreen> createState() =>
+      _HmAccountUpgradeListScreenState();
 }
 
-class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
+class _HmAccountUpgradeListScreenState
+    extends ConsumerState<HmAccountUpgradeListScreen> {
   final _search = TextEditingController();
 
   @override
@@ -31,13 +33,13 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(hmKycProvider);
+    final state = ref.watch(hmAccountUpgradeProvider);
 
     return WebScaffold(
-      title: 'KYC Review',
+      title: 'Account Upgrade Review',
       actions: [
         IconButton(
-          onPressed: () => ref.read(hmKycProvider.notifier).fetch(),
+          onPressed: () => ref.read(hmAccountUpgradeProvider.notifier).fetch(),
           icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
           tooltip: 'Refresh',
         ),
@@ -52,7 +54,8 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
                 label: 'Status',
                 value: state.statusFilter,
                 options: ['all', 'submitted', 'verified', 'rejected'],
-                onChanged: (v) => ref.read(hmKycProvider.notifier).setStatus(v),
+                onChanged: (v) =>
+                    ref.read(hmAccountUpgradeProvider.notifier).setStatus(v),
               ),
             ],
             onExport: null,
@@ -70,23 +73,23 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
               totalPages: state.totalPages,
               totalCount: state.totalCount,
               onPageChange: (p) =>
-                  ref.read(hmKycProvider.notifier).fetch(page: p),
+                  ref.read(hmAccountUpgradeProvider.notifier).fetch(page: p),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildTable(BuildContext context, HmKycState state) {
+  Widget _buildTable(BuildContext context, HmAccountUpgradeState state) {
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: state.docs.map((doc) {
-            return _KycRow(
+            return _AccountUpgradeRow(
               doc: doc,
               onTap: () => context.go(
-                RouteConstants.hmKycDetails.replaceFirst(
+                RouteConstants.hmAccountUpgradeDetails.replaceFirst(
                     ':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId),
               ),
               onVerify: () => _verifyAll(doc, 'verified'),
@@ -99,7 +102,7 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
   }
 
   Future<void> _verifyAll(dynamic doc, String action) async {
-    final ok = await ref.read(hmKycProvider.notifier).verifyAll(
+    final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(
           lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId,
           action: action,
         );
@@ -108,8 +111,8 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
       SnackBar(
         content: Text(ok
             ? (action == 'verified'
-                ? 'KYC documents verified'
-                : 'KYC documents rejected')
+                ? 'Account upgrade documents verified'
+                : 'Account upgrade documents rejected')
             : 'Action failed'),
         backgroundColor: ok ? AppColors.success : AppColors.error,
       ),
@@ -127,7 +130,7 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
           children: [
             Icon(Icons.cancel_outlined, color: AppColors.error, size: 24),
             SizedBox(width: 10),
-            Text('Reject KYC'),
+            Text('Reject Account Upgrade'),
           ],
         ),
         content: SizedBox(
@@ -184,7 +187,7 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
     );
     if (confirmed == true) {
       if (!mounted) return;
-      final ok = await ref.read(hmKycProvider.notifier).verifyAll(
+      final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(
             lenderId: lenderId,
             action: 'rejected',
             rejectionNotes: notesCtrl.text.trim(),
@@ -192,7 +195,8 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ok ? 'KYC documents rejected' : 'Action failed'),
+          content: Text(
+              ok ? 'Account upgrade documents rejected' : 'Action failed'),
           backgroundColor: ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -208,7 +212,7 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
               size: 64, color: AppColors.textTertiary),
           SizedBox(height: 16),
           Text(
-            'No KYC submissions found',
+            'No account upgrade submissions found',
             style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
           ),
         ],
@@ -217,13 +221,13 @@ class _HmKycListScreenState extends ConsumerState<HmKycListScreen> {
   }
 }
 
-class _KycRow extends StatefulWidget {
+class _AccountUpgradeRow extends StatefulWidget {
   final dynamic doc;
   final VoidCallback onTap;
   final VoidCallback onVerify;
   final VoidCallback onReject;
 
-  const _KycRow({
+  const _AccountUpgradeRow({
     required this.doc,
     required this.onTap,
     required this.onVerify,
@@ -231,10 +235,10 @@ class _KycRow extends StatefulWidget {
   });
 
   @override
-  State<_KycRow> createState() => _KycRowState();
+  State<_AccountUpgradeRow> createState() => _AccountUpgradeRowState();
 }
 
-class _KycRowState extends State<_KycRow> {
+class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
   bool _hovered = false;
 
   @override
@@ -303,7 +307,7 @@ class _KycRowState extends State<_KycRow> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${doc.documentCountLabel ?? 'KYC Submission'}  •  $date',
+                      '${doc.documentCountLabel ?? 'Account Upgrade Submission'}  •  $date',
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textSecondary),
                     ),

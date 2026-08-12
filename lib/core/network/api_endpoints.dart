@@ -25,12 +25,12 @@ class ApiEndpoints {
   static const String usersGetList = 'users-admin?fn=get-list';
   static const String usersArchive = 'users-admin?fn=archive';
 
-  // KYC
-  static const String kycSubmit = 'kyc-submit?fn=submit';
-  static const String kycVerify = 'kyc-view?fn=verify';
-  static const String kycGetList = 'kyc-view?fn=get-list';
-  static const String kycGetStatus = 'kyc-view?fn=get-status';
-  static const String kycGetDetails = 'kyc-view?fn=get-details';
+  // Account Upgrade
+  static const String accountUpgradeSubmit = 'kyc-submit?fn=submit';
+  static const String accountUpgradeVerify = 'kyc-view?fn=verify';
+  static const String accountUpgradeGetList = 'kyc-view?fn=get-list';
+  static const String accountUpgradeGetStatus = 'kyc-view?fn=get-status';
+  static const String accountUpgradeGetDetails = 'kyc-view?fn=get-details';
 
   // Loans
   static const String loansApply = 'loans-apply?fn=apply';

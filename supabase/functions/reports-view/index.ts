@@ -21,7 +21,7 @@ const REPORT_TEMPLATES = [
   { key: 'loan_report', name: 'Loan Report', description: 'All loan applications with status breakdown', category: 'Loans' },
   { key: 'payment_report', name: 'Payment Report', description: 'All verified payments with method breakdown', category: 'Payments' },
   { key: 'collection_report', name: 'Collection Report', description: 'Rider collection assignments and outcomes', category: 'Collections' },
-  { key: 'borrower_report', name: 'Borrower Report', description: 'All lender accounts with KYC and profile data', category: 'Borrowers' },
+  { key: 'borrower_report', name: 'Borrower Report', description: 'All lender accounts with Account Upgrade and profile data', category: 'Borrowers' },
   { key: 'rider_report', name: 'Rider Report', description: 'Rider performance and assignment history', category: 'Riders' },
   { key: 'employee_report', name: 'Employee Report', description: 'Employee activity and processed applications', category: 'Employees' },
   { key: 'financial_report', name: 'Financial Report', description: 'Revenue, interest, and penalties breakdown', category: 'Financial' },

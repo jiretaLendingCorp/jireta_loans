@@ -39,7 +39,7 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
       'payments',
       'collection_assignments',
       'credit_investigations',
-      'kyc_documents',
+      'account_upgrade_documents',
       'in_office_applications',
       'disbursements',
       'notifications',

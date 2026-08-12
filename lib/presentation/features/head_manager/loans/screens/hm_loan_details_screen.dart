@@ -167,7 +167,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
             const Divider(height: 20),
             _row('Name', '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim()),
             _row('Phone', _maskPhone(lender['phone_number'] as String? ?? '')),
-            _row('KYC Status', _capitalize(profile['kyc_status'] as String? ?? 'Unknown')),
+            _row('Account Upgrade Status', _capitalize(profile['account_upgrade_status'] as String? ?? 'Unknown')),
             _row('Employment', _capitalize(profile['employment_type'] as String? ?? '-')),
             _row('GCash', _maskPhone(profile['gcash_number'] as String? ?? '-')),
           ],

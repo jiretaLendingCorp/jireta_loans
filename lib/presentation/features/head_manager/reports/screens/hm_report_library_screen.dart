@@ -232,7 +232,7 @@ class HmReportLibraryScreen extends ConsumerWidget {
     {'key': 'overdue_report', 'name': 'Overdue Loans Report', 'description': 'Loans with delayed payments', 'icon': Icons.warning_outlined, 'has_pdf': true, 'has_excel': true},
     {'key': 'audit_report', 'name': 'Audit Report', 'description': 'System activity and audit trail', 'icon': Icons.history_outlined, 'has_pdf': true, 'has_excel': true},
     {'key': 'ci_report', 'name': 'CI Report', 'description': 'Credit investigation assignments and outcomes', 'icon': Icons.search_outlined, 'has_pdf': true, 'has_excel': true},
-    {'key': 'kyc_report', 'name': 'KYC Report', 'description': 'KYC submission and verification status', 'icon': Icons.verified_user_outlined, 'has_pdf': true, 'has_excel': true},
+    {'key': 'account_upgrade_report', 'name': 'Account Upgrade Report', 'description': 'Account upgrade submission and verification status', 'icon': Icons.verified_user_outlined, 'has_pdf': true, 'has_excel': true},
     {'key': 'disbursement_report', 'name': 'Disbursement Report', 'description': 'Loan disbursements by method and amount', 'icon': Icons.account_balance_outlined, 'has_pdf': true, 'has_excel': true},
   ];
 

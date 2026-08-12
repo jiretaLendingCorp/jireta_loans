@@ -66,7 +66,7 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
                   icon: Icons.folder_outlined,
                   title: 'No Documents Uploaded',
                   subtitle:
-                      'Upload your KYC documents and loan requirements to get started.',
+                      'Upload your account upgrade documents and loan requirements to get started.',
                 )
               : RefreshIndicator(
                   color: AppColors.lenderPurple,

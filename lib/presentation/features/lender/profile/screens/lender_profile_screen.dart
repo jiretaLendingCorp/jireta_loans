@@ -68,26 +68,27 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   }
 
   Widget _buildProfile(dynamic user) {
-    final firstName = user.firstName as String? ?? '';
-    final phone = user.phoneNumber as String? ?? '';
     final userModel = ref.watch(lenderProfileProvider).user;
+    final phone = user.phoneNumber as String? ?? '';
+    final firstName = user.firstName as String? ?? '';
     final accountStatus = user.accountStatus as String?;
     final fullName = _buildFullName(userModel ?? user);
-    final kycStatus = (userModel?.kycStatus ?? 'not_submitted').toLowerCase();
-    final isVerified = kycStatus == 'verified';
+    final accountUpgradeStatus =
+        (userModel?.accountUpgradeStatus ?? 'not_submitted').toLowerCase();
+    final isVerified = accountUpgradeStatus == 'verified';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(children: [
         _buildHeader(fullName, firstName, phone, user.profilePhotoUrl as String?, accountStatus),
         if (isVerified) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           _buildEditProfileButton(),
         ],
         const SizedBox(height: 22),
         _sectionTitle('Verification'),
         const SizedBox(height: 10),
-        _buildKycCard(userModel?.kycStatus),
+        _buildAccountUpgradeCard(userModel?.accountUpgradeStatus),
         if (isVerified) ...[
           const SizedBox(height: 16),
           _CollapsibleSection(
@@ -205,68 +206,44 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   }
 
   Widget _buildHeader(String fullName, String firstName, String phone, String? photoUrl, String? accountStatus) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.lenderPurple, AppColors.lenderPurpleDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: _statusPill(accountStatus),
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.lenderPurple.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.lenderPurple, width: 3),
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: _statusPill(accountStatus),
+          child: ProfileAvatarUpload(
+            photoUrl: photoUrl,
+            name: firstName,
+            color: AppColors.lenderPurple,
+            radius: 38,
+            onUploaded: _updateAvatar,
           ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-            ),
-            child: ProfileAvatarUpload(
-              photoUrl: photoUrl,
-              name: firstName,
-              color: AppColors.lenderPurple,
-              radius: 38,
-              onUploaded: _updateAvatar,
-            ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          fullName,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'PlayfairDisplay',
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: AppColors.lenderPurple,
           ),
-          const SizedBox(height: 14),
-          Text(
-            fullName,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'PlayfairDisplay',
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            phone,
-            style: const TextStyle(fontSize: 13, color: Colors.white70),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Tap the camera icon to change your profile picture',
-            style: TextStyle(fontSize: 11, color: Colors.white70),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          phone,
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+      ],
     );
   }
 
@@ -290,9 +267,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+        color: AppColors.lenderPurple.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.lenderPurple.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -302,11 +279,17 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           Text(
             label,
             style: const TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.lenderPurple),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _updateAvatar(String url) async {
+    await ref
+        .read(lenderProfileProvider.notifier)
+        .updateProfile({'profile_photo_url': url});
   }
 
   Widget _sectionTitle(String title) {
@@ -333,14 +316,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
-  Future<void> _updateAvatar(String url) async {
-    await ref
-        .read(lenderProfileProvider.notifier)
-        .updateProfile({'profile_photo_url': url});
-  }
-
-  Widget _buildKycCard(String? kycStatus) {
-    final status = (kycStatus ?? 'not_submitted').toLowerCase();
+  Widget _buildAccountUpgradeCard(String? accountUpgradeStatus) {
+    final status = (accountUpgradeStatus ?? 'not_submitted').toLowerCase();
     final (Color color, IconData icon, String label) = switch (status) {
       'verified' => (AppColors.success, Icons.verified_user, 'Verified'),
       'rejected' => (AppColors.error, Icons.cancel_outlined, 'Rejected'),
@@ -371,7 +348,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               borderRadius: BorderRadius.circular(12)),
           child: Icon(icon, color: color, size: 22),
         ),
-        title: const Text('KYC Verification',
+        title: const Text('Account Upgrade Verification',
             style: TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
         subtitle: Text('Status: $label',
@@ -386,7 +363,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               style: TextStyle(
                   fontSize: 11, fontWeight: FontWeight.w600, color: color)),
         ),
-        onTap: () => context.push(RouteConstants.lenderKycStatus),
+        onTap: () => context.push(RouteConstants.lenderAccountUpgradeStatus),
       ),
     );
   }
@@ -438,7 +415,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 LegalSection(
                   title: '2. Loan Services',
                   body:
-                      'Jireta Loans & Credit Corp 1966 offers lending services ranging from \u20B13,000 to \u20B1500,000 with an interest rate of 20% per loan term. Loan amounts and terms are subject to credit evaluation, KYC verification, and credit investigation.',
+                      'Jireta Loans & Credit Corp 1966 offers lending services ranging from \u20B13,000 to \u20B1500,000 with an interest rate of 20% per loan term. Loan amounts and terms are subject to credit evaluation, account upgrade verification, and credit investigation.',
                 ),
                 LegalSection(
                   title: '3. Interest & Penalties',
@@ -446,7 +423,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                       'All loans carry a 20% interest rate on the principal amount. A penalty of 20% on the total payable amount will be applied if payment is delayed by one (1) month or more.',
                 ),
                 LegalSection(
-                  title: '4. KYC Requirements',
+                  title: '4. Account Upgrade Requirements',
                   body:
                       'You are required to submit valid government-issued identification, proof of billing, selfie verification, and proof of income. All documents are subject to verification by authorized personnel.',
                 ),

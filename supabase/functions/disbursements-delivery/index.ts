@@ -75,17 +75,17 @@ async function handleOfficeCash(req: Request) {
     return errorResponse('Loan has already been disbursed', 400, 'DUPLICATE');
   }
 
-  const { data: kycDocs } = await db
-    .from('kyc_documents')
+  const { data: accountUpgradeDocs } = await db
+    .from('account_upgrade_documents')
     .select('status')
     .eq('lender_id', loan.lender_id);
 
-  if (!kycDocs || kycDocs.length === 0) {
-    return errorResponse('KYC documents not found. Identity verification required before office cash release.', 400, 'KYC_NOT_VERIFIED');
+  if (!accountUpgradeDocs || accountUpgradeDocs.length === 0) {
+    return errorResponse('Account Upgrade documents not found. Identity verification required before office cash release.', 400, 'ACCOUNT_UPGRADE_NOT_VERIFIED');
   }
-  const allVerified = kycDocs.every((d) => d.status === 'verified');
+  const allVerified = accountUpgradeDocs.every((d) => d.status === 'verified');
   if (!allVerified) {
-    return errorResponse('All KYC documents must be verified before releasing office cash.', 400, 'KYC_NOT_VERIFIED');
+    return errorResponse('All Account Upgrade documents must be verified before releasing office cash.', 400, 'ACCOUNT_UPGRADE_NOT_VERIFIED');
   }
 
   const now = new Date().toISOString();

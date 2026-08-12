@@ -15,7 +15,7 @@ class DocumentViewer extends StatefulWidget {
     this.url,
     this.label,
     this.height = 200,
-    this.bucket = 'kyc-documents',
+    this.bucket = 'account-upgrade-documents',
   });
 
   @override
@@ -40,8 +40,9 @@ class _DocumentViewerState extends State<DocumentViewer> {
   }
 
   /// `url` may be a full http(s) URL or a relative storage path (e.g.
-  /// `kyc/{id}/{file}.jpg`). The kyc-documents bucket is private, so relative
-  /// paths must be resolved to a signed URL before they can be displayed.
+  /// `account-upgrade/{id}/{file}.jpg`). The account-upgrade-documents bucket
+  /// is private, so relative paths must be resolved to a signed URL before
+  /// they can be displayed.
   Future<void> _resolve() async {
     final url = widget.url;
     if (url == null || url.isEmpty || url.startsWith('http')) {

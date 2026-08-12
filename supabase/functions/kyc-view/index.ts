@@ -63,15 +63,15 @@ async function handleVerify(req: Request) {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { kyc_doc_id, lender_id, action, rejection_notes } = body;
+    const { account_upgrade_doc_id, lender_id, action, rejection_notes } = body;
     if (!['verified', 'rejected'].includes(action)) {
       return errorResponse('action (verified|rejected) is required', 400, 'VALIDATION_ERROR');
     }
     if (action === 'rejected' && !rejection_notes) {
       return errorResponse('rejection_notes required when rejecting', 400, 'VALIDATION_ERROR');
     }
-    if (!kyc_doc_id && !lender_id) {
-      return errorResponse('kyc_doc_id or lender_id is required', 400, 'VALIDATION_ERROR');
+    if (!account_upgrade_doc_id && !lender_id) {
+      return errorResponse('account_upgrade_doc_id or lender_id is required', 400, 'VALIDATION_ERROR');
     }
 
     const db = getAdminClient();
@@ -81,16 +81,16 @@ async function handleVerify(req: Request) {
     // Resolve the lender_id: direct lender_id, or from a single document id.
     let targetLenderId = lender_id as string | null;
     let singleDocId: string | null = null;
-    if (kyc_doc_id) {
-      const { data: doc } = await db.from('kyc_documents').select('id, lender_id, status').eq('id', kyc_doc_id).single();
-      if (!doc) return errorResponse('KYC document not found', 404, 'NOT_FOUND');
+    if (account_upgrade_doc_id) {
+      const { data: doc } = await db.from('account_upgrade_documents').select('id, lender_id, status').eq('id', account_upgrade_doc_id).single();
+      if (!doc) return errorResponse('Account Upgrade document not found', 404, 'NOT_FOUND');
       targetLenderId = doc?.lender_id;
-      singleDocId = kyc_doc_id;
+      singleDocId = account_upgrade_doc_id;
     }
 
     // When lender_id is given, verify/reject ALL non-final docs for that lender
-    // in a single operation. When kyc_doc_id is given, only that doc is updated.
-    let query = db.from('kyc_documents').update({
+    // in a single operation. When account_upgrade_doc_id is given, only that doc is updated.
+    let query = db.from('account_upgrade_documents').update({
       status: action,
       reviewed_by: user.id,
       reviewed_at: now,
@@ -98,39 +98,39 @@ async function handleVerify(req: Request) {
     }).eq('lender_id', targetLenderId);
     if (singleDocId) query = query.eq('id', singleDocId);
     const { error: updateError } = await query;
-    if (updateError) return errorResponse('Failed to update KYC documents', 500, 'DB_ERROR');
+    if (updateError) return errorResponse('Failed to update Account Upgrade documents', 500, 'DB_ERROR');
 
-    const { data: allDocs } = await db.from('kyc_documents').select('status').eq('lender_id', targetLenderId);
+    const { data: allDocs } = await db.from('account_upgrade_documents').select('status').eq('lender_id', targetLenderId);
     const anyRejected = allDocs?.some((d) => d.status === 'rejected');
     const allVerified = allDocs?.every((d) => d.status === 'verified');
 
-    let newKycStatus = 'submitted';
-    if (anyRejected) newKycStatus = 'rejected';
-    else if (allVerified) newKycStatus = 'verified';
+    let newAccountUpgradeStatus = 'submitted';
+    if (anyRejected) newAccountUpgradeStatus = 'rejected';
+    else if (allVerified) newAccountUpgradeStatus = 'verified';
 
-    await db.from('lender_profiles').update({ kyc_status: newKycStatus }).eq('id', targetLenderId);
+    await db.from('lender_profiles').update({ account_upgrade_status: newAccountUpgradeStatus }).eq('id', targetLenderId);
 
     await writeAuditLog({
       performedBy: user.id,
-      action: singleDocId ? `kyc_doc_${action}` : `kyc_all_${action}`,
-      tableName: 'kyc_documents',
-      recordId: singleDocId ?? targetLenderId ?? kyc_doc_id ?? '',
+      action: singleDocId ? `account_upgrade_doc_${action}` : `account_upgrade_all_${action}`,
+      tableName: 'account_upgrade_documents',
+      recordId: singleDocId ?? targetLenderId ?? account_upgrade_doc_id ?? '',
       ipAddress: ip,
     });
     await sendPushNotification({
-      userId: targetLenderId ?? kyc_doc_id ?? '',
-      title: action === 'verified' ? 'KYC Verified' : 'KYC Rejected',
+      userId: targetLenderId ?? account_upgrade_doc_id ?? '',
+      title: action === 'verified' ? 'Account Upgrade Verified' : 'Account Upgrade Rejected',
       body: action === 'verified'
-        ? 'All of your KYC documents have been verified.'
-        : `KYC rejected: ${rejection_notes}`,
-      type: 'kyc_update',
+        ? 'All of your Account Upgrade documents have been verified.'
+        : `Account Upgrade rejected: ${rejection_notes}`,
+      type: 'account_upgrade_update',
       referenceId: singleDocId ?? targetLenderId ?? '',
       sentBy: user.id,
     });
 
     return jsonResponse({
       message: singleDocId ? `Document ${action}` : `All documents ${action}`,
-      kyc_status: newKycStatus,
+      account_upgrade_status: newAccountUpgradeStatus,
       lender_id: targetLenderId,
     });
 }
@@ -155,22 +155,22 @@ async function handleGetList(req: Request) {
 
     let query = db.from('lender_profiles')
       .select(`
-        id, kyc_status, updated_at,
+        id, account_upgrade_status, updated_at,
         source_of_funds, gender, civil_status, date_of_birth, employment_type,
         employer_name, monthly_income, gcash_number,
         users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, suffix, phone_number, email, account_status, profile_photo_url),
-        kyc_documents(id, document_type, file_path, status, uploaded_at, rejection_notes, reviewed_by, reviewed_at),
+        account_upgrade_documents(id, document_type, file_path, status, uploaded_at, rejection_notes, reviewed_by, reviewed_at),
         emergency_contacts(id, name, relationship, phone_number, address)
       `, { count: 'exact' })
-      .neq('kyc_status', 'not_submitted');
+      .neq('account_upgrade_status', 'not_submitted');
 
-    if (status) query = query.eq('kyc_status', status);
+    if (status) query = query.eq('account_upgrade_status', status);
     if (search) query = query.or(`users.first_name.ilike.%${search}%,users.last_name.ilike.%${search}%,users.middle_name.ilike.%${search}%`);
 
     const { data, error, count } = await query
       .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    if (error) return errorResponse(`Failed to fetch KYC list: ${error.message}`, 500, 'SERVER_ERROR');
+    if (error) return errorResponse(`Failed to fetch Account Upgrade list: ${error.message}`, 500, 'SERVER_ERROR');
 
     const rows = data ?? [];
     const lenderIds = rows.map((r) => r.id);
@@ -193,7 +193,7 @@ async function handleGetList(req: Request) {
         email: users?.email,
         account_status: users?.account_status,
         profile_photo_url: users?.profile_photo_url,
-        kyc_status: row.kyc_status,
+        account_upgrade_status: row.account_upgrade_status,
         street_address: address?.street ?? null,
         barangay: address?.barangay ?? null,
         city: address?.city ?? null,
@@ -209,7 +209,7 @@ async function handleGetList(req: Request) {
         gcash_number: row.gcash_number,
       };
 
-      const docs = row.kyc_documents ?? [];
+      const docs = row.account_upgrade_documents ?? [];
       const docTypes = [...new Set(docs.map((d) => d.document_type))];
       const latestUpload = docs.length
         ? docs.reduce((a, b) =>
@@ -223,7 +223,7 @@ async function handleGetList(req: Request) {
         document_count: docs.length,
         document_types: docTypes,
         file_url: null,
-        status: row.kyc_status ?? (docs.length ? 'submitted' : 'not_submitted'),
+        status: row.account_upgrade_status ?? (docs.length ? 'submitted' : 'not_submitted'),
         created_at: latestUpload?.uploaded_at ?? row.updated_at ?? new Date().toISOString(),
         lender,
         emergency_contacts: row.emergency_contacts ?? [],
@@ -251,7 +251,7 @@ async function handleGetStatus(req: Request) {
     const url = new URL(req.url);
     const requestedLenderId = url.searchParams.get('lender_id');
 
-    // Lenders may only ever inspect their own KYC; ignore any lender_id they send.
+    // Lenders may only ever inspect their own Account Upgrade; ignore any lender_id they send.
     let lenderId = user.id;
     if (user.role !== ROLES.LENDER) {
       if (requestedLenderId) {
@@ -263,7 +263,7 @@ async function handleGetStatus(req: Request) {
 
     const db = getAdminClient();
     const { data: profile } = await db.from('lender_profiles').select('*').eq('id', lenderId).single();
-    const { data: docs } = await db.from('kyc_documents')
+    const { data: docs } = await db.from('account_upgrade_documents')
       .select('id, lender_id, document_type, file_path, status, rejection_notes, reviewed_by, reviewed_at, uploaded_at')
       .eq('lender_id', lenderId)
       .order('uploaded_at', { ascending: false });
@@ -291,7 +291,7 @@ async function handleGetStatus(req: Request) {
     }));
 
     return jsonResponse({
-      kyc_status: profile?.kyc_status ?? 'not_submitted',
+      account_upgrade_status: profile?.account_upgrade_status ?? 'not_submitted',
       lender_id: lenderId,
       lender,
       documents,
@@ -309,11 +309,11 @@ async function handleGetDetails(req: Request) {
     if (roleCheck) return roleCheck;
 
     const url = new URL(req.url);
-    const kycDocId = url.searchParams.get('kyc_doc_id');
+    const accountUpgradeDocId = url.searchParams.get('account_upgrade_doc_id');
     const lenderId = url.searchParams.get('lender_id');
 
-    if (!kycDocId && !lenderId) {
-      return errorResponse('kyc_doc_id or lender_id is required', 400, 'VALIDATION_ERROR');
+    if (!accountUpgradeDocId && !lenderId) {
+      return errorResponse('account_upgrade_doc_id or lender_id is required', 400, 'VALIDATION_ERROR');
     }
 
     const db = getAdminClient();
@@ -321,13 +321,13 @@ async function handleGetDetails(req: Request) {
     // Resolve the lender_id from either the document id or a direct lender id.
     let targetLenderId = lenderId;
     let document: Record<string, unknown> | null = null;
-    if (kycDocId) {
+    if (accountUpgradeDocId) {
       const { data: raw, error } = await db
-        .from('kyc_documents')
+        .from('account_upgrade_documents')
         .select('id, lender_id, document_type, file_path, file_name, status, rejection_notes, reviewed_by, reviewed_at, uploaded_at')
-        .eq('id', kycDocId)
+        .eq('id', accountUpgradeDocId)
         .single();
-      if (error || !raw) return errorResponse('KYC document not found', 404, 'NOT_FOUND');
+      if (error || !raw) return errorResponse('Account Upgrade document not found', 404, 'NOT_FOUND');
       targetLenderId = raw?.lender_id;
       document = {
         id: raw.id,
@@ -357,21 +357,21 @@ async function handleGetDetails(req: Request) {
       .single();
 
     const { data: docs } = await db
-      .from('kyc_documents')
+      .from('account_upgrade_documents')
       .select('id, lender_id, document_type, file_path, file_name, status, rejection_notes, reviewed_by, reviewed_at, uploaded_at')
       .eq('lender_id', targetLenderId!)
       .order('uploaded_at', { ascending: false });
 
-    // kyc-documents is a private bucket with an owner-scoped RLS policy
-    // (only the lender who uploaded a file may read it). Staff review KYC
+    // account-upgrade-documents is a private bucket with an owner-scoped RLS policy
+    // (only the lender who uploaded a file may read it). Staff review Account Upgrade
     // with their own JWT, so a client-side signed URL lookup would be blocked
     // by RLS and fail with "object not found". Resolve signed URLs here with
     // the service-role client so reviewers can open lender documents.
-    const KYC_BUCKET = 'kyc-documents';
+    const ACCOUNT_UPGRADE_BUCKET = 'account-upgrade-documents';
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const signOne = async (path: string) => {
       const { data } = await db.storage
-        .from(KYC_BUCKET)
+        .from(ACCOUNT_UPGRADE_BUCKET)
         .createSignedUrl(path, 3600);
       // createSignedUrl already returns an absolute URL (e.g.
       // http://localhost:8000/storage/v1/object/sign/...). Only prefix with the
@@ -432,7 +432,7 @@ async function handleGetDetails(req: Request) {
     return jsonResponse({
       document,
       lender_id: targetLenderId,
-      kyc_status: lenderProfile?.kyc_status ?? 'not_submitted',
+      account_upgrade_status: lenderProfile?.account_upgrade_status ?? 'not_submitted',
       lender,
       documents,
       emergency_contacts: emergencyContacts ?? [],

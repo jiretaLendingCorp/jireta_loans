@@ -22,6 +22,31 @@ class NotificationRemoteDataSource {
         .toList();
   }
 
+  /// Returns the notification list along with the server-authoritative
+  /// unread count. The server counts unread across ALL pages, so relying on it
+  /// (instead of counting the first page only) keeps the bell badge accurate.
+  Future<({List<NotificationModel> items, int unreadCount})> getListWithUnread({
+    bool? isRead,
+    int page = 1,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.notificationsGetList,
+      queryParams: {
+        if (isRead != null) 'is_read': isRead,
+        'page': page,
+        'limit': 20,
+      },
+    );
+    final list = (res.data['data'] as List?) ?? [];
+    final unread = (res.data['unread_count'] as num?)?.toInt() ?? 0;
+    return (
+      items: list
+          .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      unreadCount: unread,
+    );
+  }
+
   Future<Map<String, dynamic>> getListMap({bool? isRead, int page = 1}) async {
     final res = await _client.get(
       ApiEndpoints.notificationsGetList,

@@ -59,7 +59,7 @@ async function selfRegisterLender(db: DbClient, phone: string) {
     phone_number: phone,
     email: null,
     // No placeholder name — the real identity is captured later via
-    // KYC / profile edit, not auto-filled here.
+    // Account Upgrade / profile edit, not auto-filled here.
     first_name: '',
     last_name: '',
     account_status: 'active',
@@ -74,7 +74,7 @@ async function selfRegisterLender(db: DbClient, phone: string) {
 
   const { error: profileErr } = await db.from('lender_profiles').insert({
     id: newUser.id,
-    kyc_status: 'not_submitted',
+    account_upgrade_status: 'not_submitted',
   });
   if (profileErr) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});

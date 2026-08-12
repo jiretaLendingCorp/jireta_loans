@@ -129,7 +129,7 @@ class _EmpNotificationsScreenState
         return Icons.account_balance_outlined;
       case 'payment':
         return Icons.payment_outlined;
-      case 'kyc':
+      case 'account_upgrade':
         return Icons.verified_user_outlined;
       case 'collection':
         return Icons.local_shipping_outlined;
@@ -144,7 +144,7 @@ class _EmpNotificationsScreenState
         return AppColors.deepNavy;
       case 'payment':
         return AppColors.riderGreen;
-      case 'kyc':
+      case 'account_upgrade':
         return AppColors.lenderPurple;
       case 'collection':
         return AppColors.warning;
