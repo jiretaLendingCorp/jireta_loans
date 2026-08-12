@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
+﻿// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,7 +26,7 @@ class LenderApplyLoanScreen extends ConsumerStatefulWidget {
 }
 
 class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
-  double _amount = 5000;
+  double _amount = 3000;
   String _frequency = 'weekly';
   final _purposeCtrl = TextEditingController();
   bool _previewLoading = false;
@@ -35,8 +35,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   final _coMakerFormKey = GlobalKey<_CoMakerFormState>();
   String? _coMakerSignature;
   String? _signatureError;
-  String _disbursementMethod = 'gcash';
-  final _gcashCtrl = TextEditingController();
 
   static const _navItems = [
     MobileNavItem(
@@ -65,13 +63,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(lenderKycProvider.notifier).loadStatus();
       ref.read(lenderLoanProvider.notifier).loadLoans();
+      _refreshPreview();
     });
   }
 
   @override
   void dispose() {
     _purposeCtrl.dispose();
-    _gcashCtrl.dispose();
     super.dispose();
   }
 
@@ -118,17 +116,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       return;
     }
 
-    if (_disbursementMethod == 'gcash' &&
-        !RegExp(r'^09\d{9}$').hasMatch(_gcashCtrl.text.trim())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid 11-digit GCash number (09XXXXXXXXX).'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => ConfirmationDialog(
@@ -147,11 +134,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           frequency: _frequency,
           purpose: _purposeCtrl.text.trim(),
           coMaker: coMaker,
-          disbursement: {
-            'method': _disbursementMethod,
-            if (_disbursementMethod == 'gcash')
-              'gcash_number': _gcashCtrl.text.trim(),
-          },
         );
 
     if (!mounted) return;
@@ -415,92 +397,34 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
   }
 
-  Widget _buildDisbursementStep(
-      NumberFormat fmt, Map<String, dynamic>? preview) {
+  Widget _buildReviewStep(NumberFormat fmt, Map<String, dynamic>? preview) {
+    final interest = preview == null ? null : (preview['interest'] ?? 0);
+    final totalPayable = preview == null ? null : (preview['total_payable'] ?? 0);
+    final installment = preview == null ? null : (preview['installment_amount'] ?? 0);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle('Disbursement Preference'),
+          const _SectionTitle('Review Information'),
           const SizedBox(height: 6),
           const Text(
-            'How would you like to receive the loan proceeds once approved?',
+            'Please review the details below. If everything is correct, submit your application.',
             style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 12),
-          _DisbursementOption(
-            selected: _disbursementMethod == 'gcash',
-            icon: Icons.phone_android,
-            title: 'GCash',
-            subtitle: 'Funds will be sent to a GCash number',
-            onTap: () => setState(() => _disbursementMethod = 'gcash'),
+          const SizedBox(height: 16),
+          _ReviewCard(
+            amount: _amount,
+            frequency: _frequency,
+            purpose: _purposeCtrl.text.trim(),
+            coMaker: _coMaker,
+            fmt: fmt,
+            signatureProvided:
+                _coMakerSignature != null && _coMakerSignature!.isNotEmpty,
+            interest: interest,
+            totalPayable: totalPayable,
+            installment: installment,
           ),
-          const SizedBox(height: 8),
-          _DisbursementOption(
-            selected: _disbursementMethod == 'rider_delivery',
-            icon: Icons.delivery_dining,
-            title: 'Cash via Rider',
-            subtitle: 'A rider will deliver cash to your registered address',
-            onTap: () =>
-                setState(() => _disbursementMethod = 'rider_delivery'),
-          ),
-          const SizedBox(height: 8),
-          _DisbursementOption(
-            selected: _disbursementMethod == 'office_cash',
-            icon: Icons.business_center,
-            title: 'Pick Up at Office',
-            subtitle: 'Withdraw the cash at the Jireta Loans office',
-            onTap: () => setState(() => _disbursementMethod = 'office_cash'),
-          ),
-          if (_disbursementMethod == 'gcash') ...[
-            const SizedBox(height: 16),
-            TextField(
-              controller: _gcashCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: 'GCash Number',
-                hintText: '09XXXXXXXXX',
-                prefixIcon: const Icon(Icons.phone_android, size: 18),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.lenderPurple),
-                ),
-              ),
-            ),
-          ] else if (_disbursementMethod == 'rider_delivery') ...[
-            const SizedBox(height: 16),
-            const _DisbursementNote(
-              icon: Icons.home_outlined,
-              text:
-                  'The rider will deliver the cash to the address registered in your KYC profile.',
-            ),
-          ] else ...[
-            const SizedBox(height: 16),
-            const _DisbursementNote(
-              icon: Icons.description_outlined,
-              text:
-                  'Bring a valid government ID and the loan reference number when picking up at the office.',
-            ),
-          ],
-          const SizedBox(height: 20),
-          if (preview != null) ...[
-            _ReviewCard(
-              amount: _amount,
-              frequency: _frequency,
-              purpose: _purposeCtrl.text.trim(),
-              coMaker: _coMaker,
-              fmt: fmt,
-              signatureProvided:
-                  _coMakerSignature != null && _coMakerSignature!.isNotEmpty,
-            ),
-          ],
         ],
       ),
     );
@@ -576,6 +500,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (kyc != 'verified' && kyc != 'approved') {
       return _KycGate(status: kyc);
     }
+    // Approved-but-not-yet-released loan → lender chooses how to receive funds.
+    final approvedLoan = _approvedUnreleasedLoan(loans);
+    if (approvedLoan != null) {
+      return _ChooseDisbursementView(loan: approvedLoan);
+    }
     if (activeLoan != null) {
       return _ActiveLoanView(loan: activeLoan);
     }
@@ -596,7 +525,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               _buildLoanDetailsStep(fmt, preview),
               _buildCoMakerStep(),
               _buildSignatureStep(),
-              _buildDisbursementStep(fmt, preview),
+              _buildReviewStep(fmt, preview),
             ],
           ),
         ),
@@ -615,6 +544,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     return age >= 18;
   }
 
+  /// A loan that was approved but has not yet been released (no disbursement).
+  /// The lender must choose their disbursement method before it is released.
+  LoanModel? _approvedUnreleasedLoan(List<LoanModel> loans) {
+    for (final loan in loans) {
+      if (loan.status == 'approved' && loan.disbursedAt == null) {
+        return loan;
+      }
+    }
+    return null;
+  }
+
   LoanModel? _underReviewLoan(List<LoanModel> loans) {
     for (final loan in loans) {
       if ([
@@ -623,7 +563,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         'ci_required',
         'ci_assigned',
         'ci_completed',
-        'approved',
       ].contains(loan.status)) {
         return loan;
       }
@@ -909,11 +848,15 @@ class _SchedulePreview extends StatelessWidget {
           child: CircularProgressIndicator(color: AppColors.lenderPurple));
     }
     final fmt = NumberFormat('#,##0.00', 'en_PH');
+    final principal = (preview['principal'] ?? 0).toDouble();
     final totalPayable = (preview['total_payable'] ?? 0).toDouble();
-    final interest = (preview['interest'] ?? 0).toDouble();
+    final interest = (preview['interest'] ?? preview['interest_amount'] ?? 0)
+        .toDouble();
     final installment = (preview['installment_amount'] ?? 0).toDouble();
     final termDays = preview['term_days'] ?? 0;
-    final dueDates = List<dynamic>.from(preview['due_dates'] ?? []);
+    final installments = preview['installments'] ?? 0;
+    final schedule =
+        List<dynamic>.from(preview['schedule'] ?? preview['due_dates'] ?? []);
 
     return Container(
       decoration: BoxDecoration(
@@ -952,54 +895,118 @@ class _SchedulePreview extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Column(
               children: [
-                _PreviewRow('Total Payable', '₱${fmt.format(totalPayable)}',
-                    AppColors.lenderPurple),
+                _PreviewRow('Loan Amount', '₱${fmt.format(principal)}',
+                    AppColors.textPrimary),
                 _PreviewRow('Interest (20%)', '₱${fmt.format(interest)}',
                     AppColors.warning),
+                _PreviewRow('Total Payable', '₱${fmt.format(totalPayable)}',
+                    AppColors.lenderPurple),
                 _PreviewRow('Per Installment', '₱${fmt.format(installment)}',
                     AppColors.success),
+                _PreviewRow('Number of Periods', '$installments',
+                    AppColors.textSecondary),
                 _PreviewRow('Term', '$termDays days', AppColors.textSecondary),
                 const Divider(height: 20),
                 const Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Due Dates',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  child: Text('Full Computation Per Period',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13)),
                 ),
                 const SizedBox(height: 8),
-                if (dueDates.isNotEmpty)
-                  Column(
-                    children: dueDates
-                        .take(5)
-                        .map((d) => Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(d.toString().substring(0, 10),
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary)),
-                                  Text('₱${fmt.format(installment)}',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ))
-                        .toList(),
-                  ),
-                if (dueDates.length > 5)
-                  Text(
-                    '+ ${dueDates.length - 5} more installments',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textTertiary),
-                  ),
+                if (schedule.isNotEmpty)
+                  _buildScheduleTable(fmt, schedule, installment),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleTable(
+      NumberFormat fmt, List<dynamic> schedule, double installment) {
+    final hasItemized = schedule.every((p) =>
+        p is Map<String, dynamic> && p.containsKey('balance'));
+
+    Widget header(String text, bool bold) => Text(
+          text,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
+            color: bold ? AppColors.textPrimary : AppColors.textSecondary,
+          ),
+        );
+
+    final rows = schedule.map((p) {
+      if (p is Map<String, dynamic> && p.containsKey('due_date')) {
+        final period = p['period'] ?? '';
+        final dueDate = p['due_date'].toString().substring(0, 10);
+        final amount = (p['amount'] ?? 0).toDouble();
+        final principal = (p['principal'] ?? amount).toDouble();
+        final interest = (p['interest'] ?? 0).toDouble();
+        final balance = (p['balance'] ?? 0).toDouble();
+        return Row(
+          children: [
+            Expanded(
+                flex: 1,
+                child: header('$period', false)),
+            Expanded(
+                flex: 2,
+                child: header(dueDate, false)),
+            Expanded(
+                flex: 2,
+                child: header('₱${fmt.format(amount)}', false)),
+            if (hasItemized)
+              Expanded(
+                  flex: 2,
+                  child: header('₱${fmt.format(principal)}', false)),
+            if (hasItemized)
+              Expanded(
+                  flex: 2,
+                  child: header('₱${fmt.format(interest)}', false)),
+            if (hasItemized)
+              Expanded(
+                  flex: 2,
+                  child: header('₱${fmt.format(balance)}', false)),
+          ],
+        );
+      }
+      final dueDate = p.toString().substring(0, 10);
+      return Row(
+        children: [
+          Expanded(flex: 1, child: header('-', false)),
+          Expanded(flex: 2, child: header(dueDate, false)),
+          Expanded(
+              flex: 2,
+              child: header('₱${fmt.format(installment)}', false)),
+        ],
+      );
+    }).toList();
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 260),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(flex: 1, child: header('#', true)),
+                Expanded(flex: 2, child: header('Due Date', true)),
+                Expanded(flex: 2, child: header('Amount', true)),
+                if (hasItemized) ...[
+                  Expanded(flex: 2, child: header('Principal', true)),
+                  Expanded(flex: 2, child: header('Interest', true)),
+                  Expanded(flex: 2, child: header('Balance', true)),
+                ],
+              ],
+            ),
+            const SizedBox(height: 4),
+            ...rows,
+          ],
+        ),
       ),
     );
   }
@@ -1040,7 +1047,7 @@ class _StepIndicator extends StatelessWidget {
       'Loan Details',
       'Co-Maker',
       'Signature',
-      'Disbursement',
+      'Review',
     ];
 
   @override
@@ -1136,6 +1143,9 @@ class _ReviewCard extends StatelessWidget {
   final Map<String, dynamic>? coMaker;
   final NumberFormat fmt;
   final bool signatureProvided;
+  final dynamic interest;
+  final dynamic totalPayable;
+  final dynamic installment;
   const _ReviewCard({
     required this.amount,
     required this.frequency,
@@ -1143,6 +1153,9 @@ class _ReviewCard extends StatelessWidget {
     required this.coMaker,
     required this.fmt,
     required this.signatureProvided,
+    this.interest,
+    this.totalPayable,
+    this.installment,
   });
 
   String _s(String key) {
@@ -1172,6 +1185,15 @@ class _ReviewCard extends StatelessWidget {
             frequency[0].toUpperCase() + frequency.substring(1),
           ),
           _row('Purpose', purpose.isEmpty ? '-' : purpose),
+          if (interest != null) ...[
+            _row('Interest (20%)', '₱${fmt.format((interest as num).toDouble())}'),
+          ],
+          if (totalPayable != null) ...[
+            _row('Total Payable', '₱${fmt.format((totalPayable as num).toDouble())}'),
+          ],
+          if (installment != null) ...[
+            _row('Per Installment', '₱${fmt.format((installment as num).toDouble())}'),
+          ],
           const Divider(height: 24),
           const Text(
             'Co-Maker',
@@ -1250,118 +1272,6 @@ class _ReviewCard extends StatelessWidget {
           ],
         ),
       );
-}
-
-class _DisbursementOption extends StatelessWidget {
-  final bool selected;
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  const _DisbursementOption({
-    required this.selected,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.lenderPurpleLight : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected
-                ? AppColors.lenderPurple
-                : AppColors.border,
-            width: selected ? 1.6 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon,
-                color: selected
-                    ? AppColors.lenderPurple
-                    : AppColors.textSecondary,
-                size: 22),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: selected
-                          ? AppColors.lenderPurple
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              selected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-              color: selected
-                  ? AppColors.lenderPurple
-                  : AppColors.textTertiary,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DisbursementNote extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _DisbursementNote({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.lenderPurple.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: AppColors.lenderPurple.withValues(alpha: 0.15)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.lenderPurple, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.lenderPurple, height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _KycGate extends StatelessWidget {
@@ -1744,6 +1654,291 @@ class _SummaryRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary)),
         ],
+      ),
+    );
+  }
+}
+
+class _ChooseDisbursementView extends ConsumerStatefulWidget {
+  final LoanModel loan;
+  const _ChooseDisbursementView({required this.loan});
+
+  @override
+  ConsumerState<_ChooseDisbursementView> createState() =>
+      _ChooseDisbursementViewState();
+}
+
+class _ChooseDisbursementViewState
+    extends ConsumerState<_ChooseDisbursementView> {
+  String _method = 'gcash';
+  final _gcashCtrl = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _gcashCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    if (_method == 'gcash' &&
+        !RegExp(r'^09\d{9}$').hasMatch(_gcashCtrl.text.trim())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid 11-digit GCash number (09XXXXXXXXX).'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => ConfirmationDialog(
+        title: 'Confirm Disbursement Method',
+        message: _method == 'gcash'
+            ? 'Receive loan proceeds via GCash? The funds will be released immediately.'
+            : _method == 'rider_delivery'
+                ? 'A rider will deliver your cash to the address in your KYC profile. A rider will be scheduled to deliver it.'
+                : 'You will pick up the cash at the Jireta Loans office. We will notify you when it is ready.',
+        confirmLabel: 'Confirm',
+        confirmColor: AppColors.lenderPurple,
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _submitting = true);
+    final ok = await ref
+        .read(lenderLoanProvider.notifier)
+        .selectDisbursementMethod(
+          loanId: widget.loan.id,
+          method: _method,
+          gcashNumber: _method == 'gcash' ? _gcashCtrl.text.trim() : null,
+        );
+    if (!mounted) return;
+    setState(() => _submitting = false);
+
+    final err = ref.read(lenderLoanProvider).error;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? (_method == 'gcash'
+                  ? 'Your loan has been released via GCash!'
+                  : 'Your disbursement method has been saved.')
+              : err ?? 'Failed to save your disbursement method.',
+        ),
+        backgroundColor: ok ? AppColors.success : AppColors.error,
+      ),
+    );
+    if (ok) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) context.go(RouteConstants.lenderDashboard);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loan = widget.loan;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.lenderPurple.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded,
+                        color: Colors.white, size: 26),
+                    SizedBox(width: 10),
+                    Text(
+                      'Loan Approved',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 10),
+                Text(
+                  'Your loan has been approved! Choose how you want to receive the funds to complete the release.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: [
+                _SummaryRow('Loan #', loan.loanNumber),
+                _SummaryRow('Amount', loan.principalAmount.toCurrency),
+                _SummaryRow('Total Payable', loan.totalPayable.toCurrency),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const _SectionTitle('How would you like to receive the funds?'),
+          const SizedBox(height: 12),
+          _disbOption(
+            selected: _method == 'gcash',
+            icon: Icons.phone_android,
+            title: 'GCash',
+            subtitle:
+                'Funds will be sent to your GCash number immediately.',
+            onTap: () => setState(() => _method = 'gcash'),
+          ),
+          const SizedBox(height: 8),
+          _disbOption(
+            selected: _method == 'rider_delivery',
+            icon: Icons.delivery_dining,
+            title: 'Cash via Rider',
+            subtitle:
+                'A rider will deliver the cash to your registered address.',
+            onTap: () => setState(() => _method = 'rider_delivery'),
+          ),
+          const SizedBox(height: 8),
+          _disbOption(
+            selected: _method == 'office_cash',
+            icon: Icons.business_center,
+            title: 'Pick Up at Office',
+            subtitle: 'Withdraw the cash at the Jireta Loans office.',
+            onTap: () => setState(() => _method = 'office_cash'),
+          ),
+          if (_method == 'gcash') ...[
+            const SizedBox(height: 16),
+            TextField(
+              controller: _gcashCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                labelText: 'GCash Number',
+                hintText: '09XXXXXXXXX',
+                prefixIcon: const Icon(Icons.phone_android, size: 18),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.lenderPurple),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          AppButton(
+            label: _method == 'gcash'
+                ? 'Release via GCash'
+                : 'Confirm ${
+                    _method == 'rider_delivery'
+                        ? 'Rider Delivery'
+                        : 'Office Pickup'
+                  }',
+            onTap: _confirm,
+            color: AppColors.lenderPurple,
+            isLoading: _submitting,
+            isExpanded: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _disbOption({
+    required bool selected,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.lenderPurpleLight : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.lenderPurple : AppColors.border,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                color: selected
+                    ? AppColors.lenderPurple
+                    : AppColors.textSecondary,
+                size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: selected
+                          ? AppColors.lenderPurple
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              color: selected ? AppColors.lenderPurple : AppColors.textTertiary,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }

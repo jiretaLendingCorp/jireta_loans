@@ -17,6 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { computeSchedule } from '../_shared/schedule.ts';
 
 // ── [moved from in-office-submit] ───────────────────────────────────────────
 // Controlled vocabularies (00025): relationship and document_type are FKs to
@@ -193,27 +194,12 @@ async function handleSubmit(req: Request) {
       await db.from('emergency_contacts').insert(ecRows);
     }
 
-    const interestRate = 0.20;
     const principalAmount = s3.principal_amount;
     const frequency = s3.payment_frequency ?? 'monthly';
-    const interestAmount = principalAmount * interestRate;
-    const totalPayable = principalAmount + interestAmount;
-
-    let termDays = 30;
-    let installmentAmount = totalPayable;
-
-    if (frequency === 'daily') {
-      termDays = Math.ceil(principalAmount / 1000) * 10;
-      installmentAmount = parseFloat((totalPayable / termDays).toFixed(2));
-    } else if (frequency === 'weekly') {
-      const weeks = Math.ceil(principalAmount / 5000) * 2;
-      termDays = weeks * 7;
-      installmentAmount = parseFloat((totalPayable / weeks).toFixed(2));
-    } else {
-      const months = Math.ceil(principalAmount / 10000);
-      termDays = months * 30;
-      installmentAmount = parseFloat((totalPayable / months).toFixed(2));
-    }
+    const sched = computeSchedule(Number(principalAmount), frequency);
+    const termDays = sched.termDays;
+    const dueDates = sched.dueDates;
+    const amounts = sched.amounts;
 
     const releaseDate = new Date();
     const dueDate = new Date(releaseDate);
@@ -242,45 +228,12 @@ async function handleSubmit(req: Request) {
       installment_number: number;
       due_date: string;
       amount_due: number;
-    }[] = [];
-    if (frequency === 'daily') {
-      for (let i = 0; i < termDays; i++) {
-        const d = new Date(releaseDate);
-        d.setDate(d.getDate() + i + 1);
-        scheduleRows.push({
-          loan_id: loan.id,
-          installment_number: i + 1,
-          due_date: d.toISOString().split('T')[0],
-          amount_due: installmentAmount,
-        });
-      }
-    } else if (frequency === 'weekly') {
-      const weeks = Math.round(termDays / 7);
-      for (let i = 0; i < weeks; i++) {
-        const d = new Date(releaseDate);
-        d.setDate(d.getDate() + (i + 1) * 7);
-        scheduleRows.push({
-          loan_id: loan.id,
-          installment_number: i + 1,
-          due_date: d.toISOString().split('T')[0],
-          amount_due: installmentAmount,
-        });
-      }
-    } else {
-      const months = Math.round(termDays / 30);
-      for (let i = 0; i < months; i++) {
-        const d = new Date(releaseDate);
-        d.setMonth(d.getMonth() + i + 1);
-        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        d.setDate(lastDay);
-        scheduleRows.push({
-          loan_id: loan.id,
-          installment_number: i + 1,
-          due_date: d.toISOString().split('T')[0],
-          amount_due: installmentAmount,
-        });
-      }
-    }
+    }[] = dueDates.map((dueDateStr, i) => ({
+      loan_id: loan.id,
+      installment_number: i + 1,
+      due_date: dueDateStr,
+      amount_due: amounts[i],
+    }));
 
     await db.from('loan_schedules').insert(scheduleRows);
 

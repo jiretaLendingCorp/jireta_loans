@@ -1,5 +1,5 @@
 // supabase/functions/_shared/audit.ts
-import { getAdminClient } from './db.ts';
+import { getAdminClient } from "./db.ts";
 
 export async function writeAuditLog(params: {
   performedBy: string;
@@ -12,7 +12,7 @@ export async function writeAuditLog(params: {
 }): Promise<void> {
   try {
     const db = getAdminClient();
-    await db.from('audit_logs').insert({
+    await db.from("audit_logs").insert({
       performed_by: params.performedBy,
       action: params.action,
       table_name: params.tableName,
@@ -22,6 +22,6 @@ export async function writeAuditLog(params: {
       ip_address: params.ipAddress ?? null,
     });
   } catch (err) {
-    console.error('Audit log write failed:', err);
+    console.error("Audit log write failed:", err);
   }
 }

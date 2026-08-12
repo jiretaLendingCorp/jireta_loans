@@ -18,54 +18,28 @@ import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination, validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
 import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { computeSchedule, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
 
 // ── [moved from loans-get-schedule-preview] ─────────────────────────────────
 const INTEREST_RATE = 0.20;
 
 // ── [moved from loans-get-schedule-preview] ─────────────────────────────────
-function computeSchedulePreview(principal: number, frequency: string) {
-  const interest = Math.round(principal * INTEREST_RATE * 100) / 100;
-  const totalPayable = principal + interest;
-
-  let termDays: number;
-  if (principal <= 5000) termDays = 40;
-  else if (principal <= 10000) termDays = 60;
-  else if (principal <= 20000) termDays = 70;
-  else if (principal <= 50000) termDays = 80;
-  else if (principal <= 100000) termDays = 120;
-  else termDays = 180;
-
-  let installments: number;
-  let intervalDays: number;
-
-  if (frequency === 'daily') { intervalDays = 1; installments = termDays; }
-  else if (frequency === 'weekly') { intervalDays = 7; installments = Math.ceil(termDays / 7); }
-  else { intervalDays = 30; installments = Math.ceil(termDays / 30); }
-
-  const baseInstallment = Math.floor((totalPayable / installments) * 100) / 100;
-  const lastInstallment = Math.round((totalPayable - baseInstallment * (installments - 1)) * 100) / 100;
-
-  const now = new Date();
-  const schedule = Array.from({ length: installments }, (_, i) => {
-    const due = new Date(now);
-    due.setDate(due.getDate() + (i + 1) * intervalDays);
-    return {
-      period: i + 1,
-      due_date: due.toISOString().split('T')[0],
-      amount: i === installments - 1 ? lastInstallment : baseInstallment,
-    };
-  });
-
+function computeSchedulePreview(principal: number, frequency: string, periods?: number) {
+  const sched = computeSchedule(Number(principal), frequency, new Date(), periods);
   return {
-    principal,
+    principal: sched.principal,
     interest_rate: INTEREST_RATE * 100,
-    interest_amount: interest,
-    total_payable: totalPayable,
-    term_days: termDays,
-    installments,
-    installment_amount: baseInstallment,
+    interest: sched.interest,
+    interest_amount: sched.interest,
+    total_payable: sched.totalPayable,
+    term_days: sched.termDays,
+    installments: sched.installments,
+    max_periods: sched.maxPeriods,
+    installment_amount: sched.installmentAmount,
     frequency,
-    schedule,
+    due_dates: sched.dueDates,
+    amounts: sched.amounts,
+    schedule: sched.periods,
   };
 }
 
@@ -134,7 +108,17 @@ async function handleGetList(req: Request) {
       const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
       query = query.in('status', statuses);
     }
-    if (search) query = query.or(`loan_number.ilike.%${search}%,lender_profiles.users.first_name.ilike.%${search}%,lender_profiles.users.last_name.ilike.%${search}%`);
+    if (search) {
+      // Strip postgREST filter metacharacters so user input can't break the
+      // `.or()` filter (comma, period, parens, wildcard, quotes are all
+      // interpreted by the postgREST operator parser).
+      const term = String(search).replace(/[(),.%*[\].]/g, '');
+      query = query.or(
+        `loan_number.ilike.%${term}%,` +
+        `lender_profiles.users.first_name.ilike.%${term}%,` +
+        `lender_profiles.users.last_name.ilike.%${term}%`,
+      );
+    }
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo);
 
@@ -277,11 +261,23 @@ async function handleGetSchedulePreview(req: Request) {
     const authResult = await requireAuth(req);
     if (!isAuthUser(authResult)) return authResult;
 
-    const { principal, frequency } = await req.json();
+    const { principal, frequency, term_periods } = await req.json();
 
     if (!principal || !frequency) return errorResponse('principal and frequency are required', 400, 'VALIDATION_ERROR');
     if (!validateLoanAmount(Number(principal))) return errorResponse('Amount must be ₱3,000–₱500,000', 400, 'VALIDATION_ERROR');
     if (!validateFrequency(frequency)) return errorResponse('Invalid frequency', 400, 'VALIDATION_ERROR');
 
-    return jsonResponse(computeSchedulePreview(Number(principal), frequency));
+    let periods: number | undefined;
+    if (term_periods !== undefined && term_periods !== null && term_periods !== '') {
+      periods = Number(term_periods);
+      if (!Number.isInteger(periods) || (periods as number) < 1) {
+        return errorResponse('term_periods must be a positive integer', 400, 'VALIDATION_ERROR');
+      }
+      const maxPeriods = maxPeriodsFor(frequency, termDaysFor(Number(principal)));
+      if ((periods as number) > maxPeriods) {
+        return errorResponse(`term_periods cannot exceed ${maxPeriods} for this loan and frequency`, 400, 'VALIDATION_ERROR');
+      }
+    }
+
+    return jsonResponse(computeSchedulePreview(Number(principal), frequency, periods));
 }

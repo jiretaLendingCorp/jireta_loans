@@ -160,8 +160,6 @@ async function handleReverse(req: Request) {
   await db.from('payments').update({ status: 'reversed' }).eq('id', payment_id);
   await db.from('payment_reversals').insert({ payment_id, reversed_by: user.id, reason: sanitizeString(reason) });
   const loanId = await getPaymentLoanId(db, payment);
-  const financials = loanId ? await getLoanFinancials(db, loanId) : null;
-  const restoredBalance = Math.round(((financials?.outstanding_balance ?? 0) + Number(payment.amount)) * 100) / 100;
   if (loanId) await db.from('loans').update({ status: 'active' }).eq('id', loanId);
   const lenderId = loanId
     ? (await db.from('loans').select('lender_id').eq('id', loanId).single()).data?.lender_id

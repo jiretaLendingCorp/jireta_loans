@@ -177,7 +177,7 @@ async function handleCollectionRecord(req: Request) {
   const idempotencyKey = req.headers.get('x-idempotency-key');
   if (!idempotencyKey) return errorResponse('x-idempotency-key header required', 400, 'VALIDATION_ERROR');
 
-  const { assignment_id, amount_collected, notes, latitude, longitude } = await req.json();
+  const { assignment_id, amount_collected, notes, latitude: _latitude, longitude: _longitude } = await req.json();
   if (!assignment_id || amount_collected === undefined) return errorResponse('assignment_id and amount_collected required', 400, 'VALIDATION_ERROR');
   if (amount_collected <= 0) return errorResponse('Amount must be positive', 400, 'VALIDATION_ERROR');
 

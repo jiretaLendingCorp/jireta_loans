@@ -85,7 +85,7 @@ async function handleCreateEmployee(req: Request) {
   const body = await req.json();
   const {
     first_name, middle_name, last_name, suffix,
-    gender, civil_status, dob, email, phone_number,
+    gender, civil_status, email, phone_number,
     department, position, hired_at,
   } = body;
 

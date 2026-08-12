@@ -8,6 +8,7 @@ class ApiEndpoints {
   static const String authVerifyOtp = 'auth-otp?fn=verify-otp';
   static const String authForceChangePassword =
       'auth-password?fn=force-change-password';
+  static const String authChangePassword = 'auth-password?fn=change-password';
   static const String authForgotPassword = 'auth-password?fn=forgot-password';
   static const String authResetPassword = 'auth-password?fn=reset-password';
   static const String authLogout = 'auth-logout?fn=logout';
@@ -70,6 +71,7 @@ class ApiEndpoints {
   static const String paymentsGetList = 'payments-view?fn=get-list';
 
   // Disbursements
+  static const String disbursementsSelect = 'disbursements-select?fn=select';
   static const String disbursementsGcash = 'disbursements-gcash?fn=gcash';
   static const String disbursementsOfficeCash =
       'disbursements-delivery?fn=office-cash';

@@ -14,7 +14,7 @@ serve(async (req) => {
   try {
     if (!verifyWebhookToken(req)) return errorResponse('Invalid webhook token', 401, 'UNAUTHORIZED');
     const body = await req.json();
-    const { id: xenditId, status, external_id, amount } = body;
+    const { id: xenditId, status, amount } = body;
     if (!xenditId || !status) return errorResponse('Invalid webhook payload', 400, 'VALIDATION_ERROR');
     const db = getAdminClient();
     const { data: payment } = await db.from('payments').select('id, loan_schedule_id, collection_assignment_id, status').eq('xendit_payment_id', xenditId).single();

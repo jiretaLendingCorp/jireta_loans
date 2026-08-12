@@ -5,75 +5,9 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
+import { computeSchedule, generateLoanNumber, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
-
-const INTEREST_RATE = 0.20;
-
-function computeSchedule(principal: number, frequency: string): {
-  totalPayable: number;
-  interest: number;
-  termDays: number;
-  installmentAmount: number;
-  installments: number;
-  dueDates: string[];
-  amounts: number[];
-} {
-  const interest = Math.round(principal * INTEREST_RATE * 100) / 100;
-  const totalPayable = principal + interest;
-
-  let termDays: number;
-  let installments: number;
-  let intervalDays: number;
-
-  if (principal <= 5000) termDays = 40;
-  else if (principal <= 10000) termDays = 60;
-  else if (principal <= 20000) termDays = 70;
-  else if (principal <= 50000) termDays = 80;
-  else if (principal <= 100000) termDays = 120;
-  else termDays = 180;
-
-  if (frequency === 'daily') {
-    intervalDays = 1;
-    installments = termDays;
-  } else if (frequency === 'weekly') {
-    intervalDays = 7;
-    installments = Math.ceil(termDays / 7);
-  } else {
-    intervalDays = 30;
-    installments = Math.ceil(termDays / 30);
-  }
-
-  const baseInstallment = Math.floor((totalPayable / installments) * 100) / 100;
-  const lastInstallment = Math.round((totalPayable - baseInstallment * (installments - 1)) * 100) / 100;
-
-  const dueDates: string[] = [];
-  const amounts: number[] = [];
-  const now = new Date();
-
-  for (let i = 0; i < installments; i++) {
-    const due = new Date(now);
-    due.setDate(due.getDate() + (i + 1) * intervalDays);
-    dueDates.push(due.toISOString().split('T')[0]);
-    amounts.push(i === installments - 1 ? lastInstallment : baseInstallment);
-  }
-
-  return {
-    totalPayable,
-    interest,
-    termDays,
-    installmentAmount: baseInstallment,
-    installments,
-    dueDates,
-    amounts,
-  };
-}
-
-function generateLoanNumber(): string {
-  const year = new Date().getFullYear();
-  const rand = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
-  return `LN-${year}-${rand}`;
-}
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -87,7 +21,7 @@ serve(async (req) => {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { principal: principalField, principal_amount, frequency, purpose, co_maker, disbursement } = body;
+    const { principal: principalField, principal_amount, frequency, term_periods, purpose, co_maker, disbursement } = body;
     const principal = principalField ?? principal_amount;
 
     if (!principal || !frequency || !purpose) {
@@ -98,6 +32,18 @@ serve(async (req) => {
     }
     if (!validateFrequency(frequency)) {
       return errorResponse('Invalid frequency. Use: daily, weekly, monthly', 400, 'VALIDATION_ERROR');
+    }
+
+    let periods: number | undefined;
+    if (term_periods !== undefined && term_periods !== null && term_periods !== '') {
+      periods = Number(term_periods);
+      if (!Number.isInteger(periods) || (periods as number) < 1) {
+        return errorResponse('term_periods must be a positive integer', 400, 'VALIDATION_ERROR');
+      }
+      const maxPeriods = maxPeriodsFor(frequency, termDaysFor(Number(principal)));
+      if ((periods as number) > maxPeriods) {
+        return errorResponse(`term_periods cannot exceed ${maxPeriods} for this loan and frequency`, 400, 'VALIDATION_ERROR');
+      }
     }
 
     let disbursementMethod: string | null = null;
@@ -139,7 +85,7 @@ serve(async (req) => {
       return errorResponse('You already have an active loan application', 409, 'ACTIVE_LOAN_EXISTS');
     }
 
-    const sched = computeSchedule(Number(principal), frequency);
+    const sched = computeSchedule(Number(principal), frequency, new Date(), periods);
     const loanNumber = generateLoanNumber();
     const dueDate = sched.dueDates[sched.dueDates.length - 1];
 
@@ -149,7 +95,7 @@ serve(async (req) => {
         lender_id: lenderId,
         loan_number: loanNumber,
         principal_amount: Number(principal),
-        interest_rate: INTEREST_RATE * 100,
+        interest_rate: 20,
         payment_frequency: frequency,
         term_days: sched.termDays,
         purpose: String(purpose).substring(0, 500),
@@ -229,7 +175,7 @@ serve(async (req) => {
     const { data: staffUsers } = await db
       .from('users')
       .select('id, roles!inner(name)')
-      .in('roles.name', ['head_manager', 'employee'])
+      .or('roles.name.eq.head_manager,roles.name.eq.employee')
       .eq('account_status', 'active');
 
     if (staffUsers) {
@@ -256,7 +202,10 @@ serve(async (req) => {
       installment_amount: sched.installmentAmount,
       frequency,
       due_date: dueDate,
-      schedule: sched.dueDates.map((d, i) => ({ period: i + 1, due_date: d, amount: sched.amounts[i] })),
+      installments: sched.installments,
+      due_dates: sched.dueDates,
+      amounts: sched.amounts,
+      schedule: sched.periods,
     }, 201);
   } catch (err) {
     console.error('loans-apply error:', err);

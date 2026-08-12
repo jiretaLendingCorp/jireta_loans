@@ -69,7 +69,7 @@ async function handleApprove(req: Request) {
     const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
     if (roleCheck) return roleCheck;
 
-    const { loan_id, notes } = await req.json();
+    const { loan_id } = await req.json();
     if (!loan_id) return errorResponse('loan_id is required', 400, 'VALIDATION_ERROR');
 
     const db = getAdminClient();
@@ -90,7 +90,7 @@ async function handleApprove(req: Request) {
     await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', loan_id);
 
     await writeAuditLog({ performedBy: user.id, action: 'loan_approve', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'approved' }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved', body: 'Congratulations! Your loan application has been approved.', type: 'loan_approved', referenceId: loan_id });
+    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved', body: 'Congratulations! Your loan has been approved. Please choose how you want to receive the funds to complete the release.', type: 'loan_approved', referenceId: loan_id });
 
     return jsonResponse({ message: 'Loan approved successfully' });
 }

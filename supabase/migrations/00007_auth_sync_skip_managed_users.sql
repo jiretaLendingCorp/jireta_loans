@@ -11,6 +11,12 @@
 --             Supabase Dashboard → Authentication → Add User). Edge-function
 --             and Google OAuth users set app_metadata.role / provider, so the
 --             trigger skips them and the function handles the row itself.
+--
+--             FIX (2026-08-12): GoTrue writes raw_app_meta_data in a follow-up
+--             UPDATE after the initial INSERT, so the AFTER INSERT trigger sees
+--             role = NULL even for Edge-Function-created users. If an active
+--             head_manager already exists we now bail out entirely — the only
+--             legitimate auto-sync target is the first (bootstrap) user.
 -- =====================================================================
 
 BEGIN;
@@ -31,6 +37,12 @@ DECLARE
 BEGIN
   -- Edge functions pass app_metadata.role ('employee' | 'rider' | 'lender')
   -- and create the public.users row themselves → skip auto-sync.
+  --
+  -- NOTE: GoTrue writes raw_app_meta_data in a FOLLOW-UP UPDATE after the
+  -- initial INSERT, so the AFTER INSERT trigger may see role = NULL even for
+  -- Edge-Function-created users. This is why we ALSO bail out whenever an
+  -- active head_manager already exists: the only legitimate auto-sync target
+  -- is the very first (bootstrap) user.
   v_app_role := NULLIF(NEW.raw_app_meta_data->>'role', '');
 
   -- Google OAuth users are created by GoTrue and mapped to a lender row by
@@ -38,6 +50,17 @@ BEGIN
   IF v_app_role IS NOT NULL
      OR COALESCE(NEW.raw_app_meta_data->>'provider', '') = 'google'
      OR COALESCE(NEW.raw_app_meta_data->>'providers', '') ILIKE '%google%' THEN
+    RETURN NEW;
+  END IF;
+
+  -- If a head_manager already exists, never auto-create another one (the
+  -- fn_users_single_head_manager guard would reject it and GoTrue would abort
+  -- the whole user creation with P0001). Edge functions handle their own rows.
+  IF EXISTS (
+    SELECT 1 FROM public.users u
+    JOIN public.roles r ON r.id = u.role_id
+    WHERE r.name = 'head_manager' AND u.account_status <> 'archived'
+  ) THEN
     RETURN NEW;
   END IF;
 

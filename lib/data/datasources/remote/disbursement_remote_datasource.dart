@@ -7,6 +7,25 @@ class DisbursementRemoteDataSource {
   final DioClient _client;
   DisbursementRemoteDataSource(this._client);
 
+  /// Lender chooses their disbursement method after approval.
+  /// `method` is one of: gcash | office_cash | rider_delivery.
+  /// Passing a `gcashNumber` triggers immediate auto-release for gcash.
+  Future<Map<String, dynamic>> selectDisbursementMethod({
+    required String loanId,
+    required String method,
+    String? gcashNumber,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.disbursementsSelect,
+      data: {
+        'loan_id': loanId,
+        'method': method,
+        if (method == 'gcash' && gcashNumber != null) 'gcash_number': gcashNumber,
+      },
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<List<DisbursementModel>> getDisbursementList({
     String? method,
     String? status,

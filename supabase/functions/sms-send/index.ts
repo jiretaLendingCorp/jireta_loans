@@ -72,7 +72,7 @@ async function handleSendOtp(req: Request) {
 }
 
 // ── [moved from functions/sms-send-reminder/index.ts] ───────────────────────
-async function handleSendReminder(req: Request) {
+async function handleSendReminder(_req: Request) {
   const db = getAdminClient();
 
   const targetDate = new Date();

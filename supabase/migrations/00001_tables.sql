@@ -240,17 +240,6 @@ CREATE TABLE sms_statuses (
   updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE in_office_application_statuses (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code        VARCHAR(100) NOT NULL UNIQUE,
-  label       VARCHAR(100) NOT NULL,
-  description TEXT,
-  is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
-  sort_order  INTEGER      NOT NULL DEFAULT 0,
-  created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
 -- ─────────────────────────────────────────────────────────────────────
 -- 1b) Reference seeds (ON CONFLICT keeps this idempotent).
 --     NOTE: 'suspended' is intentionally ABSENT (removed end-state).

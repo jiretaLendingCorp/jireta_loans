@@ -62,11 +62,21 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     super.dispose();
   }
 
+  LoanModel? _approvedUnreleased(List<LoanModel> loans) {
+    for (final loan in loans) {
+      if (loan.status == 'approved' && loan.disbursedAt == null) {
+        return loan;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderDashboardProvider);
     final loanState = ref.watch(lenderLoanProvider);
     final activeLoan = loanState.isLoading ? null : loanState.activeLoan;
+    final approvedLoan = _approvedUnreleased(loanState.loans);
 
     return MobileScaffold(
       title: 'My Account',
@@ -90,6 +100,10 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                     children: [
                       _WelcomeBanner(kpi: state.kpi),
                       const SizedBox(height: 20),
+                      if (approvedLoan != null) ...[
+                        _ApprovedLoanBanner(loan: approvedLoan),
+                        const SizedBox(height: 20),
+                      ],
                       if (activeLoan == null) ...[
                         _QuickActions(context: context),
                         const SizedBox(height: 20),
@@ -159,6 +173,69 @@ class _WelcomeBanner extends StatelessWidget {
             decimalPlaces: 2,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ApprovedLoanBanner extends StatelessWidget {
+  final LoanModel loan;
+  const _ApprovedLoanBanner({required this.loan});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push(RouteConstants.lenderLoans),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.lenderPurple.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: AppColors.lenderPurple.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: AppColors.lenderPurple,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_outline,
+                    color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Loan #${loan.loanNumber} Approved',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Choose how you want to receive your funds to complete the release.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right,
+                  color: AppColors.lenderPurple),
+            ],
+          ),
+        ),
       ),
     );
   }

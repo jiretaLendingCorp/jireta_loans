@@ -221,6 +221,30 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// Voluntary (self-service) password change. Unlike [forceChangePassword] it
+  /// does NOT flip the local force-change flag — the user simply wants to
+  /// rotate their password. Returns the server-side error message on failure
+  /// so the UI can show exactly why (wrong current password, weak password,
+  /// password reuse, network error, etc.).
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      state = const AsyncData(null);
+      return null;
+    } catch (e, s) {
+      debugPrint('[auth] changePassword error: $e');
+      state = AsyncError(e, s);
+      return extractErrorMessage(e);
+    }
+  }
+
   Future<bool> forgotPassword({required String email}) async {
     state = const AsyncLoading();
     try {

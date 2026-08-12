@@ -51,7 +51,10 @@ serve(async (req) => {
       .from('lender_profiles')
       .select('id')
       .eq('id', loan.lender_id)
-      .single();
+      .maybeSingle();
+    if (!lenderProfile) {
+      return errorResponse('Lender profile not found', 404, 'NOT_FOUND');
+    }
 
     const externalId = `DISB-${loan.loan_number}-${Date.now()}`;
     const amount = Number(loan.principal_amount);

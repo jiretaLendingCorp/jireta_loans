@@ -74,6 +74,16 @@ class AuthRemoteDataSource {
     );
   }
 
+  Future<void> changePassword({
+    required String newPassword,
+    required String currentPassword,
+  }) async {
+    await _client.post(
+      ApiEndpoints.authChangePassword,
+      data: {'current_password': currentPassword, 'new_password': newPassword},
+    );
+  }
+
   Future<void> forgotPassword({required String email}) async {
     await _client.post(ApiEndpoints.authForgotPassword, data: {'email': email});
   }
