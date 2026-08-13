@@ -493,6 +493,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (approvedLoan != null) {
       return _ChooseDisbursementView(loan: approvedLoan);
     }
+    // Approved loan with a method already chosen → waiting for the office / rider.
+    final awaitingRelease = _awaitingReleaseLoan(loans);
+    if (awaitingRelease != null) {
+      return _AwaitingReleaseView(loan: awaitingRelease);
+    }
     if (activeLoan != null) {
       return _ActiveLoanView(loan: activeLoan);
     }
@@ -532,11 +537,26 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     return age >= 18;
   }
 
-  /// A loan that was approved but has not yet been released (no disbursement).
-  /// The lender must choose their disbursement method before it is released.
+  /// A loan that was approved but the lender has NOT yet chosen a disbursement
+  /// method. The lender must pick how they want to receive the funds first.
   LoanModel? _approvedUnreleasedLoan(List<LoanModel> loans) {
     for (final loan in loans) {
-      if (loan.status == 'approved' && loan.disbursedAt == null) {
+      if (loan.status == 'approved' &&
+          loan.disbursedAt == null &&
+          loan.disbursementMethod == null) {
+        return loan;
+      }
+    }
+    return null;
+  }
+
+  /// A loan that was approved, the lender already picked their method, but the
+  /// funds have not been released yet (awaiting rider / office fulfilment).
+  LoanModel? _awaitingReleaseLoan(List<LoanModel> loans) {
+    for (final loan in loans) {
+      if (loan.status == 'approved' &&
+          loan.disbursedAt == null &&
+          loan.disbursementMethod != null) {
         return loan;
       }
     }
@@ -1483,6 +1503,134 @@ class _ApplicationReviewView extends StatelessWidget {
   }
 }
 
+class _AwaitingReleaseView extends StatelessWidget {
+  final LoanModel loan;
+  const _AwaitingReleaseView({required this.loan});
+
+  String get _methodLabel {
+    switch (loan.disbursementMethod) {
+      case 'rider_delivery':
+        return 'Cash via Rider';
+      case 'office_cash':
+        return 'Pick Up at Office';
+      case 'gcash':
+        return 'GCash';
+      default:
+        return loan.disbursementMethod ?? 'your chosen method';
+    }
+  }
+
+  String get _message {
+    switch (loan.disbursementMethod) {
+      case 'rider_delivery':
+        return 'A rider will be assigned to deliver your cash to your registered address. We will notify you once the delivery is on its way.';
+      case 'office_cash':
+        return 'Your cash is being prepared for pickup at the Jireta Loans office. We will notify you when it is ready.';
+      case 'gcash':
+        return 'Your GCash disbursement is being processed. We will notify you once the funds have been sent.';
+      default:
+        return 'Your disbursement is being processed. We will notify you once the funds are released.';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.lenderBlue.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.hourglass_top_rounded,
+                        color: Colors.white, size: 26),
+                    SizedBox(width: 10),
+                    Text(
+                      'Loan Approved — Awaiting Release',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Your loan was approved and you chose "$_methodLabel". $_message',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _SummaryRow('Loan #', loan.loanNumber),
+                _SummaryRow('Amount', loan.principalAmount.toCurrency),
+                _SummaryRow('Total Payable', loan.totalPayable.toCurrency),
+                _SummaryRow('Disbursement Method', _methodLabel),
+                const SizedBox(height: 8),
+                StatusBadge(status: loan.status, small: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          AppButton(
+            label: 'View Application Status',
+            onPressed: () => context.push(
+              RouteConstants.lenderLoanApplicationStatus
+                  .replaceFirst(':id', loan.id),
+            ),
+            color: AppColors.lenderBlue,
+            icon: Icons.timeline_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActiveLoanView extends StatelessWidget {
   final LoanModel loan;
   const _ActiveLoanView({required this.loan});
@@ -1626,38 +1774,22 @@ class _ChooseDisbursementView extends ConsumerStatefulWidget {
 
 class _ChooseDisbursementViewState
     extends ConsumerState<_ChooseDisbursementView> {
-  String _method = 'gcash';
-  final _gcashCtrl = TextEditingController();
+  String _method = 'rider_delivery';
   bool _submitting = false;
 
   @override
   void dispose() {
-    _gcashCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _confirm() async {
-    if (_method == 'gcash' &&
-        !RegExp(r'^09\d{9}$').hasMatch(_gcashCtrl.text.trim())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Please enter a valid 11-digit GCash number (09XXXXXXXXX).'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => ConfirmationDialog(
         title: 'Confirm Disbursement Method',
-        message: _method == 'gcash'
-            ? 'Receive loan proceeds via GCash? The funds will be released immediately.'
-            : _method == 'rider_delivery'
-                ? 'A rider will deliver your cash to the address in your account upgrade profile. A rider will be scheduled to deliver it.'
-                : 'You will pick up the cash at the Jireta Loans office. We will notify you when it is ready.',
+        message: _method == 'rider_delivery'
+            ? 'A rider will deliver your cash to the address in your account upgrade profile. A rider will be scheduled to deliver it.'
+            : 'You will pick up the cash at the Jireta Loans office. We will notify you when it is ready.',
         confirmLabel: 'Confirm',
         confirmColor: AppColors.lenderBlue,
       ),
@@ -1669,7 +1801,6 @@ class _ChooseDisbursementViewState
         await ref.read(lenderLoanProvider.notifier).selectDisbursementMethod(
               loanId: widget.loan.id,
               method: _method,
-              gcashNumber: _method == 'gcash' ? _gcashCtrl.text.trim() : null,
             );
     if (!mounted) return;
     setState(() => _submitting = false);
@@ -1678,11 +1809,7 @@ class _ChooseDisbursementViewState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          ok
-              ? (_method == 'gcash'
-                  ? 'Your loan has been released via GCash!'
-                  : 'Your disbursement method has been saved.')
-              : err ?? 'Failed to save your disbursement method.',
+          ok ? 'Your disbursement method has been saved.' : err ?? 'Failed to save your disbursement method.',
         ),
         backgroundColor: ok ? AppColors.success : AppColors.error,
       ),
@@ -1774,8 +1901,9 @@ class _ChooseDisbursementViewState
             selected: _method == 'gcash',
             icon: Icons.phone_android,
             title: 'GCash',
-            subtitle: 'Funds will be sent to your GCash number immediately.',
-            onTap: () => setState(() => _method = 'gcash'),
+            subtitle: 'Funds will be sent to your GCash number.',
+            onTap: null,
+            badge: 'Coming soon',
           ),
           const SizedBox(height: 8),
           _disbOption(
@@ -1794,33 +1922,9 @@ class _ChooseDisbursementViewState
             subtitle: 'Withdraw the cash at the Jireta Loans office.',
             onTap: () => setState(() => _method = 'office_cash'),
           ),
-          if (_method == 'gcash') ...[
-            const SizedBox(height: 16),
-            TextField(
-              controller: _gcashCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: 'GCash Number',
-                hintText: '09XXXXXXXXX',
-                prefixIcon: const Icon(Icons.phone_android, size: 18),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.lenderBlue),
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: 24),
           AppButton(
-            label: _method == 'gcash'
-                ? 'Release via GCash'
-                : 'Confirm ${_method == 'rider_delivery' ? 'Rider Delivery' : 'Office Pickup'}',
+            label: 'Confirm ${_method == 'rider_delivery' ? 'Rider Delivery' : 'Office Pickup'}',
             onTap: _confirm,
             color: AppColors.lenderBlue,
             isLoading: _submitting,
@@ -1836,8 +1940,10 @@ class _ChooseDisbursementViewState
     required IconData icon,
     required String title,
     required String subtitle,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
+    String? badge,
   }) {
+    final enabled = onTap != null;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -1855,38 +1961,75 @@ class _ChooseDisbursementViewState
         child: Row(
           children: [
             Icon(icon,
-                color:
-                    selected ? AppColors.lenderBlue : AppColors.textSecondary,
+                color: enabled
+                    ? (selected ? AppColors.lenderBlue : AppColors.textSecondary)
+                    : AppColors.textTertiary,
                 size: 22),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: selected
-                          ? AppColors.lenderBlue
-                          : AppColors.textPrimary,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: enabled
+                                ? (selected
+                                    ? AppColors.lenderBlue
+                                    : AppColors.textPrimary)
+                                : AppColors.textTertiary,
+                          ),
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.textTertiary
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            badge,
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: enabled
+                            ? AppColors.textSecondary
+                            : AppColors.textTertiary),
                   ),
                 ],
               ),
             ),
             Icon(
-              selected
-                  ? Icons.radio_button_checked
+              enabled
+                  ? (selected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked)
                   : Icons.radio_button_unchecked,
-              color: selected ? AppColors.lenderBlue : AppColors.textTertiary,
+              color: enabled
+                  ? (selected
+                      ? AppColors.lenderBlue
+                      : AppColors.textTertiary)
+                  : AppColors.textTertiary,
               size: 20,
             ),
           ],

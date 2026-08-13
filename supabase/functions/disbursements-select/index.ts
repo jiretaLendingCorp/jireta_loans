@@ -54,6 +54,15 @@ serve(async (req) => {
     if (!ALLOWED_METHODS.includes(normalizedMethod)) {
       return errorResponse('Invalid disbursement method', 400, 'VALIDATION_ERROR');
     }
+    // GCash disbursement is currently "coming soon" — lenders must choose
+    // office pickup or cash via rider until GCash is enabled.
+    if (normalizedMethod === 'gcash') {
+      return errorResponse(
+        'GCash disbursement is coming soon. Please choose Cash via Rider or Pick Up at Office instead.',
+        400,
+        'COMING_SOON',
+      );
+    }
     if (normalizedMethod === 'gcash' && !/^09\d{9}$/.test(String(gcash_number ?? '').trim())) {
       return errorResponse('Valid GCash number is required (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
     }

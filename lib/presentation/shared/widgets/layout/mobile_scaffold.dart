@@ -16,6 +16,7 @@ class MobileScaffold extends ConsumerWidget {
   final Color accentColor;
   final Widget? floatingActionButton;
   final List<Widget>? appBarActions;
+  final Widget? appBarLeading;
   final bool showBackButton;
   final bool resizeToAvoidBottomInset;
   final bool showBottomNav;
@@ -29,6 +30,7 @@ class MobileScaffold extends ConsumerWidget {
     this.accentColor = AppColors.deepNavy,
     this.floatingActionButton,
     this.appBarActions,
+    this.appBarLeading,
     this.showBackButton = false,
     this.resizeToAvoidBottomInset = true,
     this.showBottomNav = true,
@@ -63,7 +65,7 @@ class MobileScaffold extends ConsumerWidget {
           backgroundColor: accentColor,
           foregroundColor: Colors.white,
           elevation: 0,
-          title: Text(
+          title: title.isEmpty ? null : Text(
             title,
             style: const TextStyle(
               fontSize: 17,
@@ -71,7 +73,8 @@ class MobileScaffold extends ConsumerWidget {
               color: Colors.white,
             ),
           ),
-          automaticallyImplyLeading: showBackButton,
+          automaticallyImplyLeading: showBackButton && appBarLeading == null,
+          leading: appBarLeading,
           actions: [
             if (showNotificationsBell) ...[
               IconButton(
@@ -93,11 +96,13 @@ class MobileScaffold extends ConsumerWidget {
         floatingActionButton: floatingActionButton,
         bottomNavigationBar: !showBottomNav || navItems.isEmpty
             ? null
-            : _FloatingBottomNav(
-                items: navItems,
-                currentIndex: currentIndex < 0 ? 0 : currentIndex,
-                accentColor: accentColor,
-                onTap: (i) => context.go(navItems[i].route),
+            : RepaintBoundary(
+                child: _FloatingBottomNav(
+                  items: navItems,
+                  currentIndex: currentIndex,
+                  accentColor: accentColor,
+                  onTap: (i) => context.go(navItems[i].route),
+                ),
               ),
       ),
     );
@@ -168,70 +173,86 @@ class _FloatingBottomNav extends StatelessWidget {
     return items.asMap().entries.map((e) {
       final i = e.key;
       final item = e.value;
-      final isSelected = i == currentIndex;
+      final isSelected = currentIndex == i;
 
       return Expanded(
-        child: GestureDetector(
-          onTap: () => onTap(i),
-          behavior: HitTestBehavior.opaque,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: isSelected ? accentColor : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        isSelected ? item.activeIcon : item.icon,
-                        size: 21,
-                        color:
-                            isSelected ? Colors.white : AppColors.textTertiary,
-                      ),
-                    ),
-                    if ((item.badgeCount ?? 0) > 0)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: const BoxDecoration(
-                            color: AppColors.error,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${item.badgeCount}',
-                            style: const TextStyle(
-                              fontSize: 9,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                            ),
+        child: KeyedSubtree(
+          key: ValueKey(item.route),
+          child: GestureDetector(
+            onTap: () => onTap(i),
+            behavior: HitTestBehavior.opaque,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? accentColor
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 160),
+                          switchInCurve: Curves.easeOut,
+                          switchOutCurve: Curves.easeIn,
+                          transitionBuilder: (child, anim) =>
+                              FadeTransition(opacity: anim, child: child),
+                          child: Icon(
+                            isSelected ? item.activeIcon : item.icon,
+                            key: ValueKey(isSelected),
+                            size: 21,
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.textTertiary,
                           ),
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 200),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? accentColor : AppColors.textTertiary,
-                    fontFamily: 'Inter',
+                      if ((item.badgeCount ?? 0) > 0)
+                        Positioned(
+                          top: -2,
+                          right: -2,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: const BoxDecoration(
+                              color: AppColors.error,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${item.badgeCount}',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                  child: Text(item.label),
-                ),
-              ],
+                  const SizedBox(height: 3),
+                  AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 220),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color:
+                          isSelected ? accentColor : AppColors.textTertiary,
+                      fontFamily: 'Inter',
+                    ),
+                    child: Text(item.label),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

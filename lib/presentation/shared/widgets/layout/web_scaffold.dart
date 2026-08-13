@@ -36,7 +36,7 @@ class WebScaffold extends ConsumerWidget {
       backgroundColor: const Color(0xFFF0F2F5),
       body: Row(
         children: [
-          _Sidebar(collapsed: collapsed, role: role),
+          RepaintBoundary(child: _Sidebar(collapsed: collapsed, role: role)),
           Expanded(
             child: Column(
               children: [
@@ -474,7 +474,8 @@ class _SidebarItem extends StatelessWidget {
         onTap: item.route.isNotEmpty ? () => context.go(item.route) : null,
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
           margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           padding: EdgeInsets.symmetric(
             horizontal: collapsed ? 14 : 12,
@@ -503,7 +504,8 @@ class _SidebarItem extends StatelessWidget {
                     item.label,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight:
+                          isActive ? FontWeight.w600 : FontWeight.w400,
                       color: isActive ? AppColors.gold : Colors.white70,
                     ),
                     overflow: TextOverflow.ellipsis,

@@ -9,6 +9,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
+import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 
 class HmLoanApplicationDetailsScreen extends ConsumerStatefulWidget {
   final String loanId;
@@ -93,9 +94,74 @@ class _HmLoanApplicationDetailsScreenState
           _buildSchedulePreview(loan, fmt),
           const SizedBox(height: 20),
           if (isPending) _buildActionButtons(loan, status),
+          if (status == 'approved' &&
+              loan['disbursement_method'] == 'rider_delivery')
+            _buildDisbursementAction(loan),
         ],
       ),
     );
+  }
+
+  Widget _buildDisbursementAction(Map<String, dynamic> loan) {
+    return Card(
+      elevation: 0,
+      color: AppColors.infoLight,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.info),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Cash via Rider — Disbursement',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            const Text(
+              'The lender chose to receive the loan via a delivery rider. Assign an available rider to hand the cash to the lender.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () =>
+                  _showAssignDisbursementRider(loan['id'] as String),
+              icon: const Icon(Icons.delivery_dining, size: 18),
+              label: const Text('Assign Delivery Rider'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAssignDisbursementRider(String loanId) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => RiderDisburseAssignModal(
+        loanId: loanId,
+        loanAmount: (_loan?['principal_amount'] as num?)?.toDouble() ?? 0,
+        lenderName:
+            '${_loan?['lender']?['first_name'] ?? ''} ${_loan?['lender']?['last_name'] ?? ''}'
+                .trim(),
+        lenderAddress: (_loan?['lender_profile']?['address'] != null)
+            ? _loan?['lender_profile']?['address'].toString()
+            : null,
+      ),
+    );
+    if (assigned == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Delivery rider assigned'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      await _load();
+    }
   }
 
   Widget _buildHeaderCard(Map<String, dynamic> loan, NumberFormat fmt) {

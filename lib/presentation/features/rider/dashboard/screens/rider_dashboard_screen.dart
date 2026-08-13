@@ -18,25 +18,7 @@ class RiderDashboardScreen extends ConsumerStatefulWidget {
       _RiderDashboardScreenState();
 }
 
-class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _fadeCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _fadeCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _fadeCtrl.dispose();
-    super.dispose();
-  }
-
+class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(riderDashboardProvider);
@@ -76,9 +58,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen>
               color: AppColors.riderGreen,
               onRefresh: () =>
                   ref.read(riderDashboardProvider.notifier).refresh(),
-              child: FadeTransition(
-                opacity: _fadeCtrl,
-                child: SingleChildScrollView(
+              child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
                   child: Column(
@@ -116,7 +96,6 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen>
                   ),
                 ),
               ),
-            ),
     );
   }
 
@@ -333,6 +312,15 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen>
             label: 'Collections',
             colors: const [AppColors.riderGreen, AppColors.riderGreenDark],
             onTap: () => context.push(RouteConstants.riderCollections),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _QuickAction(
+            icon: Icons.delivery_dining,
+            label: 'Deliveries',
+            colors: const [AppColors.gold, Color(0xFFE9A23B)],
+            onTap: () => context.push(RouteConstants.riderDisbursements),
           ),
         ),
         const SizedBox(width: 12),

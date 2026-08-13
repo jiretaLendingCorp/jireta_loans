@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/constants/route_constants.dart';
@@ -18,6 +19,7 @@ import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_account_upgrade_provider.dart';
+import 'valid_id_scanner_screen.dart';
 
 class LenderAccountUpgradeSubmitScreen extends ConsumerStatefulWidget {
   const LenderAccountUpgradeSubmitScreen({super.key});
@@ -47,6 +49,8 @@ class _LenderAccountUpgradeSubmitScreenState
         route: RouteConstants.lenderProfile),
   ];
 
+  static const _steps = ['Personal Info', 'Financial Info', 'Residence', 'Docs & Submit'];
+
   final Map<String, PlatformFile?> _selectedFiles = {
     'valid_id': null,
     'selfie': null,
@@ -59,6 +63,13 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': 'Selfie with ID *',
     'proof_of_billing': 'Proof of Billing *',
     'proof_of_income': 'Proof of Income *',
+  };
+
+  final Map<String, String> _docHints = {
+    'valid_id': 'A valid government-issued ID',
+    'selfie': 'A clear selfie holding your ID',
+    'proof_of_billing': 'Recent utility or billing statement',
+    'proof_of_income': 'Pay slip, bank statement, or COE',
   };
 
   final Map<String, IconData> _docIcons = {
@@ -91,6 +102,9 @@ class _LenderAccountUpgradeSubmitScreenState
   DateTime? _dob;
   String? _dobError;
 
+  int _step = 0;
+  bool _isSubmitting = false;
+
   static const _genderOptions = ['Male', 'Female', 'Prefer not to say'];
   static const _civilOptions = ['Single', 'Married', 'Widowed', 'Separated'];
   static const _employmentOptions = [
@@ -118,8 +132,6 @@ class _LenderAccountUpgradeSubmitScreenState
     'Friend',
     'Other',
   ];
-
-  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -149,12 +161,66 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Future<void> _pickFile(String docType) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _SourcePickerSheet(
+        title: _docLabels[docType]!,
+        onCamera: () => Navigator.of(context).pop('camera'),
+        onGallery: () => Navigator.of(context).pop('gallery'),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'camera') {
+      await _pickFromCamera(docType);
+    } else if (action == 'gallery') {
+      await _pickFromGallery(docType);
+    }
+  }
+
+  Future<void> _pickFromCamera(String docType) async {
+    if (docType == 'valid_id') {
+      // Launch the dedicated Valid ID Scanner UI.
+      final bytes = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(builder: (_) => const ValidIdScannerScreen()),
+      );
+      if (bytes != null && mounted) {
+        setState(() {
+          _selectedFiles[docType] = PlatformFile(
+            name: 'valid_id_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            size: bytes.length,
+            bytes: bytes,
+          );
+        });
+      }
+      return;
+    }
+
+    final img = await ImagePicker()
+        .pickImage(source: ImageSource.camera, imageQuality: 85);
+    if (img != null && mounted) {
+      final bytes = await img.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _selectedFiles[docType] = PlatformFile(
+          name: '${docType}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          size: bytes.length,
+          bytes: bytes,
+        );
+      });
+    }
+  }
+
+  Future<void> _pickFromGallery(String docType) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
       withData: true,
     );
-    if (result != null && result.files.isNotEmpty) {
+    if (result != null && result.files.isNotEmpty && mounted) {
       setState(() => _selectedFiles[docType] = result.files.first);
     }
   }
@@ -193,6 +259,33 @@ class _LenderAccountUpgradeSubmitScreenState
     return age >= 18;
   }
 
+  void _goNext() {
+    if (!_formKey.currentState!.validate()) return;
+    if (_step == 0) {
+      if (_dob == null) {
+        setState(() => _dobError = 'Date of birth is required');
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please select your date of birth to continue.'),
+          backgroundColor: AppColors.error,
+        ));
+        return;
+      }
+      if (!_isAdult(_dob!)) {
+        setState(() => _dobError =
+            'You must be at least 18 years old to submit account upgrade.');
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('You must be at least 18 years old to continue.'),
+          backgroundColor: AppColors.error,
+        ));
+        return;
+      }
+    }
+    setState(() => _step = _step + 1);
+  }
+
+  void _goBack() => setState(() => _step = _step - 1);
+
   Future<void> _submit() async {
     final missing = _selectedFiles.entries
         .where((e) => e.value == null)
@@ -227,12 +320,14 @@ class _LenderAccountUpgradeSubmitScreenState
       for (final e in _selectedFiles.entries) {
         final f = e.value;
         if (f == null) continue;
-        final path = f.path;
         Uint8List? fileBytes;
         if (f.bytes != null) {
           fileBytes = f.bytes;
-        } else if (path != null) {
-          fileBytes = await File(path).readAsBytes();
+        } else {
+          final path = f.path;
+          if (path != null) {
+            fileBytes = await File(path).readAsBytes();
+          }
         }
         docs.add({
           'document_type': e.key,
@@ -313,272 +408,320 @@ class _LenderAccountUpgradeSubmitScreenState
       title: 'Account Upgrade Verification',
       accentColor: AppColors.lenderBlue,
       navItems: _navItems,
+      showBackButton: true,
       body: state.isLoading
           ? const ShimmerLoader()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildStatusBanner(state),
-                  const SizedBox(height: 20),
-                  _buildInformationSection(),
-                  const SizedBox(height: 20),
-                  const Text('Required Documents',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                  const SizedBox(height: 8),
-                  const Text(
-                      'Upload clear, legible photos or scans. Files must be JPG, PNG, or PDF under 5MB.',
-                      style: TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary)),
-                  const SizedBox(height: 20),
-                  ..._selectedFiles.entries.map((e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: _DocUploadCard(
-                          label: _docLabels[e.key]!,
-                          icon: _docIcons[e.key]!,
-                          file: e.value,
-                          onPick: () => _pickFile(e.key),
-                        ),
-                      )),
-                  const SizedBox(height: 8),
-                  if (state.status == 'submitted' ||
-                      state.status == 'under_review')
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                          color: AppColors.warningLight,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: AppColors.warning.withValues(alpha: 0.3))),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.hourglass_top_outlined,
-                              color: AppColors.warning, size: 20),
-                          SizedBox(width: 10),
-                          Expanded(
-                              child: Text(
-                                  'Your account upgrade is under review. We will notify you once verified.',
-                                  style: TextStyle(
-                                      fontSize: 13, color: AppColors.warning))),
-                        ],
-                      ),
-                    )
-                  else
-                    AppButton(
-                      label: _isSubmitting
-                          ? 'Submitting...'
-                          : 'Submit Account Upgrade Documents',
-                      onPressed: _isSubmitting ? null : _submit,
-                      color: AppColors.lenderBlue,
-                    ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
+          : _buildFlow(state),
     );
   }
 
-  Widget _buildInformationSection() {
-    return Form(
-      key: _formKey,
+  Widget _buildFlow(LenderAccountUpgradeState state) {
+    final status = state.status;
+    if (status == 'submitted' ||
+        status == 'under_review' ||
+        status == 'verified') {
+      return _buildSubmittedView(state);
+    }
+
+    return Column(
+      children: [
+        _buildStatusBanner(state),
+        _StepIndicator(current: _step, labels: _steps),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: _buildStepContent(),
+          ),
+        ),
+        _buildWizardBar(state),
+      ],
+    );
+  }
+
+  Widget _buildSubmittedView(LenderAccountUpgradeState state) {
+    final status = state.status;
+    final isVerified = status == 'verified';
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionCard(
-            'Personal Information',
-            Icons.person_outline,
-            [
-              AppTextField(
-                label: 'First Name *',
-                controller: _firstNameCtrl,
-                validator: _required('First name'),
+          _buildStatusBanner(state),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isVerified
+                  ? AppColors.successLight
+                  : AppColors.warningLight,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: (isVerified ? AppColors.success : AppColors.warning)
+                    .withValues(alpha: 0.3),
               ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Middle Name (Optional)',
-                controller: _middleNameCtrl,
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Last Name *',
-                controller: _lastNameCtrl,
-                validator: _required('Last name'),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Suffix (Optional)',
-                hint: 'e.g. Jr., Sr., III',
-                controller: _suffixCtrl,
-              ),
-              const SizedBox(height: 12),
-              _buildDropdown(
-                label: 'Gender *',
-                value: _gender,
-                items: _genderOptions,
-                validator: (v) => v == null ? 'Gender is required' : null,
-                onChanged: (v) => setState(() => _gender = v),
-              ),
-              const SizedBox(height: 12),
-              _buildDropdown(
-                label: 'Civil Status *',
-                value: _civilStatus,
-                items: _civilOptions,
-                validator: (v) => v == null ? 'Civil status is required' : null,
-                onChanged: (v) => setState(() => _civilStatus = v),
-              ),
-              const SizedBox(height: 12),
-              _buildDateField(),
-              if (_dobError != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, left: 12),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isVerified
+                      ? Icons.verified_user
+                      : Icons.hourglass_top_outlined,
+                  color: isVerified ? AppColors.success : AppColors.warning,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
                   child: Text(
-                    _dobError!,
-                    style:
-                        const TextStyle(fontSize: 12, color: AppColors.error),
+                    isVerified
+                        ? 'Your identity has been verified. You can now apply for a loan.'
+                        : 'Your account upgrade is under review. We will notify you once verified.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isVerified ? AppColors.success : AppColors.warning,
+                    ),
                   ),
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          AppButton(
+            label: 'View Status',
+            onPressed: () =>
+                context.push(RouteConstants.lenderAccountUpgradeStatus),
+            color: AppColors.lenderBlue,
+            icon: Icons.timeline_outlined,
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepContent() {
+    switch (_step) {
+      case 0:
+        return _buildPersonalInformation();
+      case 1:
+        return _buildFinancialInformation();
+      case 2:
+        return _buildResidenceAddress();
+      default:
+        return _buildEmergencyAndDocuments();
+    }
+  }
+
+  Widget _buildPersonalInformation() {
+    return Form(
+      key: _formKey,
+      child: _buildSectionCard(
+        'Personal Information',
+        Icons.person_outline,
+        [
+          AppTextField(
+            label: 'First Name *',
+            controller: _firstNameCtrl,
+            validator: _required('First name'),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Middle Name (Optional)',
+            controller: _middleNameCtrl,
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Last Name *',
+            controller: _lastNameCtrl,
+            validator: _required('Last name'),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Suffix (Optional)',
+            hint: 'e.g. Jr., Sr., III',
+            controller: _suffixCtrl,
+          ),
+          const SizedBox(height: 12),
+          _buildDropdown(
+            label: 'Gender *',
+            value: _gender,
+            items: _genderOptions,
+            validator: (v) => v == null ? 'Gender is required' : null,
+            onChanged: (v) => setState(() => _gender = v),
+          ),
+          const SizedBox(height: 12),
+          _buildDropdown(
+            label: 'Civil Status *',
+            value: _civilStatus,
+            items: _civilOptions,
+            validator: (v) => v == null ? 'Civil status is required' : null,
+            onChanged: (v) => setState(() => _civilStatus = v),
+          ),
+          const SizedBox(height: 12),
+          _buildDateField(),
+          if (_dobError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 12),
+              child: Text(
+                _dobError!,
+                style: const TextStyle(fontSize: 12, color: AppColors.error),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialInformation() {
+    return Form(
+      key: _formKey,
+      child: _buildSectionCard(
+        'Financial Information',
+        Icons.account_balance_wallet_outlined,
+        [
+          AppTextField(
+            label: 'GCash Number *',
+            controller: _gcashCtrl,
+            keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(11),
+            ],
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) {
+                return 'GCash number is required';
+              }
+              if (v.length != 11) {
+                return 'GCash number must be 11 digits';
+              }
+              if (!v.startsWith('09')) {
+                return 'Must start with 09';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildDropdown(
+            label: 'Employment Type *',
+            value: _employmentType,
+            items: _employmentOptions,
+            validator: (v) =>
+                v == null ? 'Employment type is required' : null,
+            onChanged: (v) => setState(() => _employmentType = v),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Employer / Business Name *',
+            controller: _employerCtrl,
+            validator: _required('Employer / business name'),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Monthly Income (₱) *',
+            controller: _incomeCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) {
+                return 'Monthly income is required';
+              }
+              final d = double.tryParse(v.trim());
+              if (d == null || d <= 0) {
+                return 'Enter a valid amount greater than 0';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildDropdown(
+            label: 'Source of Funds *',
+            value: _sourceOfFunds,
+            items: _sourceOfFundsOptions,
+            validator: (v) => v == null ? 'Source of funds is required' : null,
+            onChanged: (v) => setState(() => _sourceOfFunds = v),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResidenceAddress() {
+    return Form(
+      key: _formKey,
+      child: _buildSectionCard(
+        'Residence Address',
+        Icons.location_on_outlined,
+        [
+          AppTextField(
+            label: 'Street Address *',
+            controller: _streetCtrl,
+            validator: _required('Street address'),
+          ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Barangay *',
+            controller: _barangayCtrl,
+            validator: _required('Barangay'),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  label: 'City / Municipality *',
+                  controller: _cityCtrl,
+                  validator: _required('City / municipality'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: AppTextField(
+                  label: 'Province *',
+                  controller: _provinceCtrl,
+                  validator: _required('Province'),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildSectionCard(
-            'Financial Information',
-            Icons.account_balance_wallet_outlined,
-            [
-              AppTextField(
-                label: 'GCash Number *',
-                controller: _gcashCtrl,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(11),
-                ],
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'GCash number is required';
-                  }
-                  if (v.length != 11) {
-                    return 'GCash number must be 11 digits';
-                  }
-                  if (!v.startsWith('09')) {
-                    return 'Must start with 09';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildDropdown(
-                label: 'Employment Type *',
-                value: _employmentType,
-                items: _employmentOptions,
-                validator: (v) =>
-                    v == null ? 'Employment type is required' : null,
-                onChanged: (v) => setState(() => _employmentType = v),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Employer / Business Name *',
-                controller: _employerCtrl,
-                validator: _required('Employer / business name'),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Monthly Income (₱) *',
-                controller: _incomeCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                ],
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Monthly income is required';
-                  }
-                  final d = double.tryParse(v.trim());
-                  if (d == null || d <= 0) {
-                    return 'Enter a valid amount greater than 0';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildDropdown(
-                label: 'Source of Funds *',
-                value: _sourceOfFunds,
-                items: _sourceOfFundsOptions,
-                validator: (v) =>
-                    v == null ? 'Source of funds is required' : null,
-                onChanged: (v) => setState(() => _sourceOfFunds = v),
-              ),
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'ZIP Code *',
+            controller: _zipCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(4),
             ],
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) {
+                return 'ZIP code is required';
+              }
+              if (v.trim().length != 4) {
+                return 'ZIP code must be 4 digits';
+              }
+              return null;
+            },
           ),
-          const SizedBox(height: 16),
-          _buildSectionCard(
-            'Residence Address',
-            Icons.location_on_outlined,
-            [
-              AppTextField(
-                label: 'Street Address *',
-                controller: _streetCtrl,
-                validator: _required('Street address'),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Barangay *',
-                controller: _barangayCtrl,
-                validator: _required('Barangay'),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: AppTextField(
-                      label: 'City / Municipality *',
-                      controller: _cityCtrl,
-                      validator: _required('City / municipality'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: AppTextField(
-                      label: 'Province *',
-                      controller: _provinceCtrl,
-                      validator: _required('Province'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'ZIP Code *',
-                controller: _zipCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
-                ],
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'ZIP code is required';
-                  }
-                  if (v.trim().length != 4) {
-                    return 'ZIP code must be 4 digits';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildSectionCard(
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmergencyAndDocuments() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Form(
+          key: _formKey,
+          child: _buildSectionCard(
             'Emergency Contact',
             Icons.emergency_outlined,
             [
               const Text(
                 'In case we need to reach someone related to you.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style:
+                    TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
               AppTextField(
@@ -614,6 +757,73 @@ class _LenderAccountUpgradeSubmitScreenState
                 },
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Required Documents',
+          style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Tap each document to capture with your camera or choose from your gallery. Files must be JPG, PNG, or PDF under 5MB.',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 20),
+        ..._selectedFiles.entries.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _DocUploadCard(
+                label: _docLabels[e.key]!,
+                hint: _docHints[e.key]!,
+                icon: _docIcons[e.key]!,
+                file: e.value,
+                onPick: () => _pickFile(e.key),
+              ),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildWizardBar(LenderAccountUpgradeState state) {
+    final isLast = _step == 3;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (_step > 0) ...[
+            Expanded(
+              child: AppButton(
+                label: 'Back',
+                variant: AppButtonVariant.outlined,
+                color: AppColors.lenderBlue,
+                onTap: _goBack,
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            flex: 2,
+            child: AppButton(
+              label: isLast
+                  ? (_isSubmitting
+                      ? 'Submitting...'
+                      : 'Submit Account Upgrade Documents')
+                  : 'Next',
+              icon: isLast ? Icons.send : Icons.arrow_forward,
+              color: AppColors.lenderBlue,
+              isLoading: _isSubmitting,
+              onTap: isLast ? _submit : _goNext,
+            ),
           ),
         ],
       ),
@@ -683,8 +893,7 @@ class _LenderAccountUpgradeSubmitScreenState
       initialValue: value,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle:
-            const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        labelStyle: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
@@ -749,8 +958,7 @@ class _LenderAccountUpgradeSubmitScreenState
                       color: _dob != null
                           ? AppColors.textPrimary
                           : AppColors.textTertiary,
-                      fontWeight:
-                          _dob != null ? FontWeight.w500 : FontWeight.w400,
+                      fontWeight: _dob != null ? FontWeight.w500 : FontWeight.w400,
                     ),
                   ),
                 ],
@@ -799,6 +1007,7 @@ class _LenderAccountUpgradeSubmitScreenState
     }
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
           color: bgColor, borderRadius: BorderRadius.circular(10)),
@@ -818,16 +1027,216 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 }
 
+class _StepIndicator extends StatelessWidget {
+  final int current;
+  final List<String> labels;
+
+  const _StepIndicator({required this.current, required this.labels});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Row(
+        children: [
+          for (int i = 0; i < labels.length; i++) ...[
+            if (i > 0)
+              Expanded(
+                child: Container(
+                  height: 2,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  color:
+                      i <= current ? AppColors.lenderBlue : AppColors.border,
+                ),
+              ),
+            _StepDot(
+              index: i,
+              isActive: i == current,
+              isDone: i < current,
+              label: labels[i],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StepDot extends StatelessWidget {
+  final int index;
+  final bool isActive;
+  final bool isDone;
+  final String label;
+
+  const _StepDot({
+    required this.index,
+    required this.isActive,
+    required this.isDone,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final highlighted = isActive || isDone;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: isActive ? 32 : 24,
+          height: isActive ? 32 : 24,
+          decoration: BoxDecoration(
+            color: highlighted ? AppColors.lenderBlue : Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: highlighted ? AppColors.lenderBlue : AppColors.border,
+              width: 1.5,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: isDone
+              ? const Icon(Icons.check, color: Colors.white, size: 14)
+              : Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isActive ? Colors.white : AppColors.textSecondary,
+                  ),
+                ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9.5,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+            color: highlighted ? AppColors.lenderBlue : AppColors.textTertiary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SourcePickerSheet extends StatelessWidget {
+  final String title;
+  final VoidCallback onCamera;
+  final VoidCallback onGallery;
+
+  const _SourcePickerSheet({
+    required this.title,
+    required this.onCamera,
+    required this.onGallery,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Choose how you want to provide this document.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _SourceOption(
+                    icon: Icons.camera_alt_outlined,
+                    label: 'Take Photo',
+                    onTap: onCamera,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _SourceOption(
+                    icon: Icons.folder_outlined,
+                    label: 'From Gallery',
+                    onTap: onGallery,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SourceOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _SourceOption({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: AppColors.lenderBlue.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.lenderBlue.withValues(alpha: 0.25),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.lenderBlue, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DocUploadCard extends StatelessWidget {
   final String label;
+  final String hint;
   final IconData icon;
   final PlatformFile? file;
   final VoidCallback onPick;
-  const _DocUploadCard(
-      {required this.label,
-      required this.icon,
-      this.file,
-      required this.onPick});
+
+  const _DocUploadCard({
+    required this.label,
+    required this.hint,
+    required this.icon,
+    this.file,
+    required this.onPick,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -875,7 +1284,7 @@ class _DocUploadCard extends StatelessWidget {
                           color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
                   Text(
-                    hasFile ? file!.name : 'Tap to upload',
+                    hasFile ? file!.name : hint,
                     style: TextStyle(
                         fontSize: 12,
                         color: hasFile

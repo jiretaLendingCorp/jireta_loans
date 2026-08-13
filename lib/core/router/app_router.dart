@@ -95,6 +95,8 @@ import '../../presentation/features/rider/collections/screens/rider_navigate_to_
 import '../../presentation/features/rider/collections/screens/rider_record_collection_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_upload_proof_screen.dart';
 import '../../presentation/features/rider/dashboard/screens/rider_dashboard_screen.dart';
+import '../../presentation/features/rider/disbursements/screens/rider_disbursement_list_screen.dart';
+import '../../presentation/features/rider/disbursements/screens/rider_disbursement_upload_proof_screen.dart';
 import '../../presentation/features/rider/notifications/screens/rider_notifications_screen.dart';
 import '../../presentation/features/rider/profile/screens/rider_profile_screen.dart';
 import '../../presentation/shared/providers/auth_state_provider.dart';
@@ -407,6 +409,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.riderDashboard,
           builder: (ctx, s) => const RiderDashboardScreen()),
+      GoRoute(
+          path: RouteConstants.riderDisbursements,
+          builder: (ctx, s) => const RiderDisbursementListScreen()),
+      GoRoute(
+          path: RouteConstants.riderDisbursementUploadProof,
+          builder: (ctx, s) => RiderDisbursementUploadProofScreen(
+              disbursementId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.riderCollections,
           builder: (ctx, s) => const RiderCollectionListScreen()),

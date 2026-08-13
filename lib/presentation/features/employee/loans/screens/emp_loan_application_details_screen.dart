@@ -10,6 +10,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../head_manager/ci/widgets/ci_assign_modal.dart';
+import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
 
 final _empLoanDetailProvider =
@@ -47,6 +48,8 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
       'ci_assigned',
       'ci_completed'
     ].contains(status);
+    final canAssignDeliveryRider =
+        status == 'approved' && data['disbursement_method'] == 'rider_delivery';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -72,12 +75,75 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                     _buildAccountUpgradeStatus(data),
                     const SizedBox(height: 16),
                     if (canAct) _buildActionPanel(context, ref, data),
+                    if (canAssignDeliveryRider) ...[
+                      const SizedBox(height: 16),
+                      _buildDisbursementAction(context, ref, data),
+                    ],
                   ])),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildDisbursementAction(
+      BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Cash via Rider — Disbursement',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy)),
+            const Divider(height: 20),
+            const Text(
+              'The lender chose to receive the loan via a delivery rider. Assign an available rider to hand the cash to the lender.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () =>
+                    _showAssignDeliveryRider(context, ref, data),
+                icon: const Icon(Icons.delivery_dining, size: 18),
+                label: const Text('Assign Delivery Rider'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: Colors.black87,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAssignDeliveryRider(
+      BuildContext context, WidgetRef ref, Map<String, dynamic> data) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => RiderDisburseAssignModal(
+        loanId: data['id'] as String,
+        loanAmount: (data['principal_amount'] as num?)?.toDouble() ?? 0,
+        lenderName:
+            '${data['lender']?['first_name'] ?? ''} ${data['lender']?['last_name'] ?? ''}'
+                .trim(),
+      ),
+    );
+    if (assigned == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Delivery rider assigned'),
+          backgroundColor: AppColors.success));
+      ref.invalidate(_empLoanDetailProvider(loanId));
+    }
   }
 
   Widget _buildStatusHeader(Map<String, dynamic> data) {

@@ -114,6 +114,18 @@ class DisbursementRemoteDataSource {
         notes: notes,
       );
 
+  /// Rider uploads proof (photo + optional signature) that the cash was handed
+  /// to the lender for a rider-delivery disbursement.
+  Future<void> uploadDeliveryProof({
+    required String disbursementId,
+    required List<Map<String, dynamic>> proofs,
+  }) async {
+    await _client.post(
+      ApiEndpoints.disbursementsUploadProof,
+      data: {'disbursement_id': disbursementId, 'proofs': proofs},
+    );
+  }
+
   Future<DisbursementModel?> getDisbursementDetail(
       String disbursementId) async {
     try {

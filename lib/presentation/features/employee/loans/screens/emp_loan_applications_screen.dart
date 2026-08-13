@@ -9,6 +9,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
+import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
 
 class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
@@ -253,6 +254,8 @@ class _EmpLoanApplicationsScreenState
       'ci_assigned',
       'ci_completed'
     ].contains(status);
+    final canAssignDeliveryRider =
+        status == 'approved' && loan.disbursementMethod == 'rider_delivery';
     final canReject = [
       'pending',
       'under_review',
@@ -271,6 +274,13 @@ class _EmpLoanApplicationsScreenState
             icon: Icons.check_circle_outline,
             color: AppColors.success,
             onPressed: () => _showApprove(loan),
+          ),
+        if (canAssignDeliveryRider)
+          _EmpLoanActionButton(
+            label: 'Assign Delivery Rider',
+            icon: Icons.delivery_dining,
+            color: AppColors.gold,
+            onPressed: () => _showAssignDeliveryRider(loan),
           ),
         if (canAssignRider)
           _EmpLoanActionButton(
@@ -329,6 +339,27 @@ class _EmpLoanApplicationsScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Rider assigned for credit investigation'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      ref.read(empLoanProvider.notifier).load();
+    }
+  }
+
+  Future<void> _showAssignDeliveryRider(LoanModel loan) async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => RiderDisburseAssignModal(
+        loanId: loan.id,
+        loanAmount: loan.principalAmount,
+        lenderName: loan.lenderName ?? 'Lender',
+        lenderAddress: loan.formattedLenderAddress,
+      ),
+    );
+    if (assigned == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Delivery rider assigned'),
           backgroundColor: AppColors.success,
         ),
       );

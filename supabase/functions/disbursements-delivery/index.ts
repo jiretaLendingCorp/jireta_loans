@@ -18,6 +18,35 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID } from '../_shared/validators.ts';
 
+const PROOF_BUCKET = 'disbursement-proofs';
+
+const DISB_PROOF_COLUMN_BY_TYPE: Record<string, string> = {
+  proof_photo: 'delivery_proof',
+  signature: 'borrower_signature',
+};
+
+function decodeBase64(content: string): Uint8Array {
+  const binary = atob(content);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function extFromMime(mimeType?: string): string {
+  switch ((mimeType ?? '').toLowerCase()) {
+    case 'image/png':
+      return 'png';
+    case 'image/webp':
+      return 'webp';
+    case 'image/gif':
+      return 'gif';
+    case 'image/bmp':
+      return 'bmp';
+    default:
+      return 'jpg';
+  }
+}
+
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'office-cash';
 
@@ -34,6 +63,9 @@ serve(async (req) => {
       case 'rider-delivery':
         // ── [moved from functions/disbursements-rider-delivery/index.ts] ─
         return await handleRiderDelivery(req);
+      case 'upload-proof':
+        // ── rider uploads proof of cash delivery ─────────────────────────
+        return await handleUploadProof(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -217,4 +249,117 @@ async function handleRiderDelivery(req: Request) {
   });
 
   return jsonResponse({ success: true, disbursement });
+}
+
+// ── rider uploads proof that the cash was handed to the lender ──────────────
+async function handleUploadProof(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+  const roleCheck = requireRole(user, ROLES.RIDER);
+  if (roleCheck) return roleCheck;
+
+  const { disbursement_id, proofs } = await req.json().catch(() => ({}));
+  if (!disbursement_id || !validateUUID(disbursement_id)) {
+    return errorResponse('Valid disbursement_id is required', 400, 'VALIDATION_ERROR');
+  }
+  if (!Array.isArray(proofs) || proofs.length === 0) {
+    return errorResponse('proofs[] is required', 400, 'VALIDATION_ERROR');
+  }
+  if (!proofs.some((p) => p?.type === 'proof_photo')) {
+    return errorResponse('At least one proof_photo is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: disbursement } = await db
+    .from('disbursements')
+    .select('id, status, rider_id, loan_id, method, amount, delivery_proof')
+    .eq('id', disbursement_id)
+    .eq('rider_id', user.id)
+    .single();
+
+  if (!disbursement) return errorResponse('Disbursement not found', 404, 'NOT_FOUND');
+  if (disbursement.method !== 'rider_delivery') {
+    return errorResponse('Only rider delivery disbursements accept delivery proof', 400, 'INVALID_METHOD');
+  }
+  if (disbursement.status !== 'pending') {
+    return errorResponse('Disbursement is not in pending status', 400, 'INVALID_STATUS');
+  }
+
+  const { data: loan } = await db
+    .from('loans')
+    .select('id, loan_number, lender_id, status')
+    .eq('id', disbursement.loan_id)
+    .single();
+
+  if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
+  if (loan.status !== 'approved') {
+    return errorResponse('Loan must be approved to be released', 400, 'INVALID_STATUS');
+  }
+
+  const updates: Record<string, string> = {};
+  for (const proof of proofs) {
+    const type = proof?.type as string;
+    const column = DISB_PROOF_COLUMN_BY_TYPE[type];
+    if (!column || !proof.content_base64) continue;
+
+    const ext = extFromMime(proof.mime_type);
+    const path = `${disbursement_id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const bytes = decodeBase64(proof.content_base64);
+
+    const { error: uploadError } = await db.storage
+      .from(PROOF_BUCKET)
+      .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true });
+
+    if (uploadError) {
+      console.warn('disbursement proof storage upload failed, falling back to data uri:', uploadError.message);
+      const mime = proof.mime_type ?? 'image/jpeg';
+      updates[column] = `data:${mime};base64,${proof.content_base64}`;
+    } else {
+      const { data: signedUrl } = await db.storage.from(PROOF_BUCKET).createSignedUrl(path, 3600 * 24 * 7);
+      updates[column] = signedUrl?.signedUrl ?? path;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return errorResponse('No valid proofs provided', 400, 'VALIDATION_ERROR');
+  }
+
+  const { error: disbUpdateErr } = await db
+    .from('disbursements')
+    .update({
+      ...updates,
+      status: 'completed',
+      delivered_at: new Date().toISOString(),
+    })
+    .eq('id', disbursement_id);
+
+  if (disbUpdateErr) {
+    console.error('disbursement proof update failed:', disbUpdateErr);
+    return errorResponse('Failed to update disbursement: ' + disbUpdateErr.message, 500, 'SERVER_ERROR');
+  }
+
+  await db.from('loans').update({ status: 'active' }).eq('id', disbursement.loan_id);
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'disbursement_delivery_proof',
+    tableName: 'disbursements',
+    recordId: disbursement_id,
+    newValues: { status: 'completed', loan_status: 'active' },
+    ipAddress: ip,
+  });
+
+  await sendPushNotification({
+    userId: loan.lender_id,
+    title: 'Loan Delivered — Cash via Rider',
+    body: `Your loan of ₱${Number(disbursement.amount).toLocaleString()} has been delivered to you.`,
+    type: 'disbursement',
+    referenceId: disbursement.loan_id,
+    sentBy: user.id,
+  });
+
+  return jsonResponse({ success: true, message: 'Delivery proof uploaded and loan released' });
 }

@@ -286,7 +286,7 @@ async function handleLender(req: Request) {
 
   const { data: penaltyData } = await db
     .from('penalty_logs')
-    .select('penalty_amount, loans!penalty_logs_loan_id_fkey(lender_id)')
+    .select('penalty_amount, loans!penalty_logs_loan_id_fkey!inner(lender_id)')
     .eq('loans.lender_id', lenderId);
 
   const { data: accountUpgradeProfile } = await db

@@ -4,15 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
-import '../../disbursements/providers/hm_disbursement_provider.dart';
-import '../../disbursements/widgets/disburse_modal.dart';
+import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
 
@@ -277,7 +274,8 @@ class _HmLoanApplicationsListScreenState
       'ci_assigned',
       'ci_completed'
     ].contains(status);
-    final canRelease = status == 'approved';
+    final canAssignDeliveryRider =
+        status == 'approved' && loan.disbursementMethod == 'rider_delivery';
     final canReject = [
       'pending',
       'under_review',
@@ -297,12 +295,12 @@ class _HmLoanApplicationsListScreenState
             color: AppColors.success,
             onPressed: () => _showApprove(loan),
           ),
-        if (canRelease)
+        if (canAssignDeliveryRider)
           _InlineActionButton(
-            label: 'Release',
-            icon: Icons.account_balance_wallet_outlined,
+            label: 'Assign Delivery Rider',
+            icon: Icons.delivery_dining,
             color: AppColors.gold,
-            onPressed: () => _showRelease(loan),
+            onPressed: () => _showAssignDisbursementRider(loan),
           ),
         if (canAssignRider)
           _InlineActionButton(
@@ -354,55 +352,25 @@ class _HmLoanApplicationsListScreenState
     );
   }
 
-  Future<void> _showRelease(LoanModel loan) async {
-    List<Map<String, dynamic>> riders = const [];
-    try {
-      final res = await sl<UserRemoteDataSource>().getUserList(
-        role: 'rider',
-        status: 'active',
-        page: 1,
-        limit: 100,
-      );
-      riders =
-          (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
-    } catch (_) {}
-    if (!mounted) return;
-    await showDialog(
+  Future<void> _showAssignDisbursementRider(LoanModel loan) async {
+    final assigned = await showDialog<bool>(
       context: context,
-      builder: (_) => DisburseModal(
+      builder: (_) => RiderDisburseAssignModal(
         loanId: loan.id,
         loanAmount: loan.principalAmount,
         lenderName: loan.lenderName ?? 'Lender',
-        availableRiders: riders,
-        preferredMethod: loan.disbursementMethod,
-        preferredGcashNumber: loan.disbursementAccount,
         lenderAddress: loan.formattedLenderAddress,
-        onDisburse: (method, data) async {
-          final notifier = ref.read(hmDisbursementProvider.notifier);
-          if (method == 'gcash') {
-            await notifier.disburseGcash(
-                loanId: loan.id, gcashNumber: data['gcash_number'] ?? '');
-          } else if (method == 'office_cash') {
-            await notifier.disburseOfficeCash(loanId: loan.id);
-          } else {
-            await notifier.disburseRiderDelivery(
-              loanId: loan.id,
-              riderId: data['rider_id'] ?? '',
-              deliveryDate: data['delivery_date'],
-              notes: data['notes'],
-            );
-          }
-        },
       ),
     );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Loan released'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-    ref.read(hmLoanProvider.notifier).fetchLoans();
+    if (assigned == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Delivery rider assigned'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      ref.read(hmLoanProvider.notifier).fetchLoans();
+    }
   }
 
   Future<void> _showAssignRider(LoanModel loan) async {

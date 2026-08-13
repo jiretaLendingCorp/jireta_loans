@@ -60,7 +60,7 @@ async function handleGetList(req: Request) {
      xendit_disbursement_id:xendit_id, xendit_reference, xendit_status,
      rider_id, disbursed_by:authorized_by, disbursed_at, delivery_date,
      notes:delivery_notes, delivery_proof, borrower_signature, created_at, updated_at,
-     loan:loans!disbursements_loan_id_fkey(
+     loan:loans!disbursements_loan_id_fkey!inner(
        id, loan_number, status,
        lender_profiles!loans_lender_id_fkey(
          id, gcash_number,

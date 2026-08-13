@@ -77,6 +77,8 @@ class ApiEndpoints {
       'disbursements-delivery?fn=office-cash';
   static const String disbursementsRiderDelivery =
       'disbursements-delivery?fn=rider-delivery';
+  static const String disbursementsUploadProof =
+      'disbursements-delivery?fn=upload-proof';
   static const String disbursementsXenditWebhook =
       'disbursements-xendit-webhook';
   static const String disbursementsGetList = 'disbursements-view?fn=get-list';
