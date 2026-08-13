@@ -133,8 +133,8 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                 Row(
                   children: [
                     Expanded(
-        child: DropdownButtonFormField<String>(
-          initialValue: _gender,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _gender,
                         decoration: _dec('Gender'),
                         items: const [
                           DropdownMenuItem(value: 'male', child: Text('Male')),
@@ -148,8 +148,8 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-        child: DropdownButtonFormField<String>(
-          initialValue: _civilStatus,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _civilStatus,
                         decoration: _dec('Civil Status'),
                         items: const [
                           DropdownMenuItem(
@@ -248,20 +248,22 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
     TextEditingController ctrl, {
     bool required = false,
     TextInputType? keyboardType,
-  }) => TextFormField(
-    controller: ctrl,
-    keyboardType: keyboardType,
-    decoration: _dec(label),
-    validator: required
-        ? (v) => v == null || v.isEmpty ? '$label is required' : null
-        : null,
-  );
+  }) =>
+      TextFormField(
+        controller: ctrl,
+        keyboardType: keyboardType,
+        decoration: _dec(label),
+        validator: required
+            ? (v) => v == null || v.isEmpty ? '$label is required' : null
+            : null,
+      );
 
   InputDecoration _dec(String label) => InputDecoration(
-    labelText: label,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-  );
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      );
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;

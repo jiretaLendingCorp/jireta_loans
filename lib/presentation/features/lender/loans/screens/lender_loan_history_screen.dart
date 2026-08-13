@@ -49,7 +49,7 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
 
     return MobileScaffold(
       title: 'Loan History',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: state.isLoading
@@ -76,7 +76,7 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
                   ),
                 )
               : RefreshIndicator(
-                  color: AppColors.lenderPurple,
+                  color: AppColors.lenderBlue,
                   onRefresh: () =>
                       ref.read(lenderLoanProvider.notifier).loadLoans(),
                   child: ListView.builder(

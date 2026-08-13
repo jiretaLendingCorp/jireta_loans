@@ -173,7 +173,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
           _SectionCard(
             title: 'Borrower Information',
             icon: Icons.person_outline,
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
             children: [
               _InfoTile(
                   'Name', ci.borrowerName.isEmpty ? 'N/A' : ci.borrowerName),

@@ -276,7 +276,8 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: AppColors.success.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

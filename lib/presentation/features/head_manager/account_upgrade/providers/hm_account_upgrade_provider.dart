@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/account_upgrade/providers/hm_account_upgrade_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/account_upgrade_remote_datasource.dart';
 import '../../../../../data/models/account_upgrade_document_model.dart';
@@ -53,8 +54,8 @@ class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
   final AccountUpgradeRemoteDataSource _ds;
 
   HmAccountUpgradeNotifier(this._ds) : super(const HmAccountUpgradeState()) {
-    bindRealtimeRefresh(
-        ['account_upgrade_documents', 'lender_profiles'], refresh: fetch);
+    bindRealtimeRefresh(['account_upgrade_documents', 'lender_profiles'],
+        refresh: fetch);
     fetch();
   }
 
@@ -79,7 +80,8 @@ class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
         totalCount: (meta['total'] as num?)?.toInt() ?? list.length,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 

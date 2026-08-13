@@ -1,5 +1,6 @@
 // lib/presentation/features/lender/dashboard/providers/lender_dashboard_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/models/kpi_lender_model.dart';
@@ -46,14 +47,15 @@ class LenderDashboardNotifier extends StateNotifier<LenderDashboardState>
       final kpi = await _ds.getLenderKpis();
       state = state.copyWith(kpi: kpi, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
   Future<void> refresh() => load();
 }
 
-final lenderDashboardProvider =
-    AutoDisposeStateNotifierProvider<LenderDashboardNotifier, LenderDashboardState>((ref) {
+final lenderDashboardProvider = AutoDisposeStateNotifierProvider<
+    LenderDashboardNotifier, LenderDashboardState>((ref) {
   return LenderDashboardNotifier(sl<KpiRemoteDataSource>());
 });

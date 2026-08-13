@@ -37,25 +37,25 @@ class PaymentModel {
   });
 
   factory PaymentModel.fromJson(Map<String, dynamic> json) => PaymentModel(
-    id: json['id'] ?? '',
-    loanId: json['loan_id'] ?? '',
-    loanScheduleId: json['loan_schedule_id'],
-    amount: (json['amount'] as num?)?.toDouble() ?? 0,
-    method: json['method'] ?? 'cash',
-    status: json['status'] ?? 'pending',
-    referenceNumber: json['reference_number'],
-    xenditPaymentId: json['xendit_payment_id'],
-    xenditInvoiceUrl: json['xendit_invoice_url'],
-    recordedBy: json['recorded_by'],
-    notes: json['notes'],
-    idempotencyKey: json['idempotency_key'],
-    receiptUrl: json['receipt_url'],
-    createdAt: json['created_at'] != null
-        ? DateTime.parse(json['created_at'])
-        : DateTime.now(),
-    loan: json['loan'] as Map<String, dynamic>?,
-    recordedByUser: json['recorded_by_user'] as Map<String, dynamic>?,
-  );
+        id: json['id'] ?? '',
+        loanId: json['loan_id'] ?? '',
+        loanScheduleId: json['loan_schedule_id'],
+        amount: (json['amount'] as num?)?.toDouble() ?? 0,
+        method: json['method'] ?? 'cash',
+        status: json['status'] ?? 'pending',
+        referenceNumber: json['reference_number'],
+        xenditPaymentId: json['xendit_payment_id'],
+        xenditInvoiceUrl: json['xendit_invoice_url'],
+        recordedBy: json['recorded_by'],
+        notes: json['notes'],
+        idempotencyKey: json['idempotency_key'],
+        receiptUrl: json['receipt_url'],
+        createdAt: json['created_at'] != null
+            ? DateTime.parse(json['created_at'])
+            : DateTime.now(),
+        loan: json['loan'] as Map<String, dynamic>?,
+        recordedByUser: json['recorded_by_user'] as Map<String, dynamic>?,
+      );
 
   String get loanNumber => loan?['loan_number'] ?? '';
   String get lenderName {

@@ -128,14 +128,14 @@ class _LenderEditProfileScreenState
     _firstNameCtrl.text = user.firstName;
     _lastNameCtrl.text = user.lastName;
     _middleNameCtrl.text = user.middleName ?? '';
-    _gender =
-        _normalizeOption(user.gender, _genderOptions, aliases: {
+    _gender = _normalizeOption(user.gender, _genderOptions, aliases: {
       'other': 'Prefer not to say',
       'prefer_not_to_say': 'Prefer not to say',
     });
     _civilStatus = _normalizeOption(user.civilStatus, _civilOptions);
     _employmentType = _normalizeOption(user.employmentType, _employmentOptions);
-    _sourceOfFunds = _normalizeOption(user.sourceOfFunds, _sourceOfFundsOptions);
+    _sourceOfFunds =
+        _normalizeOption(user.sourceOfFunds, _sourceOfFundsOptions);
     _dob = user.dateOfBirth;
     _gcashCtrl.text = user.gcashNumber ?? '';
     _employerCtrl.text = user.employerName ?? '';
@@ -178,7 +178,7 @@ class _LenderEditProfileScreenState
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(
-            primary: AppColors.lenderPurple,
+            primary: AppColors.lenderBlue,
             onPrimary: Colors.white,
           ),
         ),
@@ -194,7 +194,8 @@ class _LenderEditProfileScreenState
   }
 
   Future<void> _submit() async {
-    setState(() => _dobError = _dob == null ? 'Date of birth is required' : null);
+    setState(
+        () => _dobError = _dob == null ? 'Date of birth is required' : null);
     if (!_formKey.currentState!.validate()) return;
     if (_dob == null) return;
 
@@ -252,7 +253,7 @@ class _LenderEditProfileScreenState
 
     return MobileScaffold(
       title: 'Edit Profile',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _navItems,
       body: state.isLoading
           ? const ShimmerLoader()
@@ -356,15 +357,14 @@ class _LenderEditProfileScreenState
                           items: _employmentOptions,
                           validator: (v) =>
                               v == null ? 'Employment type is required' : null,
-                          onChanged: (v) =>
-                              setState(() => _employmentType = v),
+                          onChanged: (v) => setState(() => _employmentType = v),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Employer / Business Name',
                           controller: _employerCtrl,
-                          validator: _requiredValidator(
-                              'Employer / business name'),
+                          validator:
+                              _requiredValidator('Employer / business name'),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
@@ -394,8 +394,7 @@ class _LenderEditProfileScreenState
                           items: _sourceOfFundsOptions,
                           validator: (v) =>
                               v == null ? 'Source of funds is required' : null,
-                          onChanged: (v) =>
-                              setState(() => _sourceOfFunds = v),
+                          onChanged: (v) => setState(() => _sourceOfFunds = v),
                         ),
                       ],
                     ),
@@ -441,7 +440,7 @@ class _LenderEditProfileScreenState
                       child: ElevatedButton(
                         onPressed: state.isSaving ? null : _submit,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.lenderPurple,
+                          backgroundColor: AppColors.lenderBlue,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -499,9 +498,7 @@ class _LenderEditProfileScreenState
   }
 
   String? Function(String?) _requiredValidator(String label) {
-    return (v) => (v == null || v.trim().isEmpty)
-        ? '$label is required'
-        : null;
+    return (v) => (v == null || v.trim().isEmpty) ? '$label is required' : null;
   }
 
   Widget _buildSectionCard(String title, IconData icon, List<Widget> children) {
@@ -513,10 +510,10 @@ class _LenderEditProfileScreenState
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                color: AppColors.lenderBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, size: 18, color: AppColors.lenderPurple),
+              child: Icon(icon, size: 18, color: AppColors.lenderBlue),
             ),
             const SizedBox(width: 10),
             Text(
@@ -560,8 +557,7 @@ class _LenderEditProfileScreenState
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide:
-              const BorderSide(color: AppColors.lenderPurple, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.lenderBlue, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),

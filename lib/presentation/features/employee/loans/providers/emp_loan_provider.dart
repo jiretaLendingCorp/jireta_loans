@@ -1,5 +1,6 @@
 // lib/presentation/features/employee/loans/providers/emp_loan_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
@@ -58,7 +59,8 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
       );
       state = state.copyWith(loans: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -125,6 +127,7 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
   }
 }
 
-final empLoanProvider = AutoDisposeStateNotifierProvider<EmpLoanNotifier, EmpLoanState>(
+final empLoanProvider =
+    AutoDisposeStateNotifierProvider<EmpLoanNotifier, EmpLoanState>(
   (ref) => EmpLoanNotifier(sl<LoanRemoteDataSource>()),
 );

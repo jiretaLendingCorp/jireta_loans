@@ -197,7 +197,7 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
       _QuickAction(
         Icons.person_add_outlined,
         'Register Lender',
-        AppColors.lenderPurple,
+        AppColors.lenderBlue,
         () => context.go(RouteConstants.empLenders),
       ),
       _QuickAction(
@@ -271,7 +271,7 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
             label: 'Lenders Managed',
             value: kpi.totalLendersManaged.toString(),
             icon: Icons.people_outline,
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
           ),
           _KpiCard(
             label: 'Applications Processed',
@@ -367,8 +367,9 @@ class _QuickActionCardState extends State<_QuickActionCard> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           decoration: BoxDecoration(
-            color:
-                _hover ? widget.action.color.withValues(alpha: 0.08) : Colors.white,
+            color: _hover
+                ? widget.action.color.withValues(alpha: 0.08)
+                : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: _hover
@@ -479,7 +480,9 @@ class _KpiCardState extends State<_KpiCard>
             color: _hover ? widget.color.withValues(alpha: 0.05) : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _hover ? widget.color.withValues(alpha: 0.3) : AppColors.border,
+              color: _hover
+                  ? widget.color.withValues(alpha: 0.3)
+                  : AppColors.border,
             ),
             boxShadow: _hover
                 ? [

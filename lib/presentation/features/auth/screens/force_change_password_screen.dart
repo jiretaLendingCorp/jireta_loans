@@ -58,9 +58,7 @@ class _ForceChangePasswordScreenState
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final ok = await ref
-        .read(authProvider.notifier)
-        .forceChangePassword(
+    final ok = await ref.read(authProvider.notifier).forceChangePassword(
           currentPassword: _currentCtrl.text,
           newPassword: _newCtrl.text,
         );

@@ -215,8 +215,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
 
   Widget _buildHeader(state) {
     final user = state.user;
-    final name =
-        user != null ? '${user.firstName} ${user.lastName}' : 'Rider';
+    final name = user != null ? '${user.firstName} ${user.lastName}' : 'Rider';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
@@ -430,7 +429,6 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       ),
     );
   }
-
 }
 
 class _RiderTermsSheet extends StatelessWidget {

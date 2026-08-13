@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/dashboard/providers/hm_dashboard_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
@@ -20,11 +21,12 @@ class HmDashboardState {
     KpiHeadManagerModel? kpi,
     bool? isLoading,
     String? error,
-  }) => HmDashboardState(
-    kpi: kpi ?? this.kpi,
-    isLoading: isLoading ?? this.isLoading,
-    error: error,
-  );
+  }) =>
+      HmDashboardState(
+        kpi: kpi ?? this.kpi,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+      );
 }
 
 class HmDashboardNotifier extends StateNotifier<HmDashboardState>
@@ -32,7 +34,7 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
   final KpiRemoteDataSource _ds;
 
   HmDashboardNotifier(this._ds)
-    : super(HmDashboardState(kpi: KpiHeadManagerModel.empty())) {
+      : super(HmDashboardState(kpi: KpiHeadManagerModel.empty())) {
     bindRealtimeRefresh([
       'loans',
       'loan_schedules',
@@ -53,7 +55,8 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
       final kpi = await _ds.getHeadManagerKpis();
       state = state.copyWith(kpi: kpi, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -61,6 +64,7 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
 }
 
 final hmDashboardProvider =
-    AutoDisposeStateNotifierProvider<HmDashboardNotifier, HmDashboardState>((ref) {
-      return HmDashboardNotifier(sl<KpiRemoteDataSource>());
-    });
+    AutoDisposeStateNotifierProvider<HmDashboardNotifier, HmDashboardState>(
+        (ref) {
+  return HmDashboardNotifier(sl<KpiRemoteDataSource>());
+});

@@ -61,7 +61,7 @@ class HmActivityFeed extends StatelessWidget {
       case 'collection':
         return AppColors.info;
       case 'account_upgrade_submitted':
-        return AppColors.lenderPurple;
+        return AppColors.lenderBlue;
       case 'disbursement':
         return AppColors.gold;
       default:

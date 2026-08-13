@@ -146,8 +146,7 @@ class _FloatingBottomNav extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(22),
-              border:
-                  Border.all(color: Colors.black.withValues(alpha: 0.05)),
+              border: Border.all(color: Colors.black.withValues(alpha: 0.05)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.12),
@@ -187,17 +186,14 @@ class _FloatingBottomNav extends StatelessWidget {
                       curve: Curves.easeOut,
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? accentColor
-                            : Colors.transparent,
+                        color: isSelected ? accentColor : Colors.transparent,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
                         isSelected ? item.activeIcon : item.icon,
                         size: 21,
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.textTertiary,
+                        color:
+                            isSelected ? Colors.white : AppColors.textTertiary,
                       ),
                     ),
                     if ((item.badgeCount ?? 0) > 0)
@@ -229,10 +225,8 @@ class _FloatingBottomNav extends StatelessWidget {
                   duration: const Duration(milliseconds: 200),
                   style: TextStyle(
                     fontSize: 10,
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color:
-                        isSelected ? accentColor : AppColors.textTertiary,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? accentColor : AppColors.textTertiary,
                     fontFamily: 'Inter',
                   ),
                   child: Text(item.label),

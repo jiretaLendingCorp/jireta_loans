@@ -52,7 +52,8 @@ class RouteConstants {
   static const String empLoanApplicationDetails = '/employee/loans/:id';
   static const String empLoanDetails = '/employee/loan-details/:id';
   static const String empAccountUpgrade = '/employee/account-upgrade';
-  static const String empAccountUpgradeDetails = '/employee/account-upgrade/:id';
+  static const String empAccountUpgradeDetails =
+      '/employee/account-upgrade/:id';
   static const String empCi = '/employee/ci';
   static const String empCiDetails = '/employee/ci/:id';
   static const String empCollections = '/employee/collections';
@@ -84,7 +85,8 @@ class RouteConstants {
   // Lender
   static const String lenderDashboard = '/lender/dashboard';
   static const String lenderAccountUpgrade = '/lender/account-upgrade';
-  static const String lenderAccountUpgradeStatus = '/lender/account-upgrade-status';
+  static const String lenderAccountUpgradeStatus =
+      '/lender/account-upgrade-status';
   static const String lenderLoans = '/lender/loans';
   static const String lenderLoanDetails = '/lender/loans/:id';
   static const String lenderLoanApplicationStatus = '/lender/loan-status/:id';

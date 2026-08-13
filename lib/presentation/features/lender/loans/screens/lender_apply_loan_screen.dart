@@ -1,4 +1,4 @@
-﻿// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
+// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -122,7 +122,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         title: 'Submit Loan Application',
         message: 'Apply for ${_amount.toCurrency} via $_frequency payments?',
         confirmLabel: 'Submit Application',
-        confirmColor: AppColors.lenderPurple,
+        confirmColor: AppColors.lenderBlue,
       ),
     );
     if (confirmed != true) return;
@@ -193,7 +193,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   void _goBack() => setState(() => _step = _step - 1);
 
-  Widget _buildLoanDetailsStep(NumberFormat fmt, Map<String, dynamic>? preview) {
+  Widget _buildLoanDetailsStep(
+      NumberFormat fmt, Map<String, dynamic>? preview) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -206,7 +207,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
-              color: AppColors.lenderPurple,
+              color: AppColors.lenderBlue,
             ),
           ),
           Slider(
@@ -214,8 +215,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             min: 3000,
             max: 500000,
             divisions: 497,
-            activeColor: AppColors.lenderPurple,
-            inactiveColor: AppColors.lenderPurple.withValues(alpha: 0.2),
+            activeColor: AppColors.lenderBlue,
+            inactiveColor: AppColors.lenderBlue.withValues(alpha: 0.2),
             onChanged: (v) {
               setState(() => _amount = (v / 1000).round() * 1000.0);
             },
@@ -225,11 +226,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('₱3,000',
-                  style: TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary)),
+                  style:
+                      TextStyle(fontSize: 11, color: AppColors.textSecondary)),
               Text('₱500,000',
-                  style: TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary)),
+                  style:
+                      TextStyle(fontSize: 11, color: AppColors.textSecondary)),
             ],
           ),
           const SizedBox(height: 20),
@@ -251,13 +252,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
-                        color: selected
-                            ? AppColors.lenderPurple
-                            : Colors.white,
+                        color: selected ? AppColors.lenderBlue : Colors.white,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: selected
-                              ? AppColors.lenderPurple
+                              ? AppColors.lenderBlue
                               : AppColors.border,
                         ),
                       ),
@@ -265,9 +264,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                         f[0].toUpperCase() + f.substring(1),
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: selected
-                              ? Colors.white
-                              : AppColors.textPrimary,
+                          color:
+                              selected ? Colors.white : AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                         ),
@@ -294,7 +292,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.lenderPurple),
+                borderSide: const BorderSide(color: AppColors.lenderBlue),
               ),
             ),
           ),
@@ -373,8 +371,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _signatureError!,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.error),
+                    style:
+                        const TextStyle(fontSize: 12, color: AppColors.error),
                   ),
                 ],
               ],
@@ -387,8 +385,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   Widget _buildReviewStep(NumberFormat fmt, Map<String, dynamic>? preview) {
     final interest = preview == null ? null : (preview['interest'] ?? 0);
-    final totalPayable = preview == null ? null : (preview['total_payable'] ?? 0);
-    final installment = preview == null ? null : (preview['installment_amount'] ?? 0);
+    final totalPayable =
+        preview == null ? null : (preview['total_payable'] ?? 0);
+    final installment =
+        preview == null ? null : (preview['installment_amount'] ?? 0);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -436,7 +436,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               child: AppButton(
                 label: 'Back',
                 variant: AppButtonVariant.outlined,
-                color: AppColors.lenderPurple,
+                color: AppColors.lenderBlue,
                 onTap: _goBack,
               ),
             ),
@@ -447,7 +447,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             child: AppButton(
               label: isLast ? 'Submit Application' : 'Next',
               icon: isLast ? Icons.send : Icons.arrow_forward,
-              color: AppColors.lenderPurple,
+              color: AppColors.lenderBlue,
               isLoading: state.isSubmitting,
               onTap: isLast ? _submit : _goNext,
             ),
@@ -465,7 +465,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     return MobileScaffold(
       title: 'My Loans',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _navItems,
       showBackButton: true,
       body: (loanState.isLoading || accountUpgradeState.isLoading)
@@ -628,7 +628,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.light(
-            primary: AppColors.lenderPurple,
+            primary: AppColors.lenderBlue,
           ),
         ),
         child: child!,
@@ -660,12 +660,13 @@ class _CoMakerFormState extends State<_CoMakerForm> {
             const Row(
               children: [
                 Icon(Icons.groups_outlined,
-                    color: AppColors.lenderPurple, size: 20),
+                    color: AppColors.lenderBlue, size: 20),
                 SizedBox(width: 8),
                 Text(
                   'Co-Maker',
                   style: TextStyle(
-                      fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary),
                 ),
               ],
             ),
@@ -751,8 +752,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
             const SizedBox(height: 14),
             const Text(
               'You will be asked for the co-maker\'s signature on the next step.',
-              style: TextStyle(
-                  fontSize: 11, color: AppColors.textTertiary),
+              style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
             ),
           ],
         ),
@@ -772,7 +772,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.lenderPurple),
+        borderSide: const BorderSide(color: AppColors.lenderBlue),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
@@ -806,7 +806,7 @@ class _SchedulePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) {
       return const Center(
-          child: CircularProgressIndicator(color: AppColors.lenderPurple));
+          child: CircularProgressIndicator(color: AppColors.lenderBlue));
     }
     final preview = this.preview;
     if (preview == null) {
@@ -820,16 +820,15 @@ class _SchedulePreview extends StatelessWidget {
         child: const Center(
           child: Text('Unable to load payment schedule. Please try again.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary)),
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         ),
       );
     }
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final principal = (preview['principal'] ?? 0).toDouble();
     final totalPayable = (preview['total_payable'] ?? 0).toDouble();
-    final interest = (preview['interest'] ?? preview['interest_amount'] ?? 0)
-        .toDouble();
+    final interest =
+        (preview['interest'] ?? preview['interest_amount'] ?? 0).toDouble();
     final installment = (preview['installment_amount'] ?? 0).toDouble();
     final termDays = preview['term_days'] ?? 0;
     final installments = preview['installments'] ?? 0;
@@ -853,9 +852,8 @@ class _SchedulePreview extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: const BoxDecoration(
-              color: AppColors.lenderPurple,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(12)),
+              color: AppColors.lenderBlue,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: const Row(
               children: [
@@ -878,7 +876,7 @@ class _SchedulePreview extends StatelessWidget {
                 _PreviewRow('Interest (20%)', '₱${fmt.format(interest)}',
                     AppColors.warning),
                 _PreviewRow('Total Payable', '₱${fmt.format(totalPayable)}',
-                    AppColors.lenderPurple),
+                    AppColors.lenderBlue),
                 _PreviewRow('Per Installment', '₱${fmt.format(installment)}',
                     AppColors.success),
                 _PreviewRow('Number of Periods', '$installments',
@@ -888,8 +886,8 @@ class _SchedulePreview extends StatelessWidget {
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Full Computation Per Period',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 13)),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                 ),
                 const SizedBox(height: 8),
                 if (schedule.isNotEmpty)
@@ -904,8 +902,8 @@ class _SchedulePreview extends StatelessWidget {
 
   Widget _buildScheduleTable(
       NumberFormat fmt, List<dynamic> schedule, double installment) {
-    final hasItemized = schedule.every((p) =>
-        p is Map<String, dynamic> && p.containsKey('balance'));
+    final hasItemized = schedule
+        .every((p) => p is Map<String, dynamic> && p.containsKey('balance'));
 
     Widget header(String text, bool bold) => Text(
           text,
@@ -926,27 +924,18 @@ class _SchedulePreview extends StatelessWidget {
         final balance = (p['balance'] ?? 0).toDouble();
         return Row(
           children: [
-            Expanded(
-                flex: 1,
-                child: header('$period', false)),
-            Expanded(
-                flex: 2,
-                child: header(dueDate, false)),
-            Expanded(
-                flex: 2,
-                child: header('₱${fmt.format(amount)}', false)),
+            Expanded(flex: 1, child: header('$period', false)),
+            Expanded(flex: 2, child: header(dueDate, false)),
+            Expanded(flex: 2, child: header('₱${fmt.format(amount)}', false)),
             if (hasItemized)
               Expanded(
-                  flex: 2,
-                  child: header('₱${fmt.format(principal)}', false)),
+                  flex: 2, child: header('₱${fmt.format(principal)}', false)),
             if (hasItemized)
               Expanded(
-                  flex: 2,
-                  child: header('₱${fmt.format(interest)}', false)),
+                  flex: 2, child: header('₱${fmt.format(interest)}', false)),
             if (hasItemized)
               Expanded(
-                  flex: 2,
-                  child: header('₱${fmt.format(balance)}', false)),
+                  flex: 2, child: header('₱${fmt.format(balance)}', false)),
           ],
         );
       }
@@ -956,8 +945,7 @@ class _SchedulePreview extends StatelessWidget {
           Expanded(flex: 1, child: header('-', false)),
           Expanded(flex: 2, child: header(dueDate, false)),
           Expanded(
-              flex: 2,
-              child: header('₱${fmt.format(installment)}', false)),
+              flex: 2, child: header('₱${fmt.format(installment)}', false)),
         ],
       );
     }).toList();
@@ -1022,11 +1010,11 @@ class _StepIndicator extends StatelessWidget {
   const _StepIndicator({required this.current});
 
   static const _labels = [
-      'Loan Details',
-      'Co-Maker',
-      'Signature',
-      'Review',
-    ];
+    'Loan Details',
+    'Co-Maker',
+    'Signature',
+    'Review',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -1041,9 +1029,7 @@ class _StepIndicator extends StatelessWidget {
                 child: Container(
                   height: 2,
                   margin: const EdgeInsets.only(bottom: 16),
-                  color: i <= current
-                      ? AppColors.lenderPurple
-                      : AppColors.border,
+                  color: i <= current ? AppColors.lenderBlue : AppColors.border,
                 ),
               ),
             _StepDot(
@@ -1081,10 +1067,10 @@ class _StepDot extends StatelessWidget {
           width: isActive ? 32 : 24,
           height: isActive ? 32 : 24,
           decoration: BoxDecoration(
-            color: highlighted ? AppColors.lenderPurple : Colors.white,
+            color: highlighted ? AppColors.lenderBlue : Colors.white,
             shape: BoxShape.circle,
             border: Border.all(
-              color: highlighted ? AppColors.lenderPurple : AppColors.border,
+              color: highlighted ? AppColors.lenderBlue : AppColors.border,
               width: 1.5,
             ),
           ),
@@ -1106,7 +1092,7 @@ class _StepDot extends StatelessWidget {
           style: TextStyle(
             fontSize: 10,
             fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-            color: highlighted ? AppColors.lenderPurple : AppColors.textTertiary,
+            color: highlighted ? AppColors.lenderBlue : AppColors.textTertiary,
           ),
         ),
       ],
@@ -1164,13 +1150,16 @@ class _ReviewCard extends StatelessWidget {
           ),
           _row('Purpose', purpose.isEmpty ? '-' : purpose),
           if (interest != null) ...[
-            _row('Interest (20%)', '₱${fmt.format((interest as num).toDouble())}'),
+            _row('Interest (20%)',
+                '₱${fmt.format((interest as num).toDouble())}'),
           ],
           if (totalPayable != null) ...[
-            _row('Total Payable', '₱${fmt.format((totalPayable as num).toDouble())}'),
+            _row('Total Payable',
+                '₱${fmt.format((totalPayable as num).toDouble())}'),
           ],
           if (installment != null) ...[
-            _row('Per Installment', '₱${fmt.format((installment as num).toDouble())}'),
+            _row('Per Installment',
+                '₱${fmt.format((installment as num).toDouble())}'),
           ],
           const Divider(height: 24),
           const Text(
@@ -1182,17 +1171,13 @@ class _ReviewCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
+          _row('Full Name', '${_s('first_name')} ${_s('last_name')}'.trim()),
           _row(
-              'Full Name', '${_s('first_name')} ${_s('last_name')}'.trim()),
-          _row(
-              'Contact',
-              _s('phone_number').isEmpty ? '-' : _s('phone_number')),
-          _row(
-              'Relationship',
+              'Contact', _s('phone_number').isEmpty ? '-' : _s('phone_number')),
+          _row('Relationship',
               _s('relationship').isEmpty ? '-' : _s('relationship')),
           _row('Address', _s('address').isEmpty ? '-' : _s('address')),
-          _row(
-              'Date of Birth',
+          _row('Date of Birth',
               _s('date_of_birth').isEmpty ? '-' : _s('date_of_birth')),
           const SizedBox(height: 6),
           Row(
@@ -1200,9 +1185,7 @@ class _ReviewCard extends StatelessWidget {
               Icon(
                 signatureProvided ? Icons.check_circle : Icons.error_outline,
                 size: 18,
-                color: signatureProvided
-                    ? AppColors.success
-                    : AppColors.error,
+                color: signatureProvided ? AppColors.success : AppColors.error,
               ),
               const SizedBox(width: 6),
               Text(
@@ -1211,9 +1194,8 @@ class _ReviewCard extends StatelessWidget {
                     : 'Co-maker signature missing',
                 style: TextStyle(
                   fontSize: 12,
-                  color: signatureProvided
-                      ? AppColors.success
-                      : AppColors.error,
+                  color:
+                      signatureProvided ? AppColors.success : AppColors.error,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1288,8 +1270,7 @@ class _AccountUpgradeGate extends StatelessWidget {
       fg = AppColors.warning;
       icon = Icons.verified_user_outlined;
       title = 'Complete Your Account Upgrade';
-      subtitle =
-          'Verify your identity to start borrowing with Jireta Loans.';
+      subtitle = 'Verify your identity to start borrowing with Jireta Loans.';
       actionLabel = 'Verify Now';
       onAction = () => context.push(RouteConstants.lenderAccountUpgrade);
     }
@@ -1333,7 +1314,7 @@ class _AccountUpgradeGate extends StatelessWidget {
             AppButton(
               label: actionLabel,
               onPressed: onAction,
-              color: AppColors.lenderPurple,
+              color: AppColors.lenderBlue,
               icon: Icons.arrow_forward,
             ),
           ],
@@ -1407,14 +1388,14 @@ class _ApplicationReviewView extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.3),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.3),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -1480,8 +1461,7 @@ class _ApplicationReviewView extends StatelessWidget {
                 _SummaryRow('Loan #', loan.loanNumber),
                 _SummaryRow('Amount', loan.principalAmount.toCurrency),
                 _SummaryRow('Total Payable', loan.totalPayable.toCurrency),
-                _SummaryRow(
-                    'Frequency', loan.paymentFrequency.toUpperCase()),
+                _SummaryRow('Frequency', loan.paymentFrequency.toUpperCase()),
                 const SizedBox(height: 8),
                 StatusBadge(status: loan.status, small: true),
               ],
@@ -1494,7 +1474,7 @@ class _ApplicationReviewView extends StatelessWidget {
               RouteConstants.lenderLoanApplicationStatus
                   .replaceFirst(':id', loan.id),
             ),
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
             icon: Icons.timeline_outlined,
           ),
         ],
@@ -1519,14 +1499,14 @@ class _ActiveLoanView extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.3),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.3),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -1539,9 +1519,7 @@ class _ActiveLoanView extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      loan.status == 'overdue'
-                          ? 'Overdue Loan'
-                          : 'Active Loan',
+                      loan.status == 'overdue' ? 'Overdue Loan' : 'Active Loan',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 13,
@@ -1594,14 +1572,14 @@ class _ActiveLoanView extends StatelessWidget {
           AppButton(
             label: 'View Payment Schedule',
             onPressed: () => context.push(RouteConstants.lenderPayments),
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
             icon: Icons.calendar_month_outlined,
           ),
           const SizedBox(height: 12),
           AppButton(
             label: 'Loan History',
             onPressed: () => context.push(RouteConstants.lenderLoanHistory),
-            color: AppColors.lenderPurpleLight,
+            color: AppColors.lenderBlueLight,
             icon: Icons.history,
           ),
         ],
@@ -1663,7 +1641,8 @@ class _ChooseDisbursementViewState
         !RegExp(r'^09\d{9}$').hasMatch(_gcashCtrl.text.trim())) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid 11-digit GCash number (09XXXXXXXXX).'),
+          content:
+              Text('Please enter a valid 11-digit GCash number (09XXXXXXXXX).'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1680,19 +1659,18 @@ class _ChooseDisbursementViewState
                 ? 'A rider will deliver your cash to the address in your account upgrade profile. A rider will be scheduled to deliver it.'
                 : 'You will pick up the cash at the Jireta Loans office. We will notify you when it is ready.',
         confirmLabel: 'Confirm',
-        confirmColor: AppColors.lenderPurple,
+        confirmColor: AppColors.lenderBlue,
       ),
     );
     if (confirmed != true) return;
 
     setState(() => _submitting = true);
-    final ok = await ref
-        .read(lenderLoanProvider.notifier)
-        .selectDisbursementMethod(
-          loanId: widget.loan.id,
-          method: _method,
-          gcashNumber: _method == 'gcash' ? _gcashCtrl.text.trim() : null,
-        );
+    final ok =
+        await ref.read(lenderLoanProvider.notifier).selectDisbursementMethod(
+              loanId: widget.loan.id,
+              method: _method,
+              gcashNumber: _method == 'gcash' ? _gcashCtrl.text.trim() : null,
+            );
     if (!mounted) return;
     setState(() => _submitting = false);
 
@@ -1729,14 +1707,14 @@ class _ChooseDisbursementViewState
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.3),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.3),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -1796,8 +1774,7 @@ class _ChooseDisbursementViewState
             selected: _method == 'gcash',
             icon: Icons.phone_android,
             title: 'GCash',
-            subtitle:
-                'Funds will be sent to your GCash number immediately.',
+            subtitle: 'Funds will be sent to your GCash number immediately.',
             onTap: () => setState(() => _method = 'gcash'),
           ),
           const SizedBox(height: 8),
@@ -1834,7 +1811,7 @@ class _ChooseDisbursementViewState
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.lenderPurple),
+                  borderSide: const BorderSide(color: AppColors.lenderBlue),
                 ),
               ),
             ),
@@ -1843,13 +1820,9 @@ class _ChooseDisbursementViewState
           AppButton(
             label: _method == 'gcash'
                 ? 'Release via GCash'
-                : 'Confirm ${
-                    _method == 'rider_delivery'
-                        ? 'Rider Delivery'
-                        : 'Office Pickup'
-                  }',
+                : 'Confirm ${_method == 'rider_delivery' ? 'Rider Delivery' : 'Office Pickup'}',
             onTap: _confirm,
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
             isLoading: _submitting,
             isExpanded: true,
           ),
@@ -1872,19 +1845,18 @@ class _ChooseDisbursementViewState
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? AppColors.lenderPurpleLight : Colors.white,
+          color: selected ? AppColors.lenderBlueLight : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? AppColors.lenderPurple : AppColors.border,
+            color: selected ? AppColors.lenderBlue : AppColors.border,
             width: selected ? 1.6 : 1,
           ),
         ),
         child: Row(
           children: [
             Icon(icon,
-                color: selected
-                    ? AppColors.lenderPurple
-                    : AppColors.textSecondary,
+                color:
+                    selected ? AppColors.lenderBlue : AppColors.textSecondary,
                 size: 22),
             const SizedBox(width: 12),
             Expanded(
@@ -1897,7 +1869,7 @@ class _ChooseDisbursementViewState
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                       color: selected
-                          ? AppColors.lenderPurple
+                          ? AppColors.lenderBlue
                           : AppColors.textPrimary,
                     ),
                   ),
@@ -1911,8 +1883,10 @@ class _ChooseDisbursementViewState
               ),
             ),
             Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: selected ? AppColors.lenderPurple : AppColors.textTertiary,
+              selected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: selected ? AppColors.lenderBlue : AppColors.textTertiary,
               size: 20,
             ),
           ],

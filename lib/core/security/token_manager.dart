@@ -8,10 +8,11 @@ class TokenManager {
   static Future<void> setTokens({
     required String accessToken,
     required String refreshToken,
-  }) => SecureStorage.saveTokens(
-    accessToken: accessToken,
-    refreshToken: refreshToken,
-  );
+  }) =>
+      SecureStorage.saveTokens(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      );
 
   static Future<void> clearAll() => SecureStorage.clearAll();
 
@@ -20,7 +21,8 @@ class TokenManager {
   static Future<void> saveUserInfo({
     required String userId,
     required String role,
-  }) => SecureStorage.saveUserInfo(userId: userId, role: role);
+  }) =>
+      SecureStorage.saveUserInfo(userId: userId, role: role);
 
   static Future<String?> getUserId() => SecureStorage.getUserId();
   static Future<String?> getUserRole() => SecureStorage.getUserRole();

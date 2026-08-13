@@ -49,8 +49,7 @@ class _EmpCollectionDetailsScreenState
         loanScheduleId: _detail!['loan_schedule_id'] as String? ?? '',
         onAssigned: () {
           _loadDetail();
-          showSuccessDialog(context,
-              message: 'Rider reassigned successfully.');
+          showSuccessDialog(context, message: 'Rider reassigned successfully.');
         },
       ),
     );

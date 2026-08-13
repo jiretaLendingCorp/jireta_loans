@@ -30,8 +30,7 @@ class LoanRepositoryImpl implements ILoanRepository {
       _ds.getLoanList(status: status, page: page, search: search);
 
   @override
-  Future<LoanModel> getLoanDetails(String loanId) =>
-      _ds.getLoanDetails(loanId);
+  Future<LoanModel> getLoanDetails(String loanId) => _ds.getLoanDetails(loanId);
 
   @override
   Future<Map<String, dynamic>> getSchedulePreview(

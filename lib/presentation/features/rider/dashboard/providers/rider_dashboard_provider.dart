@@ -1,5 +1,6 @@
 // lib/presentation/features/rider/dashboard/providers/rider_dashboard_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
@@ -72,15 +73,16 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
         isLoading: false,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
   Future<void> refresh() => load();
 }
 
-final riderDashboardProvider =
-    AutoDisposeStateNotifierProvider<RiderDashboardNotifier, RiderDashboardState>((ref) {
+final riderDashboardProvider = AutoDisposeStateNotifierProvider<
+    RiderDashboardNotifier, RiderDashboardState>((ref) {
   return RiderDashboardNotifier(
     sl<KpiRemoteDataSource>(),
     sl<CollectionRemoteDataSource>(),

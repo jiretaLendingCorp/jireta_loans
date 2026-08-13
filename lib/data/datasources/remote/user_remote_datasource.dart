@@ -117,8 +117,7 @@ class UserRemoteDataSource {
     );
     final list = (res.data['data'] as List?) ?? [];
     final total = (res.data['total'] as num?)?.toInt() ?? list.length;
-    final totalPages =
-        (res.data['totalPages'] as num?)?.toInt() ??
+    final totalPages = (res.data['totalPages'] as num?)?.toInt() ??
         (limit == 0 ? 1 : (total / limit).ceil());
     return {
       'data': list,
@@ -129,7 +128,12 @@ class UserRemoteDataSource {
   Future<List<Map<String, dynamic>>> getAvailableRiders() async {
     final res = await _client.get(
       ApiEndpoints.usersGetList,
-      queryParams: {'role': 'rider', 'status': 'active', 'page': 1, 'limit': 100},
+      queryParams: {
+        'role': 'rider',
+        'status': 'active',
+        'page': 1,
+        'limit': 100
+      },
     );
     final list = (res.data['data'] as List?) ?? [];
     return list.cast<Map<String, dynamic>>();

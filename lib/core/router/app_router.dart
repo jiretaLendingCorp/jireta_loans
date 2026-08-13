@@ -1,4 +1,6 @@
 // lib/core/router/app_router.dart
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -96,6 +98,7 @@ import '../../presentation/features/rider/dashboard/screens/rider_dashboard_scre
 import '../../presentation/features/rider/notifications/screens/rider_notifications_screen.dart';
 import '../../presentation/features/rider/profile/screens/rider_profile_screen.dart';
 import '../../presentation/shared/providers/auth_state_provider.dart';
+import '../../presentation/shared/providers/connectivity_provider.dart';
 import '../constants/app_constants.dart';
 import '../constants/route_constants.dart';
 
@@ -139,8 +142,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoading = authState.isLoading;
       if (isLoading) return null;
 
-      final isAuthenticated = authState.isAuthenticated;
       final path = state.uri.path;
+
+      // While offline (or still probing for connectivity) everyone stays on the
+      // splash screen — the app cannot be opened without internet access.
+      final isOnline = ref.read(connectivityProvider).valueOrNull ?? false;
+      if (!isOnline) {
+        return path == RouteConstants.splash ? null : RouteConstants.splash;
+      }
+
+      final isAuthenticated = authState.isAuthenticated;
 
       final publicRoutes = [
         RouteConstants.splash,
@@ -359,8 +370,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           builder: (ctx, s) => const EmpAccountUpgradeListScreen()),
       GoRoute(
           path: RouteConstants.empAccountUpgradeDetails,
-          builder: (ctx, s) =>
-              EmpAccountUpgradeDetailsScreen(lenderId: s.pathParameters['id']!)),
+          builder: (ctx, s) => EmpAccountUpgradeDetailsScreen(
+              lenderId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.empCi,
           builder: (ctx, s) => const EmpCiListScreen()),
@@ -518,4 +529,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     errorBuilder: (ctx, s) =>
         Scaffold(body: Center(child: Text('Page not found: ${s.uri.path}'))),
   );
+});
+
+/// Exposes the current go_router path so widgets rendered ABOVE the router
+/// (e.g. the global [ConnectivityOverlay]) can tell which screen is showing.
+final currentRoutePathProvider = StreamProvider<String>((ref) {
+  final router = ref.watch(appRouterProvider);
+  final controller = StreamController<String>();
+
+  void emit() {
+    final path =
+        router.routeInformationProvider.value.uri.path ?? RouteConstants.splash;
+    if (!controller.isClosed) controller.add(path);
+  }
+
+  router.routeInformationProvider.addListener(emit);
+  emit();
+  ref.onDispose(() {
+    router.routeInformationProvider.removeListener(emit);
+    controller.close();
+  });
+  return controller.stream;
 });

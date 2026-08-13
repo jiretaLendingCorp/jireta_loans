@@ -172,7 +172,8 @@ class _ProfileCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(phone.maskPhone(),
                     style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85), fontSize: 14)),
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 14)),
               ],
             ),
           ),

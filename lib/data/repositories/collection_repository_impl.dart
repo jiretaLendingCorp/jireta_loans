@@ -13,10 +13,9 @@ class CollectionRepositoryImpl implements ICollectionRepository {
             (data['loanScheduleId'] ?? data['loan_schedule_id'] ?? '')
                 .toString(),
         riderId: (data['riderId'] ?? data['rider_id'] ?? '').toString(),
-        collectionSchedule:
-            (data['collectionSchedule'] ?? data['collection_schedule'] ??
-                data['schedule'])
-                as String?,
+        collectionSchedule: (data['collectionSchedule'] ??
+            data['collection_schedule'] ??
+            data['schedule']) as String?,
         notes: data['notes']?.toString(),
       );
 
@@ -33,11 +32,13 @@ class CollectionRepositoryImpl implements ICollectionRepository {
       _ds.recordCollection(
         assignmentId:
             (data['assignmentId'] ?? data['assignment_id'] ?? '').toString(),
-        amountCollected: (data['amountCollected'] ?? data['amount_collected'] ?? 0)
-            .toDouble(),
+        amountCollected:
+            (data['amountCollected'] ?? data['amount_collected'] ?? 0)
+                .toDouble(),
         notes: data['notes']?.toString(),
         idempotencyKey:
-            (data['idempotencyKey'] ?? data['idempotency_key'] ?? '').toString(),
+            (data['idempotencyKey'] ?? data['idempotency_key'] ?? '')
+                .toString(),
       );
 
   @override

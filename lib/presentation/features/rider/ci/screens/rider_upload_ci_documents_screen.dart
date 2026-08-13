@@ -322,12 +322,12 @@ class _PhotoCardState extends State<_PhotoCard> {
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: XFilePreview(file: widget.photo.file,
-                height: 150, width: double.infinity),
+            child: XFilePreview(
+                file: widget.photo.file, height: 150, width: double.infinity),
           ),
           const SizedBox(height: 10),
-  DropdownButtonFormField<String>(
-    initialValue: widget.photo.type,
+          DropdownButtonFormField<String>(
+            initialValue: widget.photo.type,
             decoration: InputDecoration(
               labelText: 'Photo Type',
               border:

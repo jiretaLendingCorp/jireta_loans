@@ -21,10 +21,12 @@ class RiderCollectionDetailsScreen extends ConsumerStatefulWidget {
   const RiderCollectionDetailsScreen({super.key, required this.collectionId});
 
   @override
-  ConsumerState<RiderCollectionDetailsScreen> createState() => _RiderCollectionDetailsScreenState();
+  ConsumerState<RiderCollectionDetailsScreen> createState() =>
+      _RiderCollectionDetailsScreenState();
 }
 
-class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDetailsScreen>
+class _RiderCollectionDetailsScreenState
+    extends ConsumerState<RiderCollectionDetailsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _amountCtrl = TextEditingController();
@@ -39,7 +41,9 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(riderCollectionProvider.notifier).loadDetails(widget.collectionId);
+      ref
+          .read(riderCollectionProvider.notifier)
+          .loadDetails(widget.collectionId);
     });
   }
 
@@ -52,34 +56,45 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
   }
 
   Future<void> _pickImage(bool isProof) async {
-    final picked = await _imagePicker.pickImage(source: ImageSource.camera, imageQuality: 80, maxWidth: 1920);
+    final picked = await _imagePicker.pickImage(
+        source: ImageSource.camera, imageQuality: 80, maxWidth: 1920);
     if (picked != null) {
-      setState(() { if (isProof) {
-      _proofPhoto = picked;
-    } else {
-      _scenePhoto = picked;
-    } });
+      setState(() {
+        if (isProof) {
+          _proofPhoto = picked;
+        } else {
+          _scenePhoto = picked;
+        }
+      });
     }
   }
 
   Future<void> _recordCollection(CollectionAssignmentModel col) async {
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid amount')));
       return;
     }
     setState(() => _isSubmitting = true);
     try {
-      final ok = await ref.read(riderCollectionProvider.notifier).recordCollection(
-        assignmentId: widget.collectionId,
-        amountCollected: amount,
-        notes: _notesCtrl.text.trim(),
-      );
+      final ok =
+          await ref.read(riderCollectionProvider.notifier).recordCollection(
+                assignmentId: widget.collectionId,
+                amountCollected: amount,
+                notes: _notesCtrl.text.trim(),
+              );
       if (mounted) {
         if (ok) {
-          showDialog(context: context, builder: (_) => const SuccessDialog(message: 'Collection recorded successfully'));
+          showDialog(
+              context: context,
+              builder: (_) => const SuccessDialog(
+                  message: 'Collection recorded successfully'));
         } else {
-          showDialog(context: context, builder: (_) => const ErrorDialog(message: 'Failed to record collection'));
+          showDialog(
+              context: context,
+              builder: (_) =>
+                  const ErrorDialog(message: 'Failed to record collection'));
         }
       }
     } finally {
@@ -89,21 +104,28 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
 
   Future<void> _uploadProof() async {
     if (_proofPhoto == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please take a proof photo')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please take a proof photo')));
       return;
     }
     setState(() => _isSubmitting = true);
     try {
       final ok = await ref.read(riderCollectionProvider.notifier).uploadProof(
-        assignmentId: widget.collectionId,
-        proofPhoto: _proofPhoto!,
-        scenePhoto: _scenePhoto,
-      );
+            assignmentId: widget.collectionId,
+            proofPhoto: _proofPhoto!,
+            scenePhoto: _scenePhoto,
+          );
       if (mounted) {
         if (ok) {
-          showDialog(context: context, builder: (_) => const SuccessDialog(message: 'Proof uploaded and collection completed!'));
+          showDialog(
+              context: context,
+              builder: (_) => const SuccessDialog(
+                  message: 'Proof uploaded and collection completed!'));
         } else {
-          showDialog(context: context, builder: (_) => const ErrorDialog(message: 'Failed to upload proof'));
+          showDialog(
+              context: context,
+              builder: (_) =>
+                  const ErrorDialog(message: 'Failed to upload proof'));
         }
       }
     } finally {
@@ -121,16 +143,24 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
       appBar: AppBar(
         backgroundColor: AppColors.riderGreen,
         foregroundColor: Colors.white,
-        title: const Text('Collection Details', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        title: const Text('Collection Details',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         actions: [
-          if (col != null) Padding(padding: const EdgeInsets.only(right: 16), child: StatusBadge(status: col.status, small: false)),
+          if (col != null)
+            Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: StatusBadge(status: col.status, small: false)),
         ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.gold,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white60,
-          tabs: const [Tab(text: 'Details'), Tab(text: 'Collect'), Tab(text: 'Upload Proof')],
+          tabs: const [
+            Tab(text: 'Details'),
+            Tab(text: 'Collect'),
+            Tab(text: 'Upload Proof')
+          ],
         ),
       ),
       body: state.isLoading
@@ -157,29 +187,43 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
         children: [
           Card(
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.border)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: AppColors.border)),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Collection Summary', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  const Text('Collection Summary',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [AppColors.riderGreen, AppColors.riderGreenDark]),
+                      gradient: const LinearGradient(colors: [
+                        AppColors.riderGreen,
+                        AppColors.riderGreenDark
+                      ]),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.payments_outlined, color: Colors.white, size: 28),
+                        const Icon(Icons.payments_outlined,
+                            color: Colors.white, size: 28),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Amount Due', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                            Text(amountDue.toCurrency, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+                            const Text('Amount Due',
+                                style: TextStyle(
+                                    color: Colors.white70, fontSize: 12)),
+                            Text(amountDue.toCurrency,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800)),
                           ],
                         ),
                       ],
@@ -187,10 +231,14 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
                   ),
                   const SizedBox(height: 16),
                   _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
-                  _InfoTile('Period', 'Period ${schedule?['period_number'] ?? ''}'),
+                  _InfoTile(
+                      'Period', 'Period ${schedule?['period_number'] ?? ''}'),
                   _InfoTile('Status', col.status),
                   if (col.collectionSchedule != null)
-                    _InfoTile('Scheduled At', DateFormat('MMM d, yyyy h:mm a').format(col.collectionSchedule!)),
+                    _InfoTile(
+                        'Scheduled At',
+                        DateFormat('MMM d, yyyy h:mm a')
+                            .format(col.collectionSchedule!)),
                   if (col.notes != null && col.notes!.isNotEmpty)
                     _InfoTile('Notes', col.notes!),
                 ],
@@ -200,19 +248,30 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
           const SizedBox(height: 12),
           Card(
             elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.border)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: AppColors.border)),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Borrower Information', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  const Text('Borrower Information',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 14),
-                  _InfoTile('Name', col.loanSchedule?['loans']?['lender']?['first_name'] != null
-                      ? '${col.loanSchedule!['loans']['lender']['first_name']} ${col.loanSchedule!['loans']['lender']['last_name']}'
-                      : 'N/A'),
-                  _InfoTile('Loan #', col.loanSchedule?['loans']?['loan_number'] ?? 'N/A'),
-                  _InfoTile('Phone', col.loanSchedule?['loans']?['lender']?['phone_number'] ?? 'N/A'),
+                  _InfoTile(
+                      'Name',
+                      col.loanSchedule?['loans']?['lender']?['first_name'] !=
+                              null
+                          ? '${col.loanSchedule!['loans']['lender']['first_name']} ${col.loanSchedule!['loans']['lender']['last_name']}'
+                          : 'N/A'),
+                  _InfoTile('Loan #',
+                      col.loanSchedule?['loans']?['loan_number'] ?? 'N/A'),
+                  _InfoTile(
+                      'Phone',
+                      col.loanSchedule?['loans']?['lender']?['phone_number'] ??
+                          'N/A'),
                 ],
               ),
             ),
@@ -224,10 +283,15 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () async {
-                      final ok = await ref.read(riderCollectionProvider.notifier).decline(widget.collectionId);
+                      final ok = await ref
+                          .read(riderCollectionProvider.notifier)
+                          .decline(widget.collectionId);
                       if (mounted && ok) context.pop();
                     },
-                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.error, side: const BorderSide(color: AppColors.error), minimumSize: const Size(0, 48)),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        minimumSize: const Size(0, 48)),
                     child: const Text('Decline'),
                   ),
                 ),
@@ -235,11 +299,16 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () async {
-                      await ref.read(riderCollectionProvider.notifier).accept(widget.collectionId);
+                      await ref
+                          .read(riderCollectionProvider.notifier)
+                          .accept(widget.collectionId);
                       if (mounted) setState(() {});
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.riderGreen, minimumSize: const Size(0, 48)),
-                    child: const Text('Accept', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.riderGreen,
+                        minimumSize: const Size(0, 48)),
+                    child: const Text('Accept',
+                        style: TextStyle(color: Colors.white)),
                   ),
                 ),
               ],
@@ -247,7 +316,11 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
           ],
           if (col.status == 'accepted') ...[
             const SizedBox(height: 16),
-            AppButton(label: 'Navigate to Borrower', onPressed: () {}, icon: Icons.map_outlined, color: AppColors.info),
+            AppButton(
+                label: 'Navigate to Borrower',
+                onPressed: () {},
+                icon: Icons.map_outlined,
+                color: AppColors.info),
           ],
         ],
       ),
@@ -264,7 +337,10 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
             children: [
               Icon(Icons.lock_outline, size: 48, color: AppColors.textTertiary),
               SizedBox(height: 12),
-              Text('You must accept the assignment before recording a collection.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary)),
+              Text(
+                  'You must accept the assignment before recording a collection.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary)),
             ],
           ),
         ),
@@ -279,19 +355,34 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
         children: [
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.riderGreen.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.2))),
+            decoration: BoxDecoration(
+                color: AppColors.riderGreen.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: AppColors.riderGreen.withValues(alpha: 0.2))),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: AppColors.riderGreen, size: 20),
+                const Icon(Icons.info_outline,
+                    color: AppColors.riderGreen, size: 20),
                 const SizedBox(width: 10),
-                Expanded(child: Text('Expected amount: ${amountDue.toCurrency}', style: const TextStyle(fontSize: 14, color: AppColors.riderGreen, fontWeight: FontWeight.w600))),
+                Expanded(
+                    child: Text('Expected amount: ${amountDue.toCurrency}',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.riderGreen,
+                            fontWeight: FontWeight.w600))),
               ],
             ),
           ),
           const SizedBox(height: 20),
-          AppTextField(controller: _amountCtrl, label: 'Amount Collected (₱)', keyboardType: TextInputType.number, prefixIcon: Icons.payments_outlined),
+          AppTextField(
+              controller: _amountCtrl,
+              label: 'Amount Collected (₱)',
+              keyboardType: TextInputType.number,
+              prefixIcon: Icons.payments_outlined),
           const SizedBox(height: 14),
-          AppTextField(controller: _notesCtrl, label: 'Notes (optional)', maxLines: 3),
+          AppTextField(
+              controller: _notesCtrl, label: 'Notes (optional)', maxLines: 3),
           const SizedBox(height: 20),
           AppButton(
             label: _isSubmitting ? 'Recording...' : 'Record Collection',
@@ -309,9 +400,12 @@ class _RiderCollectionDetailsScreenState extends ConsumerState<RiderCollectionDe
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Upload Proof', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const Text('Upload Proof',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          const Text('Upload payment proof and scene photo to complete the collection.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const Text(
+              'Upload payment proof and scene photo to complete the collection.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 20),
           _PhotoPicker(
             label: 'Payment Proof *',
@@ -347,7 +441,11 @@ class _PhotoPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
         const SizedBox(height: 8),
         InkWell(
           onTap: onPick,
@@ -363,9 +461,12 @@ class _PhotoPicker extends StatelessWidget {
                 ? const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.camera_alt_outlined, size: 36, color: AppColors.textTertiary),
+                      Icon(Icons.camera_alt_outlined,
+                          size: 36, color: AppColors.textTertiary),
                       SizedBox(height: 8),
-                      Text('Tap to take photo', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      Text('Tap to take photo',
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textSecondary)),
                     ],
                   )
                 : ClipRRect(
@@ -391,8 +492,17 @@ class _InfoTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 110, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+          SizedBox(
+              width: 110,
+              child: Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary))),
+          Expanded(
+              child: Text(value,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary))),
         ],
       ),
     );

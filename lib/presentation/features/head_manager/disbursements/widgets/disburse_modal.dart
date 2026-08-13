@@ -53,7 +53,8 @@ class _DisburseModalState extends State<DisburseModal>
       default:
         initialIndex = 0;
     }
-    _tabCtrl = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tabCtrl =
+        TabController(length: 3, vsync: this, initialIndex: initialIndex);
   }
 
   @override
@@ -144,7 +145,8 @@ class _DisburseModalState extends State<DisburseModal>
             decoration: InputDecoration(
               labelText: 'GCash Number',
               prefixIcon: const Icon(Icons.phone_android, size: 18),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
@@ -196,8 +198,8 @@ class _DisburseModalState extends State<DisburseModal>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Documents the lender must bring:',
-                    style: TextStyle(
-                        fontSize: 11, fontWeight: FontWeight.w600)),
+                    style:
+                        TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                 SizedBox(height: 4),
                 Text('• Valid government-issued ID (original)',
                     style: TextStyle(fontSize: 11, height: 1.4)),
@@ -213,7 +215,7 @@ class _DisburseModalState extends State<DisburseModal>
     );
   }
 
-Widget _buildRiderTab() {
+  Widget _buildRiderTab() {
     final address = widget.lenderAddress;
     return SingleChildScrollView(
       child: Column(
@@ -248,15 +250,16 @@ Widget _buildRiderTab() {
             initialValue: _selectedRiderId,
             decoration: InputDecoration(
               labelText: 'Select Rider',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             items: widget.availableRiders.map((r) {
               return DropdownMenuItem(
                   value: r['id'] as String,
-                  child: Text(
-                      '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}'.trim()));
+                  child: Text('${r['first_name'] ?? ''} ${r['last_name'] ?? ''}'
+                      .trim()));
             }).toList(),
             onChanged: (v) => setState(() => _selectedRiderId = v),
           ),
@@ -296,8 +299,7 @@ Widget _buildRiderTab() {
           setState(() => _loading = false);
           return;
         }
-        await widget
-            .onDisburse('gcash', {'gcash_number': gcash});
+        await widget.onDisburse('gcash', {'gcash_number': gcash});
       } else if (tab == 1) {
         await widget.onDisburse('office_cash', {});
       } else {

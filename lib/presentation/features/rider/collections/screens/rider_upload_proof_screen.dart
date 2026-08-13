@@ -225,7 +225,8 @@ class _RiderUploadProofScreenState
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: XFilePreview(file: photo, height: 180, width: double.infinity),
+                  child: XFilePreview(
+                      file: photo, height: 180, width: double.infinity),
                 ),
                 Positioned(
                   top: 8,

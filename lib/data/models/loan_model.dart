@@ -56,9 +56,8 @@ class LoanModel extends LoanEntity {
       releaseDate: json['release_date'] != null
           ? DateTime.parse(json['release_date'])
           : null,
-      dueDate: json['due_date'] != null
-          ? DateTime.parse(json['due_date'])
-          : null,
+      dueDate:
+          json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
       status: json['status'] ?? 'pending',
       rejectionReason: json['rejection_reason'],
       penaltyApplied: json['penalty_applied'] ?? false,
@@ -73,8 +72,8 @@ class LoanModel extends LoanEntity {
           ? DateTime.parse(json['updated_at'])
           : DateTime.now(),
       lenderProfile: json['lender_profile'],
-      schedules: (json['loan_schedules'] as List?)
-          ?.cast<Map<String, dynamic>>(),
+      schedules:
+          (json['loan_schedules'] as List?)?.cast<Map<String, dynamic>>(),
       payments: (json['payments'] as List?)?.cast<Map<String, dynamic>>(),
       assignedRiderName: json['assigned_rider_name'],
       ciStatus: json['ci_status'],

@@ -130,8 +130,8 @@ class _EmpCiAssignModalState extends ConsumerState<EmpCiAssignModal> {
                   decoration: BoxDecoration(
                     color: AppColors.warningLight,
                     borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: AppColors.warning.withValues(alpha: 0.3)),
                   ),
                   child: const Row(
                     children: [

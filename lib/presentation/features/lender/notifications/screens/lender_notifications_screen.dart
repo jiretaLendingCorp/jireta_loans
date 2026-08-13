@@ -48,7 +48,7 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
 
     return MobileScaffold(
       title: 'Notifications',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       appBarActions: [
         if (state.notifications.any((n) => !n.isRead))
@@ -69,7 +69,7 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
                       'Loan updates, payment reminders, and alerts will appear here.',
                 )
               : RefreshIndicator(
-                  color: AppColors.lenderPurple,
+                  color: AppColors.lenderBlue,
                   onRefresh: () =>
                       ref.read(lenderNotificationProvider.notifier).load(),
                   child: ListView.separated(
@@ -131,7 +131,7 @@ class _NotifTile extends StatelessWidget {
       case 'disbursement':
         return AppColors.riderGreen;
       default:
-        return AppColors.lenderPurple;
+        return AppColors.lenderBlue;
     }
   }
 
@@ -149,7 +149,7 @@ class _NotifTile extends StatelessWidget {
       child: Container(
         color: isRead
             ? Colors.transparent
-            : AppColors.lenderPurple.withValues(alpha: 0.04),
+            : AppColors.lenderBlue.withValues(alpha: 0.04),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,7 +173,7 @@ class _NotifTile extends StatelessWidget {
                       width: 10,
                       height: 10,
                       decoration: BoxDecoration(
-                        color: AppColors.lenderPurple,
+                        color: AppColors.lenderBlue,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 1.5),
                       ),
@@ -211,7 +211,7 @@ class _NotifTile extends StatelessWidget {
                           fontSize: 11,
                           color: isRead
                               ? AppColors.textTertiary
-                              : AppColors.lenderPurple),
+                              : AppColors.lenderBlue),
                     ),
                   ],
                 ],

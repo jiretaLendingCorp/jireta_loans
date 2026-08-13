@@ -294,8 +294,8 @@ class _SendNotifDialogState extends State<_SendNotifDialog> {
             _field('Message', _bodyCtrl,
                 hint: 'Notification body', maxLines: 3),
             const SizedBox(height: 12),
-  DropdownButtonFormField<String>(
-    initialValue: _type,
+            DropdownButtonFormField<String>(
+              initialValue: _type,
               decoration: InputDecoration(
                 labelText: 'Type',
                 border:

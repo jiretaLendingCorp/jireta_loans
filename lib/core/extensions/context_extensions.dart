@@ -16,9 +16,8 @@ extension ContextExtensions on BuildContext {
     ScaffoldMessenger.of(this).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError
-            ? Theme.of(this).colorScheme.error
-            : Colors.green.shade700,
+        backgroundColor:
+            isError ? Theme.of(this).colorScheme.error : Colors.green.shade700,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

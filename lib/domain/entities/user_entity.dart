@@ -31,11 +31,11 @@ class UserEntity {
   });
 
   String get fullName => [
-    firstName,
-    middleName,
-    lastName,
-    suffix,
-  ].where((p) => p != null && p.isNotEmpty).join(' ');
+        firstName,
+        middleName,
+        lastName,
+        suffix,
+      ].where((p) => p != null && p.isNotEmpty).join(' ');
 
   bool get isActive => accountStatus == 'active';
   bool get isArchived => accountStatus == 'archived';

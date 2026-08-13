@@ -44,7 +44,9 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    ref.read(hmActiveLoanProvider.notifier).setTab(_tabs[_tabController.index].$1);
+    ref
+        .read(hmActiveLoanProvider.notifier)
+        .setTab(_tabs[_tabController.index].$1);
   }
 
   @override
@@ -102,7 +104,8 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
-          onChanged: (v) => ref.read(hmActiveLoanProvider.notifier).setSearch(v),
+          onChanged: (v) =>
+              ref.read(hmActiveLoanProvider.notifier).setSearch(v),
         ),
       );
 
@@ -120,7 +123,10 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
           children: [
             _buildHeader(),
             const Divider(height: 1),
-            ...loans.asMap().entries.map((e) => _buildRow(e.value, e.key.isEven, fmt)),
+            ...loans
+                .asMap()
+                .entries
+                .map((e) => _buildRow(e.value, e.key.isEven, fmt)),
           ],
         ),
       ),
@@ -128,7 +134,10 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
   }
 
   Widget _buildHeader() {
-    const s = TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary);
+    const s = TextStyle(
+        fontWeight: FontWeight.w600,
+        fontSize: 12,
+        color: AppColors.textSecondary);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: AppColors.surfaceVariant,
@@ -149,41 +158,78 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
   Widget _buildRow(LoanModel loan, bool isEven, NumberFormat fmt) {
     final color = _statusColor(loan.status);
     return InkWell(
-      onTap: () => context.go(RouteConstants.hmLoanDetails.replaceFirst(':id', loan.id)),
+      onTap: () =>
+          context.go(RouteConstants.hmLoanDetails.replaceFirst(':id', loan.id)),
       child: Container(
-        color: isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
+        color: isEven
+            ? Colors.white
+            : AppColors.surfaceVariant.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Expanded(flex: 2, child: Text(loan.loanNumber, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-            Expanded(flex: 3, child: Text(loan.lenderName ?? '-', style: const TextStyle(fontSize: 13))),
-            Expanded(flex: 2, child: Text('₱${fmt.format(loan.principalAmount)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+            Expanded(
+                flex: 2,
+                child: Text(loan.loanNumber,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13))),
+            Expanded(
+                flex: 3,
+                child: Text(loan.lenderName ?? '-',
+                    style: const TextStyle(fontSize: 13))),
+            Expanded(
+                flex: 2,
+                child: Text('₱${fmt.format(loan.principalAmount)}',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w500))),
             Expanded(
               flex: 2,
               child: Text(
                 '₱${fmt.format(loan.outstandingBalance)}',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: loan.status == 'overdue' ? AppColors.error : AppColors.textPrimary),
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: loan.status == 'overdue'
+                        ? AppColors.error
+                        : AppColors.textPrimary),
               ),
             ),
             Expanded(
               flex: 2,
               child: Text(
-                loan.dueDate != null ? DateFormat('MMM dd, yyyy').format(loan.dueDate!) : '-',
-                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                loan.dueDate != null
+                    ? DateFormat('MMM dd, yyyy').format(loan.dueDate!)
+                    : '-',
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary),
               ),
             ),
             Expanded(
               flex: 2,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4)),
                 child: Text(
-                  loan.status.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' '),
-                  style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500),
+                  loan.status
+                      .replaceAll('_', ' ')
+                      .split(' ')
+                      .map((w) => w.isEmpty
+                          ? w
+                          : '${w[0].toUpperCase()}${w.substring(1)}')
+                      .join(' '),
+                  style: TextStyle(
+                      fontSize: 12, color: color, fontWeight: FontWeight.w500),
                 ),
               ),
             ),
-            Expanded(flex: 1, child: IconButton(onPressed: () => context.go(RouteConstants.hmLoanDetails.replaceFirst(':id', loan.id)), icon: const Icon(Icons.chevron_right, size: 20, color: AppColors.textSecondary))),
+            Expanded(
+                flex: 1,
+                child: IconButton(
+                    onPressed: () => context.go(RouteConstants.hmLoanDetails
+                        .replaceFirst(':id', loan.id)),
+                    icon: const Icon(Icons.chevron_right,
+                        size: 20, color: AppColors.textSecondary))),
           ],
         ),
       ),
@@ -194,9 +240,11 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.account_balance_wallet_outlined, size: 64, color: AppColors.textTertiary),
+            Icon(Icons.account_balance_wallet_outlined,
+                size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
-            Text('No loans found', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+            Text('No loans found',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
           ],
         ),
       );
@@ -208,12 +256,21 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
-              onPressed: state.currentPage > 1 ? () => ref.read(hmActiveLoanProvider.notifier).fetchLoans(page: state.currentPage - 1) : null,
+              onPressed: state.currentPage > 1
+                  ? () => ref
+                      .read(hmActiveLoanProvider.notifier)
+                      .fetchLoans(page: state.currentPage - 1)
+                  : null,
               icon: const Icon(Icons.chevron_left),
             ),
-            Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 14)),
+            Text('Page ${state.currentPage} of ${state.totalPages}',
+                style: const TextStyle(fontSize: 14)),
             IconButton(
-              onPressed: state.currentPage < state.totalPages ? () => ref.read(hmActiveLoanProvider.notifier).fetchLoans(page: state.currentPage + 1) : null,
+              onPressed: state.currentPage < state.totalPages
+                  ? () => ref
+                      .read(hmActiveLoanProvider.notifier)
+                      .fetchLoans(page: state.currentPage + 1)
+                  : null,
               icon: const Icon(Icons.chevron_right),
             ),
           ],
@@ -222,10 +279,14 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'active': return AppColors.statusActive;
-      case 'completed': return AppColors.statusCompleted;
-      case 'overdue': return AppColors.statusOverdue;
-      default: return AppColors.textTertiary;
+      case 'active':
+        return AppColors.statusActive;
+      case 'completed':
+        return AppColors.statusCompleted;
+      case 'overdue':
+        return AppColors.statusOverdue;
+      default:
+        return AppColors.textTertiary;
     }
   }
 }

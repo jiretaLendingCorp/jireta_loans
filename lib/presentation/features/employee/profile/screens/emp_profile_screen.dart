@@ -69,9 +69,14 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildProfileCard(user?.firstName ?? '', user?.lastName ?? '',
-                user?.email ?? '', user?.role ?? '', user?.profilePhotoUrl,
-                user?.department, user?.position),
+            _buildProfileCard(
+                user?.firstName ?? '',
+                user?.lastName ?? '',
+                user?.email ?? '',
+                user?.role ?? '',
+                user?.profilePhotoUrl,
+                user?.department,
+                user?.position),
             const SizedBox(height: 24),
             _buildChangePasswordCard(),
             const SizedBox(height: 24),
@@ -82,9 +87,8 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     );
   }
 
-  Widget _buildProfileCard(
-      String firstName, String lastName, String email, String role,
-      String? photoUrl, String? department, String? position) {
+  Widget _buildProfileCard(String firstName, String lastName, String email,
+      String role, String? photoUrl, String? department, String? position) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -377,8 +381,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
               await ref.read(authProvider.notifier).logout();
               if (mounted) context.go(RouteConstants.webLogin);
             },
-            child:
-                const Text('Log Out', style: TextStyle(color: Colors.white)),
+            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

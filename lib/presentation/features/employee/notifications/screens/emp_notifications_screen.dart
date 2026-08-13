@@ -145,7 +145,7 @@ class _EmpNotificationsScreenState
       case 'payment':
         return AppColors.riderGreen;
       case 'account_upgrade':
-        return AppColors.lenderPurple;
+        return AppColors.lenderBlue;
       case 'collection':
         return AppColors.warning;
       default:

@@ -168,8 +168,10 @@ class _HmLoanApplicationDetailsScreenState
                 '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
                     .trim()),
             _row('Phone', _maskPhone(lender['phone_number'] as String? ?? '')),
-            _row('Account Upgrade Status',
-                _capitalize(profile['account_upgrade_status'] as String? ?? 'Unknown')),
+            _row(
+                'Account Upgrade Status',
+                _capitalize(
+                    profile['account_upgrade_status'] as String? ?? 'Unknown')),
             _row('Employment',
                 _capitalize(profile['employment_type'] as String? ?? '-')),
             _row(
@@ -205,8 +207,7 @@ class _HmLoanApplicationDetailsScreenState
             const Text('Co-Maker',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const Divider(height: 20),
-            _row(
-                'Name',
+            _row('Name',
                 '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim()),
             _row('Relationship', cm['relationship'] as String? ?? '-'),
             _row('Phone', _maskPhone(cm['phone_number'] as String? ?? '')),
@@ -344,7 +345,8 @@ class _HmLoanApplicationDetailsScreenState
 
   Widget _buildActionButtons(Map<String, dynamic> loan, String status) {
     final canApprove = status == 'ci_completed';
-    final canAssignCi = ['pending', 'under_review', 'ci_required'].contains(status);
+    final canAssignCi =
+        ['pending', 'under_review', 'ci_required'].contains(status);
     final canRequestCi = status == 'under_review';
     final canReject = [
       'pending',
@@ -582,7 +584,7 @@ class _HmLoanApplicationDetailsScreenState
         c = AppColors.statusRejected;
         break;
       case 'ci_completed':
-        c = AppColors.lenderPurple;
+        c = AppColors.lenderBlue;
         break;
       default:
         c = AppColors.info;
@@ -590,7 +592,8 @@ class _HmLoanApplicationDetailsScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-          color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)),
+          color: c.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20)),
       child: Text(
         status.replaceAll('_', ' ').toUpperCase(),
         style: TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.bold),

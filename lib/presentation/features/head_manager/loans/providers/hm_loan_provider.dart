@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/loans/providers/hm_loan_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
@@ -91,7 +92,8 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
       );
     } catch (e) {
       if (seq != _requestSeq) return;
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -106,8 +108,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
   }
 
   void setTab(String tab) {
-    state = state.copyWith(
-        tabFilter: tab, statusFilter: _apiStatus(tab));
+    state = state.copyWith(tabFilter: tab, statusFilter: _apiStatus(tab));
     fetchLoans();
   }
 

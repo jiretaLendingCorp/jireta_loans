@@ -96,8 +96,8 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                       const SizedBox(height: 14),
                       _field('Phone Number', _phoneCtrl),
                       const SizedBox(height: 14),
-  DropdownButtonFormField<String>(
-    initialValue: _vehicleType,
+                      DropdownButtonFormField<String>(
+                        initialValue: _vehicleType,
                         decoration:
                             const InputDecoration(labelText: 'Vehicle Type'),
                         items: ['motorcycle', 'tricycle', 'car']

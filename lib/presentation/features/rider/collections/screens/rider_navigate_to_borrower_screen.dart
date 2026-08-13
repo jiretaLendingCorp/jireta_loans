@@ -178,7 +178,8 @@ class _RiderNavigateToBorrowerScreenState
           decoration: BoxDecoration(
             color: AppColors.riderGreen.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.2)),
+            border:
+                Border.all(color: AppColors.riderGreen.withValues(alpha: 0.2)),
           ),
           child: const Row(
             children: [

@@ -14,7 +14,8 @@ class LegalInfoSheet extends StatelessWidget {
   final String title;
   final List<LegalSection> sections;
 
-  const LegalInfoSheet({super.key, required this.title, required this.sections});
+  const LegalInfoSheet(
+      {super.key, required this.title, required this.sections});
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +32,7 @@ class LegalInfoSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             decoration: const BoxDecoration(
               color: AppColors.deepNavy,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
             child: Row(
               children: [

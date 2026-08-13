@@ -138,7 +138,9 @@ class _CiCardState extends State<_CiCard> {
           duration: const Duration(milliseconds: 120),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _hover ? AppColors.deepNavy.withValues(alpha: 0.02) : Colors.white,
+            color: _hover
+                ? AppColors.deepNavy.withValues(alpha: 0.02)
+                : Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: _hover
@@ -159,11 +161,11 @@ class _CiCardState extends State<_CiCard> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.search_outlined,
-                    color: AppColors.lenderPurple, size: 22),
+                    color: AppColors.lenderBlue, size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(

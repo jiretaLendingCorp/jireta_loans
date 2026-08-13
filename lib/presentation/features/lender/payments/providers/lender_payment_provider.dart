@@ -1,5 +1,6 @@
 // lib/presentation/features/lender/payments/providers/lender_payment_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../../data/models/payment_model.dart';
@@ -51,7 +52,8 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
       final payments = await _ds.getPaymentList(page: 1);
       state = state.copyWith(payments: payments, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -69,7 +71,8 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
       state = state.copyWith(isSubmitting: false, xenditUrl: url);
       return url;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return null;
     }
   }
@@ -105,6 +108,7 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
 }
 
 final lenderPaymentProvider =
-    AutoDisposeStateNotifierProvider<LenderPaymentNotifier, LenderPaymentState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderPaymentNotifier, LenderPaymentState>(
+        (ref) {
   return LenderPaymentNotifier(sl<PaymentRemoteDataSource>());
 });

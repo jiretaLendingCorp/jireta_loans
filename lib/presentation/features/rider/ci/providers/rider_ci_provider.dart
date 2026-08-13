@@ -1,6 +1,7 @@
 // lib/presentation/features/rider/ci/providers/rider_ci_provider.dart
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
@@ -49,7 +50,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
   final CiRemoteDataSource _ds;
 
   RiderCiNotifier(this._ds) : super(const RiderCiState()) {
-    bindRealtimeRefresh(['credit_investigations', 'ci_documents'], refresh: load);
+    bindRealtimeRefresh(['credit_investigations', 'ci_documents'],
+        refresh: load);
     load();
   }
 
@@ -62,7 +64,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       );
       state = state.copyWith(ciList: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -77,12 +80,11 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     try {
       final detail = await _ds.getCiDetails(ciId);
       state = state.copyWith(
-        selectedCi: detail == null
-            ? null
-            : CreditInvestigationModel.fromJson(detail),
+        selectedCi:
+            detail == null ? null : CreditInvestigationModel.fromJson(detail),
       );
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -94,7 +96,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -107,7 +110,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -123,7 +127,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -155,7 +160,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -181,7 +187,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }

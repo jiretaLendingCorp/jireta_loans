@@ -46,7 +46,7 @@ class LenderCollectionDetailsScreen extends ConsumerWidget {
 
     return MobileScaffold(
       title: 'Collection Details',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: async.when(
@@ -101,7 +101,7 @@ class LenderCollectionDetailsScreen extends ConsumerWidget {
                 icon: const Icon(Icons.location_on),
                 label: const Text('Track Rider Location'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.lenderPurple,
+                  backgroundColor: AppColors.lenderBlue,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),

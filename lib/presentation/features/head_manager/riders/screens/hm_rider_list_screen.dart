@@ -55,8 +55,8 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
             child: state.isLoading
                 ? _shimmer()
                 : state.riders.isEmpty
-                ? _empty()
-                : _table(state.riders),
+                    ? _empty()
+                    : _table(state.riders),
           ),
         ],
       ),
@@ -64,125 +64,127 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
   }
 
   Widget _buildFilters(HmRiderState state) => Container(
-    color: Colors.white,
-    padding: const EdgeInsets.all(16),
-    child: Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              hintText: 'Search riders...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.border),
+        color: Colors.white,
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search riders...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (v) =>
+                    ref.read(hmRiderProvider.notifier).setSearch(v),
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            onChanged: (v) => ref.read(hmRiderProvider.notifier).setSearch(v),
-          ),
-        ),
-        const SizedBox(width: 12),
-        DropdownButton<String>(
-          value: state.statusFilter,
-          items: const [
-            DropdownMenuItem(value: 'all', child: Text('All Status')),
-            DropdownMenuItem(value: 'active', child: Text('Active')),
+            const SizedBox(width: 12),
+            DropdownButton<String>(
+              value: state.statusFilter,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All Status')),
+                DropdownMenuItem(value: 'active', child: Text('Active')),
+              ],
+              onChanged: (v) =>
+                  ref.read(hmRiderProvider.notifier).setStatus(v!),
+            ),
           ],
-          onChanged: (v) => ref.read(hmRiderProvider.notifier).setStatus(v!),
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _table(List<UserModel> riders) => SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Card(
-      child: Column(
-        children: [
-          _header(),
-          const Divider(height: 1),
-          ...riders.asMap().entries.map((e) => _row(e.value, e.key.isEven)),
-        ],
-      ),
-    ),
-  );
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          child: Column(
+            children: [
+              _header(),
+              const Divider(height: 1),
+              ...riders.asMap().entries.map((e) => _row(e.value, e.key.isEven)),
+            ],
+          ),
+        ),
+      );
 
   Widget _header() => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    color: AppColors.surfaceVariant,
-    child: const Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: Text(
-            'Name',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.textSecondary,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: AppColors.surfaceVariant,
+        child: const Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(
+                'Name',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text(
-            'Phone',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.textSecondary,
+            Expanded(
+              flex: 2,
+              child: Text(
+                'Phone',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text(
-            'Vehicle',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.textSecondary,
+            Expanded(
+              flex: 2,
+              child: Text(
+                'Vehicle',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text(
-            'Plate',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.textSecondary,
+            Expanded(
+              flex: 2,
+              child: Text(
+                'Plate',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          flex: 1,
-          child: Text(
-            'Status',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.textSecondary,
+            Expanded(
+              flex: 1,
+              child: Text(
+                'Status',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text(
-            'Actions',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: AppColors.textSecondary,
+            Expanded(
+              flex: 2,
+              child: Text(
+                'Actions',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
-          ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _row(UserModel user, bool isEven) {
     final isActive = user.accountStatus == 'active';
@@ -235,9 +237,8 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isActive
-                      ? AppColors.successLight
-                      : AppColors.errorLight,
+                  color:
+                      isActive ? AppColors.successLight : AppColors.errorLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -299,23 +300,24 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
       );
 
   Widget _empty() => const Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.delivery_dining, size: 64, color: AppColors.textTertiary),
-        SizedBox(height: 16),
-        Text(
-          'No riders found',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.delivery_dining,
+                size: 64, color: AppColors.textTertiary),
+            SizedBox(height: 16),
+            Text(
+              'No riders found',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _shimmer() => ListView.separated(
-    padding: const EdgeInsets.all(16),
-    itemCount: 6,
-    separatorBuilder: (_, __) => const SizedBox(height: 8),
-    itemBuilder: (_, __) => const ShimmerLoader(height: 56),
-  );
+        padding: const EdgeInsets.all(16),
+        itemCount: 6,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, __) => const ShimmerLoader(height: 56),
+      );
 }

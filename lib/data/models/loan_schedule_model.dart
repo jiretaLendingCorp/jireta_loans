@@ -31,9 +31,8 @@ class LoanScheduleModel {
         amountDue: (json['amount_due'] as num?)?.toDouble() ?? 0,
         amountPaid: (json['amount_paid'] as num?)?.toDouble() ?? 0,
         status: json['status'] ?? 'pending',
-        paidAt: json['paid_at'] != null
-            ? DateTime.parse(json['paid_at'])
-            : null,
+        paidAt:
+            json['paid_at'] != null ? DateTime.parse(json['paid_at']) : null,
       );
 
   double get remainingAmount => amountDue - amountPaid;
@@ -94,10 +93,10 @@ class SchedulePeriod {
   });
 
   factory SchedulePeriod.fromJson(Map<String, dynamic> json) => SchedulePeriod(
-    periodNumber: (json['period_number'] as num?)?.toInt() ?? 0,
-    dueDate: json['due_date'] != null
-        ? DateTime.parse(json['due_date'])
-        : DateTime.now(),
-    amount: (json['amount'] as num?)?.toDouble() ?? 0,
-  );
+        periodNumber: (json['period_number'] as num?)?.toInt() ?? 0,
+        dueDate: json['due_date'] != null
+            ? DateTime.parse(json['due_date'])
+            : DateTime.now(),
+        amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      );
 }

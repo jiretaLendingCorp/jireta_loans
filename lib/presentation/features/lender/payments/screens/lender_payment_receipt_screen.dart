@@ -47,7 +47,7 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
 
     return MobileScaffold(
       title: 'Payment Receipt',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: async.when(
@@ -66,7 +66,7 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
               ElevatedButton(
                 onPressed: () => ref.invalidate(_receiptProvider(paymentId)),
                 style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.lenderPurple),
+                    backgroundColor: AppColors.lenderBlue),
                 child: const Text('Retry'),
               ),
             ],
@@ -104,7 +104,7 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
             AppButton(
               label: 'Download Receipt',
               icon: Icons.download_outlined,
-              backgroundColor: AppColors.lenderPurple,
+              backgroundColor: AppColors.lenderBlue,
               onPressed: () async {
                 final uri = Uri.parse(receiptUrl);
                 if (await canLaunchUrl(uri)) {
@@ -117,8 +117,8 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
               label: 'Share Receipt',
               icon: Icons.share_outlined,
               variant: AppButtonVariant.outlined,
-              outlineColor: AppColors.lenderPurple,
-              textColor: AppColors.lenderPurple,
+              outlineColor: AppColors.lenderBlue,
+              textColor: AppColors.lenderBlue,
               onPressed: () async {
                 final uri = Uri.parse(receiptUrl);
                 if (await canLaunchUrl(uri)) await launchUrl(uri);
@@ -130,7 +130,8 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: AppColors.warningLight,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
               ),
               child: const Row(
                 children: [
@@ -185,11 +186,10 @@ class _ReceiptCard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                  colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                  colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight),
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Column(
               children: [

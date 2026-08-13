@@ -55,7 +55,7 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
 
     return MobileScaffold(
       title: 'Payment Schedule',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       appBarActions: [
         IconButton(
@@ -75,7 +75,8 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                       children: [
                         Icon(Icons.account_balance_outlined,
                             size: 64,
-                            color: AppColors.textTertiary.withValues(alpha: 0.5)),
+                            color:
+                                AppColors.textTertiary.withValues(alpha: 0.5)),
                         const SizedBox(height: 16),
                         const Text('No active loan found',
                             style: TextStyle(
@@ -124,7 +125,7 @@ class _LoanSummaryHeader extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      color: AppColors.lenderPurple,
+      color: AppColors.lenderBlue,
       child: Column(
         children: [
           Row(
@@ -200,7 +201,7 @@ class _ScheduleTile extends ConsumerWidget {
                   ? AppColors.success.withValues(alpha: 0.1)
                   : isOverdue
                       ? AppColors.error.withValues(alpha: 0.1)
-                      : AppColors.lenderPurple.withValues(alpha: 0.08),
+                      : AppColors.lenderBlue.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -212,7 +213,7 @@ class _ScheduleTile extends ConsumerWidget {
                           ? AppColors.success
                           : isOverdue
                               ? AppColors.error
-                              : AppColors.lenderPurple)),
+                              : AppColors.lenderBlue)),
             ),
           ),
           const SizedBox(width: 12),
@@ -250,7 +251,7 @@ class _ScheduleTile extends ConsumerWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.lenderPurple,
+                      color: AppColors.lenderBlue,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Text('Pay',

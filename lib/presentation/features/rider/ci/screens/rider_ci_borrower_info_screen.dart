@@ -225,7 +225,8 @@ class _ProfileHeaderCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(phone.maskPhone(),
                   style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85), fontSize: 13)),
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 13)),
             ],
           ),
         ],
@@ -405,8 +406,8 @@ class _AddressesSection extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.riderGreen.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: AppColors.riderGreen.withValues(alpha: 0.2)),
+                border: Border.all(
+                    color: AppColors.riderGreen.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

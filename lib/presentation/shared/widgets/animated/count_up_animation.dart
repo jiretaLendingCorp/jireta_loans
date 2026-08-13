@@ -73,8 +73,8 @@ class _CountUpAnimationState extends State<CountUpAnimation>
   @override
   Widget build(BuildContext context) {
     final style = widget.compact
-        ? (widget.style ?? const TextStyle(fontSize: 14))
-            .copyWith(fontSize: widget.style?.fontSize != null
+        ? (widget.style ?? const TextStyle(fontSize: 14)).copyWith(
+            fontSize: widget.style?.fontSize != null
                 ? (widget.style!.fontSize! * 0.7).clamp(9, 14)
                 : 11)
         : widget.style;

@@ -1,5 +1,6 @@
 // lib/presentation/features/employee/riders/providers/emp_rider_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
@@ -63,7 +64,8 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
       );
       state = state.copyWith(riders: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -89,8 +91,8 @@ final empRiderProvider =
 );
 
 // Legacy provider for backward compat
-final empRiderListProvider = AutoDisposeStateNotifierProvider<EmpRiderLegacyNotifier,
-    AsyncValue<Map<String, dynamic>>>((ref) {
+final empRiderListProvider = AutoDisposeStateNotifierProvider<
+    EmpRiderLegacyNotifier, AsyncValue<Map<String, dynamic>>>((ref) {
   return EmpRiderLegacyNotifier(sl<UserRemoteDataSource>());
 });
 

@@ -168,7 +168,7 @@ class _LenderAccountUpgradeSubmitScreenState
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
           colorScheme: const ColorScheme.light(
-            primary: AppColors.lenderPurple,
+            primary: AppColors.lenderBlue,
             onPrimary: Colors.white,
           ),
         ),
@@ -209,7 +209,8 @@ class _LenderAccountUpgradeSubmitScreenState
       return;
     }
     if (!_isAdult(_dob!)) {
-      setState(() => _dobError = 'You must be at least 18 years old to submit account upgrade.');
+      setState(() => _dobError =
+          'You must be at least 18 years old to submit account upgrade.');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -310,7 +311,7 @@ class _LenderAccountUpgradeSubmitScreenState
 
     return MobileScaffold(
       title: 'Account Upgrade Verification',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _navItems,
       body: state.isLoading
           ? const ShimmerLoader()
@@ -372,7 +373,7 @@ class _LenderAccountUpgradeSubmitScreenState
                           ? 'Submitting...'
                           : 'Submit Account Upgrade Documents',
                       onPressed: _isSubmitting ? null : _submit,
-                      color: AppColors.lenderPurple,
+                      color: AppColors.lenderBlue,
                     ),
                   const SizedBox(height: 24),
                 ],
@@ -435,7 +436,8 @@ class _LenderAccountUpgradeSubmitScreenState
                   padding: const EdgeInsets.only(top: 6, left: 12),
                   child: Text(
                     _dobError!,
-                    style: const TextStyle(fontSize: 12, color: AppColors.error),
+                    style:
+                        const TextStyle(fontSize: 12, color: AppColors.error),
                   ),
                 ),
             ],
@@ -471,7 +473,8 @@ class _LenderAccountUpgradeSubmitScreenState
                 label: 'Employment Type *',
                 value: _employmentType,
                 items: _employmentOptions,
-                validator: (v) => v == null ? 'Employment type is required' : null,
+                validator: (v) =>
+                    v == null ? 'Employment type is required' : null,
                 onChanged: (v) => setState(() => _employmentType = v),
               ),
               const SizedBox(height: 12),
@@ -505,7 +508,8 @@ class _LenderAccountUpgradeSubmitScreenState
                 label: 'Source of Funds *',
                 value: _sourceOfFunds,
                 items: _sourceOfFundsOptions,
-                validator: (v) => v == null ? 'Source of funds is required' : null,
+                validator: (v) =>
+                    v == null ? 'Source of funds is required' : null,
                 onChanged: (v) => setState(() => _sourceOfFunds = v),
               ),
             ],
@@ -639,10 +643,10 @@ class _LenderAccountUpgradeSubmitScreenState
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, size: 18, color: AppColors.lenderPurple),
+                child: Icon(icon, size: 18, color: AppColors.lenderBlue),
               ),
               const SizedBox(width: 10),
               Text(
@@ -665,8 +669,7 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   String? Function(String?) _required(String label) {
-    return (v) =>
-        (v == null || v.trim().isEmpty) ? '$label is required' : null;
+    return (v) => (v == null || v.trim().isEmpty) ? '$label is required' : null;
   }
 
   Widget _buildDropdown({
@@ -692,8 +695,7 @@ class _LenderAccountUpgradeSubmitScreenState
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide:
-              const BorderSide(color: AppColors.lenderPurple, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.lenderBlue, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -786,8 +788,8 @@ class _LenderAccountUpgradeSubmitScreenState
         bgColor = AppColors.errorLight;
         textColor = AppColors.error;
         icon = Icons.cancel_outlined;
-        message =
-            state.rejectionNotes ?? 'Account upgrade rejected. Please resubmit.';
+        message = state.rejectionNotes ??
+            'Account upgrade rejected. Please resubmit.';
         break;
       default:
         bgColor = AppColors.infoLight;
@@ -837,12 +839,12 @@ class _DocUploadCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: hasFile
-              ? AppColors.lenderPurple.withValues(alpha: 0.04)
+              ? AppColors.lenderBlue.withValues(alpha: 0.04)
               : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
               color: hasFile
-                  ? AppColors.lenderPurple.withValues(alpha: 0.3)
+                  ? AppColors.lenderBlue.withValues(alpha: 0.3)
                   : AppColors.border),
         ),
         child: Row(
@@ -852,13 +854,13 @@ class _DocUploadCard extends StatelessWidget {
               height: 44,
               decoration: BoxDecoration(
                 color: hasFile
-                    ? AppColors.lenderPurple.withValues(alpha: 0.1)
+                    ? AppColors.lenderBlue.withValues(alpha: 0.1)
                     : AppColors.surfaceVariant,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon,
                   color:
-                      hasFile ? AppColors.lenderPurple : AppColors.textTertiary,
+                      hasFile ? AppColors.lenderBlue : AppColors.textTertiary,
                   size: 22),
             ),
             const SizedBox(width: 14),
@@ -877,7 +879,7 @@ class _DocUploadCard extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 12,
                         color: hasFile
-                            ? AppColors.lenderPurple
+                            ? AppColors.lenderBlue
                             : AppColors.textSecondary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

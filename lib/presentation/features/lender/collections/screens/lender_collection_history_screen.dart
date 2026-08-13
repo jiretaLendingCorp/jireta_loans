@@ -51,14 +51,14 @@ class _State extends ConsumerState<LenderCollectionHistoryScreen> {
 
     return MobileScaffold(
       title: 'Collection History',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       body: state.isLoading
           ? const ShimmerLoader()
           : state.hasError
               ? Center(child: Text('Failed to load: ${state.error}'))
               : RefreshIndicator(
-                  color: AppColors.lenderPurple,
+                  color: AppColors.lenderBlue,
                   onRefresh: () =>
                       ref.read(lenderCollectionProvider.notifier).loadList(),
                   child: _buildBody(state.value ?? {'items': [], 'total': 0}),
@@ -127,11 +127,11 @@ class _CollectionCard extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                      color: AppColors.lenderBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.delivery_dining,
-                        color: AppColors.lenderPurple, size: 22),
+                        color: AppColors.lenderBlue, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -195,8 +195,8 @@ class _CollectionCard extends StatelessWidget {
                     icon: const Icon(Icons.location_on_outlined, size: 16),
                     label: const Text('Track Rider'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.lenderPurple,
-                      side: const BorderSide(color: AppColors.lenderPurple),
+                      foregroundColor: AppColors.lenderBlue,
+                      side: const BorderSide(color: AppColors.lenderBlue),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),

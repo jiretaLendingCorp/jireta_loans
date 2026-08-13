@@ -80,7 +80,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
 
     return MobileScaffold(
       title: 'My Account',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _riderNavItems,
       body: state.isLoading
           ? const ShimmerLoader()
@@ -89,7 +89,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                 await ref.read(lenderDashboardProvider.notifier).load();
                 await ref.read(lenderLoanProvider.notifier).loadLoans();
               },
-              color: AppColors.lenderPurple,
+              color: AppColors.lenderBlue,
               child: FadeTransition(
                 opacity: _fadeCtrl,
                 child: SingleChildScrollView(
@@ -139,14 +139,14 @@ class _WelcomeBanner extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+          colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColors.lenderPurple.withValues(alpha: 0.3),
+            color: AppColors.lenderBlue.withValues(alpha: 0.3),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -193,17 +193,17 @@ class _ApprovedLoanBanner extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.lenderPurple.withValues(alpha: 0.08),
+            color: AppColors.lenderBlue.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-                color: AppColors.lenderPurple.withValues(alpha: 0.3)),
+            border:
+                Border.all(color: AppColors.lenderBlue.withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: const BoxDecoration(
-                  color: AppColors.lenderPurple,
+                  color: AppColors.lenderBlue,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.check_circle_outline,
@@ -231,8 +231,7 @@ class _ApprovedLoanBanner extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right,
-                  color: AppColors.lenderPurple),
+              const Icon(Icons.chevron_right, color: AppColors.lenderBlue),
             ],
           ),
         ),
@@ -252,7 +251,7 @@ class _QuickActions extends StatelessWidget {
       child: _ActionBtn(
         icon: Icons.add_circle_outline,
         label: 'Apply Loan',
-        color: AppColors.lenderPurple,
+        color: AppColors.lenderBlue,
         onTap: () => context.push(RouteConstants.lenderLoans),
       ),
     );
@@ -341,14 +340,14 @@ class _MyLoanCard extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+                colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.3),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.3),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -433,8 +432,7 @@ class _LoanHistorySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pastLoans =
-        loans.where((l) => l.id != activeLoanId).toList();
+    final pastLoans = loans.where((l) => l.id != activeLoanId).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,11 +450,11 @@ class _LoanHistorySection extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.lenderPurple,
+                      color: AppColors.lenderBlue,
                     ),
                   ),
                   Icon(Icons.chevron_right,
-                      size: 16, color: AppColors.lenderPurple),
+                      size: 16, color: AppColors.lenderBlue),
                 ],
               ),
             ),
@@ -490,8 +488,8 @@ class _LoanHistorySection extends StatelessWidget {
                 (loan) => _LoanHistoryTile(
                   loan: loan,
                   onTap: () => context.push(
-                    RouteConstants.lenderLoanDetails.replaceFirst(
-                        ':id', loan.id),
+                    RouteConstants.lenderLoanDetails
+                        .replaceFirst(':id', loan.id),
                   ),
                 ),
               ),
@@ -569,7 +567,7 @@ class _LoanHistoryTile extends StatelessWidget {
                           style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.lenderPurple),
+                              color: AppColors.lenderBlue),
                         ),
                       ],
                     ),
@@ -624,11 +622,11 @@ class _MyLoansOverview extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.lenderPurple.withValues(alpha: 0.12),
+                      color: AppColors.lenderBlue.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.receipt_long_outlined,
-                        color: AppColors.lenderPurple, size: 22),
+                        color: AppColors.lenderBlue, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -637,8 +635,7 @@ class _MyLoansOverview extends StatelessWidget {
                       children: [
                         const Text('Applications Submitted',
                             style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary)),
+                                fontSize: 12, color: AppColors.textSecondary)),
                         const SizedBox(height: 2),
                         Text(
                           '${kpi?.totalApplications ?? 0}',
@@ -683,7 +680,7 @@ class _MyLoansOverview extends StatelessWidget {
               Row(
                 children: [
                   const Icon(Icons.payments_outlined,
-                      color: AppColors.lenderPurple, size: 18),
+                      color: AppColors.lenderBlue, size: 18),
                   const SizedBox(width: 6),
                   const Text('Total Paid',
                       style: TextStyle(
@@ -718,7 +715,7 @@ class _MiniBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.lenderPurple.withValues(alpha: 0.1),
+        color: AppColors.lenderBlue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -726,7 +723,7 @@ class _MiniBadge extends StatelessWidget {
         style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: AppColors.lenderPurple),
+            color: AppColors.lenderBlue),
       ),
     );
   }
@@ -744,10 +741,8 @@ class _OverviewMetric extends StatelessWidget {
     return Column(children: [
       CountUpAnimation(
         value: value.toDouble(),
-        style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: color),
+        style:
+            TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
       ),
       const SizedBox(height: 2),
       Text(label,

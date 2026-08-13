@@ -49,7 +49,7 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
 
     return MobileScaffold(
       title: 'Application Status',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: state.isLoading
@@ -176,7 +176,9 @@ class _TimelineTile extends StatelessWidget {
               Container(
                   width: 2,
                   height: 44,
-                  color: step.done ? color.withValues(alpha: 0.3) : AppColors.border),
+                  color: step.done
+                      ? color.withValues(alpha: 0.3)
+                      : AppColors.border),
           ],
         ),
         const SizedBox(width: 12),
@@ -238,12 +240,12 @@ class _LoanSummaryCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                    color: AppColors.lenderBlue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20)),
                 child: Text(
                     (loan.status ?? '').replaceAll('_', ' ').toUpperCase(),
                     style: const TextStyle(
-                        color: AppColors.lenderPurple,
+                        color: AppColors.lenderBlue,
                         fontSize: 11,
                         fontWeight: FontWeight.w600)),
               ),
@@ -253,8 +255,8 @@ class _LoanSummaryCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _InfoCol('Amount',
-                  (loan.principalAmount as num?)?.toCurrency ?? '₱0'),
+              _InfoCol(
+                  'Amount', (loan.principalAmount as num?)?.toCurrency ?? '₱0'),
               _InfoCol('Total Payable',
                   (loan.totalPayable as num?)?.toCurrency ?? '₱0'),
               _InfoCol(

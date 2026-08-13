@@ -4,8 +4,8 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-final empNotificationProvider = AutoDisposeStateNotifierProvider<EmpNotificationNotifier,
-    AsyncValue<Map<String, dynamic>>>((ref) {
+final empNotificationProvider = AutoDisposeStateNotifierProvider<
+    EmpNotificationNotifier, AsyncValue<Map<String, dynamic>>>((ref) {
   return EmpNotificationNotifier(sl<NotificationRemoteDataSource>());
 });
 

@@ -52,7 +52,7 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
 
     return MobileScaffold(
       title: 'Payment History',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: state.isLoading
@@ -67,7 +67,7 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
                           'Your payment transactions will appear here once you start making payments.',
                     )
                   : RefreshIndicator(
-                      color: AppColors.lenderPurple,
+                      color: AppColors.lenderBlue,
                       onRefresh: () => ref
                           .read(lenderPaymentProvider.notifier)
                           .loadPaymentHistory(),
@@ -126,11 +126,10 @@ class _PaymentCard extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:
-                    Icon(methodIcon, color: AppColors.lenderPurple, size: 22),
+                child: Icon(methodIcon, color: AppColors.lenderBlue, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(

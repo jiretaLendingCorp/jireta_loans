@@ -175,8 +175,7 @@ class _HmDisbursementListScreenState
                 flex: 3,
                 child:
                     Text(d.lenderName, style: const TextStyle(fontSize: 13))),
-            Expanded(
-                flex: 2, child: _methodChip(d.disbursementMethod)),
+            Expanded(flex: 2, child: _methodChip(d.disbursementMethod)),
             Expanded(
                 flex: 2,
                 child: Text('₱${d.amount.toStringAsFixed(2)}',
@@ -185,8 +184,7 @@ class _HmDisbursementListScreenState
             Expanded(flex: 2, child: StatusBadge(status: d.status)),
             Expanded(
                 flex: 2,
-                child: Text(
-                    DateFormat('MMM d, y').format(d.createdAt),
+                child: Text(DateFormat('MMM d, y').format(d.createdAt),
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textSecondary))),
           ],
@@ -205,7 +203,7 @@ class _HmDisbursementListScreenState
     final color = switch (method) {
       'gcash' => AppColors.info,
       'office_cash' => AppColors.success,
-      'rider_delivery' => AppColors.lenderPurple,
+      'rider_delivery' => AppColors.lenderBlue,
       _ => AppColors.textSecondary,
     };
     return Container(

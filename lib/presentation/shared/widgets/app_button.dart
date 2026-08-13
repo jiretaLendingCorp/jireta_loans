@@ -70,9 +70,8 @@ class _AppButtonState extends State<AppButton>
   }
 
   Color get _bgColor {
-    final effectiveVariant = widget.isDanger
-        ? AppButtonVariant.danger
-        : widget.variant;
+    final effectiveVariant =
+        widget.isDanger ? AppButtonVariant.danger : widget.variant;
     if (widget.outlined || effectiveVariant == AppButtonVariant.outlined) {
       return Colors.transparent;
     }
@@ -99,9 +98,8 @@ class _AppButtonState extends State<AppButton>
     if (widget.outlined || widget.variant == AppButtonVariant.outlined) {
       return widget.outlineColor ?? widget.color ?? AppColors.deepNavy;
     }
-    final effectiveVariant = widget.isDanger
-        ? AppButtonVariant.danger
-        : widget.variant;
+    final effectiveVariant =
+        widget.isDanger ? AppButtonVariant.danger : widget.variant;
     switch (effectiveVariant) {
       case AppButtonVariant.primary:
         return Colors.white;
@@ -155,9 +153,7 @@ class _AppButtonState extends State<AppButton>
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: widget.isLoading
-                  ? null
-                  : widget.onPressed ?? widget.onTap,
+              onTap: widget.isLoading ? null : widget.onPressed ?? widget.onTap,
               borderRadius: BorderRadius.circular(widget.compact ? 8 : 10),
               child: Padding(
                 padding: EdgeInsets.symmetric(
@@ -182,7 +178,8 @@ class _AppButtonState extends State<AppButton>
                         children: [
                           if (widget.icon != null) ...[
                             Icon(widget.icon,
-                                size: widget.compact ? 15 : 18, color: _fgColor),
+                                size: widget.compact ? 15 : 18,
+                                color: _fgColor),
                             const SizedBox(width: 8),
                           ],
                           Text(

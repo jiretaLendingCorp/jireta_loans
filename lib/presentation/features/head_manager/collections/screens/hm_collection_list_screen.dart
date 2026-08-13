@@ -137,7 +137,9 @@ class _CollectionCardState extends State<_CollectionCard> {
           duration: const Duration(milliseconds: 120),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _hover ? AppColors.deepNavy.withValues(alpha: 0.02) : Colors.white,
+            color: _hover
+                ? AppColors.deepNavy.withValues(alpha: 0.02)
+                : Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
                 color: _hover

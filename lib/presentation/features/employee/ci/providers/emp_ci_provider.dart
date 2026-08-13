@@ -1,5 +1,6 @@
 // lib/presentation/features/employee/ci/providers/emp_ci_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
@@ -66,7 +67,8 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
   final UserRemoteDataSource _userDs;
 
   EmpCiNotifier(this._ds, this._userDs) : super(const EmpCiState()) {
-    bindRealtimeRefresh(['credit_investigations', 'ci_documents'], refresh: load);
+    bindRealtimeRefresh(['credit_investigations', 'ci_documents'],
+        refresh: load);
   }
 
   Future<void> load({String? status, String? riderId, int page = 1}) async {
@@ -80,7 +82,8 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
         total: list.length,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString(), items: []);
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message, items: []);
     }
   }
 
@@ -91,7 +94,9 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
       state = state.copyWith(isLoadingDetail: false, detail: detail);
     } catch (e) {
       state = state.copyWith(
-          isLoadingDetail: false, error: e.toString(), detail: null);
+          isLoadingDetail: false,
+          error: ErrorHandler.handle(e).message,
+          detail: null);
     }
   }
 
@@ -111,7 +116,7 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -131,6 +136,7 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
   }
 }
 
-final empCiProvider = AutoDisposeStateNotifierProvider<EmpCiNotifier, EmpCiState>((ref) {
+final empCiProvider =
+    AutoDisposeStateNotifierProvider<EmpCiNotifier, EmpCiState>((ref) {
   return EmpCiNotifier(sl<CiRemoteDataSource>(), sl<UserRemoteDataSource>());
 });

@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/profile/providers/hm_profile_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/datasources/remote/auth_remote_datasource.dart';
@@ -37,7 +38,8 @@ class HmProfileNotifier extends StateNotifier<HmProfileState>
       final user = await _userDs.getProfile();
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 

@@ -25,19 +25,19 @@ class AuditLogModel {
   });
 
   factory AuditLogModel.fromJson(Map<String, dynamic> json) => AuditLogModel(
-    id: json['id'] ?? '',
-    action: json['action'] ?? '',
-    performedBy: json['performed_by'],
-    tableName: json['table_name'],
-    recordId: json['record_id'],
-    oldValues: json['old_values'] as Map<String, dynamic>?,
-    newValues: json['new_values'] as Map<String, dynamic>?,
-    ipAddress: json['ip_address'],
-    createdAt: json['created_at'] != null
-        ? DateTime.parse(json['created_at'])
-        : DateTime.now(),
-    performedByUser: json['performed_by_user'] as Map<String, dynamic>?,
-  );
+        id: json['id'] ?? '',
+        action: json['action'] ?? '',
+        performedBy: json['performed_by'],
+        tableName: json['table_name'],
+        recordId: json['record_id'],
+        oldValues: json['old_values'] as Map<String, dynamic>?,
+        newValues: json['new_values'] as Map<String, dynamic>?,
+        ipAddress: json['ip_address'],
+        createdAt: json['created_at'] != null
+            ? DateTime.parse(json['created_at'])
+            : DateTime.now(),
+        performedByUser: json['performed_by_user'] as Map<String, dynamic>?,
+      );
 
   String get performedByName {
     if (performedByUser == null) return 'System';

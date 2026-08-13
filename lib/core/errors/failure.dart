@@ -11,7 +11,7 @@ class ServerFailure extends Failure {
 
 class NetworkFailure extends Failure {
   const NetworkFailure([super.message = 'Network connection error'])
-    : super(code: 'NETWORK_ERROR');
+      : super(code: 'NETWORK_ERROR');
 }
 
 class AuthFailure extends Failure {
@@ -19,8 +19,7 @@ class AuthFailure extends Failure {
 }
 
 class ValidationFailure extends Failure {
-  const ValidationFailure(super.message)
-    : super(code: 'VALIDATION_ERROR');
+  const ValidationFailure(super.message) : super(code: 'VALIDATION_ERROR');
 }
 
 class NotFoundFailure extends Failure {

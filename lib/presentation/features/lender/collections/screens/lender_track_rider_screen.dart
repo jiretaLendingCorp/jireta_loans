@@ -89,7 +89,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
   Widget build(BuildContext context) {
     return MobileScaffold(
       title: 'Track Rider',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       appBarActions: [
@@ -105,7 +105,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.lenderPurple.withValues(alpha: 0.1),
+              color: AppColors.lenderBlue.withValues(alpha: 0.1),
               child: Row(
                 children: [
                   Container(
@@ -129,8 +129,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(
-                            color: AppColors.lenderPurple),
+                        CircularProgressIndicator(color: AppColors.lenderBlue),
                         SizedBox(height: 16),
                         Text('Locating rider...',
                             style: TextStyle(color: AppColors.textSecondary)),
@@ -154,7 +153,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
                               icon: const Icon(Icons.refresh),
                               label: const Text('Retry'),
                               style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.lenderPurple),
+                                  backgroundColor: AppColors.lenderBlue),
                             ),
                           ],
                         ),
@@ -215,11 +214,11 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                      color: AppColors.lenderBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: const Icon(Icons.delivery_dining,
-                        color: AppColors.lenderPurple),
+                        color: AppColors.lenderBlue),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(

@@ -43,9 +43,8 @@ class CreditInvestigationModel {
         status: json['status'] ?? 'pending',
         investigationNotes: json['investigation_notes'],
         reportSummary: json['report_summary'],
-        deadline: json['deadline'] != null
-            ? DateTime.parse(json['deadline'])
-            : null,
+        deadline:
+            json['deadline'] != null ? DateTime.parse(json['deadline']) : null,
         responseAt: json['response_at'] != null
             ? DateTime.parse(json['response_at'])
             : null,
@@ -58,13 +57,11 @@ class CreditInvestigationModel {
         loan: json['loan'] as Map<String, dynamic>? ??
             (json['loans'] is Map
                 ? (json['loans'] as Map).cast<String, dynamic>()
-                : (json['loans'] is List &&
-                          (json['loans'] as List).isNotEmpty
-                      ? (json['loans'] as List).first
-                      : null) as Map<String, dynamic>?),
+                : (json['loans'] is List && (json['loans'] as List).isNotEmpty
+                    ? (json['loans'] as List).first
+                    : null) as Map<String, dynamic>?),
         rider: json['rider'] as Map<String, dynamic>?,
-        assignedByUser:
-            json['assigner'] as Map<String, dynamic>? ??
+        assignedByUser: json['assigner'] as Map<String, dynamic>? ??
             json['assigned_by_user'] as Map<String, dynamic>?,
         documents: (json['documents'] as List?)?.cast<Map<String, dynamic>>(),
       );
@@ -104,7 +101,9 @@ class CreditInvestigationModel {
   }
 
   String get borrowerPhone =>
-      (_borrower?['phone'] as String?) ?? (_borrower?['phone_number'] as String?) ?? '';
+      (_borrower?['phone'] as String?) ??
+      (_borrower?['phone_number'] as String?) ??
+      '';
 
   String get borrowerAddress {
     final a = loan?['lender_address'] ?? loan?['address'];

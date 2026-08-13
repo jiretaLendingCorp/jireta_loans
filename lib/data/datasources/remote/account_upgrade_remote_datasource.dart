@@ -28,8 +28,7 @@ class AccountUpgradeRemoteDataSource {
     );
     final list = (res.data['data'] as List?) ?? [];
     final total = (res.data['total'] as num?)?.toInt() ?? list.length;
-    final totalPages =
-        (res.data['totalPages'] as num?)?.toInt() ??
+    final totalPages = (res.data['totalPages'] as num?)?.toInt() ??
         (limit == 0 ? 1 : (total / limit).ceil());
     return {
       'data': list,

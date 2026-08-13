@@ -145,8 +145,7 @@ class _HmAccountUpgradeListScreenState
               ),
               const SizedBox(height: 16),
               const Text('Rejection Reason *',
-                  style:
-                      TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               const SizedBox(height: 8),
               TextField(
                 controller: notesCtrl,
@@ -179,7 +178,8 @@ class _HmAccountUpgradeListScreenState
               Navigator.of(context).pop(true);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error, foregroundColor: Colors.white),
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white),
             child: const Text('Reject'),
           ),
         ],
@@ -195,8 +195,8 @@ class _HmAccountUpgradeListScreenState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              ok ? 'Account upgrade documents rejected' : 'Action failed'),
+          content:
+              Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),
           backgroundColor: ok ? AppColors.success : AppColors.error,
         ),
       );
@@ -258,8 +258,9 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color:
-                _hovered ? AppColors.deepNavy.withValues(alpha: 0.03) : Colors.white,
+            color: _hovered
+                ? AppColors.deepNavy.withValues(alpha: 0.03)
+                : Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: _hovered
@@ -362,7 +363,8 @@ class _ActionButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 16, color: color),
       label: Text(label,
-          style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+          style: TextStyle(
+              fontSize: 12, color: color, fontWeight: FontWeight.w600)),
       style: TextButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         minimumSize: Size.zero,

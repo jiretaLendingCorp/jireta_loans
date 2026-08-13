@@ -172,8 +172,9 @@ class _HmLoanApplicationsListScreenState
         RouteConstants.hmLoanApplicationDetails.replaceFirst(':id', loan.id),
       ),
       child: Container(
-        color:
-            isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
+        color: isEven
+            ? Colors.white
+            : AppColors.surfaceVariant.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
@@ -267,7 +268,8 @@ class _HmLoanApplicationsListScreenState
 
   Widget _buildActions(LoanModel loan) {
     final status = loan.status;
-    final canAssignRider = ['pending', 'under_review', 'ci_required'].contains(status);
+    final canAssignRider =
+        ['pending', 'under_review', 'ci_required'].contains(status);
     final canApprove = [
       'pending',
       'under_review',
@@ -321,7 +323,8 @@ class _HmLoanApplicationsListScreenState
           icon: Icons.visibility_outlined,
           color: AppColors.textSecondary,
           onPressed: () => context.go(
-            RouteConstants.hmLoanApplicationDetails.replaceFirst(':id', loan.id),
+            RouteConstants.hmLoanApplicationDetails
+                .replaceFirst(':id', loan.id),
           ),
         ),
       ],
@@ -335,12 +338,14 @@ class _HmLoanApplicationsListScreenState
         loanId: loan.id,
         isApprove: true,
         onConfirm: (_, __) async {
-          final ok = await ref.read(hmLoanProvider.notifier).approveLoan(loan.id);
+          final ok =
+              await ref.read(hmLoanProvider.notifier).approveLoan(loan.id);
           if (!mounted) return;
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(ok ? 'Loan approved successfully' : 'Approval failed'),
+              content:
+                  Text(ok ? 'Loan approved successfully' : 'Approval failed'),
               backgroundColor: ok ? AppColors.success : AppColors.error,
             ),
           );
@@ -495,7 +500,7 @@ class _HmLoanApplicationsListScreenState
       case 'ci_assigned':
         return AppColors.gold;
       case 'ci_completed':
-        return AppColors.lenderPurple;
+        return AppColors.lenderBlue;
       case 'approved':
         return AppColors.statusActive;
       case 'active':

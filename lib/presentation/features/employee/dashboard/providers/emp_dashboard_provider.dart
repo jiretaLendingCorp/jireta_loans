@@ -1,5 +1,6 @@
 // lib/presentation/features/employee/dashboard/providers/emp_dashboard_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/models/kpi_employee_model.dart';
@@ -52,7 +53,8 @@ class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
       final kpi = await _ds.getEmployeeKpis();
       state = state.copyWith(kpi: kpi, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -60,6 +62,7 @@ class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
 }
 
 final empDashboardProvider =
-    AutoDisposeStateNotifierProvider<EmpDashboardNotifier, EmpDashboardState>((ref) {
+    AutoDisposeStateNotifierProvider<EmpDashboardNotifier, EmpDashboardState>(
+        (ref) {
   return EmpDashboardNotifier(sl<KpiRemoteDataSource>());
 });

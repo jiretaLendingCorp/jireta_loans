@@ -149,8 +149,8 @@ class _NavItemState extends State<_NavItem>
                     right: 0,
                     child: Container(
                       padding: const EdgeInsets.all(2),
-                      constraints: const BoxConstraints(
-                          minWidth: 16, minHeight: 16),
+                      constraints:
+                          const BoxConstraints(minWidth: 16, minHeight: 16),
                       decoration: const BoxDecoration(
                         color: AppColors.error,
                         shape: BoxShape.circle,

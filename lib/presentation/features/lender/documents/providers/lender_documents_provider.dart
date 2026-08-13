@@ -1,6 +1,7 @@
 // lib/presentation/features/lender/documents/providers/lender_documents_provider.dart
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/network/dio_client.dart';
 import '../../../../../core/network/api_endpoints.dart';
@@ -56,13 +57,14 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
       final res = await _client.get(ApiEndpoints.accountUpgradeGetStatus);
       final data = res.data as Map<String, dynamic>;
       final docs = (data['documents'] as List?)
-              ?.map((d) =>
-                  AccountUpgradeDocumentModel.fromJson(d as Map<String, dynamic>))
+              ?.map((d) => AccountUpgradeDocumentModel.fromJson(
+                  d as Map<String, dynamic>))
               .toList() ??
           [];
       state = state.copyWith(documents: docs, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -100,7 +102,8 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
       await loadDocuments();
       return true;
     } catch (e) {
-      state = state.copyWith(isUploading: false, error: e.toString());
+      state = state.copyWith(
+          isUploading: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -108,7 +111,7 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
   Future<void> refresh() => loadDocuments();
 }
 
-final lenderDocumentsProvider =
-    AutoDisposeStateNotifierProvider<LenderDocumentsNotifier, LenderDocumentsState>((ref) {
+final lenderDocumentsProvider = AutoDisposeStateNotifierProvider<
+    LenderDocumentsNotifier, LenderDocumentsState>((ref) {
   return LenderDocumentsNotifier(sl<DioClient>(), sl<SupabaseStorageService>());
 });

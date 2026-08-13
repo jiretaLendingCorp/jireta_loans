@@ -58,101 +58,103 @@ class HmRiderDetailsScreen extends ConsumerWidget {
   }
 
   Widget _profileCard(UserModel user) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.border),
-    ),
-    child: Row(
-      children: [
-        ProfileAvatar(
-          photoUrl: user.profilePhotoUrl,
-          name: user.firstName,
-          color: AppColors.riderGreen,
-          radius: 40,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
         ),
-        const SizedBox(width: 20),
-        Column(
+        child: Row(
+          children: [
+            ProfileAvatar(
+              photoUrl: user.profilePhotoUrl,
+              name: user.firstName,
+              color: AppColors.riderGreen,
+              radius: 40,
+            ),
+            const SizedBox(width: 20),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${user.firstName} ${user.lastName}',
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  user.phoneNumber ?? '—',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: user.accountStatus == 'active'
+                        ? AppColors.successLight
+                        : AppColors.errorLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    user.accountStatus.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: user.accountStatus == 'active'
+                          ? AppColors.success
+                          : AppColors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+  Widget _infoCard(UserModel user) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${user.firstName} ${user.lastName}',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            const Text(
+              'Rider Information',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
-            Text(
-              user.phoneNumber ?? '—',
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: user.accountStatus == 'active'
-                    ? AppColors.successLight
-                    : AppColors.errorLight,
-                borderRadius: BorderRadius.circular(12),
-              ),
+            const Divider(height: 24),
+            _row('Role', 'Rider'),
+            _row('Phone', user.phoneNumber ?? '—'),
+            _row('Account Status', user.accountStatus),
+            _row('Member Since', user.createdAt.toString().substring(0, 10)),
+          ],
+        ),
+      );
+
+  Widget _row(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 140,
               child: Text(
-                user.accountStatus.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: user.accountStatus == 'active'
-                      ? AppColors.success
-                      : AppColors.error,
-                ),
+                label,
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: const TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
           ],
         ),
-      ],
-    ),
-  );
-
-  Widget _infoCard(UserModel user) => Container(
-    padding: const EdgeInsets.all(24),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.border),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Rider Information',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        const Divider(height: 24),
-        _row('Role', 'Rider'),
-        _row('Phone', user.phoneNumber ?? '—'),
-        _row('Account Status', user.accountStatus),
-        _row('Member Since', user.createdAt.toString().substring(0, 10)),
-      ],
-    ),
-  );
-
-  Widget _row(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 140,
-          child: Text(
-            label,
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
-        ),
-      ],
-    ),
-  );
+      );
 
   Widget _actionsCard(BuildContext context, WidgetRef ref, UserModel user) {
     return Container(

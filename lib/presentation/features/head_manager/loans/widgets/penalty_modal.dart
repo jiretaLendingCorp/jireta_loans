@@ -122,7 +122,6 @@ class _PenaltyModalState extends ConsumerState<PenaltyModal> {
                 ],
               ),
               const SizedBox(height: 24),
-
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -160,20 +159,18 @@ class _PenaltyModalState extends ConsumerState<PenaltyModal> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 16),
-
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.amber.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info_outline,
-                        color: Colors.amber, size: 16),
+                    Icon(Icons.info_outline, color: Colors.amber, size: 16),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -185,15 +182,14 @@ class _PenaltyModalState extends ConsumerState<PenaltyModal> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 24),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed:
-                        _submitting ? null : () => Navigator.of(context).pop(false),
+                    onPressed: _submitting
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                     child: const Text(
                       'Cancel',
                       style: TextStyle(color: AppColors.textSecondary),

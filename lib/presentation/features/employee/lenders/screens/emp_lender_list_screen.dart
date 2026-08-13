@@ -40,7 +40,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
           icon: const Icon(Icons.person_add_outlined, size: 18),
           label: const Text('Register Lender'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.lenderPurple,
+            backgroundColor: AppColors.lenderBlue,
             foregroundColor: Colors.white,
           ),
         ),
@@ -129,7 +129,8 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
           Expanded(flex: 3, child: Text('Name', style: style)),
           Expanded(flex: 2, child: Text('Phone', style: style)),
           Expanded(flex: 2, child: Text('GCash Number', style: style)),
-          Expanded(flex: 2, child: Text('Account Upgrade Status', style: style)),
+          Expanded(
+              flex: 2, child: Text('Account Upgrade Status', style: style)),
           Expanded(flex: 1, child: Text('Status', style: style)),
           Expanded(flex: 2, child: Text('Actions', style: style)),
         ],
@@ -144,8 +145,9 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
         RouteConstants.empLenderDetails.replaceFirst(':id', user.id),
       ),
       child: Container(
-        color:
-            isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
+        color: isEven
+            ? Colors.white
+            : AppColors.surfaceVariant.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
@@ -156,7 +158,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
                   ProfileAvatar(
                     photoUrl: user.profilePhotoUrl,
                     name: user.firstName,
-                    color: AppColors.lenderPurple,
+                    color: AppColors.lenderBlue,
                     radius: 18,
                   ),
                   const SizedBox(width: 10),

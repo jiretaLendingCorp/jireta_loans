@@ -131,10 +131,7 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
             lender['middle_name'],
             lender['last_name'],
             lender['suffix'],
-          ]
-                .where((e) => e != null && e.toString().isNotEmpty)
-                .join(' ')
-                .trim()
+          ].where((e) => e != null && e.toString().isNotEmpty).join(' ').trim()
         : 'N/A';
     return _Card(
         title: 'Personal Information',
@@ -144,10 +141,10 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
             child: ProfileAvatar(
               photoUrl: lender?['profile_photo_url'] as String?,
               name: name == 'N/A' ? '' : name,
-              color: AppColors.lenderPurple,
+              color: AppColors.lenderBlue,
               radius: 32,
               fallback: const Icon(Icons.person_outline,
-                  size: 28, color: AppColors.lenderPurple),
+                  size: 28, color: AppColors.lenderBlue),
             ),
           ),
           const SizedBox(height: 12),
@@ -205,10 +202,13 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
 
   Widget _docsCard(List docs) {
     if (docs.isEmpty) {
-      return const _Card(title: 'Documents', icon: Icons.folder_outlined, children: [
-        Text('No documents submitted',
-            style: TextStyle(color: AppColors.textSecondary))
-      ]);
+      return const _Card(
+          title: 'Documents',
+          icon: Icons.folder_outlined,
+          children: [
+            Text('No documents submitted',
+                style: TextStyle(color: AppColors.textSecondary))
+          ]);
     }
     return _Card(
         title: 'Submitted Documents',
@@ -233,8 +233,7 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
                               color: AppColors.info.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4)),
                           child: Text(
-                              d['document_type'] ?? d['doc_type'] ??
-                                  'Document',
+                              d['document_type'] ?? d['doc_type'] ?? 'Document',
                               style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,

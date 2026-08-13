@@ -145,8 +145,8 @@ class _EmpRegisterLenderModalState
                       Row(
                         children: [
                           Expanded(
-        child: DropdownButtonFormField<String>(
-          initialValue: _gender,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _gender,
                               decoration:
                                   const InputDecoration(labelText: 'Gender'),
                               items: const [
@@ -160,8 +160,8 @@ class _EmpRegisterLenderModalState
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-        child: DropdownButtonFormField<String>(
-          initialValue: _civilStatus,
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _civilStatus,
                               decoration: const InputDecoration(
                                   labelText: 'Civil Status'),
                               items: const [
@@ -214,8 +214,8 @@ class _EmpRegisterLenderModalState
                       const SizedBox(height: 20),
                       _buildSectionLabel('Employment & Financial'),
                       const SizedBox(height: 12),
-  DropdownButtonFormField<String>(
-    initialValue: _employmentType,
+                      DropdownButtonFormField<String>(
+                        initialValue: _employmentType,
                         decoration:
                             const InputDecoration(labelText: 'Employment Type'),
                         items: const [
@@ -233,10 +233,10 @@ class _EmpRegisterLenderModalState
                         onChanged: (v) => setState(() => _employmentType = v!),
                       ),
                       const SizedBox(height: 12),
-  DropdownButtonFormField<String>(
-    initialValue: _sourceOfFunds,
-                        decoration: const InputDecoration(
-                            labelText: 'Source of Funds'),
+                      DropdownButtonFormField<String>(
+                        initialValue: _sourceOfFunds,
+                        decoration:
+                            const InputDecoration(labelText: 'Source of Funds'),
                         items: const [
                           DropdownMenuItem(
                               value: 'salary', child: Text('Salary')),
@@ -244,11 +244,9 @@ class _EmpRegisterLenderModalState
                               value: 'business_income',
                               child: Text('Business Income')),
                           DropdownMenuItem(
-                              value: 'remittance',
-                              child: Text('Remittance')),
+                              value: 'remittance', child: Text('Remittance')),
                           DropdownMenuItem(
-                              value: 'allowance',
-                              child: Text('Allowance')),
+                              value: 'allowance', child: Text('Allowance')),
                           DropdownMenuItem(
                               value: 'pension', child: Text('Pension')),
                           DropdownMenuItem(
@@ -320,7 +318,7 @@ class _EmpRegisterLenderModalState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
-        color: AppColors.lenderPurple,
+        color: AppColors.lenderBlue,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(16),
           topRight: Radius.circular(16),
@@ -397,7 +395,7 @@ class _EmpRegisterLenderModalState
           ElevatedButton(
             onPressed: _isLoading ? null : _submit,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.lenderPurple,
+              backgroundColor: AppColors.lenderBlue,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),

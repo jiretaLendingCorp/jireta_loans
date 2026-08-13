@@ -8,6 +8,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../shared/providers/connectivity_provider.dart';
+import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
 
 class WebLoginScreen extends ConsumerStatefulWidget {
@@ -104,20 +105,33 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
     return Scaffold(
       backgroundColor: AppColors.surfaceWhite,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  _buildBrand(),
-                  const SizedBox(height: 24),
-                  _buildForm(isLoading, isOnline),
-                ],
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      _buildBrand(),
+                      const SizedBox(height: 24),
+                      _buildForm(isLoading, isOnline),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+            if (!isOnline)
+              const Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(left: 24, right: 24, bottom: 24),
+                  child: OfflineToast(),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -132,10 +146,12 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            shape: BoxShape.circle,
             border: Border.all(color: AppColors.gold),
           ),
-          child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.contain),
+          child: ClipOval(
+            child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.cover),
+          ),
         ),
         const SizedBox(height: 14),
         const Text(

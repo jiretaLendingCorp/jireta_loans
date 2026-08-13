@@ -10,6 +10,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../shared/providers/connectivity_provider.dart';
+import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
 
 class MobileLoginScreen extends ConsumerStatefulWidget {
@@ -122,225 +123,199 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       child: Scaffold(
         backgroundColor: AppColors.deepNavy,
         body: SafeArea(
-          child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 32),
-                Container(
-                  width: 80,
-                  height: 80,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.gold, width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Image.asset(AssetConstants.logoJpg,
-                      fit: BoxFit.contain),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'JIRETA',
-                  style: TextStyle(
-                    fontFamily: 'PlayfairDisplay',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.gold,
-                    letterSpacing: 5,
-                  ),
-                ),
-                const Text(
-                  'LOANS & CREDIT CORP · 1966',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.white54,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 48),
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              FadeTransition(
+                opacity: _fadeAnim,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(28),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      const SizedBox(height: 32),
+                      Container(
+                        width: 80,
+                        height: 80,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.gold, width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 14,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(AssetConstants.logoJpg,
+                              fit: BoxFit.cover),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       const Text(
-                        'Login',
+                        'JIRETA',
                         style: TextStyle(
                           fontFamily: 'PlayfairDisplay',
-                          fontSize: 22,
+                          fontSize: 28,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.deepNavy,
+                          color: AppColors.gold,
+                          letterSpacing: 5,
                         ),
                       ),
-                      const SizedBox(height: 4),
                       const Text(
-                        'Enter your mobile number to receive an OTP',
+                        'LOANS & CREDIT CORP · 1966',
                         style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                          color: Colors.white54,
+                          letterSpacing: 2,
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      TextFormField(
-                        controller: _phoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        inputFormatters: [
-                          // MaskTextInputFormatter already filters digits-only
-                          // via filter: {'#': RegExp(r'[0-9]')}.
-                          // Adding digitsOnly AFTER strips the spaces the mask
-                          // inserts, causing an infinite reformatting loop.
-                          _phoneMask,
-                        ],
-                        decoration: const InputDecoration(
-                          labelText: 'Mobile Number',
-                          hintText: '09XX XXX XXXX',
-                          prefixIcon: Icon(Icons.phone_android),
+                      const SizedBox(height: 48),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: (_isPhoneValid &&
-                                  !_loading &&
-                                  !_googleLoading &&
-                                  _isOnline)
-                              ? _sendOtp
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: _loading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Send OTP',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Divider(),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: (_loading || _googleLoading || !_isOnline)
-                            ? null
-                            : _signInWithGoogle,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: const BorderSide(
-                            color: AppColors.border,
-                            width: 1.5,
-                          ),
-                        ),
-                        icon: _googleLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.deepNavy,
-                                ),
-                              )
-                            : Image.network(
-                                'https://www.google.com/favicon.ico',
-                                width: 20,
-                                height: 20,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.g_mobiledata,
-                                    size: 24),
-                              ),
-                        label: const Text(
-                          'Continue with Google',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ),
-                      if (!isOnline) ...[
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.errorLight,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppColors.error,
-                                width: 1,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Login',
+                              style: TextStyle(
+                                fontFamily: 'PlayfairDisplay',
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.deepNavy,
                               ),
                             ),
-                            child: const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.error,
-                                  ),
-                                ),
-                                SizedBox(width: 10),
-                                Text(
-                                  'No Internet Connection',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.error,
-                                  ),
-                                ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Enter your mobile number to receive an OTP',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            TextFormField(
+                              controller: _phoneCtrl,
+                              keyboardType: TextInputType.phone,
+                              inputFormatters: [
+                                // MaskTextInputFormatter already filters digits-only
+                                // via filter: {'#': RegExp(r'[0-9]')}.
+                                // Adding digitsOnly AFTER strips the spaces the mask
+                                // inserts, causing an infinite reformatting loop.
+                                _phoneMask,
                               ],
+                              decoration: const InputDecoration(
+                                labelText: 'Mobile Number',
+                                hintText: '09XX XXX XXXX',
+                                prefixIcon: Icon(Icons.phone_android),
+                              ),
+                              onChanged: (_) => setState(() {}),
                             ),
-                          ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: (_isPhoneValid &&
+                                        !_loading &&
+                                        !_googleLoading &&
+                                        _isOnline)
+                                    ? _sendOtp
+                                    : null,
+                                style: ElevatedButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: _loading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Send OTP',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              onPressed:
+                                  (_loading || _googleLoading || !_isOnline)
+                                      ? null
+                                      : _signInWithGoogle,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 52),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: const BorderSide(
+                                  color: AppColors.border,
+                                  width: 1.5,
+                                ),
+                              ),
+                              icon: _googleLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.deepNavy,
+                                      ),
+                                    )
+                                  : Image.network(
+                                      'https://www.google.com/favicon.ico',
+                                      width: 20,
+                                      height: 20,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                          Icons.g_mobiledata,
+                                          size: 24),
+                                    ),
+                              label: const Text(
+                                'Continue with Google',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (!isOnline)
+                const Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: 24, right: 24, bottom: 24),
+                    child: OfflineToast(),
+                  ),
+                ),
+            ],
           ),
         ),
-      ),
       ),
     );
   }

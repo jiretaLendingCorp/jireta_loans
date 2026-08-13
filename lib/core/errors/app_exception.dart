@@ -12,54 +12,54 @@ class AppException implements Exception {
 
 class UnauthorizedException extends AppException {
   const UnauthorizedException([super.message = 'Unauthorized'])
-    : super(code: 'UNAUTHORIZED', statusCode: 401);
+      : super(code: 'UNAUTHORIZED', statusCode: 401);
 }
 
 class ForbiddenException extends AppException {
   const ForbiddenException([super.message = 'Access denied'])
-    : super(code: 'FORBIDDEN', statusCode: 403);
+      : super(code: 'FORBIDDEN', statusCode: 403);
 }
 
 class NotFoundException extends AppException {
   const NotFoundException([super.message = 'Resource not found'])
-    : super(code: 'NOT_FOUND', statusCode: 404);
+      : super(code: 'NOT_FOUND', statusCode: 404);
 }
 
 class ValidationException extends AppException {
   const ValidationException(super.message)
-    : super(code: 'VALIDATION_ERROR', statusCode: 422);
+      : super(code: 'VALIDATION_ERROR', statusCode: 422);
 }
 
 class ServerException extends AppException {
   const ServerException([super.message = 'Internal server error'])
-    : super(code: 'SERVER_ERROR', statusCode: 500);
+      : super(code: 'SERVER_ERROR', statusCode: 500);
 }
 
 class NetworkException extends AppException {
   const NetworkException([super.message = 'Network connection error'])
-    : super(code: 'NETWORK_ERROR');
+      : super(code: 'NETWORK_ERROR');
 }
 
 class TimeoutException extends AppException {
   const TimeoutException([super.message = 'Request timed out'])
-    : super(code: 'TIMEOUT');
+      : super(code: 'TIMEOUT');
 }
 
 class AccountLockedException extends AppException {
   const AccountLockedException(super.message)
-    : super(code: 'ACCOUNT_LOCKED', statusCode: 429);
+      : super(code: 'ACCOUNT_LOCKED', statusCode: 429);
 }
 
 class ForcePasswordChangeException extends AppException {
   const ForcePasswordChangeException()
-    : super('Password change required', code: 'FORCE_PASSWORD_CHANGE');
+      : super('Password change required', code: 'FORCE_PASSWORD_CHANGE');
 }
 
 class RateLimitException extends AppException {
   const RateLimitException()
-    : super(
-        'Too many requests. Please try again later.',
-        code: 'RATE_LIMITED',
-        statusCode: 429,
-      );
+      : super(
+          'Too many requests. Please try again later.',
+          code: 'RATE_LIMITED',
+          statusCode: 429,
+        );
 }

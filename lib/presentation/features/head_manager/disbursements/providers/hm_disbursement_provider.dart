@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/disbursements/providers/hm_disbursement_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/disbursement_remote_datasource.dart';
 import '../../../../../data/models/disbursement_model.dart';
@@ -58,7 +59,8 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
       );
       state = state.copyWith(disbursements: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -103,7 +105,7 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
   }
 }
 
-final hmDisbursementProvider =
-    AutoDisposeStateNotifierProvider<HmDisbursementNotifier, HmDisbursementState>(
+final hmDisbursementProvider = AutoDisposeStateNotifierProvider<
+    HmDisbursementNotifier, HmDisbursementState>(
   (ref) => HmDisbursementNotifier(sl<DisbursementRemoteDataSource>()),
 );

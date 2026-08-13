@@ -15,8 +15,8 @@ class EmpAccountUpgradeNotifier
   final AccountUpgradeRemoteDataSource _ds;
   EmpAccountUpgradeNotifier(this._ds)
       : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(
-        ['account_upgrade_documents', 'lender_profiles'], refresh: loadList);
+    bindRealtimeRefresh(['account_upgrade_documents', 'lender_profiles'],
+        refresh: loadList);
   }
 
   Future<void> loadList({String? status, String? search, int page = 1}) async {
@@ -51,9 +51,7 @@ class EmpAccountUpgradeNotifier
       String? rejectionNotes}) async {
     try {
       await _ds.verifyAllAccountUpgrade(
-          lenderId: lenderId,
-          action: action,
-          rejectionNotes: rejectionNotes);
+          lenderId: lenderId, action: action, rejectionNotes: rejectionNotes);
       await loadList();
       return true;
     } catch (e) {

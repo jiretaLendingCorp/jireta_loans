@@ -79,9 +79,9 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
                 ProfileAvatar(
                   photoUrl: data['profile_photo_url'] as String?,
                   name: (data['first_name'] as String? ?? 'L'),
-                  color: AppColors.lenderPurple,
+                  color: AppColors.lenderBlue,
                   radius: 32,
-                  textColor: AppColors.lenderPurple,
+                  textColor: AppColors.lenderBlue,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -113,8 +113,8 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
               _InfoItem('Gender', data['lender_profiles']?['gender'] ?? '—'),
               _InfoItem('Civil Status',
                   data['lender_profiles']?['civil_status'] ?? '—'),
-              _InfoItem(
-                  'Date of Birth', data['lender_profiles']?['date_of_birth'] ?? '—'),
+              _InfoItem('Date of Birth',
+                  data['lender_profiles']?['date_of_birth'] ?? '—'),
               _InfoItem('Employment',
                   data['lender_profiles']?['employment_type'] ?? '—'),
               _InfoItem(
@@ -171,7 +171,8 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             _buildInfoGrid(contacts.map((c) {
               final m = c as Map<String, dynamic>;
-              return _InfoItem('${m['name'] ?? '—'} (${m['relationship'] ?? '—'})',
+              return _InfoItem(
+                  '${m['name'] ?? '—'} (${m['relationship'] ?? '—'})',
                   '${m['phone_number'] ?? '—'}${(m['address'] != null && m['address'].toString().isNotEmpty) ? ' — ${m['address']}' : ''}');
             }).toList()),
           ],

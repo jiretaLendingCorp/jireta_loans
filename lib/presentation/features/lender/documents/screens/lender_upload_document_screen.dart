@@ -137,7 +137,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
 
     return MobileScaffold(
       title: 'Upload Document',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: SingleChildScrollView(
@@ -201,9 +201,9 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
                                 const Icon(Icons.camera_alt_outlined, size: 16),
                             label: const Text('Camera'),
                             style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.lenderPurple,
+                                foregroundColor: AppColors.lenderBlue,
                                 side: const BorderSide(
-                                    color: AppColors.lenderPurple)),
+                                    color: AppColors.lenderBlue)),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -213,9 +213,9 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
                             icon: const Icon(Icons.folder_outlined, size: 16),
                             label: const Text('Browse'),
                             style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.lenderPurple,
+                                foregroundColor: AppColors.lenderBlue,
                                 side: const BorderSide(
-                                    color: AppColors.lenderPurple)),
+                                    color: AppColors.lenderBlue)),
                           ),
                         ),
                       ],
@@ -227,15 +227,15 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.lenderPurple.withValues(alpha: 0.06),
+                  color: AppColors.lenderBlue.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: AppColors.lenderPurple.withValues(alpha: 0.3)),
+                      color: AppColors.lenderBlue.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
                     const Icon(Icons.insert_drive_file,
-                        color: AppColors.lenderPurple, size: 28),
+                        color: AppColors.lenderBlue, size: 28),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -247,8 +247,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
                                   fontSize: 14,
                                   color: AppColors.textPrimary),
                               overflow: TextOverflow.ellipsis),
-                          Text(
-                              _fileSizeText ?? '',
+                          Text(_fileSizeText ?? '',
                               style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary)),
@@ -301,7 +300,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
               child: AppButton(
                 label: 'Upload Document',
                 icon: Icons.cloud_upload_outlined,
-                backgroundColor: AppColors.lenderPurple,
+                backgroundColor: AppColors.lenderBlue,
                 isLoading: state.isUploading,
                 onPressed: (_selectedType != null &&
                         _selectedBytes != null &&

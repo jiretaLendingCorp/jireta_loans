@@ -53,8 +53,8 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
             child: state.isLoading
                 ? _buildShimmer()
                 : state.employees.isEmpty
-                ? _buildEmpty()
-                : _buildTable(state.employees),
+                    ? _buildEmpty()
+                    : _buildTable(state.employees),
           ),
         ],
       ),
@@ -84,15 +84,15 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
             ),
           ),
           const SizedBox(width: 12),
-        DropdownButton<String>(
-          value: state.statusFilter,
-          items: const [
-            DropdownMenuItem(value: 'all', child: Text('All Status')),
-            DropdownMenuItem(value: 'active', child: Text('Active')),
-          ],
-          onChanged: (v) =>
-              ref.read(hmEmployeeProvider.notifier).setStatus(v!),
-        ),
+          DropdownButton<String>(
+            value: state.statusFilter,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All Status')),
+              DropdownMenuItem(value: 'active', child: Text('Active')),
+            ],
+            onChanged: (v) =>
+                ref.read(hmEmployeeProvider.notifier).setStatus(v!),
+          ),
         ],
       ),
     );
@@ -107,8 +107,8 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
             _buildTableHeader(),
             const Divider(height: 1),
             ...employees.asMap().entries.map(
-              (e) => _buildTableRow(e.value, e.key.isEven),
-            ),
+                  (e) => _buildTableRow(e.value, e.key.isEven),
+                ),
           ],
         ),
       ),
@@ -209,9 +209,8 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
               child: _StatusBadge(
                 label: isActive ? 'Active' : _statusLabel(user.accountStatus),
                 color: isActive ? AppColors.success : AppColors.error,
-                bgColor: isActive
-                    ? AppColors.successLight
-                    : AppColors.errorLight,
+                bgColor:
+                    isActive ? AppColors.successLight : AppColors.errorLight,
               ),
             ),
             Expanded(
@@ -255,25 +254,25 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
   }
 
   Widget _buildEmpty() => const Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.people_outline, size: 64, color: AppColors.textTertiary),
-        SizedBox(height: 16),
-        Text(
-          'No employees found',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline, size: 64, color: AppColors.textTertiary),
+            SizedBox(height: 16),
+            Text(
+              'No employees found',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _buildShimmer() => ListView.separated(
-    padding: const EdgeInsets.all(16),
-    itemCount: 6,
-    separatorBuilder: (_, __) => const SizedBox(height: 8),
-    itemBuilder: (_, __) => const ShimmerLoader(height: 56),
-  );
+        padding: const EdgeInsets.all(16),
+        itemCount: 6,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, __) => const ShimmerLoader(height: 56),
+      );
 
   void _showCreate(BuildContext context) {
     showDialog(context: context, builder: (_) => const CreateEmployeeModal());
@@ -318,16 +317,17 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: bgColor,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
-    ),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+      );
 }
 
 class _ActionBtn extends StatelessWidget {
@@ -344,14 +344,14 @@ class _ActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: tooltip,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(icon, size: 18, color: color),
-      ),
-    ),
-  );
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
+      );
 }

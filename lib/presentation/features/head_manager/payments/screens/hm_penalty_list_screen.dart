@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/payments/screens/hm_penalty_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -40,7 +41,8 @@ class _PenaltyNotifier extends StateNotifier<_PenaltyState>
       final list = await _ds.getPenaltyLogs();
       state = state.copyWith(items: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 }

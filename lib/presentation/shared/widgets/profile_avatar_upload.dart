@@ -86,9 +86,7 @@ class _ProfileAvatarUploadState extends State<ProfileAvatarUpload> {
   }
 
   Widget _buildFallback() => Text(
-        widget.name.isNotEmpty
-            ? widget.name[0].toUpperCase()
-            : '?',
+        widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
         style: TextStyle(
           fontSize: widget.radius * 0.8,
           fontWeight: FontWeight.w700,

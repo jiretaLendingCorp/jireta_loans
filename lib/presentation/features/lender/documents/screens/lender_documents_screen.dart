@@ -51,11 +51,11 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
 
     return MobileScaffold(
       title: 'My Documents',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(RouteConstants.lenderUploadDocument),
-        backgroundColor: AppColors.lenderPurple,
+        backgroundColor: AppColors.lenderBlue,
         icon: const Icon(Icons.upload_file, color: Colors.white),
         label: const Text('Upload', style: TextStyle(color: Colors.white)),
       ),
@@ -69,7 +69,7 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
                       'Upload your account upgrade documents and loan requirements to get started.',
                 )
               : RefreshIndicator(
-                  color: AppColors.lenderPurple,
+                  color: AppColors.lenderBlue,
                   onRefresh: () =>
                       ref.read(lenderDocumentsProvider.notifier).refresh(),
                   child: ListView.builder(
@@ -156,11 +156,11 @@ class _DocumentCardState extends State<_DocumentCard> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                      color: AppColors.lenderBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(_iconFor(docType),
-                        color: AppColors.lenderPurple, size: 20),
+                        color: AppColors.lenderBlue, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -202,7 +202,8 @@ class _DocumentCardState extends State<_DocumentCard> {
                 decoration: BoxDecoration(
                   color: AppColors.errorLight,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [

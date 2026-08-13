@@ -11,7 +11,8 @@ import '../constants/route_constants.dart';
 class RouteGuards {
   RouteGuards._();
 
-  static String? authGuard(BuildContext context, GoRouterState state, WidgetRef ref) {
+  static String? authGuard(
+      BuildContext context, GoRouterState state, WidgetRef ref) {
     final authState = ref.read(authStateProvider);
     if (!authState.isAuthenticated) {
       const isWeb = kIsWeb;

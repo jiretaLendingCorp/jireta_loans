@@ -407,10 +407,12 @@ class _SidebarHeader extends StatelessWidget {
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              shape: BoxShape.circle,
               border: Border.all(color: AppColors.gold.withValues(alpha: 0.7)),
             ),
-            child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.contain),
+            child: ClipOval(
+              child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.cover),
+            ),
           ),
           if (!collapsed) ...[
             const SizedBox(width: 10),

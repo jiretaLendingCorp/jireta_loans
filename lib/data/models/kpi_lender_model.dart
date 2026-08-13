@@ -39,6 +39,7 @@ class KpiLenderModel {
             (json['total_interest_paid'] as num?)?.toDouble() ?? 0,
         totalPenaltiesPaid:
             (json['total_penalties_paid'] as num?)?.toDouble() ?? 0,
-        accountUpgradeStatus: json['account_upgrade_status'] as String? ?? 'not_submitted',
+        accountUpgradeStatus:
+            json['account_upgrade_status'] as String? ?? 'not_submitted',
       );
 }

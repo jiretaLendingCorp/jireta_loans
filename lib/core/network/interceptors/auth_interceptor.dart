@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 
 import '../../config/env_config.dart';
 import '../../constants/app_constants.dart';
+import '../../security/session_events.dart';
 import '../../security/secure_storage.dart';
 
 // Endpoints that don't own a session — a 401 from them means bad credentials,
@@ -90,10 +91,6 @@ class AuthInterceptor extends Interceptor {
             queryParameters: err.requestOptions.queryParameters,
           );
           _isRefreshing = false;
-          // FIX: A retried 4xx/5xx must be surfaced as an error, not swallowed.
-          // Previously `handler.resolve(retryResponse)` was used unconditionally,
-          // so a refresh-retried request that still failed (e.g. force-change-
-          // password with a wrong current password) was treated as SUCCESS.
           final status = retryResponse.statusCode;
           if (status != null && status >= 400) {
             final data = retryResponse.data;
@@ -115,16 +112,28 @@ class AuthInterceptor extends Interceptor {
           }
           return handler.resolve(retryResponse);
         }
-        // FIX: 401 without a usable refresh token — the stored access token
-        // can never be repaired (e.g. a magic-link `hashed_token` got saved as
-        // the JWT). Drop the broken session so the next launch forces a clean
-        // login instead of looping on "Invalid JWT format".
-        await SecureStorage.clearAll();
+        // FIX: No refresh token stored — the session can never be repaired.
+        // Clear it and tell the UI to auto-logout instead of leaving the app
+        // stuck in a half-authenticated state.
+        await _dropDeadSession();
+      } on DioException catch (refreshErr) {
+        // FIX: A 401 from the refresh endpoint means the refresh token itself
+        // is invalid/expired → session cannot be recovered → auto-logout.
+        // A connection-level failure (offline) must NOT clear the session —
+        // the user just lost internet, don't log them out for that.
+        if (refreshErr.response?.statusCode == 401) {
+          await _dropDeadSession();
+        }
       } catch (_) {
-        await SecureStorage.clearAll();
+        await _dropDeadSession();
       }
       _isRefreshing = false;
     }
     handler.next(err);
+  }
+
+  Future<void> _dropDeadSession() async {
+    await SecureStorage.clearAll();
+    SessionEvents.emitSessionExpired();
   }
 }

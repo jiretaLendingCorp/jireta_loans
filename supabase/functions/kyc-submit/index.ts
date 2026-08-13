@@ -36,8 +36,10 @@ function mimeFromExt(ext: string): string {
 }
 
 // Decode a base64 string into a Uint8Array without relying on atob.
+// Whitespace (newlines/carriage returns) must be stripped first — the Flutter
+// client and some HTTP layers emit padded/multiline base64 which atob rejects.
 function base64ToBytes(base64: string): Uint8Array {
-  const bin = atob(base64);
+  const bin = atob(base64.replace(/\s+/g, ''));
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;

@@ -153,8 +153,8 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                         value: _vehicleType,
                         label: 'Vehicle Type',
                         items: _vehicleTypes
-                            .map((v) => DropdownMenuItem(
-                                value: v, child: Text(v)))
+                            .map((v) =>
+                                DropdownMenuItem(value: v, child: Text(v)))
                             .toList(),
                         onChanged: (v) => setState(() => _vehicleType = v),
                       ),

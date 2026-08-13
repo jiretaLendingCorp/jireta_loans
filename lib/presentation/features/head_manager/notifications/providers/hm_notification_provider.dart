@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/notifications/providers/hm_notification_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../../../../data/models/notification_model.dart';
@@ -47,7 +48,8 @@ class HmNotificationNotifier extends StateNotifier<HmNotificationState>
       final list = await _ds.getList(page: 1);
       state = state.copyWith(notifications: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -88,7 +90,7 @@ class HmNotificationNotifier extends StateNotifier<HmNotificationState>
   }
 }
 
-final hmNotificationProvider =
-    AutoDisposeStateNotifierProvider<HmNotificationNotifier, HmNotificationState>(
+final hmNotificationProvider = AutoDisposeStateNotifierProvider<
+    HmNotificationNotifier, HmNotificationState>(
   (ref) => HmNotificationNotifier(sl<NotificationRemoteDataSource>()),
 );

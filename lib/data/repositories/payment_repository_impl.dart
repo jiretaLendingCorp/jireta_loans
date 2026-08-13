@@ -16,7 +16,8 @@ class PaymentRepositoryImpl implements IPaymentRepository {
         amount: (data['amount'] ?? 0).toDouble(),
         notes: (data['notes'] as String?) ?? data['notes']?.toString(),
         idempotencyKey:
-            (data['idempotencyKey'] ?? data['idempotency_key'] ?? '').toString(),
+            (data['idempotencyKey'] ?? data['idempotency_key'] ?? '')
+                .toString(),
       );
 
   @override

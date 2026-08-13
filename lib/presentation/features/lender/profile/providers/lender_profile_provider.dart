@@ -1,5 +1,6 @@
 // lib/presentation/features/lender/profile/providers/lender_profile_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
@@ -47,7 +48,8 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
       final user = await _ds.getProfile();
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -59,7 +61,8 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
       state = state.copyWith(isSaving: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isSaving: false, error: e.toString());
+      state = state.copyWith(
+          isSaving: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -68,6 +71,7 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
 }
 
 final lenderProfileProvider =
-    AutoDisposeStateNotifierProvider<LenderProfileNotifier, LenderProfileState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderProfileNotifier, LenderProfileState>(
+        (ref) {
   return LenderProfileNotifier(sl<UserRemoteDataSource>());
 });

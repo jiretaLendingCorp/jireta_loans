@@ -1,6 +1,7 @@
 // lib/presentation/features/rider/collections/providers/rider_collection_provider.dart
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/utils/helpers.dart';
@@ -47,8 +48,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     with RealtimeRefreshMixin {
   final CollectionRemoteDataSource _ds;
 
-  RiderCollectionNotifier(this._ds)
-      : super(const RiderCollectionState()) {
+  RiderCollectionNotifier(this._ds) : super(const RiderCollectionState()) {
     bindRealtimeRefresh(['collection_assignments', 'payments'], refresh: load);
     load();
   }
@@ -62,7 +62,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       );
       state = state.copyWith(collections: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -80,7 +81,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         isLoading: false,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -92,7 +94,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -105,7 +108,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -128,7 +132,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -154,7 +159,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -172,8 +178,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
   Future<void> refresh() => load();
 }
 
-final riderCollectionProvider =
-    AutoDisposeStateNotifierProvider<RiderCollectionNotifier, RiderCollectionState>((ref) {
+final riderCollectionProvider = AutoDisposeStateNotifierProvider<
+    RiderCollectionNotifier, RiderCollectionState>((ref) {
   return RiderCollectionNotifier(
     sl<CollectionRemoteDataSource>(),
   );

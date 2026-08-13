@@ -110,7 +110,8 @@ class ApiEndpoints {
   // System
   static const String systemGetConfig = 'system-view?fn=get-config';
   static const String systemUpdateConfig = 'system-update-config';
-  static const String systemGetSmsTemplates = 'system-view?fn=get-sms-templates';
+  static const String systemGetSmsTemplates =
+      'system-view?fn=get-sms-templates';
   static const String systemUpdateSmsTemplate =
       'system-view?fn=update-sms-template';
 

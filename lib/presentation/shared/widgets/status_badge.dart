@@ -49,7 +49,7 @@ class StatusBadge extends StatelessWidget {
       case 'ci_required':
         return (AppColors.warning, AppColors.warningLight, 'CI Required');
       case 'ci_assigned':
-        return (AppColors.lenderPurple, const Color(0xFFF3E5F5), 'CI Assigned');
+        return (AppColors.lenderBlue, const Color(0xFFF3E5F5), 'CI Assigned');
       case 'ci_completed':
         return (AppColors.info, AppColors.infoLight, 'CI Completed');
       case 'approved':
@@ -79,7 +79,11 @@ class StatusBadge extends StatelessWidget {
       case 'suspended':
         return (AppColors.error, AppColors.errorLight, 'Suspended');
       case 'whitelisted':
-        return (AppColors.statusActive, AppColors.statusActiveBg, 'Whitelisted');
+        return (
+          AppColors.statusActive,
+          AppColors.statusActiveBg,
+          'Whitelisted'
+        );
       case 'archived':
         return (AppColors.textSecondary, const Color(0xFFF5F5F5), 'Archived');
       case 'blacklisted':

@@ -1,5 +1,6 @@
 // lib/presentation/features/lender/notifications/providers/lender_notification_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../../../../data/models/notification_model.dart';
@@ -32,8 +33,7 @@ class LenderNotificationState {
       );
 }
 
-class LenderNotificationNotifier
-    extends StateNotifier<LenderNotificationState>
+class LenderNotificationNotifier extends StateNotifier<LenderNotificationState>
     with RealtimeRefreshMixin {
   final NotificationRemoteDataSource _ds;
 
@@ -53,7 +53,8 @@ class LenderNotificationNotifier
         unreadCount: result.unreadCount,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -93,8 +94,7 @@ class LenderNotificationNotifier
   Future<void> refresh() => load();
 }
 
-final lenderNotificationProvider =
-    AutoDisposeStateNotifierProvider<LenderNotificationNotifier, LenderNotificationState>(
-        (ref) {
+final lenderNotificationProvider = AutoDisposeStateNotifierProvider<
+    LenderNotificationNotifier, LenderNotificationState>((ref) {
   return LenderNotificationNotifier(sl<NotificationRemoteDataSource>());
 });

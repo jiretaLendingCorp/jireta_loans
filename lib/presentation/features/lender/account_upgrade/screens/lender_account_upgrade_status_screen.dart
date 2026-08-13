@@ -52,12 +52,12 @@ class _LenderAccountUpgradeStatusScreenState
 
     return MobileScaffold(
       title: 'Account Upgrade Status',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       body: state.isLoading
           ? const ShimmerLoader()
           : RefreshIndicator(
-              color: AppColors.lenderPurple,
+              color: AppColors.lenderBlue,
               onRefresh: () =>
                   ref.read(lenderAccountUpgradeProvider.notifier).loadStatus(),
               child: SingleChildScrollView(
@@ -79,9 +79,9 @@ class _LenderAccountUpgradeStatusScreenState
                       const SizedBox(height: 16),
                       AppButton(
                         label: 'Resubmit Documents',
-                        onPressed: () => context
-                            .push(RouteConstants.lenderAccountUpgrade),
-                        color: AppColors.lenderPurple,
+                        onPressed: () =>
+                            context.push(RouteConstants.lenderAccountUpgrade),
+                        color: AppColors.lenderBlue,
                       ),
                     ],
                   ],
@@ -148,7 +148,8 @@ class _StatusBanner extends StatelessWidget {
       case 'verified':
         color = AppColors.success;
         icon = Icons.verified_user;
-        message = 'Your account upgrade is verified. You can now apply for a loan.';
+        message =
+            'Your account upgrade is verified. You can now apply for a loan.';
         break;
       case 'rejected':
         color = AppColors.error;
@@ -169,8 +170,7 @@ class _StatusBanner extends StatelessWidget {
       default:
         color = AppColors.textSecondary;
         icon = Icons.help_outline;
-        message =
-            'Please submit your account upgrade documents to proceed.';
+        message = 'Please submit your account upgrade documents to proceed.';
     }
 
     return Container(
@@ -201,8 +201,8 @@ class _StatusBanner extends StatelessWidget {
                         fontSize: 13)),
                 const SizedBox(height: 4),
                 Text(message,
-                    style:
-                        TextStyle(color: color.withValues(alpha: 0.8), fontSize: 12)),
+                    style: TextStyle(
+                        color: color.withValues(alpha: 0.8), fontSize: 12)),
               ],
             ),
           ),
@@ -308,7 +308,7 @@ class _DocumentTile extends StatelessWidget {
       child: Row(
         children: [
           const Icon(Icons.insert_drive_file_outlined,
-              color: AppColors.lenderPurple, size: 20),
+              color: AppColors.lenderBlue, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

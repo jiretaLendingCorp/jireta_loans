@@ -1,6 +1,7 @@
 // lib/presentation/shared/widgets/dialogs/confirmation_dialog.dart
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../utils/error_suppression.dart';
 
 Future<bool?> showConfirmationDialog(
   BuildContext context, {
@@ -165,6 +166,7 @@ void showSuccessSnackBar(BuildContext context, String message) {
 }
 
 void showErrorSnackBar(BuildContext context, String message) {
+  if (shouldSuppressNetworkError(context, message)) return;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Row(children: [

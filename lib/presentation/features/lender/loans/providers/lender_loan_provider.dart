@@ -1,5 +1,6 @@
 // lib/presentation/features/lender/loans/providers/lender_loan_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/datasources/remote/disbursement_remote_datasource.dart';
@@ -71,7 +72,8 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
       state =
           state.copyWith(loans: loans, activeLoan: active, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -81,7 +83,8 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
       final loan = await _ds.getLoanDetails(loanId);
       state = state.copyWith(selectedLoan: loan, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -93,7 +96,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
       final preview = await _ds.getSchedulePreview(amount, frequency);
       state = state.copyWith(schedulePreview: preview);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -117,7 +120,8 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
       await loadLoans();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -130,7 +134,8 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
       await loadLoans();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -157,14 +162,16 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
       await loadLoans();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
 }
 
 final lenderLoanProvider =
-    AutoDisposeStateNotifierProvider<LenderLoanNotifier, LenderLoanState>((ref) {
+    AutoDisposeStateNotifierProvider<LenderLoanNotifier, LenderLoanState>(
+        (ref) {
   return LenderLoanNotifier(
     sl<LoanRemoteDataSource>(),
     sl<DisbursementRemoteDataSource>(),

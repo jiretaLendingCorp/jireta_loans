@@ -266,8 +266,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         _field('Loan Amount', _amountCtrl,
             keyboardType: TextInputType.number, prefix: '₱'),
         const SizedBox(height: 12),
-  DropdownButtonFormField<String>(
-    initialValue: _frequency,
+        DropdownButtonFormField<String>(
+          initialValue: _frequency,
           decoration: InputDecoration(
             labelText: 'Payment Frequency',
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

@@ -80,7 +80,8 @@ class _EnterpriseTableState extends State<EnterpriseTable> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
         boxShadow: const [
-          BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 1))
+          BoxShadow(
+              color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 1))
         ],
       ),
       child: ClipRRect(

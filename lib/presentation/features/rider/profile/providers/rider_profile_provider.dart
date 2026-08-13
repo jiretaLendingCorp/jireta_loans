@@ -1,5 +1,6 @@
 // lib/presentation/features/rider/profile/providers/rider_profile_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
@@ -39,8 +40,7 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
 
-  RiderProfileNotifier(this._ds)
-      : super(const RiderProfileState()) {
+  RiderProfileNotifier(this._ds) : super(const RiderProfileState()) {
     bindRealtimeRefresh(['users', 'rider_profiles'], refresh: loadProfile);
     loadProfile();
   }
@@ -51,7 +51,8 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
       final user = await _ds.getProfile();
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -63,7 +64,8 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
       state = state.copyWith(isSaving: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isSaving: false, error: e.toString());
+      state = state.copyWith(
+          isSaving: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }
@@ -74,7 +76,7 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
 }
 
 final riderProfileProvider =
-    AutoDisposeStateNotifierProvider<RiderProfileNotifier, RiderProfileState>((ref) {
-  return RiderProfileNotifier(
-      sl<UserRemoteDataSource>());
+    AutoDisposeStateNotifierProvider<RiderProfileNotifier, RiderProfileState>(
+        (ref) {
+  return RiderProfileNotifier(sl<UserRemoteDataSource>());
 });

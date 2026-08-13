@@ -172,7 +172,8 @@ class _Step1IdentifyBorrowerState extends ConsumerState<Step1IdentifyBorrower> {
                     return ListTile(
                       onTap: () => _selectLender(l),
                       leading: CircleAvatar(
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                        backgroundColor:
+                            AppColors.primary.withValues(alpha: 0.1),
                         child: Text(
                           (l['first_name'] as String? ?? 'L')[0].toUpperCase(),
                           style: const TextStyle(

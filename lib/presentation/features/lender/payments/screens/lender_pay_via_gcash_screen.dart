@@ -86,7 +86,7 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
   Widget build(BuildContext context) {
     return MobileScaffold(
       title: 'Pay via GCash',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: Padding(
@@ -120,7 +120,7 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
             if (_isGenerating)
               const Column(
                 children: [
-                  CircularProgressIndicator(color: AppColors.lenderPurple),
+                  CircularProgressIndicator(color: AppColors.lenderBlue),
                   SizedBox(height: 16),
                   Text('Generating payment link...',
                       style: TextStyle(color: AppColors.textSecondary)),
@@ -149,7 +149,7 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
                   AppButton(
                       label: 'Retry',
                       onPressed: _generateLink,
-                      color: AppColors.lenderPurple),
+                      color: AppColors.lenderBlue),
                 ],
               )
             else if (_paymentUrl != null)

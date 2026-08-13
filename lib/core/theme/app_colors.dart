@@ -17,9 +17,9 @@ class AppColors {
   static const Color riderGreenLight = Color(0xFF4CAF50);
   static const Color riderGreenDark = Color(0xFF1B5E20);
 
-  static const Color lenderPurple = Color(0xFF6A1B9A);
-  static const Color lenderPurpleLight = Color(0xFF9C27B0);
-  static const Color lenderPurpleDark = Color(0xFF4A148C);
+  static const Color lenderBlue = Color(0xFF1565C0);
+  static const Color lenderBlueLight = Color(0xFF42A5F5);
+  static const Color lenderBlueDark = Color(0xFF0D47A1);
 
   static const Color surfaceWhite = Color(0xFFFAFAFA);
   static const Color surface = Color(0xFFFFFFFF);

@@ -137,7 +137,8 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                     ? '₱${profile['monthly_income']}'
                     : '—'),
             _row('GCash', profile['gcash_number'] ?? '—'),
-            _row('Account Upgrade Status', profile['account_upgrade_status'] ?? '—'),
+            _row('Account Upgrade Status',
+                profile['account_upgrade_status'] ?? '—'),
           ],
         ),
       ),
@@ -212,8 +213,8 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
       'ci_assigned',
       'ci_completed'
     ].contains(status);
-    final canAssignCi = ['pending', 'under_review', 'ci_required']
-        .contains(status);
+    final canAssignCi =
+        ['pending', 'under_review', 'ci_required'].contains(status);
     final canRequestCi = status == 'under_review';
     final canReject = [
       'pending',
@@ -249,7 +250,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
             ],
             if (canRequestCi) ...[
               const SizedBox(height: 10),
-              _actionBtn('Request CI', AppColors.lenderPurple, Icons.search,
+              _actionBtn('Request CI', AppColors.lenderBlue, Icons.search,
                   () => _requestCI(context, ref, data)),
             ],
             if (canReject) ...[
@@ -268,8 +269,8 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showAssignRider(BuildContext context, WidgetRef ref,
-      Map<String, dynamic> data) async {
+  Future<void> _showAssignRider(
+      BuildContext context, WidgetRef ref, Map<String, dynamic> data) async {
     final assigned = await showDialog<bool>(
       context: context,
       builder: (_) => CiAssignModal(loanId: data['id'] as String),

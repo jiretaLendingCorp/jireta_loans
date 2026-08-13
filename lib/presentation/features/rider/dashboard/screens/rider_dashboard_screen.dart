@@ -92,7 +92,8 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen>
                       const SizedBox(height: 20),
                       _buildStatCard(context, state),
                       const SizedBox(height: 20),
-                      _buildSectionLabel(context,
+                      _buildSectionLabel(
+                        context,
                         label: 'Today\'s Collections',
                         count: state.todayCollections.length,
                         icon: Icons.payments_outlined,
@@ -102,7 +103,8 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen>
                       const SizedBox(height: 10),
                       _buildCollectionTasks(context, state),
                       const SizedBox(height: 20),
-                      _buildSectionLabel(context,
+                      _buildSectionLabel(
+                        context,
                         label: 'CI Assignments',
                         count: state.todayCiTasks.length,
                         icon: Icons.search_outlined,

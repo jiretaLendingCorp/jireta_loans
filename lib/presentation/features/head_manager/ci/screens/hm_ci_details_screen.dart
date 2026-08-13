@@ -109,11 +109,11 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                color: AppColors.lenderBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(Icons.search_outlined,
-                  color: AppColors.lenderPurple, size: 28),
+                  color: AppColors.lenderBlue, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -370,10 +370,10 @@ class _AssignRiderFormState extends ConsumerState<_AssignRiderForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-  DropdownButtonFormField<String>(
-    initialValue: _selectedRiderId,
-    decoration: const InputDecoration(
-      labelText: 'Select Available Rider',
+        DropdownButtonFormField<String>(
+          initialValue: _selectedRiderId,
+          decoration: const InputDecoration(
+            labelText: 'Select Available Rider',
             border: OutlineInputBorder(),
           ),
           items: widget.riders.map((r) {

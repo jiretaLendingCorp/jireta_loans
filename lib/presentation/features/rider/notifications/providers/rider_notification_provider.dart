@@ -1,5 +1,6 @@
 // lib/presentation/features/rider/notifications/providers/rider_notification_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../../../../data/models/notification_model.dart';
@@ -51,7 +52,8 @@ class RiderNotificationNotifier extends StateNotifier<RiderNotificationState>
         unreadCount: result.unreadCount,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -88,8 +90,7 @@ class RiderNotificationNotifier extends StateNotifier<RiderNotificationState>
   Future<void> refresh() => load();
 }
 
-final riderNotificationProvider =
-    AutoDisposeStateNotifierProvider<RiderNotificationNotifier, RiderNotificationState>(
-        (ref) {
+final riderNotificationProvider = AutoDisposeStateNotifierProvider<
+    RiderNotificationNotifier, RiderNotificationState>((ref) {
   return RiderNotificationNotifier(sl<NotificationRemoteDataSource>());
 });

@@ -1,5 +1,6 @@
 // lib/presentation/features/lender/account_upgrade/providers/lender_account_upgrade_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/account_upgrade_remote_datasource.dart';
 import '../../../../../data/models/account_upgrade_document_model.dart';
@@ -25,8 +26,7 @@ class LenderAccountUpgradeState {
     bool? isSubmitting,
   }) =>
       LenderAccountUpgradeState(
-        accountUpgradeStatus: accountUpgradeStatus ??
-            this.accountUpgradeStatus,
+        accountUpgradeStatus: accountUpgradeStatus ?? this.accountUpgradeStatus,
         isLoading: isLoading ?? this.isLoading,
         error: error,
         isSubmitting: isSubmitting ?? this.isSubmitting,
@@ -44,14 +44,14 @@ class LenderAccountUpgradeState {
   }
 }
 
-class LenderAccountUpgradeNotifier extends StateNotifier<LenderAccountUpgradeState>
-    with RealtimeRefreshMixin {
+class LenderAccountUpgradeNotifier
+    extends StateNotifier<LenderAccountUpgradeState> with RealtimeRefreshMixin {
   final AccountUpgradeRemoteDataSource _ds;
 
   LenderAccountUpgradeNotifier(this._ds)
       : super(const LenderAccountUpgradeState()) {
-    bindRealtimeRefresh(
-        ['account_upgrade_documents', 'lender_profiles'], refresh: loadStatus);
+    bindRealtimeRefresh(['account_upgrade_documents', 'lender_profiles'],
+        refresh: loadStatus);
     loadStatus();
   }
 
@@ -59,10 +59,10 @@ class LenderAccountUpgradeNotifier extends StateNotifier<LenderAccountUpgradeSta
     state = state.copyWith(isLoading: true, error: null);
     try {
       final status = await _ds.accountUpgradeGetStatus();
-      state =
-          state.copyWith(accountUpgradeStatus: status, isLoading: false);
+      state = state.copyWith(accountUpgradeStatus: status, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -77,7 +77,8 @@ class LenderAccountUpgradeNotifier extends StateNotifier<LenderAccountUpgradeSta
       await loadStatus();
       return true;
     } catch (e) {
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
   }

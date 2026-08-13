@@ -103,7 +103,6 @@ class NotificationRemoteDataSource {
         title: (data['title'] ?? '').toString(),
         body: (data['body'] ?? '').toString(),
         type: (data['type'] ?? 'general').toString(),
-        referenceId:
-            (data['referenceId'] ?? data['reference_id']) as String?,
+        referenceId: (data['referenceId'] ?? data['reference_id']) as String?,
       );
 }

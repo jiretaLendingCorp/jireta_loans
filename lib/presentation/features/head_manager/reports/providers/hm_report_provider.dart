@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/reports/providers/hm_report_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
@@ -49,7 +50,8 @@ class HmReportNotifier extends StateNotifier<HmReportState>
       await _ds.getList();
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -59,7 +61,8 @@ class HmReportNotifier extends StateNotifier<HmReportState>
       final history = await _ds.getRawHistory(page: page, limit: 50);
       state = state.copyWith(history: history, isLoadingHistory: false);
     } catch (e) {
-      state = state.copyWith(isLoadingHistory: false, error: e.toString());
+      state = state.copyWith(
+          isLoadingHistory: false, error: ErrorHandler.handle(e).message);
     }
   }
 

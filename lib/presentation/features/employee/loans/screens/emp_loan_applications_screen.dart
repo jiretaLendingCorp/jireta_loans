@@ -157,8 +157,9 @@ class _EmpLoanApplicationsScreenState
         RouteConstants.empLoanDetails.replaceFirst(':id', loan.id),
       ),
       child: Container(
-        color:
-            isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
+        color: isEven
+            ? Colors.white
+            : AppColors.surfaceVariant.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
@@ -243,7 +244,8 @@ class _EmpLoanApplicationsScreenState
 
   Widget _buildActions(LoanModel loan) {
     final status = loan.status;
-    final canAssignRider = ['pending', 'under_review', 'ci_required'].contains(status);
+    final canAssignRider =
+        ['pending', 'under_review', 'ci_required'].contains(status);
     final canApprove = [
       'pending',
       'under_review',
@@ -308,7 +310,8 @@ class _EmpLoanApplicationsScreenState
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(ok ? 'Loan approved successfully' : 'Approval failed'),
+              content:
+                  Text(ok ? 'Loan approved successfully' : 'Approval failed'),
               backgroundColor: ok ? AppColors.success : AppColors.error,
             ),
           );
@@ -437,8 +440,8 @@ class _LoanStatusBadge extends StatelessWidget {
         label = 'Under Review';
         break;
       case 'ci_required':
-        color = AppColors.lenderPurple;
-        bg = AppColors.lenderPurple.withValues(alpha: 0.1);
+        color = AppColors.lenderBlue;
+        bg = AppColors.lenderBlue.withValues(alpha: 0.1);
         label = 'CI Required';
         break;
       case 'ci_assigned':

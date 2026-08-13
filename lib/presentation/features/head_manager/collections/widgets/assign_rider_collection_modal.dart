@@ -48,10 +48,14 @@ class _AssignRiderCollectionModalState
   Future<void> _loadRiders() async {
     try {
       final ds = sl<UserRemoteDataSource>();
-      final res = await ds.getUserList(role: 'rider', status: 'active', page: 1, limit: 100);
-      final list = (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+      final res = await ds.getUserList(
+          role: 'rider', status: 'active', page: 1, limit: 100);
+      final list =
+          (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
       setState(() {
-        _riders = list.where((r) => r['rider_profiles']?['is_available'] == true).toList();
+        _riders = list
+            .where((r) => r['rider_profiles']?['is_available'] == true)
+            .toList();
         _loadingRiders = false;
       });
     } catch (_) {
@@ -74,7 +78,11 @@ class _AssignRiderCollectionModalState
     if (time == null) return;
     setState(() {
       _collectionSchedule = DateTime(
-        date.year, date.month, date.day, time.hour, time.minute,
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
       );
     });
   }
@@ -84,15 +92,18 @@ class _AssignRiderCollectionModalState
       setState(() => _error = 'Please select a rider');
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       await ref.read(hmCollectionProvider.notifier).assignRider(
-        loanScheduleId: widget.loanScheduleId,
-        loanId: widget.loanId,
-        riderId: _selectedRiderId!,
-        collectionSchedule: _collectionSchedule,
-        notes: _notesCtrl.text.trim(),
-      );
+            loanScheduleId: widget.loanScheduleId,
+            loanId: widget.loanId,
+            riderId: _selectedRiderId!,
+            collectionSchedule: _collectionSchedule,
+            notes: _notesCtrl.text.trim(),
+          );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() {
@@ -120,17 +131,22 @@ class _AssignRiderCollectionModalState
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.local_shipping_outlined, color: AppColors.gold, size: 22),
+                  const Icon(Icons.local_shipping_outlined,
+                      color: AppColors.gold, size: 22),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'Assign Rider for Collection',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: Colors.white60, size: 20),
+                    icon: const Icon(Icons.close,
+                        color: Colors.white60, size: 20),
                   ),
                 ],
               ),
@@ -148,28 +164,44 @@ class _AssignRiderCollectionModalState
                       decoration: BoxDecoration(
                         color: AppColors.warning.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                        border: Border.all(
+                            color: AppColors.warning.withValues(alpha: 0.3)),
                       ),
-                      child: const Text('No available riders at the moment.', style: TextStyle(color: AppColors.warning, fontSize: 13)),
+                      child: const Text('No available riders at the moment.',
+                          style: TextStyle(
+                              color: AppColors.warning, fontSize: 13)),
                     )
                   else ...[
-                    const Text('Select Rider *', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    const Text('Select Rider *',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Container(
-                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(8)),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: _selectedRiderId,
                           isExpanded: true,
-                          hint: const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('Choose a rider...', style: TextStyle(color: AppColors.textTertiary))),
+                          hint: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              child: Text('Choose a rider...',
+                                  style: TextStyle(
+                                      color: AppColors.textTertiary))),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           borderRadius: BorderRadius.circular(8),
                           items: _riders.map((r) {
-                            final name = '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}';
-                            final plate = r['rider_profile']?['plate_number'] ?? '';
-                            return DropdownMenuItem<String>(value: r['id'] as String, child: Text('$name — $plate'));
+                            final name =
+                                '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}';
+                            final plate =
+                                r['rider_profile']?['plate_number'] ?? '';
+                            return DropdownMenuItem<String>(
+                                value: r['id'] as String,
+                                child: Text('$name — $plate'));
                           }).toList(),
-                          onChanged: (v) => setState(() => _selectedRiderId = v),
+                          onChanged: (v) =>
+                              setState(() => _selectedRiderId = v),
                         ),
                       ),
                     ),
@@ -179,37 +211,63 @@ class _AssignRiderCollectionModalState
                     onTap: _pickDateTime,
                     child: Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(8)),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textSecondary),
+                          const Icon(Icons.calendar_today_outlined,
+                              size: 18, color: AppColors.textSecondary),
                           const SizedBox(width: 10),
                           Text(
                             _collectionSchedule != null
                                 ? '${_collectionSchedule!.day}/${_collectionSchedule!.month}/${_collectionSchedule!.year} ${_collectionSchedule!.hour.toString().padLeft(2, '0')}:${_collectionSchedule!.minute.toString().padLeft(2, '0')}'
                                 : 'Collection Schedule (optional)',
-                            style: TextStyle(color: _collectionSchedule != null ? AppColors.textPrimary : AppColors.textTertiary, fontSize: 14),
+                            style: TextStyle(
+                                color: _collectionSchedule != null
+                                    ? AppColors.textPrimary
+                                    : AppColors.textTertiary,
+                                fontSize: 14),
                           ),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  AppTextField(controller: _notesCtrl, label: 'Notes (optional)', maxLines: 2),
+                  AppTextField(
+                      controller: _notesCtrl,
+                      label: 'Notes (optional)',
+                      maxLines: 2),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.error.withValues(alpha: 0.3))),
-                      child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 13)),
+                      decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: AppColors.error.withValues(alpha: 0.3))),
+                      child: Text(_error!,
+                          style: const TextStyle(
+                              color: AppColors.error, fontSize: 13)),
                     ),
                   ],
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      Expanded(child: OutlinedButton(onPressed: _loading ? null : () => Navigator.of(context).pop(), child: const Text('Cancel'))),
+                      Expanded(
+                          child: OutlinedButton(
+                              onPressed: _loading
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'))),
                       const SizedBox(width: 12),
-                      Expanded(child: AppButton(label: 'Assign Rider', onPressed: _loading ? null : _submit, isLoading: _loading, color: AppColors.deepNavy)),
+                      Expanded(
+                          child: AppButton(
+                              label: 'Assign Rider',
+                              onPressed: _loading ? null : _submit,
+                              isLoading: _loading,
+                              color: AppColors.deepNavy)),
                     ],
                   ),
                 ],

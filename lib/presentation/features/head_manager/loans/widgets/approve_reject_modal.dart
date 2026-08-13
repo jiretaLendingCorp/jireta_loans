@@ -36,7 +36,9 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
       title: Row(
         children: [
           Icon(
-            widget.isApprove ? Icons.check_circle_outline : Icons.cancel_outlined,
+            widget.isApprove
+                ? Icons.check_circle_outline
+                : Icons.cancel_outlined,
             color: color,
             size: 24,
           ),
@@ -54,18 +56,21 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
               widget.isApprove
                   ? 'Are you sure you want to approve this loan application? This will proceed to disbursement.'
                   : 'You are about to reject this loan application.',
-              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             if (!widget.isApprove) ...[
               const SizedBox(height: 16),
-              const Text('Rejection Reason *', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text('Rejection Reason *',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               const SizedBox(height: 8),
               TextField(
                 controller: _reasonCtrl,
                 maxLines: 3,
                 decoration: InputDecoration(
                   hintText: 'Enter reason for rejection...',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                 ),
               ),
             ],
@@ -79,9 +84,14 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
         ),
         ElevatedButton(
           onPressed: _loading ? null : _confirm,
-          style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: color, foregroundColor: Colors.white),
           child: _loading
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
               : Text(widget.isApprove ? 'Approve' : 'Reject'),
         ),
       ],
@@ -91,11 +101,14 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
   Future<void> _confirm() async {
     if (!widget.isApprove && _reasonCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please provide a rejection reason'), backgroundColor: AppColors.error),
+        const SnackBar(
+            content: Text('Please provide a rejection reason'),
+            backgroundColor: AppColors.error),
       );
       return;
     }
     setState(() => _loading = true);
-    widget.onConfirm(widget.loanId, _reasonCtrl.text.trim().isEmpty ? null : _reasonCtrl.text.trim());
+    widget.onConfirm(widget.loanId,
+        _reasonCtrl.text.trim().isEmpty ? null : _reasonCtrl.text.trim());
   }
 }

@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/ci/providers/hm_ci_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
@@ -48,12 +49,12 @@ class HmCiState {
       );
 }
 
-class HmCiNotifier extends StateNotifier<HmCiState>
-    with RealtimeRefreshMixin {
+class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
   final CiRemoteDataSource _ds;
 
   HmCiNotifier(this._ds) : super(const HmCiState()) {
-    bindRealtimeRefresh(['credit_investigations', 'ci_documents'], refresh: fetch);
+    bindRealtimeRefresh(['credit_investigations', 'ci_documents'],
+        refresh: fetch);
     fetch();
   }
 
@@ -77,7 +78,8 @@ class HmCiNotifier extends StateNotifier<HmCiState>
         totalCount: (meta['total'] as num?)?.toInt() ?? list.length,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -121,6 +123,7 @@ class HmCiNotifier extends StateNotifier<HmCiState>
   }
 }
 
-final hmCiProvider = AutoDisposeStateNotifierProvider<HmCiNotifier, HmCiState>((ref) {
+final hmCiProvider =
+    AutoDisposeStateNotifierProvider<HmCiNotifier, HmCiState>((ref) {
   return HmCiNotifier(sl<CiRemoteDataSource>());
 });

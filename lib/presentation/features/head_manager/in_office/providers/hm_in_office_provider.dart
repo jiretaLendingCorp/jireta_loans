@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/in_office/providers/hm_in_office_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/in_office_remote_datasource.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
@@ -29,7 +30,8 @@ class HmInOfficeState {
 }
 
 final hmInOfficeProvider =
-    AutoDisposeStateNotifierProvider<HmInOfficeNotifier, HmInOfficeState>((ref) {
+    AutoDisposeStateNotifierProvider<HmInOfficeNotifier, HmInOfficeState>(
+        (ref) {
   return HmInOfficeNotifier(
       sl<InOfficeRemoteDataSource>(), sl<LoanRemoteDataSource>());
 });
@@ -38,8 +40,7 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
     with RealtimeRefreshMixin {
   final InOfficeRemoteDataSource _ds;
   final LoanRemoteDataSource _loanDs;
-  HmInOfficeNotifier(this._ds, this._loanDs)
-      : super(const HmInOfficeState()) {
+  HmInOfficeNotifier(this._ds, this._loanDs) : super(const HmInOfficeState()) {
     bindRealtimeRefresh(['in_office_applications'], refresh: load);
     load();
   }
@@ -53,7 +54,8 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
       );
       state = state.copyWith(applications: data, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 

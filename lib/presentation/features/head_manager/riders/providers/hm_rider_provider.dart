@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/riders/providers/hm_rider_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
@@ -26,13 +27,14 @@ class HmRiderState {
     String? error,
     String? search,
     String? statusFilter,
-  }) => HmRiderState(
-    riders: riders ?? this.riders,
-    isLoading: isLoading ?? this.isLoading,
-    error: error,
-    search: search ?? this.search,
-    statusFilter: statusFilter ?? this.statusFilter,
-  );
+  }) =>
+      HmRiderState(
+        riders: riders ?? this.riders,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+        search: search ?? this.search,
+        statusFilter: statusFilter ?? this.statusFilter,
+      );
 }
 
 class HmRiderNotifier extends StateNotifier<HmRiderState>
@@ -53,7 +55,8 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
       );
       state = state.copyWith(riders: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -101,6 +104,7 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
   }
 }
 
-final hmRiderProvider = AutoDisposeStateNotifierProvider<HmRiderNotifier, HmRiderState>(
+final hmRiderProvider =
+    AutoDisposeStateNotifierProvider<HmRiderNotifier, HmRiderState>(
   (ref) => HmRiderNotifier(sl<UserRemoteDataSource>()),
 );

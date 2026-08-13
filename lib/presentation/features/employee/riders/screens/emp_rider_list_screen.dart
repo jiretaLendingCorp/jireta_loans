@@ -136,8 +136,9 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
       onTap: () => context
           .go(RouteConstants.empRiderDetails.replaceFirst(':id', rider.id)),
       child: Container(
-        color:
-            isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
+        color: isEven
+            ? Colors.white
+            : AppColors.surfaceVariant.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
@@ -145,11 +146,11 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
                 flex: 3,
                 child: Row(children: [
                   ProfileAvatar(
-                      photoUrl: rider.profilePhotoUrl,
-                      name: rider.firstName,
-                      color: AppColors.riderGreen,
-                      radius: 18,
-                    ),
+                    photoUrl: rider.profilePhotoUrl,
+                    name: rider.firstName,
+                    color: AppColors.riderGreen,
+                    radius: 18,
+                  ),
                   const SizedBox(width: 10),
                   Text(rider.fullName,
                       style: const TextStyle(

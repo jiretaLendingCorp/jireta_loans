@@ -55,7 +55,7 @@ class _LenderLoanDetailsScreenState
 
     return MobileScaffold(
       title: 'Loan Details',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
       body: state.isLoading
@@ -65,7 +65,7 @@ class _LenderLoanDetailsScreenState
                   child: Text('Loan not found',
                       style: TextStyle(color: AppColors.textSecondary)))
               : RefreshIndicator(
-                  color: AppColors.lenderPurple,
+                  color: AppColors.lenderBlue,
                   onRefresh: () => ref
                       .read(lenderLoanProvider.notifier)
                       .loadLoanDetails(widget.loanId),
@@ -87,7 +87,7 @@ class _LenderLoanDetailsScreenState
                             onPressed: () => context.push(
                                 RouteConstants.lenderPayViaGcash,
                                 extra: {'loan_id': loan.id}),
-                            color: AppColors.lenderPurple,
+                            color: AppColors.lenderBlue,
                             icon: Icons.payment,
                           ),
                           const SizedBox(height: 10),
@@ -153,7 +153,7 @@ class _LoanHeader extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [AppColors.lenderPurple, AppColors.lenderPurpleLight],
+          colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

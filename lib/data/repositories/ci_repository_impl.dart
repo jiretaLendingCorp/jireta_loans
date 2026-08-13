@@ -10,10 +10,9 @@ class CiRepositoryImpl implements ICiRepository {
   Future<void> assignCi(Map<String, dynamic> data) => _ds.assignCi(
         loanId: (data['loanId'] ?? data['loan_id'] ?? '').toString(),
         riderId: (data['riderId'] ?? data['rider_id'] ?? '').toString(),
-        investigationNotes:
-            (data['investigationNotes'] ?? data['investigation_notes'] ??
-                data['notes'])
-                as String?,
+        investigationNotes: (data['investigationNotes'] ??
+            data['investigation_notes'] ??
+            data['notes']) as String?,
         deadline: data['deadline']?.toString(),
       );
 

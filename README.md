@@ -26,7 +26,7 @@ Lender
 Dapat ganto flow ng system na ito, super secure for lending management system
 All Sensitive operations,  business logic and rules must un backend
 
-Rule: Flutter is a thin client. All business logic, permission enforcement, database mutations, interest calculations, loan processing, payment processing, user management etc.., and sensitive operations must live inside Supabase Edge Functions (Deno TypeScript). Flutter should handle UI, local state, input validation, secure storage etc.., and calling REST APIs or Edge Functions.  Requirements: Flutter must NOT directly to PostgreSQL tables except where Supabase Auth officially requires it. Flutter must NOT contain business rules. Flutter must NOT perform role validation, permission checks, approval logic, loan calculations, payment logic, KYC decisions, or account state changes. Flutter must call Edge Functions through Dio/REST for all sensitive operations. Only Edge Functions may update the users, loans, payments, collections, kyc, notifications, and other business tables. Flutter may only use Supabase Auth SDK for: signIn signOut refreshSession currentUser OAuth OTP password reset Everything else must go through Edge Functions. Review every generated file against these rules before returning the code. If any violation exists, move that logic into the appropriate Edge Function and modify the Flutter code so it only consumes the API.
+Rule: Flutter is a thin client. All business logic, permission enforcement, database mutations, interest calculations, loan processing, payment processing, user management etc.., and sensitive operations must live inside Supabase Edge Functions (Deno TypeScript). Flutter should handle UI, local state, input validation, secure storage etc.., and calling REST APIs or Edge Functions.  Requirements: Flutter must NOT directly to PostgreSQL tables except where Supabase Auth officially requires it. Flutter must NOT contain business rules. Flutter must NOT perform role validation, permission checks, approval logic, loan calculations, payment logic, Account Upgrade decisions, or account state changes. Flutter must call Edge Functions through Dio/REST for all sensitive operations. Only Edge Functions may update the users, loans, payments, collections, account_upgrade, notifications, and other business tables. Flutter may only use Supabase Auth SDK for: signIn signOut refreshSession currentUser OAuth OTP password reset Everything else must go through Edge Functions. Review every generated file against these rules before returning the code. If any violation exists, move that logic into the appropriate Edge Function and modify the Flutter code so it only consumes the API.
 
 ┌──────────────────────────┐
 │        Flutter           │
@@ -52,7 +52,7 @@ Rule: Flutter is a thin client. All business logic, permission enforcement, data
 │              │  │   │
 └──────────────┘  └──────────────────┘
 
- The system must be scalable, secure, modular, production-ready, and follow enterprise FinTech standards. --- # TECHNOLOGY STACK Frontend * Flutter (Single Codebase) * Flutter Web * Flutter Mobile * Dart Backend * Supabase * PostgreSQL * Supabase Auth * Supabase Storage * Supabase Realtime * Supabase Edge Functions (Deno TypeScript) * REST API * Dio Communication Layer Architecture * Clean Architecture * Feature-first Folder Structure * Repository Pattern * Service Layer * Dependency Injection * Riverpod State Management * Secure API Layer * RBAC (Role-Based Access Control) --- # USER ROLES The system contains four user roles: 1. Head Manager (Admin) 2. Employee (Manager) 3. Rider 4. Lender (Borrower) Every role must have its own dedicated dashboard, navigation, permissions, features, analytics, and management modules. No role may access another role's protected resources unless explicitly permitted through RBAC. --- # DASHBOARD DESIGN REQUIREMENTS Design every dashboard as a complete enterprise workspace instead of only showing KPI cards. Do NOT design dashboards that only contain charts or summary cards. Each dashboard must function as a real management workspace. Every dashboard must contain: * Lifetime Statistics * Pending Requests * Notifications * Recent Activities * Complete Management Tables * Search * Advanced Filters * Sorting * Pagination * Quick Actions * Export PDF * Export Excel * View Details * Activity Timeline * Status History Never hide critical information behind summary cards. Every important record must have a dedicated **View Details** page or modal before users can perform any action. Approval actions must never appear directly inside table rows. Users must first review complete information before approving or rejecting. --- # HEAD MANAGER (ADMIN) Purpose Provide complete administrative control over the Lending Management System. Lifetime Statistics * Total Employees * Total Riders * Total Borrowers * Total Registered Users * Total Loan Applications * Total Approved Loans * Total Rejected Loans * Total Pending Loans * Total Active Loans * Total Completed Loans * Total Cancelled Loans * Total Overdue Loans * Total Loan Amount Released * Total Loan Amount Collected * Total Outstanding Balance * Total Interest Earned * Total Penalties Collected * Total Revenue * Total Collection Transactions Modules Dashboard * View Lifetime Statistics * Notifications * Recent Activities Employee Management * Create * View * View Details * Edit * Suspend * Activate * Archive Rider Management * Create * View * View Details * Edit * Suspend * Activate * Archive Borrower Management * View * View Details * Edit * Suspend * Activate * Archive Loan Management * View Applications * Review Applications * Approve * Reject * Request Additional Documents * Release Loan * Cancel Loan * Active Loans * Completed Loans * Overdue Loans * Loan History KYC Management * Review KYC * View Details * Approve * Reject * Request Additional Documents Payment Management * View Payments * View Payment Details * Verify Payments * Reverse Payment (Authorized Only) Collection Management * Assign Rider * Reassign Rider * Monitor Collection Status * View Collection Details Reports * Generate Reports * Export PDF * Export Excel Audit * Audit Logs * Activity Logs Notification Management * Send Notifications * View Notifications System * Roles * Permissions * Settings Profile * View Profile * Edit Profile * Change Password --- # EMPLOYEE (MANAGER) Purpose Manage loan applications, borrowers, collections, and daily operations. Lifetime Statistics * Total Borrowers Managed * Total Loan Applications Processed * Total Approved Loans * Total Rejected Loans * Total Active Loans * Total Completed Loans * Total Collections Managed Modules Dashboard * Lifetime Statistics * Notifications * Recent Activities Borrowers * Register * View * View Details * Edit Loans * Review Applications * Verify Requirements * Request Documents * Recommend Approval * Recommend Rejection * View Loan Details KYC * Review * Verify * Recommend Approval * Recommend Rejection Collections * Assign Rider * Monitor Collections Payments * View * View Details Reports * Generate * Export Profile * View * Edit * Change Password --- # RIDER Purpose Manage assigned borrower collections. Lifetime Statistics * Total Assigned Collections * Total Completed Collections * Total Failed Collections * Total Amount Collected Modules Dashboard * Lifetime Statistics * Notifications Collections * Assigned Collections * View Collection Details * Update Status * Collect Payment * Upload Proof * Add Notes Borrowers * View Borrower Information * View Address * View Loan Details * Contact Borrower Payments * View Payment Information Profile * View * Edit * Change Password --- # LENDER (BORROWER) Purpose Manage loans, payments, and personal account. Lifetime Statistics * Total Loan Applications * Total Approved Loans * Total Rejected Loans * Total Active Loans * Total Completed Loans * Total Amount Borrowed * Total Amount Paid * Total Remaining Balance * Total Interest Paid * Total Penalties Paid Modules Authentication * Register * Login * Logout * Forgot Password * Reset Password Profile * View * Edit * Upload Photo KYC * Submit * Update * View Status Loans * Apply Loan * View Application * View Loan Details * Cancel Pending Loan * Loan History Payments * Payment Schedule * Payment Details * Payment History * Download Receipt Collections * Collection History Documents * Upload Requirements * View Uploaded Documents Notifications * View Notifications --- # VIEW DETAILS REQUIREMENTS Every entity must have a complete View Details page. Borrower Details * Personal Information * Contact Information * Address * Government IDs * Selfie Verification * Uploaded Documents * KYC Status * Active Loan * Loan History * Payment History * Collection History * Account Status * Notes * Timeline Loan Details * Loan Number * Borrower Information * Loan Amount * Interest * Total Payable * Loan Term * Remaining Balance * Payment Schedule * Payment History * Collection History * Assigned Employee * Assigned Rider * Approval History * Status Timeline Payment Details * Payment Number * Borrower * Loan * Amount * Remaining Balance * Payment Method * Receipt * Payment Status Collection Details * Collection Number * Rider * Borrower * Loan * Amount Collected * Proof of Collection * Collection Notes * Collection Status Employee Details * Employee Information * Assigned Borrowers * Assigned Riders * Loan Processing History * Activity History Rider Details * Rider Information * Assigned Collections * Collection History * Uploaded Proofs * Activity History KYC Details * Borrower Information * Uploaded IDs * Selfie Verification * Supporting Documents * Verification Notes * Status Timeline --- # SYSTEM REQUIREMENTS Every management table must support: * Search * Advanced Filters * Sorting * Pagination * View Details * Export PDF * Export Excel All approval processes must require the reviewer to open the complete View Details page before approving or rejecting. No approved, rejected, cancelled, completed, or historical record may ever disappear from the database. Every record must remain permanently accessible according to system retention policies. All modules must enforce Role-Based Access Control (RBAC). The application must follow enterprise-level security, modular architecture, maintainability, scalability, and production-ready coding standards. # ADDITIONAL ENTERPRISE WORKFLOW REQUIREMENTS ## CREDIT INVESTIGATION ASSIGNMENT WORKFLOW Before any loan application can be approved, the borrower must first complete KYC submission. Once the borrower submits the KYC requirements, the application shall immediately become visible to both the **Head Manager (Admin)** and **Employee (Manager)**. Both roles are authorized to review the complete borrower profile before taking any action. The review page must include: * Personal Information * Contact Information * Present Address * Permanent Address * Government IDs * Selfie Verification * Uploaded Documents * Employment Information * Source of Income * Emergency Contacts * Loan Request Information * Previous Loan History * Payment History * Credit Investigation Status * Activity Timeline Neither the Head Manager nor the Employee may approve a loan immediately after KYC submission. The first required action is to assign a Rider for Credit Investigation. Both the Head Manager and the Employee are authorized to assign a Rider. The assignment record must store: * Assigned Rider * Assigned By (Authenticated User) * Assigned Date and Time * Investigation Deadline * Investigation Notes * Assignment Status Only the authenticated user who performed the assignment shall appear as the "Assigned By" user. If the Head Manager assigned the Rider, the assignment record must display the Head Manager's identity. If the Employee assigned the Rider, the assignment record must display the Employee's identity. Immediately after assignment: * The assigned Rider shall receive a push notification. * The Head Manager or Employee who performed the assignment shall receive confirmation. * The assignment shall appear inside the Rider dashboard. The Rider must have the ability to: * Accept Assignment * Decline Assignment * View Complete Borrower Information * Navigate to Borrower Address * Perform Credit Investigation * Upload Investigation Photos * Upload Supporting Evidence * Add Investigation Notes * Submit Investigation Report The submitted investigation report shall automatically become visible to both the Head Manager and the Employee. Only after the investigation report has been submitted may the loan proceed to the approval stage. --- # COLLECTION ASSIGNMENT WORKFLOW When a borrower has an active loan, payment collection shall support three payment channels. ## GCash Payment The borrower may pay directly using GCash. Payment processing shall be integrated with the Xendit API. Development environment shall use Xendit Sandbox APIs only. Production environment shall use Xendit Live APIs. After successful payment: * Payment Record * Receipt * Transaction Reference * Collection History * Loan Balance must automatically update. --- ## Office Payment The borrower may visit the office to pay directly. The employee shall verify the borrower's identity by reviewing previously submitted KYC documents before accepting payment. The employee shall record: * Payment Amount * Payment Method * Receipt Number * Remaining Balance * Payment Notes --- ## Cash Collection by Rider The Head Manager or Employee may assign a Rider to collect payment from the borrower. The assignment shall contain: * Assigned Rider * Assigned By * Assignment Date * Collection Schedule * Collection Notes The authenticated user who assigned the Rider must always be recorded. The Rider shall receive a notification immediately after assignment. The Rider shall be able to: * View Collection Assignment * Collect Cash Payment * Upload Payment Proof * Upload Borrower Signature * Upload Collection Photo * Add Collection Notes * Complete Collection After completion: * Borrower * Assigned Employee or Head Manager * Audit Logs shall all receive notifications. --- # DISBURSEMENT WORKFLOW Loan release shall support three disbursement methods. ## GCash Disbursement Funds shall be transferred through Xendit API integration. Development must use Sandbox APIs. Production must use Live APIs. Every transfer must record: * Transaction Reference * Amount * Status * Timestamp * Audit Log --- ## Office Cash Release Borrowers may claim loan proceeds at the office. Before releasing funds, the employee shall review all submitted KYC documents. The employee shall verify: * Government IDs * Selfie Verification * Approved Loan * Borrower Identity Only after successful verification may funds be released. --- ## Rider Cash Delivery The Head Manager or Employee may assign a Rider to deliver loan proceeds. The assignment record shall include: * Assigned Rider * Assigned By * Delivery Date * Delivery Notes * Delivery Status The authenticated user who assigned the Rider must always be recorded. The Rider shall: * Accept Delivery Assignment * Deliver Cash * Upload Borrower Signature * Upload Delivery Photo * Upload Proof of Release * Complete Delivery All activities must be recorded inside the Audit Log. --- # REPORT MANAGEMENT Only the Head Manager (Admin) may access the complete Reports Library. Reports shall not be generated from scratch every time. Instead, the system shall maintain a centralized Report Template Library. The library shall contain professionally designed templates for: * Loan Reports * Collection Reports * Payment Reports * Borrower Reports * Rider Reports * Employee Reports * Financial Reports * Revenue Reports * Interest Reports * Penalty Reports * Overdue Loan Reports * Audit Reports * Activity Reports * Credit Investigation Reports * Disbursement Reports Every report template shall support: * PDF Export * Excel Export The Head Manager shall be able to: * Preview Reports * Select Report Templates * Filter Data * Generate Reports * Download PDF * Download Excel * Print Reports * Save Report History Generated reports shall be archived and remain available for future viewing and downloading.
+ The system must be scalable, secure, modular, production-ready, and follow enterprise FinTech standards. --- # TECHNOLOGY STACK Frontend * Flutter (Single Codebase) * Flutter Web * Flutter Mobile * Dart Backend * Supabase * PostgreSQL * Supabase Auth * Supabase Storage * Supabase Realtime * Supabase Edge Functions (Deno TypeScript) * REST API * Dio Communication Layer Architecture * Clean Architecture * Feature-first Folder Structure * Repository Pattern * Service Layer * Dependency Injection * Riverpod State Management * Secure API Layer * RBAC (Role-Based Access Control) --- # USER ROLES The system contains four user roles: 1. Head Manager (Admin) 2. Employee (Manager) 3. Rider 4. Lender (Borrower) Every role must have its own dedicated dashboard, navigation, permissions, features, analytics, and management modules. No role may access another role's protected resources unless explicitly permitted through RBAC. --- # DASHBOARD DESIGN REQUIREMENTS Design every dashboard as a complete enterprise workspace instead of only showing KPI cards. Do NOT design dashboards that only contain charts or summary cards. Each dashboard must function as a real management workspace. Every dashboard must contain: * Lifetime Statistics * Pending Requests * Notifications * Recent Activities * Complete Management Tables * Search * Advanced Filters * Sorting * Pagination * Quick Actions * Export PDF * Export Excel * View Details * Activity Timeline * Status History Never hide critical information behind summary cards. Every important record must have a dedicated **View Details** page or modal before users can perform any action. Approval actions must never appear directly inside table rows. Users must first review complete information before approving or rejecting. --- # HEAD MANAGER (ADMIN) Purpose Provide complete administrative control over the Lending Management System. Lifetime Statistics * Total Employees * Total Riders * Total Borrowers * Total Registered Users * Total Loan Applications * Total Approved Loans * Total Rejected Loans * Total Pending Loans * Total Active Loans * Total Completed Loans * Total Cancelled Loans * Total Overdue Loans * Total Loan Amount Released * Total Loan Amount Collected * Total Outstanding Balance * Total Interest Earned * Total Penalties Collected * Total Revenue * Total Collection Transactions Modules Dashboard * View Lifetime Statistics * Notifications * Recent Activities Employee Management * Create * View * View Details * Edit * Suspend * Activate * Archive Rider Management * Create * View * View Details * Edit * Suspend * Activate * Archive Borrower Management * View * View Details * Edit * Suspend * Activate * Archive Loan Management * View Applications * Review Applications * Approve * Reject * Request Additional Documents * Release Loan * Cancel Loan * Active Loans * Completed Loans * Overdue Loans * Loan History Account Upgrade Management * Review Account Upgrade * View Details * Approve * Reject * Request Additional Documents Payment Management * View Payments * View Payment Details * Verify Payments * Reverse Payment (Authorized Only) Collection Management * Assign Rider * Reassign Rider * Monitor Collection Status * View Collection Details Reports * Generate Reports * Export PDF * Export Excel Audit * Audit Logs * Activity Logs Notification Management * Send Notifications * View Notifications System * Roles * Permissions * Settings Profile * View Profile * Edit Profile * Change Password --- # EMPLOYEE (MANAGER) Purpose Manage loan applications, borrowers, collections, and daily operations. Lifetime Statistics * Total Borrowers Managed * Total Loan Applications Processed * Total Approved Loans * Total Rejected Loans * Total Active Loans * Total Completed Loans * Total Collections Managed Modules Dashboard * Lifetime Statistics * Notifications * Recent Activities Borrowers * Register * View * View Details * Edit Loans * Review Applications * Verify Requirements * Request Documents * Recommend Approval * Recommend Rejection * View Loan Details Account Upgrade * Review * Verify * Recommend Approval * Recommend Rejection Collections * Assign Rider * Monitor Collections Payments * View * View Details Reports * Generate * Export Profile * View * Edit * Change Password --- # RIDER Purpose Manage assigned borrower collections. Lifetime Statistics * Total Assigned Collections * Total Completed Collections * Total Failed Collections * Total Amount Collected Modules Dashboard * Lifetime Statistics * Notifications Collections * Assigned Collections * View Collection Details * Update Status * Collect Payment * Upload Proof * Add Notes Borrowers * View Borrower Information * View Address * View Loan Details * Contact Borrower Payments * View Payment Information Profile * View * Edit * Change Password --- # LENDER (BORROWER) Purpose Manage loans, payments, and personal account. Lifetime Statistics * Total Loan Applications * Total Approved Loans * Total Rejected Loans * Total Active Loans * Total Completed Loans * Total Amount Borrowed * Total Amount Paid * Total Remaining Balance * Total Interest Paid * Total Penalties Paid Modules Authentication * Register * Login * Logout * Forgot Password * Reset Password Profile * View * Edit * Upload Photo Account Upgrade * Submit * Update * View Status Loans * Apply Loan * View Application * View Loan Details * Cancel Pending Loan * Loan History Payments * Payment Schedule * Payment Details * Payment History * Download Receipt Collections * Collection History Documents * Upload Requirements * View Uploaded Documents Notifications * View Notifications --- # VIEW DETAILS REQUIREMENTS Every entity must have a complete View Details page. Borrower Details * Personal Information * Contact Information * Address * Government IDs * Selfie Verification * Uploaded Documents * Account Upgrade Status * Active Loan * Loan History * Payment History * Collection History * Account Status * Notes * Timeline Loan Details * Loan Number * Borrower Information * Loan Amount * Interest * Total Payable * Loan Term * Remaining Balance * Payment Schedule * Payment History * Collection History * Assigned Employee * Assigned Rider * Approval History * Status Timeline Payment Details * Payment Number * Borrower * Loan * Amount * Remaining Balance * Payment Method * Receipt * Payment Status Collection Details * Collection Number * Rider * Borrower * Loan * Amount Collected * Proof of Collection * Collection Notes * Collection Status Employee Details * Employee Information * Assigned Borrowers * Assigned Riders * Loan Processing History * Activity History Rider Details * Rider Information * Assigned Collections * Collection History * Uploaded Proofs * Activity History Account Upgrade Details * Borrower Information * Uploaded IDs * Selfie Verification * Supporting Documents * Verification Notes * Status Timeline --- # SYSTEM REQUIREMENTS Every management table must support: * Search * Advanced Filters * Sorting * Pagination * View Details * Export PDF * Export Excel All approval processes must require the reviewer to open the complete View Details page before approving or rejecting. No approved, rejected, cancelled, completed, or historical record may ever disappear from the database. Every record must remain permanently accessible according to system retention policies. All modules must enforce Role-Based Access Control (RBAC). The application must follow enterprise-level security, modular architecture, maintainability, scalability, and production-ready coding standards. # ADDITIONAL ENTERPRISE WORKFLOW REQUIREMENTS ## CREDIT INVESTIGATION ASSIGNMENT WORKFLOW Before any loan application can be approved, the borrower must first complete Account Upgrade submission. Once the borrower submits the Account Upgrade requirements, the application shall immediately become visible to both the **Head Manager (Admin)** and **Employee (Manager)**. Both roles are authorized to review the complete borrower profile before taking any action. The review page must include: * Personal Information * Contact Information * Present Address * Permanent Address * Government IDs * Selfie Verification * Uploaded Documents * Employment Information * Source of Income * Emergency Contacts * Loan Request Information * Previous Loan History * Payment History * Credit Investigation Status * Activity Timeline Neither the Head Manager nor the Employee may approve a loan immediately after Account Upgrade submission. The first required action is to assign a Rider for Credit Investigation. Both the Head Manager and the Employee are authorized to assign a Rider. The assignment record must store: * Assigned Rider * Assigned By (Authenticated User) * Assigned Date and Time * Investigation Deadline * Investigation Notes * Assignment Status Only the authenticated user who performed the assignment shall appear as the "Assigned By" user. If the Head Manager assigned the Rider, the assignment record must display the Head Manager's identity. If the Employee assigned the Rider, the assignment record must display the Employee's identity. Immediately after assignment: * The assigned Rider shall receive a push notification. * The Head Manager or Employee who performed the assignment shall receive confirmation. * The assignment shall appear inside the Rider dashboard. The Rider must have the ability to: * Accept Assignment * Decline Assignment * View Complete Borrower Information * Navigate to Borrower Address * Perform Credit Investigation * Upload Investigation Photos * Upload Supporting Evidence * Add Investigation Notes * Submit Investigation Report The submitted investigation report shall automatically become visible to both the Head Manager and the Employee. Only after the investigation report has been submitted may the loan proceed to the approval stage. --- # COLLECTION ASSIGNMENT WORKFLOW When a borrower has an active loan, payment collection shall support three payment channels. ## GCash Payment The borrower may pay directly using GCash. Payment processing shall be integrated with the Xendit API. Development environment shall use Xendit Sandbox APIs only. Production environment shall use Xendit Live APIs. After successful payment: * Payment Record * Receipt * Transaction Reference * Collection History * Loan Balance must automatically update. --- ## Office Payment The borrower may visit the office to pay directly. The employee shall verify the borrower's identity by reviewing previously submitted Account Upgrade documents before accepting payment. The employee shall record: * Payment Amount * Payment Method * Receipt Number * Remaining Balance * Payment Notes --- ## Cash Collection by Rider The Head Manager or Employee may assign a Rider to collect payment from the borrower. The assignment shall contain: * Assigned Rider * Assigned By * Assignment Date * Collection Schedule * Collection Notes The authenticated user who assigned the Rider must always be recorded. The Rider shall receive a notification immediately after assignment. The Rider shall be able to: * View Collection Assignment * Collect Cash Payment * Upload Payment Proof * Upload Borrower Signature * Upload Collection Photo * Add Collection Notes * Complete Collection After completion: * Borrower * Assigned Employee or Head Manager * Audit Logs shall all receive notifications. --- # DISBURSEMENT WORKFLOW Loan release shall support three disbursement methods. ## GCash Disbursement Funds shall be transferred through Xendit API integration. Development must use Sandbox APIs. Production must use Live APIs. Every transfer must record: * Transaction Reference * Amount * Status * Timestamp * Audit Log --- ## Office Cash Release Borrowers may claim loan proceeds at the office. Before releasing funds, the employee shall review all submitted Account Upgrade documents. The employee shall verify: * Government IDs * Selfie Verification * Approved Loan * Borrower Identity Only after successful verification may funds be released. --- ## Rider Cash Delivery The Head Manager or Employee may assign a Rider to deliver loan proceeds. The assignment record shall include: * Assigned Rider * Assigned By * Delivery Date * Delivery Notes * Delivery Status The authenticated user who assigned the Rider must always be recorded. The Rider shall: * Accept Delivery Assignment * Deliver Cash * Upload Borrower Signature * Upload Delivery Photo * Upload Proof of Release * Complete Delivery All activities must be recorded inside the Audit Log. --- # REPORT MANAGEMENT Only the Head Manager (Admin) may access the complete Reports Library. Reports shall not be generated from scratch every time. Instead, the system shall maintain a centralized Report Template Library. The library shall contain professionally designed templates for: * Loan Reports * Collection Reports * Payment Reports * Borrower Reports * Rider Reports * Employee Reports * Financial Reports * Revenue Reports * Interest Reports * Penalty Reports * Overdue Loan Reports * Audit Reports * Activity Reports * Credit Investigation Reports * Disbursement Reports Every report template shall support: * PDF Export * Excel Export The Head Manager shall be able to: * Preview Reports * Select Report Templates * Filter Data * Generate Reports * Download PDF * Download Excel * Print Reports * Save Report History Generated reports shall be archived and remain available for future viewing and downloading.
 
 modal for CRUID
 
@@ -140,7 +140,7 @@ Full system access. 19 KPI stat cards on dashboard. Collapsible sidebar navigati
 | Total Collection Transactions | Count of all collection records (cash + GCash + rider). |
 | Total CI Assignments | All credit investigation assignments ever created. |
 | Total Report Exports | Count of generated/exported reports. |
-| Total Pending KYC | KYC submissions currently awaiting review. |
+| Total Pending Account Upgrade | Account Upgrade submissions currently awaiting review. |
 
 ## 1.2 All Screens & Capabilities
 
@@ -153,7 +153,7 @@ Full system access. 19 KPI stat cards on dashboard. Collapsible sidebar navigati
 | Dashboard | Displays 19 animated KPI stat cards + realtime activity feed. Charts: monthly disbursements, collections, active loans by status. |
 | Dashboard — KPI Provider | Fetches all 19 KPI metrics from Edge Function. Realtime Supabase subscription updates counters live. |
 | Dashboard — KPI Card Grid | Grid widget rendering all 19 KPI cards with count-up animation. |
-| Dashboard — Activity Feed | Real-time scrollable feed of recent loan, KYC, payment, and CI events. |
+| Dashboard — Activity Feed | Real-time scrollable feed of recent loan, Account Upgrade, payment, and CI events. |
 | In-Office Application — List | Shows all in-office applications with status (draft/submitted/converted). Search + filter by status + date. |
 | In-Office Application — Wizard | 5-step wizard container. Manages step navigation, back/next buttons, step indicator bar, draft auto-save. |
 | In-Office Application — Provider | Holds wizard state, calls all in-office/* Edge Functions. |
@@ -172,22 +172,22 @@ Full system access. 19 KPI stat cards on dashboard. Collapsible sidebar navigati
 | Rider Provider | Fetches/mutates rider data. |
 | Create Rider Modal | Form: first/middle/last name, phone, vehicle type, plate number, drivers license. Default password 12345678. |
 | Edit Rider Modal | Same fields as create. Pre-populated. |
-| Lender List | Enterprise table. Columns: name, phone, GCash, KYC status, active loan, blacklist status, account status. Row actions: view, edit, suspend, activate, archive, blacklist. |
-| Lender Details | Full profile: personal info, addresses, emergency contacts, documents, KYC submissions, loans history, payment history, blacklist history. |
-| Lender Provider | Fetches/mutates lender profile, KYC, and status. |
+| Lender List | Enterprise table. Columns: name, phone, GCash, Account Upgrade status, active loan, blacklist status, account status. Row actions: view, edit, suspend, activate, archive, blacklist. |
+| Lender Details | Full profile: personal info, addresses, emergency contacts, documents, Account Upgrade submissions, loans history, payment history, blacklist history. |
+| Lender Provider | Fetches/mutates lender profile, Account Upgrade, and status. |
 | Create Lender Modal (Walk-in) | Form: name, phone, gender, civil status, DOB, employment, monthly income, GCash number. Submits to users/create-lender. |
 | Blacklist Modal | Reason input. Confirm dialog. Submits to blacklist/add or blacklist/remove. |
 | Loan Applications List | Enterprise table. Tabs: All / Pending / Under Review / CI Required. Columns: loan#, lender, amount, date, status. Filter by status, date, amount range. |
-| Loan Application Details | Full review: lender profile, KYC status, co-maker info, documents, requested amount, purpose. Action buttons: Approve, Reject, Request CI, Cancel. Buttons appear only on details — not on list. |
+| Loan Application Details | Full review: lender profile, Account Upgrade status, co-maker info, documents, requested amount, purpose. Action buttons: Approve, Reject, Request CI, Cancel. Buttons appear only on details — not on list. |
 | Loan List | Tabs: Active / Completed / Overdue / History. Search, filter, sort, paginate. |
 | Loan Details | Full loan view: loan#, lender info, amounts, schedule, payment history, disbursement info, penalty history, collections. |
 | Loan Schedule | Period-by-period payment schedule table. Due date, amount due, amount paid, status per row. |
 | Loan Provider | All loan CRUD: approve, reject, cancel, penalty. Calls loans/* Edge Functions. |
 | Approve / Reject Modal | Confirm dialog with summary. Reject shows reason textarea. Submits to loans/approve or loans/reject. |
 | Penalty Modal | Confirms penalty amount (20% of total_payable — fetched from server preview). Reason field. Submits to loans/apply-penalty. |
-| KYC List | Enterprise table. Columns: lender name, doc type, submitted date, status. Filter by status/date. |
-| KYC Details | Shows uploaded document with signed URL viewer. Verification buttons: Verified / Rejected. Remarks textarea. Submits to kyc/verify. |
-| KYC Provider | Fetches KYC list and handles verify/reject calls. |
+| Account Upgrade List | Enterprise table. Columns: lender name, doc type, submitted date, status. Filter by status/date. |
+| Account Upgrade Details | Shows uploaded document with signed URL viewer. Verification buttons: Verified / Rejected. Remarks textarea. Submits to kyc-view?fn=verify. |
+| Account Upgrade Provider | Fetches account upgrade list and handles verify/reject calls. |
 | CI List | Enterprise table. Columns: loan#, lender, rider assigned, status, deadline, assigned by. Filter by status/rider/date. |
 | CI Details | Full CI view: borrower address, assigned rider, CI notes, rider notes, documents gallery (photos + evidence with GPS coordinates), completion status. |
 | CI Provider | Handles CI assign and monitor calls. |
@@ -225,7 +225,7 @@ Full system access. 19 KPI stat cards on dashboard. Collapsible sidebar navigati
 
 **Platform:** Flutter Web | **Login:** Email + Password | **Same portal as HM — RBAC enforced server-side**
 
-Processes loan applications, verifies KYC, assigns riders for CI and collections, records office payments. Cannot access: reports, audit logs, blacklist management, system settings. Employee-created In-Office drafts are only visible to own account (HM sees all).
+Processes loan applications, verifies Account Upgrades, assigns riders for CI and collections, records office payments. Cannot access: reports, audit logs, blacklist management, system settings. Employee-created In-Office drafts are only visible to own account (HM sees all).
 
 ## 2.1 Dashboard KPI Cards (7 metrics)
 
@@ -259,9 +259,9 @@ Processes loan applications, verifies KYC, assigns riders for CI and collections
 | Loan Applications | Table of loan applications. Employee can review, verify requirements, request docs, recommend approve/reject. |
 | Loan Details | Full loan view with employee-allowed actions: verify, recommend, request docs, authorize disbursement. |
 | Emp Loan Provider | Handles employee-scoped loan actions. |
-| KYC Review List | Pending KYC list. Employee can verify or recommend reject. |
-| KYC Details | Document viewer + verify/reject action. Remarks textarea. |
-| Emp KYC Provider | KYC verify calls for employee. |
+| Account Upgrade Review List | Pending Account Upgrade list. Employee can verify or recommend reject. |
+| Account Upgrade Details | Document viewer + verify/reject action. Remarks textarea. |
+| Emp Account Upgrade Provider | Account Upgrade verify calls for employee. |
 | CI List | CI assignments for monitoring. Employee can assign rider, view status, view report. |
 | CI Details | CI report viewer, document gallery, rider notes. |
 | Emp CI Provider | CI assign + monitor for employee. |
@@ -333,7 +333,7 @@ Field agent. Receives collection and CI assignments via push notifications. Shar
 
 The borrower role. Account is always created by HM or Employee — either standalone (Create Lender modal) or during In-Office Application wizard Step 1. The Lender mobile app has NO register screen, NO "Create Account" button, and NO /register route. The first screen after Terms & Conditions is the Login page.
 
-Lender can: submit KYC, apply for a loan (if KYC verified + no active loan + not blacklisted), pay via GCash (Xendit), view their assigned rider's real-time location on a map, and download payment receipts.
+Lender can: submit Account Upgrade, apply for a loan (if Account Upgrade verified + no active loan + not blacklisted), pay via GCash (Xendit), view their assigned rider's real-time location on a map, and download payment receipts.
 
 ## 4.1 Dashboard KPI Cards (10 metrics)
 
@@ -362,11 +362,11 @@ Lender can: submit KYC, apply for a loan (if KYC verified + no active loan + not
 | Force Change Password | Mandatory on first login (force_password_change=TRUE). Blocks all other routes. |
 | Dashboard | KPI cards: total applications, approved, active, completed, total borrowed, total paid, remaining balance. Quick action buttons: Apply for Loan, Pay Now, View Schedule. |
 | Lender Dashboard Provider | Fetches lender-scoped KPIs. |
-| KYC Submission | Upload required documents (valid ID, selfie, proof of billing, etc.). Progress indicator. Resubmit on rejection. |
-| KYC Status | Shows current KYC status with timeline. Rejection notes visible. Option to resubmit. |
-| Lender KYC Provider | KYC submit + status fetch. |
-| Apply for Loan | Amount slider (₱3,000–₱500,000). Payment frequency selector. Purpose field. Live schedule preview from API. Blocked if: KYC not verified, active loan exists, blacklisted. |
-| Loan Application Status | Timeline showing current stage: Applied → KYC Verified → CI Done → Approved / Rejected. Rejection reason shown. |
+| Account Upgrade Submission | Upload required documents (valid ID, selfie, proof of billing, etc.). Progress indicator. Resubmit on rejection. |
+| Account Upgrade Status | Shows current Account Upgrade status with timeline. Rejection notes visible. Option to resubmit. |
+| Lender Account Upgrade Provider | Account Upgrade submit + status fetch. |
+| Apply for Loan | Amount slider (₱3,000–₱500,000). Payment frequency selector. Purpose field. Live schedule preview from API. Blocked if: Account Upgrade not verified, active loan exists, blacklisted. |
+| Loan Application Status | Timeline showing current stage: Applied → Account Upgrade Verified → CI Done → Approved / Rejected. Rejection reason shown. |
 | Loan Details | Loan number, amount, total payable, interest, installment, frequency, term, due date, outstanding balance, disbursement info. |
 | Payment Schedule | Period-by-period table. Due date, amount due, amount paid, status per row. Download schedule button. |
 | Lender Loan Provider | Apply, cancel pending, fetch list and details. |
@@ -378,7 +378,7 @@ Lender can: submit KYC, apply for a loan (if KYC verified + no active loan + not
 | Collection Details | Details of one collection: rider name, collection date, amount, proof photo, status. "Track Rider" button. |
 | Track Rider (Map) | Google Maps showing rider's real-time GPS location. Updates every 30s via location/get-rider Edge Function. |
 | Lender Collection Provider | Collection history + rider location polling. |
-| Documents View | List of all uploaded documents (KYC + loan attachments). Type, upload date, status. Signed URL viewer. |
+| Documents View | List of all uploaded documents (Account Upgrade + loan attachments). Type, upload date, status. Signed URL viewer. |
 | Upload Documents | Document type picker, file picker (image/PDF), upload progress. Calls document upload endpoint. |
 | Lender Documents Provider | Document list + upload. |
 | Lender Location Provider | Receives and caches rider location for map display. |
@@ -851,9 +851,9 @@ Security Controls
 
 9. Loan Approval Security
 
-✅ KYC Verification
+✅ Account Upgrade Verification
 
-✅ e-KYC Verification (Optional)
+✅ e-Account Upgrade Verification (Optional)
 
 ✅ Borrower Identity Verification
 
@@ -1637,33 +1637,34 @@ jireta_lms/
 │       │   # Enforces: cannot archive user with active loans.
 │       │   # Writes: audit_log.
 │       │
-│       │   # ── KYC (4 functions) ─────────────────────────────────────────────
+│       │   # ── Account Upgrade (KYC module, 2 deployable functions) ─────────────
 │       ├── kyc-submit/index.ts
-│       │   # POST: Lender submits KYC documents.
+│       │   # POST: Lender submits Account Upgrade documents.
 │       │   # Validates: file type (JPEG/PNG/PDF), MIME, max size 5MB.
-│       │   # Stores: signed private URLs in Supabase Storage (kyc-documents bucket).
-│       │   # Sets: lender_profiles.kyc_status = 'submitted'.
-│       │   # Writes: kyc_documents, audit_log.
+│       │   # Stores: signed private URLs in Supabase Storage (account-upgrade-documents bucket).
+│       │   # Sets: lender_profiles.account_upgrade_status = 'submitted'.
+│       │   # Writes: account_upgrade_documents, audit_log.
 │       │   # Triggers: notification to HM + all Employees.
 │       │
-│       ├── kyc-verify/index.ts
-│       │   # PATCH: HM or Employee. Verify or Reject a KYC document.
-│       │   # Body: { kyc_doc_id, action: 'verified'|'rejected', rejection_notes? }.
-│       │   # Enforces: all docs verified before status flips to 'verified'.
-│       │   # Writes: kyc_documents.status, lender_profiles.kyc_status, audit_log.
-│       │   # Triggers: notification to Lender.
-│       │
-│       ├── kyc-get-list/index.ts
-│       │   # GET: Paginated KYC list. RBAC: HM/Employee only.
-│       │   # Filters: status, date_range, lender_name.
-│       │
-│       ├── kyc-get-status/index.ts
-│       │   # GET: Lender fetches own KYC status + document list with signed URLs.
+│       ├── kyc-view/index.ts (routes by ?fn=)
+│       │   # kyc-verify       → ?fn=verify
+│       │   #   PATCH: HM or Employee. Verify or Reject an Account Upgrade document.
+│       │   #   Body: { account_upgrade_doc_id, action: 'verified'|'rejected', rejection_notes? }.
+│       │   #   Enforces: all docs verified before status flips to 'verified'.
+│       │   #   Writes: account_upgrade_documents.status, lender_profiles.account_upgrade_status, audit_log.
+│       │   #   Triggers: notification to Lender.
+│       │   # kyc-get-list     → ?fn=get-list
+│       │   #   GET: Paginated Account Upgrade list. RBAC: HM/Employee only.
+│       │   #   Filters: status, date_range, lender_name.
+│       │   # kyc-get-status   → ?fn=get-status
+│       │   #   GET: Lender fetches own Account Upgrade status + document list with signed URLs.
+│       │   # kyc-get-details  → ?fn=get-details
+│       │   #   GET: HM/Employee fetch a lender's Account Upgrade submission details with signed URLs.
 │       │
 │       │   # ── Loans (9 functions) ───────────────────────────────────────────
 │       ├── loans-apply/index.ts
 │       │   # POST: Lender applies for a loan.
-│       │   # Enforces: kyc_status=verified, no active loan, not blacklisted,
+│       │   # Enforces: account_upgrade_status=verified, no active loan, not blacklisted,
 │       │   #           amount ₱3,000–₱500,000, valid frequency (daily/weekly/monthly).
 │       │   # Computes: interest_rate=20%, total_payable=principal*1.20, term_days,
 │       │   #           installment schedule — ALL server-side, no Dart math.
@@ -1674,7 +1675,7 @@ jireta_lms/
 │       ├── loans-approve/index.ts
 │       │   # PATCH: HM or Employee. Approve a loan application.
 │       │   # Enforces: status must be 'ci_completed', CI report submitted,
-│       │   #           lender KYC verified, not blacklisted.
+│       │   #           lender Account Upgrade verified, not blacklisted.
 │       │   # Sets: loans.status = 'approved'.
 │       │   # Writes: audit_log. Triggers: notification to Lender.
 │       │
@@ -1802,7 +1803,7 @@ jireta_lms/
 │       │   # POST: Employee or HM records walk-in office payment.
 │       │   # Body: { loan_id, loan_schedule_id, amount, notes, idempotency_key }.
 │       │   # Enforces: idempotency_key unique check, no overpayment,
-│       │   #           KYC identity verified before recording.
+│       │   #           Account Upgrade identity verified before recording.
 │       │   # Updates: loan_schedules, loans.outstanding_balance.
 │       │   # Writes: payments, audit_log. Triggers: notification to Lender.
 │       │
@@ -1849,7 +1850,7 @@ jireta_lms/
 │       │
 │       ├── disbursements-office-cash/index.ts
 │       │   # POST: HM or Employee records manual office cash disbursement.
-│       │   # Enforces: KYC identity verified (checks kyc_documents), loan approved.
+│       │   # Enforces: Account Upgrade identity verified (checks account_upgrade_documents), loan approved.
 │       │   # Sets: loans.status='active', disbursement_method='office_cash'.
 │       │   # Writes: disbursements, audit_log. Triggers: notification to Lender.
 │       │
@@ -1953,7 +1954,7 @@ jireta_lms/
 │       │   #          total_released_amount, total_collected, total_outstanding,
 │       │   #          total_interest_earned, total_penalties, total_revenue,
 │       │   #          total_collection_transactions, total_ci_assignments,
-│       │   #          total_report_exports, total_pending_kyc.
+│       │   #          total_report_exports, total_pending_account_upgrade.
 │       │   # RBAC: head_manager only.
 │       │
 │       ├── kpi-employee/index.ts
@@ -2106,7 +2107,7 @@ jireta_lms/
     │   │   └── supabase_storage_service.dart
     │   │       # Supabase Storage: upload file to bucket, get signed URL.
     │   │       # Validates: mime type, file size before upload attempt.
-    │   │       # Used by: KYC submit, CI documents, collection proof.
+    │   │       # Used by: Account Upgrade submit, CI documents, collection proof.
     │   │
     │   ├── theme/
     │   │   ├── app_colors.dart
@@ -2134,6 +2135,7 @@ jireta_lms/
     │   │   │   └── cache_datasource.dart           # In-memory LRU cache for signed URLs
     │   │   │
     │   │   └── remote/
+    │   │       ├── account_upgrade_remote_datasource.dart
     │   │       ├── auth_remote_datasource.dart
     │   │       ├── audit_remote_datasource.dart
     │   │       ├── blacklist_remote_datasource.dart
@@ -2142,7 +2144,6 @@ jireta_lms/
     │   │       ├── disbursement_remote_datasource.dart
     │   │       ├── in_office_remote_datasource.dart
     │   │       ├── kpi_remote_datasource.dart
-    │   │       ├── kyc_remote_datasource.dart
     │   │       ├── loan_remote_datasource.dart
     │   │       ├── location_remote_datasource.dart
     │   │       ├── notification_remote_datasource.dart
@@ -2154,6 +2155,7 @@ jireta_lms/
     │   ├── models/
     │   │   # Each model: fromJson(), toJson(), copyWith(), Equatable.
     │   │   # Mirrors database schema exactly. NO business rule fields.
+    │   │   ├── account_upgrade_document_model.dart
     │   │   ├── address_model.dart
     │   │   ├── audit_log_model.dart
     │   │   ├── auth_log_model.dart
@@ -2171,7 +2173,6 @@ jireta_lms/
     │   │   ├── kpi_head_manager_model.dart
     │   │   ├── kpi_lender_model.dart
     │   │   ├── kpi_rider_model.dart
-    │   │   ├── kyc_document_model.dart
     │   │   ├── lender_profile_model.dart
     │   │   ├── loan_document_model.dart
     │   │   ├── loan_model.dart
@@ -2194,6 +2195,7 @@ jireta_lms/
     │   └── repositories/
     │       # Implements domain interface. Calls remote datasource via DioClient.
     │       # Handles errors, maps models to entities.
+    │       ├── account_upgrade_repository_impl.dart
     │       ├── auth_repository_impl.dart
     │       ├── audit_repository_impl.dart
     │       ├── blacklist_repository_impl.dart
@@ -2202,7 +2204,6 @@ jireta_lms/
     │       ├── disbursement_repository_impl.dart
     │       ├── in_office_repository_impl.dart
     │       ├── kpi_repository_impl.dart
-    │       ├── kyc_repository_impl.dart
     │       ├── loan_repository_impl.dart
     │       ├── location_repository_impl.dart
     │       ├── notification_repository_impl.dart
@@ -2214,6 +2215,7 @@ jireta_lms/
     ├── domain/
     │   ├── entities/
     │   │   # Pure Dart classes, no Flutter imports, no JSON.
+    │   │   ├── account_upgrade_document_entity.dart
     │   │   ├── address_entity.dart
     │   │   ├── audit_log_entity.dart
     │   │   ├── blacklist_entity.dart
@@ -2225,7 +2227,6 @@ jireta_lms/
     │   │   ├── employee_profile_entity.dart
     │   │   ├── in_office_application_entity.dart
     │   │   ├── kpi_entity.dart
-    │   │   ├── kyc_document_entity.dart
     │   │   ├── lender_profile_entity.dart
     │   │   ├── loan_entity.dart
     │   │   ├── loan_schedule_entity.dart
@@ -2240,6 +2241,7 @@ jireta_lms/
     │   │
     │   └── repositories/
     │       # Abstract interfaces only. No implementation here.
+    │       ├── i_account_upgrade_repository.dart
     │       ├── i_auth_repository.dart
     │       ├── i_audit_repository.dart
     │       ├── i_blacklist_repository.dart
@@ -2248,7 +2250,6 @@ jireta_lms/
     │       ├── i_disbursement_repository.dart
     │       ├── i_in_office_repository.dart
     │       ├── i_kpi_repository.dart
-    │       ├── i_kyc_repository.dart
     │       ├── i_loan_repository.dart
     │       ├── i_location_repository.dart
     │       ├── i_notification_repository.dart
@@ -2327,7 +2328,7 @@ jireta_lms/
         │       ├── notification_badge.dart           # Unread count badge
         │       ├── pii_mask_widget.dart              # Masked text (Juan D**** C****)
         │       ├── signature_pad.dart                # Borrower signature capture widget
-        │       ├── status_badge.dart                 # Loan/KYC/collection status chip
+        │       ├── status_badge.dart                 # Loan/Account Upgrade/collection status chip
         │       └── upload_progress_widget.dart       # File upload progress indicator
         │
         └── features/
@@ -2401,7 +2402,7 @@ jireta_lms/
             │   │   │   └── hm_dashboard_screen.dart
             │   │   │       # 19 KPI stat cards (count-up animation on load).
             │   │   │       # Charts: monthly disbursements, collections, loans by status.
-            │   │   │       # Real-time activity feed (loan events, KYC, payments).
+│       │   │       # Real-time activity feed (loan events, Account Upgrade, payments).
             │   │   │
             │   │   └── widgets/
             │   │       ├── hm_kpi_cards_grid.dart    # 19-card responsive grid
@@ -2463,12 +2464,12 @@ jireta_lms/
             │   │   │
             │   │   ├── screens/
             │   │   │   ├── hm_lender_list_screen.dart
-            │   │   │   │   # Columns: name, phone, GCash, KYC status, active loan,
+            │   │   │   │   # Columns: name, phone, GCash, Account Upgrade status, active loan,
             │   │   │   │   #          blacklist status, account status.
             │   │   │   │
             │   │   │   └── hm_lender_details_screen.dart
             │   │   │       # Full profile: personal, addresses, emergency contacts,
-            │   │   │       # documents, KYC submissions, loans history,
+            │   │   │       # documents, Account Upgrade submissions, loans history,
             │   │   │       # payment history, blacklist history.
             │   │   │       # Masked PII display.
             │   │   │
@@ -2491,7 +2492,7 @@ jireta_lms/
             │   │   │   │
             │   │   │   ├── hm_loan_application_details_screen.dart
             │   │   │   │   # Full review before any action.
-            │   │   │   │   # Sections: lender profile, KYC status, co-maker,
+            │   │   │   │   # Sections: lender profile, Account Upgrade status, co-maker,
             │   │   │   │   #           documents, loan request, previous history.
             │   │   │   │   # Buttons: Approve, Reject, Request CI, Cancel.
             │   │   │   │   # Buttons visible ONLY here — never on list table.
@@ -2508,21 +2509,21 @@ jireta_lms/
             │   │       ├── penalty_modal.dart         # Server-computed amount preview
             │   │       └── loan_schedule_table.dart   # Period-by-period installment view
             │   │
-            │   ├── kyc/
+            │   ├── account_upgrade/
             │   │   ├── providers/
-            │   │   │   └── hm_kyc_provider.dart
-            │   │   │       # kyc-get-list, kyc-verify.
+            │   │   │   └── hm_account_upgrade_provider.dart
+            │   │   │       # kyc-view?fn=get-list, kyc-view?fn=verify.
             │   │   │
             │   │   ├── screens/
-            │   │   │   ├── hm_kyc_list_screen.dart
+            │   │   │   ├── hm_account_upgrade_list_screen.dart
             │   │   │   │   # Filter: status, date, lender_name.
             │   │   │   │
-            │   │   │   └── hm_kyc_details_screen.dart
+            │   │   │   └── hm_account_upgrade_details_screen.dart
             │   │   │       # Document viewer (signed URL). Verify / Reject per doc.
             │   │   │       # Rejection remarks textarea.
             │   │   │
             │   │   └── widgets/
-            │   │       └── kyc_document_viewer_modal.dart
+            │   │       └── account_upgrade_document_viewer_modal.dart
             │   │
             │   ├── ci/
             │   │   ├── providers/
@@ -2741,16 +2742,16 @@ jireta_lms/
             │   │   └── widgets/
             │   │       └── emp_loan_action_modal.dart
             │   │
-            │   ├── kyc/
+            │   ├── account_upgrade/
             │   │   ├── providers/
-            │   │   │   └── emp_kyc_provider.dart
+            │   │   │   └── emp_account_upgrade_provider.dart
             │   │   │
             │   │   ├── screens/
-            │   │   │   ├── emp_kyc_list_screen.dart
-            │   │   │   └── emp_kyc_details_screen.dart
+            │   │   │   ├── emp_account_upgrade_list_screen.dart
+            │   │   │   └── emp_account_upgrade_details_screen.dart
             │   │   │
             │   │   └── widgets/
-            │   │       └── emp_kyc_verify_modal.dart
+            │   │       └── emp_account_upgrade_verify_modal.dart
             │   │
             │   ├── ci/
             │   │   ├── providers/
@@ -2936,18 +2937,18 @@ jireta_lms/
                 │   └── widgets/
                 │       └── lender_kpi_cards.dart
                 │
-                ├── kyc/
+                ├── account_upgrade/
                 │   ├── providers/
-                │   │   └── lender_kyc_provider.dart
-                │   │       # kyc-submit, kyc-get-status.
+                │   │   └── lender_account_upgrade_provider.dart
+                │   │       # kyc-submit?fn=submit, kyc-view?fn=get-status.
                 │   │
                 │   └── screens/
-                │       ├── lender_kyc_submit_screen.dart
+                │       ├── lender_account_upgrade_submit_screen.dart
                 │       │   # Required docs: valid ID, selfie, proof of billing,
                 │       │   # proof of income. File type + size validated before upload.
                 │       │   # Upload progress per file. Submit when all uploaded.
                 │       │
-                │       └── lender_kyc_status_screen.dart
+                │       └── lender_account_upgrade_status_screen.dart
                 │           # Status timeline: Submitted → Under Review → Verified/Rejected.
                 │           # Rejection notes visible. Resubmit button if rejected.
                 │
@@ -2964,11 +2965,11 @@ jireta_lms/
                 │       │   # Purpose text field.
                 │       │   # Live schedule preview: calls loans-get-schedule-preview,
                 │       │   # shows installment table instantly (NO Dart math).
-                │       │   # Blocked if: KYC not verified, active loan exists, blacklisted
+│   │       # Blocked if: Account Upgrade not verified, active loan exists, blacklisted
                 │       │   # (all checks done server-side; UI shows server error message).
                 │       │
                 │       ├── lender_loan_application_status_screen.dart
-                │       │   # Timeline: Applied → KYC Verified → CI Done → Approved/Rejected.
+│   │       # Timeline: Applied → Account Upgrade Verified → CI Done → Approved/Rejected.
                 │       │   # Rejection reason shown.
                 │       │
                 │       ├── lender_loan_details_screen.dart
@@ -3019,11 +3020,11 @@ jireta_lms/
                 ├── documents/
                 │   ├── providers/
                 │   │   └── lender_documents_provider.dart
-                │   │       # kyc-submit (reuse), signed URL fetch.
+                │   │       # kyc-submit?fn=submit (reuse), signed URL fetch.
                 │   │
                 │   └── screens/
                 │       ├── lender_documents_screen.dart
-                │       │   # All uploaded docs (KYC + loan attachments).
+│   │       # All uploaded docs (Account Upgrade + loan attachments).
                 │       │   # Type, upload date, status. Signed URL viewer.
                 │       │
                 │       └── lender_upload_document_screen.dart

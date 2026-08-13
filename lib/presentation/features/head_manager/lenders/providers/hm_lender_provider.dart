@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/lenders/providers/hm_lender_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
@@ -26,21 +27,21 @@ class HmLenderState {
     String? error,
     String? search,
     String? statusFilter,
-  }) => HmLenderState(
-    lenders: lenders ?? this.lenders,
-    isLoading: isLoading ?? this.isLoading,
-    error: error,
-    search: search ?? this.search,
-    statusFilter: statusFilter ?? this.statusFilter,
-  );
+  }) =>
+      HmLenderState(
+        lenders: lenders ?? this.lenders,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+        search: search ?? this.search,
+        statusFilter: statusFilter ?? this.statusFilter,
+      );
 }
 
 class HmLenderNotifier extends StateNotifier<HmLenderState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   HmLenderNotifier(this._ds) : super(const HmLenderState()) {
-    bindRealtimeRefresh(['users', 'lender_profiles'],
-        refresh: load);
+    bindRealtimeRefresh(['users', 'lender_profiles'], refresh: load);
     load();
   }
 
@@ -54,7 +55,8 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
       );
       state = state.copyWith(lenders: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -87,7 +89,8 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
   }
 }
 
-final hmLenderProvider = AutoDisposeStateNotifierProvider<HmLenderNotifier, HmLenderState>(
+final hmLenderProvider =
+    AutoDisposeStateNotifierProvider<HmLenderNotifier, HmLenderState>(
   (ref) => HmLenderNotifier(
     sl<UserRemoteDataSource>(),
   ),

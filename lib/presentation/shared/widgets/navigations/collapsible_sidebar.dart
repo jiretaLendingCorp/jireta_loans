@@ -102,8 +102,9 @@ class _SidebarTileState extends State<_SidebarTile> {
             ? AppColors.sidebarItem
             : Colors.transparent;
 
-    final iconColor =
-        widget.isActive ? AppColors.gold : AppColors.textOnDark.withValues(alpha: 0.7);
+    final iconColor = widget.isActive
+        ? AppColors.gold
+        : AppColors.textOnDark.withValues(alpha: 0.7);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -157,9 +158,8 @@ class _SidebarTileState extends State<_SidebarTile> {
                           ? AppColors.gold
                           : AppColors.textOnDark.withValues(alpha: 0.85),
                       fontSize: 13,
-                      fontWeight: widget.isActive
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                      fontWeight:
+                          widget.isActive ? FontWeight.w600 : FontWeight.w400,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

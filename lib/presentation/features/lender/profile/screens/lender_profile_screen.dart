@@ -54,7 +54,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     final profileState = ref.watch(lenderProfileProvider);
     return MobileScaffold(
       title: 'My Profile',
-      accentColor: AppColors.lenderPurple,
+      accentColor: AppColors.lenderBlue,
       navItems: _navItems,
       body: profileState.isLoading && profileState.user == null
           ? const Center(child: CircularProgressIndicator())
@@ -80,7 +80,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(children: [
-        _buildHeader(fullName, firstName, phone, user.profilePhotoUrl as String?, accountStatus),
+        _buildHeader(fullName, firstName, phone,
+            user.profilePhotoUrl as String?, accountStatus),
         if (isVerified) ...[
           const SizedBox(height: 16),
           _buildEditProfileButton(),
@@ -102,7 +103,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               _infoRow(Icons.wc, 'Gender', _formatLabel(user.gender)),
               _infoRow(Icons.favorite_border, 'Civil Status',
                   _formatLabel(user.civilStatus)),
-              _infoRow(Icons.cake_outlined, 'Date of Birth',
+              _infoRow(
+                  Icons.cake_outlined,
+                  'Date of Birth',
                   userModel?.dateOfBirth != null
                       ? _formatDate(userModel!.dateOfBirth!)
                       : '—'),
@@ -173,15 +176,14 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     }
     final c = contacts.first;
     return [
-      _infoRow(Icons.person_outline, 'Name',
-          c['name']?.toString() ?? '—'),
+      _infoRow(Icons.person_outline, 'Name', c['name']?.toString() ?? '—'),
       _infoRow(Icons.family_restroom, 'Relationship',
           c['relationship']?.toString() ?? '—'),
       _infoRow(Icons.phone, 'Phone',
           (c['phone_number']?.toString() ?? '').maskPhone()),
       if (c['address'] != null && c['address'].toString().isNotEmpty)
-        _infoRow(Icons.location_on_outlined, 'Address',
-            c['address'].toString()),
+        _infoRow(
+            Icons.location_on_outlined, 'Address', c['address'].toString()),
     ];
   }
 
@@ -202,10 +204,14 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   String _formatLabel(dynamic value) {
     if (value == null || value.toString().isEmpty) return '—';
     final s = value.toString();
-    return s.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' ');
+    return s
+        .split('_')
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
   }
 
-  Widget _buildHeader(String fullName, String firstName, String phone, String? photoUrl, String? accountStatus) {
+  Widget _buildHeader(String fullName, String firstName, String phone,
+      String? photoUrl, String? accountStatus) {
     return Column(
       children: [
         Align(
@@ -217,12 +223,12 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.lenderPurple, width: 3),
+            border: Border.all(color: AppColors.lenderBlue, width: 3),
           ),
           child: ProfileAvatarUpload(
             photoUrl: photoUrl,
             name: firstName,
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
             radius: 38,
             onUploaded: _updateAvatar,
           ),
@@ -235,7 +241,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             fontFamily: 'PlayfairDisplay',
             fontSize: 24,
             fontWeight: FontWeight.w700,
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
           ),
         ),
         const SizedBox(height: 4),
@@ -267,9 +273,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.lenderPurple.withValues(alpha: 0.1),
+        color: AppColors.lenderBlue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.lenderPurple.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.lenderBlue.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -279,7 +285,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           Text(
             label,
             style: const TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.lenderPurple),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.lenderBlue),
           ),
         ],
       ),
@@ -321,8 +329,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     final (Color color, IconData icon, String label) = switch (status) {
       'verified' => (AppColors.success, Icons.verified_user, 'Verified'),
       'rejected' => (AppColors.error, Icons.cancel_outlined, 'Rejected'),
-      'submitted' || 'under_review' =>
-        (AppColors.warning, Icons.pending_outlined, 'Under Review'),
+      'submitted' || 'under_review' => (
+          AppColors.warning,
+          Icons.pending_outlined,
+          'Under Review'
+        ),
       _ => (AppColors.textSecondary, Icons.badge_outlined, 'Not Submitted'),
     };
     return Container(
@@ -350,7 +361,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         ),
         title: const Text('Account Upgrade Verification',
             style: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.deepNavy)),
         subtitle: Text('Status: $label',
             style: TextStyle(fontSize: 12, color: color)),
         trailing: Container(
@@ -389,17 +402,20 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-                color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                color: AppColors.lenderBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12)),
             child: const Icon(Icons.description_outlined,
-                color: AppColors.lenderPurple, size: 22),
+                color: AppColors.lenderBlue, size: 22),
           ),
           title: const Text('Terms & Conditions',
               style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepNavy)),
           subtitle: const Text('Review the terms of the loan service',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          trailing:
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
           onTap: () => showModalBottomSheet(
             context: context,
             isScrollControlled: true,
@@ -467,17 +483,20 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-                color: AppColors.lenderPurple.withValues(alpha: 0.1),
+                color: AppColors.lenderBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12)),
             child: const Icon(Icons.privacy_tip_outlined,
-                color: AppColors.lenderPurple, size: 22),
+                color: AppColors.lenderBlue, size: 22),
           ),
           title: const Text('Privacy Policy',
               style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepNavy)),
           subtitle: const Text('How we collect and protect your data',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          trailing:
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
           onTap: () => showModalBottomSheet(
             context: context,
             isScrollControlled: true,
@@ -516,19 +535,19 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           width: 34,
           height: 34,
           decoration: BoxDecoration(
-            color: AppColors.lenderPurple.withValues(alpha: 0.08),
+            color: AppColors.lenderBlue.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
           ),
           alignment: Alignment.center,
-          child: Icon(icon, size: 17, color: AppColors.lenderPurple),
+          child: Icon(icon, size: 17, color: AppColors.lenderBlue),
         ),
         const SizedBox(width: 12),
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textTertiary)),
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
           const SizedBox(height: 2),
           Text(value,
               style: const TextStyle(
@@ -545,9 +564,10 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       width: double.infinity,
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.lenderPurple,
+          backgroundColor: AppColors.lenderBlue,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
         icon: const Icon(Icons.edit_outlined),
@@ -565,7 +585,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.error,
           side: const BorderSide(color: AppColors.error),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
         icon: const Icon(Icons.logout),
@@ -580,7 +601,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       ),
     );
   }
-
 }
 
 class _CollapsibleSection extends StatelessWidget {
@@ -627,12 +647,11 @@ class _CollapsibleSection extends StatelessWidget {
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: AppColors.lenderPurple.withValues(alpha: 0.08),
+                      color: AppColors.lenderBlue.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     alignment: Alignment.center,
-                    child:
-                        Icon(icon, size: 17, color: AppColors.lenderPurple),
+                    child: Icon(icon, size: 17, color: AppColors.lenderBlue),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -680,4 +699,3 @@ class _CollapsibleSection extends StatelessWidget {
     );
   }
 }
-

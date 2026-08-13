@@ -20,7 +20,8 @@ class DisbursementRemoteDataSource {
       data: {
         'loan_id': loanId,
         'method': method,
-        if (method == 'gcash' && gcashNumber != null) 'gcash_number': gcashNumber,
+        if (method == 'gcash' && gcashNumber != null)
+          'gcash_number': gcashNumber,
       },
     );
     return res.data as Map<String, dynamic>;
@@ -91,7 +92,8 @@ class DisbursementRemoteDataSource {
     int page = 1,
     int limit = 20,
   }) =>
-      getDisbursementList(method: method, status: status, page: page, limit: limit);
+      getDisbursementList(
+          method: method, status: status, page: page, limit: limit);
 
   Future<Map<String, dynamic>> disburseGcash({
     required String loanId,
@@ -112,7 +114,8 @@ class DisbursementRemoteDataSource {
         notes: notes,
       );
 
-  Future<DisbursementModel?> getDisbursementDetail(String disbursementId) async {
+  Future<DisbursementModel?> getDisbursementDetail(
+      String disbursementId) async {
     try {
       final res = await _client.get(
         ApiEndpoints.disbursementsGetList,

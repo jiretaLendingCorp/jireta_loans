@@ -15,8 +15,7 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 
 class HmAccountUpgradeDetailsScreen extends ConsumerStatefulWidget {
   final String lenderId;
-  const HmAccountUpgradeDetailsScreen(
-      {super.key, required this.lenderId});
+  const HmAccountUpgradeDetailsScreen({super.key, required this.lenderId});
 
   @override
   ConsumerState<HmAccountUpgradeDetailsScreen> createState() =>
@@ -67,7 +66,9 @@ class _HmAccountUpgradeDetailsScreenState
     }
     final confirmed = await showConfirmationDialog(
       context,
-      title: action == 'verified' ? 'Verify All Documents' : 'Reject All Documents',
+      title: action == 'verified'
+          ? 'Verify All Documents'
+          : 'Reject All Documents',
       message: action == 'verified'
           ? 'Verify the lender\'s entire account upgrade submission at once?'
           : 'Reject the lender\'s entire account upgrade submission? They will be notified.',
@@ -81,7 +82,8 @@ class _HmAccountUpgradeDetailsScreenState
       await _ds.verifyAllAccountUpgrade(
         lenderId: widget.lenderId,
         action: action,
-        rejectionNotes: action == 'rejected' ? _rejectionCtrl.text.trim() : null,
+        rejectionNotes:
+            action == 'rejected' ? _rejectionCtrl.text.trim() : null,
       );
       if (mounted) {
         showSuccessSnackBar(
@@ -148,8 +150,9 @@ class _HmAccountUpgradeDetailsScreenState
     final accountUpgradeStatus =
         (data['account_upgrade_status'] as String?) ?? 'pending';
 
-    final pendingDocs =
-        docs.where((d) => (d as Map<String, dynamic>)['status'] == 'pending').toList();
+    final pendingDocs = docs
+        .where((d) => (d as Map<String, dynamic>)['status'] == 'pending')
+        .toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -171,14 +174,15 @@ class _HmAccountUpgradeDetailsScreenState
                           name:
                               '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
                                   .trim(),
-                          color: AppColors.lenderPurple,
+                          color: AppColors.lenderBlue,
                           radius: 32,
                           fallback: const Icon(Icons.person_outline,
-                              size: 28, color: AppColors.lenderPurple),
+                              size: 28, color: AppColors.lenderBlue),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      _InfoRow('Full Name',
+                      _InfoRow(
+                          'Full Name',
                           '${lender['first_name'] ?? ''} ${lender['middle_name'] ?? ''} ${lender['last_name'] ?? ''}'
                               .replaceAll(RegExp(r'\s+'), ' ')
                               .trim()),
@@ -194,10 +198,10 @@ class _HmAccountUpgradeDetailsScreenState
                           lender['province'],
                           lender['zip_code'],
                         ]
-                            .where((e) =>
-                                e != null && e.toString().isNotEmpty)
-                            .join(', ')
-                            .isEmpty
+                                .where(
+                                    (e) => e != null && e.toString().isNotEmpty)
+                                .join(', ')
+                                .isEmpty
                             ? '—'
                             : [
                                 lender['street_address'],
@@ -206,22 +210,23 @@ class _HmAccountUpgradeDetailsScreenState
                                 lender['province'],
                                 lender['zip_code'],
                               ]
-                                .where((e) =>
-                                    e != null && e.toString().isNotEmpty)
+                                .where(
+                                    (e) => e != null && e.toString().isNotEmpty)
                                 .join(', '),
                       ),
-                      _InfoRow('Source of Funds', lender['source_of_funds'] ?? '—'),
+                      _InfoRow(
+                          'Source of Funds', lender['source_of_funds'] ?? '—'),
                       _InfoRow('Employment', lender['employment_type'] ?? '—'),
                       _InfoRow('Employer', lender['employer_name'] ?? '—'),
-                      _InfoRow('Monthly Income',
+                      _InfoRow(
+                          'Monthly Income',
                           lender['monthly_income'] != null
                               ? '₱${lender['monthly_income']}'
                               : '—'),
                       _InfoRow('GCash', lender['gcash_number'] ?? '—'),
                       _InfoRow('Gender', lender['gender'] ?? '—'),
                       _InfoRow('Civil Status', lender['civil_status'] ?? '—'),
-                      _InfoRow(
-                          'Date of Birth', lender['date_of_birth'] ?? '—'),
+                      _InfoRow('Date of Birth', lender['date_of_birth'] ?? '—'),
                     ],
                   ),
                 ),
@@ -255,19 +260,22 @@ class _HmAccountUpgradeDetailsScreenState
                                               fontWeight: FontWeight.w600),
                                         ),
                                       ),
-                                      StatusBadge(status: d['status'] ?? 'pending'),
+                                      StatusBadge(
+                                          status: d['status'] ?? 'pending'),
                                     ],
                                   ),
                                   const SizedBox(height: 6),
                                   if (d['created_at'] != null)
                                     Text(
-                                      'Submitted: ${d['created_at']}'.substring(0, 32),
+                                      'Submitted: ${d['created_at']}'
+                                          .substring(0, 32),
                                       style: const TextStyle(
                                           fontSize: 12,
                                           color: AppColors.textSecondary),
                                     ),
                                   if (d['rejection_notes'] != null &&
-                                      (d['rejection_notes'] as String).isNotEmpty)
+                                      (d['rejection_notes'] as String)
+                                          .isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 6),
                                       child: Text(
@@ -365,11 +373,9 @@ class _HmAccountUpgradeDetailsScreenState
                               onPressed: _submitting
                                   ? null
                                   : () => _verifyAll('verified'),
-                              icon: const Icon(
-                                  Icons.verified_outlined,
-                                  size: 18),
-                              label: Text(
-                                  'Verify All (${pendingDocs.length})'),
+                              icon:
+                                  const Icon(Icons.verified_outlined, size: 18),
+                              label: Text('Verify All (${pendingDocs.length})'),
                             ),
                             const Divider(height: 28),
                             TextFormField(
@@ -384,8 +390,7 @@ class _HmAccountUpgradeDetailsScreenState
                             OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.error,
-                                side:
-                                    const BorderSide(color: AppColors.error),
+                                side: const BorderSide(color: AppColors.error),
                               ),
                               onPressed: _submitting
                                   ? null
@@ -420,7 +425,8 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
         boxShadow: const [
-          BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 1))
+          BoxShadow(
+              color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 1))
         ],
       ),
       child: Column(

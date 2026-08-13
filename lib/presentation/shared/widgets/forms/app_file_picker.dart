@@ -172,7 +172,8 @@ class AppFilePicker extends StatelessWidget {
                 ])
               : Column(children: [
                   Icon(Icons.cloud_upload_outlined,
-                      size: 36, color: AppColors.textHint.withValues(alpha: 0.7)),
+                      size: 36,
+                      color: AppColors.textHint.withValues(alpha: 0.7)),
                   const SizedBox(height: 8),
                   Text('Tap to upload (max ${maxSizeMb}MB)',
                       style: const TextStyle(

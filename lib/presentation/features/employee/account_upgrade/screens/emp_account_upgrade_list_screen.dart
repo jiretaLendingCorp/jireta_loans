@@ -170,21 +170,22 @@ class _EmpAccountUpgradeListScreenState
       onTap: () => context.go(RouteConstants.empAccountUpgradeDetails
           .replaceFirst(':id', lenderId)),
       child: Container(
-        color:
-            isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
+        color: isEven
+            ? Colors.white
+            : AppColors.surfaceVariant.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(children: [
           Expanded(
               flex: 3,
               child: Row(children: [
                 ProfileAvatar(
-                    photoUrl: lender?['profile_photo_url'] as String?,
-                    name: lender?['first_name'] as String? ?? '',
-                    color: AppColors.info,
-                    radius: 16,
-                    fallback: const Icon(Icons.person_outline,
-                        size: 16, color: AppColors.info),
-                  ),
+                  photoUrl: lender?['profile_photo_url'] as String?,
+                  name: lender?['first_name'] as String? ?? '',
+                  color: AppColors.info,
+                  radius: 16,
+                  fallback: const Icon(Icons.person_outline,
+                      size: 16, color: AppColors.info),
+                ),
                 const SizedBox(width: 10),
                 Flexible(
                     child: Text(name,
@@ -278,8 +279,7 @@ class _EmpAccountUpgradeListScreenState
               ),
               const SizedBox(height: 16),
               const Text('Rejection Reason *',
-                  style:
-                      TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               const SizedBox(height: 8),
               TextField(
                 controller: notesCtrl,
@@ -312,7 +312,8 @@ class _EmpAccountUpgradeListScreenState
               Navigator.of(context).pop(true);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error, foregroundColor: Colors.white),
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white),
             child: const Text('Reject'),
           ),
         ],
@@ -328,8 +329,8 @@ class _EmpAccountUpgradeListScreenState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-              ok ? 'Account upgrade documents rejected' : 'Action failed'),
+          content:
+              Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),
           backgroundColor: ok ? AppColors.success : AppColors.error,
         ),
       );

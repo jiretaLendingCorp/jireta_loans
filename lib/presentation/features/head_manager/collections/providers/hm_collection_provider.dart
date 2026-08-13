@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/collections/providers/hm_collection_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
@@ -67,7 +68,8 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
         totalCount: list.length + (page - 1) * 20,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 

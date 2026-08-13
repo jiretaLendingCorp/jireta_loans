@@ -1,6 +1,7 @@
 // lib/presentation/shared/widgets/dialogs/error_dialog.dart
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../utils/error_suppression.dart';
 import '../app_button.dart';
 
 Future<void> showErrorDialog(
@@ -8,6 +9,7 @@ Future<void> showErrorDialog(
   required String message,
   String title = 'Error',
 }) async {
+  if (shouldSuppressNetworkError(context, message)) return;
   return showDialog(
     context: context,
     barrierDismissible: true,
@@ -99,6 +101,7 @@ class ErrorDialog extends StatelessWidget {
     required String message,
     VoidCallback? onDone,
   }) {
+    if (shouldSuppressNetworkError(context, message)) return Future.value();
     return showDialog(
       context: context,
       barrierDismissible: true,

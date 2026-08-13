@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/employees/providers/hm_employee_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
@@ -32,15 +33,16 @@ class HmEmployeeState {
     int? page,
     String? search,
     String? statusFilter,
-  }) => HmEmployeeState(
-    employees: employees ?? this.employees,
-    isLoading: isLoading ?? this.isLoading,
-    error: error,
-    total: total ?? this.total,
-    page: page ?? this.page,
-    search: search ?? this.search,
-    statusFilter: statusFilter ?? this.statusFilter,
-  );
+  }) =>
+      HmEmployeeState(
+        employees: employees ?? this.employees,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+        total: total ?? this.total,
+        page: page ?? this.page,
+        search: search ?? this.search,
+        statusFilter: statusFilter ?? this.statusFilter,
+      );
 }
 
 class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
@@ -62,7 +64,8 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
       );
       state = state.copyWith(employees: list, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+          isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -114,5 +117,5 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
 
 final hmEmployeeProvider =
     AutoDisposeStateNotifierProvider<HmEmployeeNotifier, HmEmployeeState>(
-      (ref) => HmEmployeeNotifier(sl<UserRemoteDataSource>()),
-    );
+  (ref) => HmEmployeeNotifier(sl<UserRemoteDataSource>()),
+);

@@ -125,8 +125,8 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
     final greeting = hour < 12
         ? 'Good morning'
         : hour < 18
-        ? 'Good afternoon'
-        : 'Good evening';
+            ? 'Good afternoon'
+            : 'Good evening';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -303,7 +303,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
         label: 'Total Lenders',
         value: kpi.totalLenders.toString(),
         icon: Icons.person_outline,
-        color: AppColors.lenderPurple,
+        color: AppColors.lenderBlue,
         isCurrency: false,
       ),
       _KpiCard(
@@ -369,7 +369,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
             label: 'CI Assignments',
             value: kpi.totalCiAssignments.toString(),
             icon: Icons.search_outlined,
-            color: AppColors.lenderPurple,
+            color: AppColors.lenderBlue,
             isCurrency: false,
           ),
           _KpiCard(
@@ -546,9 +546,8 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: _hover
-                          ? widget.action.color
-                          : AppColors.textPrimary,
+                      color:
+                          _hover ? widget.action.color : AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -624,7 +623,9 @@ class _KpiCardState extends State<_KpiCard>
             color: _hover ? widget.color.withValues(alpha: 0.05) : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _hover ? widget.color.withValues(alpha: 0.3) : AppColors.border,
+              color: _hover
+                  ? widget.color.withValues(alpha: 0.3)
+                  : AppColors.border,
             ),
             boxShadow: _hover
                 ? [

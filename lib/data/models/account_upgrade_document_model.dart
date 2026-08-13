@@ -91,12 +91,13 @@ class AccountUpgradeStatusModel {
 
   factory AccountUpgradeStatusModel.fromJson(Map<String, dynamic> json) =>
       AccountUpgradeStatusModel(
-    lenderId: json['lender_id'] ?? '',
-    accountUpgradeStatus: json['account_upgrade_status'] ?? 'not_submitted',
-    documents: (json['documents'] as List? ?? [])
-        .map((e) => AccountUpgradeDocumentModel.fromJson(e as Map<String, dynamic>))
-        .toList(),
-  );
+        lenderId: json['lender_id'] ?? '',
+        accountUpgradeStatus: json['account_upgrade_status'] ?? 'not_submitted',
+        documents: (json['documents'] as List? ?? [])
+            .map((e) =>
+                AccountUpgradeDocumentModel.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
 
   bool get isNotEmpty => documents.isNotEmpty;
   bool get isEmpty => documents.isEmpty;

@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/location_remote_datasource.dart';
 
@@ -65,7 +66,7 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
       state = state.copyWith(lastUpdated: DateTime.now(), error: null);
     } catch (e) {
       if (kDebugMode) debugPrint('Location update failed: $e');
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
     }
   }
 
@@ -81,6 +82,7 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
 }
 
 final riderLocationProvider =
-    AutoDisposeStateNotifierProvider<RiderLocationNotifier, RiderLocationState>((ref) {
+    AutoDisposeStateNotifierProvider<RiderLocationNotifier, RiderLocationState>(
+        (ref) {
   return RiderLocationNotifier(sl<LocationRemoteDataSource>());
 });

@@ -144,8 +144,8 @@ class _InfoChip extends StatelessWidget {
           children: [
             if (label.isNotEmpty)
               Text(label,
-                  style:
-                      TextStyle(fontSize: 10, color: color.withValues(alpha: 0.7))),
+                  style: TextStyle(
+                      fontSize: 10, color: color.withValues(alpha: 0.7))),
             Text(value,
                 style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w600, color: color)),

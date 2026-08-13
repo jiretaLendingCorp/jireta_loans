@@ -132,7 +132,9 @@ class _DonutPainter extends CustomPainter {
     final cx = size.width / 2;
     final cy = size.height / 2;
     final radius = (size.width < size.height ? size.width : size.height) / 2;
-    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = 28;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 28;
     double startAngle = -1.5708;
 
     for (final (color, fraction) in segments) {
@@ -189,7 +191,8 @@ class _BarChartPlaceholder extends StatelessWidget {
                             width: 14,
                             height: collValues[i] * 100,
                             decoration: BoxDecoration(
-                              color: AppColors.riderGreen.withValues(alpha: 0.7),
+                              color:
+                                  AppColors.riderGreen.withValues(alpha: 0.7),
                               borderRadius: const BorderRadius.vertical(
                                   top: Radius.circular(3)),
                             ),
@@ -220,7 +223,8 @@ class _BarChartPlaceholder extends StatelessWidget {
               children: [
                 _Legend('Disbursed', AppColors.deepNavy.withValues(alpha: 0.7)),
                 const SizedBox(width: 16),
-                _Legend('Collected', AppColors.riderGreen.withValues(alpha: 0.7)),
+                _Legend(
+                    'Collected', AppColors.riderGreen.withValues(alpha: 0.7)),
               ],
             ),
           ],
@@ -243,10 +247,13 @@ class _Legend extends StatelessWidget {
         Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+          decoration: BoxDecoration(
+              color: color, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
       ],
     );
   }
