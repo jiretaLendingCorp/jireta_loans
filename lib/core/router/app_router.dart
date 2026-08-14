@@ -547,8 +547,7 @@ final currentRoutePathProvider = StreamProvider<String>((ref) {
   final controller = StreamController<String>();
 
   void emit() {
-    final path =
-        router.routeInformationProvider.value.uri.path ?? RouteConstants.splash;
+    final path = router.routeInformationProvider.value.uri.path;
     if (!controller.isClosed) controller.add(path);
   }
 

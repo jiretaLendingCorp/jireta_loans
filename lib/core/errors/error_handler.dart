@@ -55,8 +55,9 @@ class ErrorHandler {
     if (e is NotFoundException) return NotFoundFailure(e.message);
     if (e is NetworkException) return NetworkFailure(e.message);
     if (e is TimeoutException) return NetworkFailure(e.message);
-    if (e is AccountLockedException)
+    if (e is AccountLockedException) {
       return AuthFailure(e.message, code: e.code);
+    }
     if (e is RateLimitException) {
       return const AuthFailure(
         'Too many requests. Please try again.',

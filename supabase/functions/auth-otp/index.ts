@@ -53,7 +53,7 @@ async function selfRegisterLender(db: DbClient, phone: string) {
   });
   if (authErr || !authUser?.user) return null;
 
-  const { data: newUser, error: userErr } = await db.from('users').insert({
+  const { data: newUser, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,
     role_id: roleData.id,
     phone_number: phone,
@@ -65,7 +65,7 @@ async function selfRegisterLender(db: DbClient, phone: string) {
     account_status: 'active',
     force_password_change: false,
     created_by: null,
-  }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)').single();
+  }, { onConflict: 'id' }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)').single();
 
   if (userErr || !newUser) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});

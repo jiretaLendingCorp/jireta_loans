@@ -100,7 +100,7 @@ async function handleGetHistory(req: Request) {
     let query = db
       .from('reports')
       .select(
-        `id, report_type, title, parameters, file_path_pdf, file_path_excel,
+        `id, report_type, title, parameters, data, file_path_pdf, file_path_excel,
          generated_by, generated_at, created_at,
          generated_by_user:users!reports_generated_by_fkey(id, first_name, last_name)`,
         { count: 'exact' }
@@ -119,10 +119,12 @@ async function handleGetHistory(req: Request) {
       const generatedByUser = embedAsObject(r.generated_by_user);
       return {
         id: r.id,
+        report_name: r.title,
         template_key: r.report_type,
         template_name: r.title,
         format: r.file_path_pdf ? 'pdf' : r.file_path_excel ? 'xlsx' : 'pdf',
         file_url: r.file_path_pdf ?? r.file_path_excel ?? null,
+        data: r.data ?? null,
         generated_by: generatedByUser
           ? `${generatedByUser.first_name} ${generatedByUser.last_name}`.trim()
           : r.generated_by,

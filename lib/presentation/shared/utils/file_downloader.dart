@@ -1,0 +1,4 @@
+// lib/presentation/shared/utils/file_downloader.dart
+export 'file_downloader_stub.dart'
+    if (dart.library.io) 'file_downloader_io.dart'
+    if (dart.library.html) 'file_downloader_web.dart';

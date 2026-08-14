@@ -115,7 +115,7 @@ async function handleCreateEmployee(req: Request) {
     return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
   }
 
-  const { data: user, error: userErr } = await db.from('users').insert({
+  const { data: user, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,
     role_id: roleRow.id,
     email: email.trim().toLowerCase(),
@@ -127,7 +127,7 @@ async function handleCreateEmployee(req: Request) {
     account_status: 'active',
     force_password_change: true,
     created_by: authResult.id,
-  }).select().single();
+  }, { onConflict: 'id' }).select().single();
 
   if (userErr || !user) {
     await db.auth.admin.deleteUser(authUser.user.id);
@@ -197,7 +197,7 @@ async function handleCreateRider(req: Request) {
   const { data: roleData } = await db.from('roles').select('id').eq('name', 'rider').single();
   if (!roleData) return errorResponse('Rider role not found', 500, 'SERVER_ERROR');
 
-  const { data: newUser, error: userErr } = await db.from('users').insert({
+  const { data: newUser, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,
     first_name: sanitizeString(first_name),
     middle_name: middle_name ? sanitizeString(middle_name) : null,
@@ -208,7 +208,7 @@ async function handleCreateRider(req: Request) {
     account_status: 'active',
     force_password_change: false,
     created_by: user.id,
-  }).select('id').single();
+  }, { onConflict: 'id' }).select('id').single();
 
   if (userErr) {
     await db.auth.admin.deleteUser(authUser.user.id);
@@ -268,7 +268,7 @@ async function handleCreateLender(req: Request) {
   const { data: roleData } = await db.from('roles').select('id').eq('name', 'lender').single();
   if (!roleData) return errorResponse('Lender role not found', 500, 'SERVER_ERROR');
 
-  const { data: newUser, error: userErr } = await db.from('users').insert({
+  const { data: newUser, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,
     first_name: sanitizeString(first_name),
     middle_name: middle_name ? sanitizeString(middle_name) : null,
@@ -279,7 +279,7 @@ async function handleCreateLender(req: Request) {
     account_status: 'active',
     force_password_change: false,
     created_by: user.id,
-  }).select('id').single();
+  }, { onConflict: 'id' }).select('id').single();
 
   if (userErr) {
     await db.auth.admin.deleteUser(authUser.user.id);

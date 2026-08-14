@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
@@ -228,6 +229,12 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
                     ),
                   ),
                   _ActionBtn(
+                    icon: Icons.edit_outlined,
+                    tooltip: 'Edit',
+                    color: AppColors.primary,
+                    onTap: () => _openEdit(user),
+                  ),
+                  _ActionBtn(
                     icon: Icons.archive_outlined,
                     tooltip: 'Archive',
                     color: AppColors.error,
@@ -302,6 +309,20 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _openEdit(UserModel user) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) => EditUserModal(
+        userId: user.id,
+        initialRole: 'employee',
+        initialStatus: user.accountStatus,
+      ),
+    );
+    if (updated == true) {
+      ref.read(hmEmployeeProvider.notifier).load();
+    }
   }
 }
 

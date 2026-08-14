@@ -54,7 +54,7 @@ class _AssignRiderCollectionModalState
           (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
       setState(() {
         _riders = list
-            .where((r) => r['rider_profiles']?['is_available'] == true)
+            .where((r) => (r['rider_profiles']?['is_available'] ?? true) == true)
             .toList();
         _loadingRiders = false;
       });

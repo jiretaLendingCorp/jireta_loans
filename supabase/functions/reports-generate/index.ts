@@ -176,6 +176,7 @@ serve(async (req) => {
         title: template?.title ?? template_key,
         parameters: parameters ?? {},
         generated_by: authResult.id,
+        data: reportData,
       })
       .select()
       .single();

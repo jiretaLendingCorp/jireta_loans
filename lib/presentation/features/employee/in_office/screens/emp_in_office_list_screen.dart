@@ -46,14 +46,11 @@ class _EmpInOfficeListScreenState extends ConsumerState<EmpInOfficeListScreen>
   }
 
   Future<void> _startWizard(BuildContext context) async {
-    final applicationId =
-        await ref.read(empInOfficeProvider.notifier).createDraft();
-    if (applicationId == null || !context.mounted) return;
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => InOfficeWizard(
-        applicationId: applicationId,
+        applicationId: null,
         onComplete: () {
           ref.read(empInOfficeProvider.notifier).loadList();
         },

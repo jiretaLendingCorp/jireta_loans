@@ -87,8 +87,85 @@ async function handleUpdateProfile(req: Request) {
 
   if (body.fcm_token !== undefined) updateFields.fcm_token = body.fcm_token;
 
+  // Account status — head manager only.
+  if (
+    body.account_status !== undefined &&
+    ['active', 'inactive', 'archived'].includes(body.account_status) &&
+    ['head_manager'].includes(user.role)
+  ) {
+    updateFields.account_status = body.account_status;
+  }
+
+  // Role change — head manager only. Re-shape the one-to-one profile rows so
+  // the target role always has a row (with NOT-NULL placeholders) and the
+  // other role rows are dropped.
+  if (
+    body.role &&
+    ['head_manager', 'employee', 'rider', 'lender'].includes(body.role) &&
+    ['head_manager'].includes(user.role)
+  ) {
+    const { data: newRole } = await db
+      .from('roles')
+      .select('id')
+      .eq('name', body.role)
+      .single();
+    if (!newRole) return errorResponse('Role not found', 404, 'NOT_FOUND');
+    if (newRole.id !== existing.role_id) {
+      updateFields.role_id = newRole.id;
+      if (body.role === 'rider') {
+        await db.from('rider_profiles').upsert(
+          {
+            id: targetId,
+            vehicle_type: 'Motorcycle',
+            plate_number: 'PENDING',
+            drivers_license_number: 'PENDING',
+            is_available: true,
+          },
+          { onConflict: 'id' },
+        );
+      } else if (body.role === 'employee') {
+        await db.from('employee_profiles').upsert(
+          {
+            id: targetId,
+            position: 'Staff',
+            hired_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' },
+        );
+      } else if (body.role === 'lender') {
+        await db.from('lender_profiles').upsert(
+          { id: targetId, account_upgrade_status: 'not_submitted' },
+          { onConflict: 'id' },
+        );
+      }
+      const drop = async (
+        table: 'rider_profiles' | 'employee_profiles' | 'lender_profiles',
+      ) => {
+        try {
+          await db.from(table).delete().eq('id', targetId);
+        } catch {
+          // ignore: no row to drop or FK still attached
+        }
+      };
+      if (body.role !== 'rider') await drop('rider_profiles');
+      if (body.role !== 'employee') await drop('employee_profiles');
+      if (body.role !== 'lender') await drop('lender_profiles');
+    }
+  }
+
   if (Object.keys(updateFields).length > 0) {
-    await db.from('users').update(updateFields).eq('id', targetId);
+    const { error: updateError } = await db
+      .from('users')
+      .update(updateFields)
+      .eq('id', targetId);
+    if (updateError) {
+      console.error('users update error:', updateError);
+      return errorResponse(
+        `Failed to update user: ${updateError.message}`,
+        400,
+        'UPDATE_FAILED',
+      );
+    }
   }
 
   // Rider profile — accept both the flat mobile payload and the nested form.

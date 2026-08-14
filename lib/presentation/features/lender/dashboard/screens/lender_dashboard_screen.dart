@@ -248,55 +248,47 @@ class _QuickActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      child: _ActionBtn(
-        icon: Icons.add_circle_outline,
-        label: 'Apply Loan',
-        color: AppColors.lenderBlue,
-        onTap: () => context.push(RouteConstants.lenderLoans),
-      ),
-    );
-  }
-}
-
-class _ActionBtn extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionBtn({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => context.push(RouteConstants.lenderLoans),
+          borderRadius: BorderRadius.circular(14),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.lenderBlue.withValues(alpha: 0.3),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 18),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_circle_outline,
+                      color: Colors.white, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Apply Now',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -594,160 +586,58 @@ class _MyLoansOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final submitted = kpi?.totalApplications ?? 0;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _SectionLabel('My Loans'),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+        const SizedBox(height: 8),
+        const Text(
+          'Need cash now?',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+            color: AppColors.lenderBlue,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.lenderBlue.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.receipt_long_outlined,
-                        color: AppColors.lenderBlue, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Applications Submitted',
-                            style: TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary)),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${kpi?.totalApplications ?? 0}',
-                          style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _MiniBadge(label: 'Active', value: kpi?.totalActive ?? 0),
-                ],
-              ),
-              const Divider(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: _OverviewMetric(
-                      label: 'Approved',
-                      value: kpi?.totalApproved ?? 0,
-                      color: AppColors.success,
-                    ),
-                  ),
-                  Expanded(
-                    child: _OverviewMetric(
-                      label: 'Completed',
-                      value: kpi?.totalCompleted ?? 0,
-                      color: AppColors.info,
-                    ),
-                  ),
-                  Expanded(
-                    child: _OverviewMetric(
-                      label: 'Rejected',
-                      value: kpi?.totalRejected ?? 0,
-                      color: AppColors.error,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Icon(Icons.payments_outlined,
-                      color: AppColors.lenderBlue, size: 18),
-                  const SizedBox(width: 6),
-                  const Text('Total Paid',
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
-                  const Spacer(),
-                  CountUpAnimation(
-                    value: (kpi?.totalPaid ?? 0).toDouble(),
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.success),
-                    prefix: '₱',
-                    compact: true,
-                  ),
-                ],
-              ),
-            ],
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Borrow from ₱3,000\nto ₱500,000',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'PlayfairDisplay',
+            fontSize: 26,
+            height: 1.2,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Fast approval · Flexible terms · Low monthly rates\n'
+          'Apply today and get the cash you need, right when you need it.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.5,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          submitted == 1
+              ? '$submitted application submitted so far'
+              : '$submitted applications submitted so far',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textTertiary,
           ),
         ),
       ],
     );
-  }
-}
-
-class _MiniBadge extends StatelessWidget {
-  final String label;
-  final num value;
-  const _MiniBadge({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.lenderBlue.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        '$label · $value',
-        style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppColors.lenderBlue),
-      ),
-    );
-  }
-}
-
-class _OverviewMetric extends StatelessWidget {
-  final String label;
-  final num value;
-  final Color color;
-  const _OverviewMetric(
-      {required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(children: [
-      CountUpAnimation(
-        value: value.toDouble(),
-        style:
-            TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
-      ),
-      const SizedBox(height: 2),
-      Text(label,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-    ]);
   }
 }
 

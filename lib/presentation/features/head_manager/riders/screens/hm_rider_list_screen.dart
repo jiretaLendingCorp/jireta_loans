@@ -8,6 +8,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
+import '../../../../shared/widgets/edit_user_modal.dart';
 import '../providers/hm_rider_provider.dart';
 import '../widgets/create_rider_modal.dart';
 
@@ -266,6 +267,12 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
                       ),
                     ),
                   ),
+                  _btn(
+                    Icons.edit_outlined,
+                    'Edit',
+                    AppColors.primary,
+                    () => _openEdit(user),
+                  ),
                 ],
               ),
             ),
@@ -273,6 +280,20 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openEdit(UserModel user) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) => EditUserModal(
+        userId: user.id,
+        initialRole: 'rider',
+        initialStatus: user.accountStatus,
+      ),
+    );
+    if (updated == true) {
+      ref.read(hmRiderProvider.notifier).load();
+    }
   }
 
   String _statusLabel(String status) {

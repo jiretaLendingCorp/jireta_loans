@@ -40,9 +40,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   void initState() {
     super.initState();
     _appId = widget.applicationId;
-    if (_appId == null) {
-      _createDraft();
-    }
   }
 
   Future<void> _createDraft() async {
@@ -481,13 +478,16 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  void _nextStep() {
-    _saveStepData();
-    setState(() => _step++);
+  Future<void> _nextStep() async {
+    await _saveStepData();
+    if (mounted) setState(() => _step++);
   }
 
-  void _saveStepData() {
-    if (_appId == null) return;
+  Future<void> _saveStepData() async {
+    if (_appId == null) {
+      await _createDraft();
+      if (_appId == null) return;
+    }
     final data = switch (_step) {
       0 => {
           'phone': _phoneCtrl.text,
@@ -499,7 +499,9 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       _ => <String, dynamic>{},
     };
     if (data.isNotEmpty) {
-      ref.read(hmInOfficeProvider.notifier).saveStep(_appId!, _step + 1, data);
+      await ref
+          .read(hmInOfficeProvider.notifier)
+          .saveStep(_appId!, _step + 1, data);
     }
   }
 
@@ -515,7 +517,10 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Future<void> _submit() async {
-    if (_appId == null) return;
+    if (_appId == null) {
+      await _createDraft();
+      if (_appId == null) return;
+    }
     setState(() => _loading = true);
     try {
       await ref.read(hmInOfficeProvider.notifier).submitApplication(_appId!);

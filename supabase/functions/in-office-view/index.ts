@@ -140,7 +140,7 @@ async function handleSubmit(req: Request) {
       });
       if (!authUser?.user) return errorResponse('Failed to create lender auth account', 500);
 
-      const { data: newUser, error: userErr } = await db.from('users').insert({
+      const { data: newUser, error: userErr } = await db.from('users').upsert({
         id: authUser.user.id,
         role_id: roleRow?.id,
         phone_number: s1.phone_number,
@@ -150,7 +150,7 @@ async function handleSubmit(req: Request) {
         account_status: 'active',
         force_password_change: true,
         created_by: authResult.id,
-      }).select().single();
+      }, { onConflict: 'id' }).select().single();
 
       if (userErr) return errorResponse('Failed to create lender user', 500);
       lenderId = newUser.id;

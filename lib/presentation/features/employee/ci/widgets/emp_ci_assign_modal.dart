@@ -38,8 +38,7 @@ class _EmpCiAssignModalState extends ConsumerState<EmpCiAssignModal> {
       setState(() {
         _riders = riders
             .where((r) =>
-                r['rider_profiles']?['is_available'] == true &&
-                r['rider_profiles']?['is_available'] != null)
+                (r['rider_profiles']?['is_available'] ?? true) == true)
             .toList();
         _loadingRiders = false;
       });

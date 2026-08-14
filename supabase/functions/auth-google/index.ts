@@ -210,7 +210,7 @@ async function selfRegisterGoogleLender(
 
   const { data: newUser, error: userErr } = await db
     .from('users')
-    .insert({
+    .upsert({
       id:                    authUserId,
       role_id:               roleData.id,
       email,
@@ -220,7 +220,7 @@ async function selfRegisterGoogleLender(
       account_status:        'active',
       force_password_change: false,
       created_by:            null,
-    })
+    }, { onConflict: 'id' })
     .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
     .single();
 

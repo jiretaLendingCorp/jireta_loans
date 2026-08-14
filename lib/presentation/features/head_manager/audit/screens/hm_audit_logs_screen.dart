@@ -386,15 +386,20 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
       );
 
   Color _actionColor(String action) {
-    if (action.contains('create') || action.contains('login'))
+    if (action.contains('create') || action.contains('login')) {
       return AppColors.success;
+    }
     if (action.contains('delete') ||
         action.contains('reject') ||
-        action.contains('suspend')) return AppColors.error;
-    if (action.contains('update') || action.contains('password'))
+        action.contains('suspend')) {
+      return AppColors.error;
+    }
+    if (action.contains('update') || action.contains('password')) {
       return AppColors.warning;
-    if (action.contains('export') || action.contains('report'))
+    }
+    if (action.contains('export') || action.contains('report')) {
       return AppColors.info;
+    }
     return AppColors.deepNavy;
   }
 

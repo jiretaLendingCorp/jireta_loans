@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
+import '../../../../shared/utils/file_downloader.dart';
+import '../../../../shared/utils/report_exporter.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
@@ -54,17 +56,18 @@ class _ReportNotifier extends StateNotifier<_ReportState>
     }
   }
 
-  Future<bool> generate(String templateKey, Map<String, dynamic> params) async {
+  Future<Map<String, dynamic>?> generate(
+      String templateKey, Map<String, dynamic> params) async {
     state = state.copyWith(isGenerating: true);
     try {
-      await _ds.generateReport(
+      final res = await _ds.generateReport(
           templateKey: templateKey, parameters: params, format: 'pdf');
       await init();
       state = state.copyWith(isGenerating: false);
-      return true;
+      return res;
     } catch (_) {
       state = state.copyWith(isGenerating: false);
-      return false;
+      return null;
     }
   }
 }
@@ -102,7 +105,7 @@ class HmReportLibraryScreen extends ConsumerWidget {
                   const SizedBox(height: 32),
                   _buildSectionTitle('Generated Reports History'),
                   const SizedBox(height: 16),
-                  _buildHistory(state),
+                  _buildHistory(context, state),
                 ],
               ),
             ),
@@ -217,7 +220,7 @@ class HmReportLibraryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHistory(_ReportState state) {
+  Widget _buildHistory(BuildContext context, _ReportState state) {
     if (state.history.isEmpty) {
       return Card(
         elevation: 0,
@@ -268,17 +271,25 @@ class HmReportLibraryScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (r['pdf_url'] != null)
+                if (r['pdf_url'] != null || r['data'] != null)
                   TextButton.icon(
-                    onPressed: () {},
+                    onPressed: () => _downloadPdf(
+                      context,
+                      r['report_name'] as String? ?? 'Report',
+                      _normalizeRows(r['data']),
+                    ),
                     icon: const Icon(Icons.picture_as_pdf_outlined,
                         size: 16, color: AppColors.error),
                     label: const Text('PDF',
                         style: TextStyle(color: AppColors.error, fontSize: 12)),
                   ),
-                if (r['xlsx_url'] != null)
+                if (r['xlsx_url'] != null || r['data'] != null)
                   TextButton.icon(
-                    onPressed: () {},
+                    onPressed: () => _downloadExcel(
+                      context,
+                      r['report_name'] as String? ?? 'Report',
+                      _normalizeRows(r['data']),
+                    ),
                     icon: const Icon(Icons.table_chart_outlined,
                         size: 16, color: AppColors.riderGreen),
                     label: const Text('Excel',
@@ -435,22 +446,27 @@ class HmReportLibraryScreen extends ConsumerWidget {
                   ? null
                   : () async {
                       Navigator.pop(ctx);
-                      final ok =
-                          await ref.read(_reportProvider.notifier).generate(
+                      final result = await ref
+                          .read(_reportProvider.notifier)
+                          .generate(
                         template['key'] as String,
                         {
                           'date_from': range!.start.toIso8601String(),
                           'date_to': range!.end.toIso8601String()
                         },
                       );
-                      if (context.mounted) {
+                      if (!context.mounted) return;
+                      if (result != null) {
+                        await _showDownloadDialog(
+                          context,
+                          template['name'] as String? ?? 'Report',
+                          result['data'],
+                        );
+                      } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(ok
-                                  ? 'Report generated successfully'
-                                  : 'Failed to generate report'),
-                              backgroundColor:
-                                  ok ? AppColors.success : AppColors.error),
+                          const SnackBar(
+                              content: Text('Failed to generate report'),
+                              backgroundColor: AppColors.error),
                         );
                       }
                     },
@@ -464,6 +480,128 @@ class HmReportLibraryScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showDownloadDialog(
+      BuildContext context, String title, dynamic data) async {
+    final rows = _normalizeRows(data);
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Report Ready'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${rows.length} record${rows.length == 1 ? '' : 's'} retrieved. Choose a format to download.',
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close')),
+          TextButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (!context.mounted) return;
+              await _downloadExcel(context, title, rows);
+            },
+            icon: const Icon(Icons.table_chart_outlined,
+                color: AppColors.riderGreen),
+            label: const Text('Excel',
+                style: TextStyle(color: AppColors.riderGreen)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              if (!context.mounted) return;
+              await _downloadPdf(context, title, rows);
+            },
+            icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
+            label: const Text('Download PDF'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadPdf(BuildContext context,
+      String title, List<Map<String, dynamic>> rows) async {
+    try {
+      final bytes = await buildPdf(title: title, rows: rows);
+      await saveFile(bytes, '${sanitizeFileName(title)}.pdf');
+      if (context.mounted) _notifyDownload(context, title, 'PDF');
+    } catch (e) {
+      if (context.mounted) _notifyError(context);
+    }
+  }
+
+  Future<void> _downloadExcel(BuildContext context,
+      String title, List<Map<String, dynamic>> rows) async {
+    try {
+      final bytes = buildXlsx(rows);
+      await saveFile(bytes, '${sanitizeFileName(title)}.xlsx');
+      if (context.mounted) _notifyDownload(context, title, 'Excel');
+    } catch (e) {
+      if (context.mounted) _notifyError(context);
+    }
+  }
+
+  void _notifyDownload(BuildContext context, String title, String format) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title downloaded as $format'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+  }
+
+  void _notifyError(BuildContext context) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('Failed to download report'),
+          backgroundColor: AppColors.error),
+    );
+  }
+
+  List<Map<String, dynamic>> _normalizeRows(dynamic data) {
+    if (data is! List) return const [];
+    final out = <Map<String, dynamic>>[];
+    for (final item in data) {
+      if (item is Map) {
+        out.add(item.map((k, v) => MapEntry(k.toString(), _flatten(v))));
+      }
+    }
+    return out;
+  }
+
+  dynamic _flatten(dynamic v) {
+    if (v is List) {
+      return v
+          .map((e) => e is Map ? e.values.join(' / ') : e.toString())
+          .join('; ');
+    }
+    if (v is Map) return v.values.join(' / ');
+    return v;
   }
 
   String _formatDate(dynamic d) {
