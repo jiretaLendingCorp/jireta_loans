@@ -7,14 +7,11 @@ import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
-import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
-import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../loans/providers/lender_loan_provider.dart';
-import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
 
 class LenderDashboardScreen extends ConsumerStatefulWidget {
@@ -25,7 +22,10 @@ class LenderDashboardScreen extends ConsumerStatefulWidget {
       _LenderDashboardScreenState();
 }
 
-class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen> {
+class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _fadeCtrl;
+
   static const _riderNavItems = [
     MobileNavItem(
       icon: Icons.home_outlined,
@@ -47,6 +47,21 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeCtrl.dispose();
+    super.dispose();
+  }
+
   LoanModel? _approvedUnreleased(List<LoanModel> loans) {
     for (final loan in loans) {
       if (loan.status == 'approved' && loan.disbursedAt == null) {
@@ -60,55 +75,52 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(lenderDashboardProvider);
     final loanState = ref.watch(lenderLoanProvider);
-    final profileState = ref.watch(lenderProfileProvider);
-
     final activeLoan = loanState.isLoading ? null : loanState.activeLoan;
     final approvedLoan = _approvedUnreleased(loanState.loans);
 
     return MobileScaffold(
-      title: '',
+      title: 'My Account',
       accentColor: AppColors.lenderBlue,
       navItems: _riderNavItems,
-      appBarLeading: _AppBarAvatar(user: profileState.user),
       body: state.isLoading
           ? const ShimmerLoader()
           : RefreshIndicator(
               onRefresh: () async {
                 await ref.read(lenderDashboardProvider.notifier).load();
                 await ref.read(lenderLoanProvider.notifier).loadLoans();
-                await ref.read(lenderProfileProvider.notifier).loadProfile();
-                await ref
-                    .read(lenderAccountUpgradeProvider.notifier)
-                    .loadStatus();
               },
               color: AppColors.lenderBlue,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                     _WelcomeBanner(user: profileState.user, kpi: state.kpi),
-                    const SizedBox(height: 16),
-                    const _ApplyNowRow(),
-                    const SizedBox(height: 20),
-                    const _LoanPromoText(),
-                    const SizedBox(height: 24),
-                    if (approvedLoan != null) ...[
-                      _ApprovedLoanBanner(loan: approvedLoan),
+              child: FadeTransition(
+                opacity: _fadeCtrl,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _WelcomeBanner(kpi: state.kpi),
                       const SizedBox(height: 20),
+                      if (approvedLoan != null) ...[
+                        _ApprovedLoanBanner(loan: approvedLoan),
+                        const SizedBox(height: 20),
+                      ],
+                      if (activeLoan == null) ...[
+                        _QuickActions(context: context),
+                        const SizedBox(height: 20),
+                      ],
+                      if (activeLoan != null) ...[
+                        _MyLoanCard(loan: activeLoan),
+                        const SizedBox(height: 24),
+                        _LoanHistorySection(
+                          loans: loanState.loans,
+                          activeLoanId: activeLoan.id,
+                        ),
+                      ] else
+                        _MyLoansOverview(kpi: state.kpi),
+                      const SizedBox(height: 20),
+                      if (state.error != null) _ErrorBanner(state.error!),
                     ],
-                    if (activeLoan != null) ...[
-                      _MyLoanCard(loan: activeLoan),
-                      const SizedBox(height: 24),
-                      _LoanHistorySection(
-                        loans: loanState.loans,
-                        activeLoanId: activeLoan.id,
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    if (state.error != null) _ErrorBanner(state.error!),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -117,15 +129,11 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen> {
 }
 
 class _WelcomeBanner extends StatelessWidget {
-  final UserModel? user;
   final dynamic kpi;
-  const _WelcomeBanner({required this.user, required this.kpi});
-
-  String get _firstName => user?.firstName ?? '';
+  const _WelcomeBanner({required this.kpi});
 
   @override
   Widget build(BuildContext context) {
-    final firstName = _firstName;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -147,22 +155,7 @@ class _WelcomeBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            firstName.isNotEmpty ? 'Hello, $firstName!' : 'Hello!',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Here is your outstanding balance',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           const Text(
             'Outstanding Balance',
             style: TextStyle(color: Colors.white70, fontSize: 12),
@@ -180,63 +173,6 @@ class _WelcomeBanner extends StatelessWidget {
             decimalPlaces: 2,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AppBarAvatar extends StatelessWidget {
-  final UserModel? user;
-  const _AppBarAvatar({this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final photo = user?.profilePhotoUrl;
-    final name = user?.firstName ?? user?.lastName ?? '';
-    return Padding(
-      padding: const EdgeInsets.only(left: 6, right: 4),
-      child: InkWell(
-        onTap: () => context.push(RouteConstants.lenderProfile),
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 1.5),
-          ),
-          child: photo != null && photo.isNotEmpty
-              ? ClipOval(
-                  child: Image.network(
-                    photo,
-                    width: 34,
-                    height: 34,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _initial(name),
-                  ),
-                )
-              : _initial(name),
-        ),
-      ),
-    );
-  }
-
-  Widget _initial(String name) {
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white24,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-        ),
       ),
     );
   }
@@ -304,39 +240,62 @@ class _ApprovedLoanBanner extends StatelessWidget {
   }
 }
 
-class _ApplyNowRow extends StatelessWidget {
-  const _ApplyNowRow();
+class _QuickActions extends StatelessWidget {
+  final BuildContext context;
+  const _QuickActions({required this.context});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: _ActionBtn(
+        icon: Icons.add_circle_outline,
+        label: 'Apply Loan',
+        color: AppColors.lenderBlue,
+        onTap: () => context.push(RouteConstants.lenderLoans),
+      ),
+    );
+  }
+}
+
+class _ActionBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionBtn({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => context.push(RouteConstants.lenderLoans),
+      onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        child: Row(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: AppColors.lenderBlue,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.add_circle_outline,
-                  color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Apply Now',
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.lenderBlue,
-                fontSize: 15,
+                color: color,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const Spacer(),
-            const Icon(Icons.chevron_right,
-                color: AppColors.lenderBlue, size: 20),
           ],
         ),
       ),
@@ -344,39 +303,19 @@ class _ApplyNowRow extends StatelessWidget {
   }
 }
 
-class _LoanPromoText extends StatelessWidget {
-  const _LoanPromoText();
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('You can loan up to',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            )),
-        SizedBox(height: 2),
-        Text(
-          '₱3,000 – ₱500,000',
-          style: TextStyle(
-            color: AppColors.lenderBlue,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'PlayfairDisplay',
-          ),
-        ),
-        SizedBox(height: 4),
-        Text(
-          'with low interest rates and flexible payment terms.',
-          style: TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 12,
-            height: 1.4,
-          ),
-        ),
-      ],
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textPrimary,
+      ),
     );
   }
 }
@@ -478,23 +417,6 @@ class _MyLoanCard extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textPrimary,
-      ),
     );
   }
 }
@@ -663,6 +585,169 @@ class _LoanHistoryTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _MyLoansOverview extends StatelessWidget {
+  final dynamic kpi;
+  const _MyLoansOverview({required this.kpi});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('My Loans'),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.lenderBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.receipt_long_outlined,
+                        color: AppColors.lenderBlue, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Applications Submitted',
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${kpi?.totalApplications ?? 0}',
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _MiniBadge(label: 'Active', value: kpi?.totalActive ?? 0),
+                ],
+              ),
+              const Divider(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Approved',
+                      value: kpi?.totalApproved ?? 0,
+                      color: AppColors.success,
+                    ),
+                  ),
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Completed',
+                      value: kpi?.totalCompleted ?? 0,
+                      color: AppColors.info,
+                    ),
+                  ),
+                  Expanded(
+                    child: _OverviewMetric(
+                      label: 'Rejected',
+                      value: kpi?.totalRejected ?? 0,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.payments_outlined,
+                      color: AppColors.lenderBlue, size: 18),
+                  const SizedBox(width: 6),
+                  const Text('Total Paid',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                  const Spacer(),
+                  CountUpAnimation(
+                    value: (kpi?.totalPaid ?? 0).toDouble(),
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success),
+                    prefix: '₱',
+                    compact: true,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniBadge extends StatelessWidget {
+  final String label;
+  final num value;
+  const _MiniBadge({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.lenderBlue.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        '$label · $value',
+        style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.lenderBlue),
+      ),
+    );
+  }
+}
+
+class _OverviewMetric extends StatelessWidget {
+  final String label;
+  final num value;
+  final Color color;
+  const _OverviewMetric(
+      {required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      CountUpAnimation(
+        value: value.toDouble(),
+        style:
+            TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+      ),
+      const SizedBox(height: 2),
+      Text(label,
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+    ]);
   }
 }
 
