@@ -23,6 +23,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   String? _appId;
   bool _loading = false;
 
+  final _formKey = GlobalKey<FormState>();
+
   // Step 1 controllers
   final _phoneCtrl = TextEditingController();
   final _firstNameCtrl = TextEditingController();
@@ -30,11 +32,26 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   final _monthlyIncomeCtrl = TextEditingController();
   final _gcashCtrl = TextEditingController();
 
+  // Step 2 controllers
+  final _streetCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _provinceCtrl = TextEditingController();
+  final _emergencyNameCtrl = TextEditingController();
+  final _emergencyRelCtrl = TextEditingController();
+  final _emergencyPhoneCtrl = TextEditingController();
+
   // Step 3 controllers
   final _amountCtrl = TextEditingController();
   String _frequency = 'monthly';
   final _purposeCtrl = TextEditingController();
   Map<String, dynamic>? _schedulePreview;
+
+  // Step 4 controllers
+  final _coFirstCtrl = TextEditingController();
+  final _coLastCtrl = TextEditingController();
+  final _coRelCtrl = TextEditingController();
+  final _coPhoneCtrl = TextEditingController();
+  final _coAddressCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -174,14 +191,17 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   Widget _buildStepContent() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: switch (_step) {
-        0 => _buildStep1(),
-        1 => _buildStep2(),
-        2 => _buildStep3(),
-        3 => _buildStep4(),
-        4 => _buildStep5(),
-        _ => const SizedBox(),
-      },
+      child: Form(
+        key: _formKey,
+        child: switch (_step) {
+          0 => _buildStep1(),
+          1 => _buildStep2(),
+          2 => _buildStep3(),
+          3 => _buildStep4(),
+          4 => _buildStep5(),
+          _ => const SizedBox(),
+        },
+      ),
     );
   }
 
@@ -195,7 +215,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const Text('Search for an existing lender or create a new account.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
-        _field('Phone Number', _phoneCtrl, keyboardType: TextInputType.phone),
+        _field('Phone Number', _phoneCtrl,
+            keyboardType: TextInputType.phone, validator: _phoneValidator),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -206,9 +227,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         ),
         const SizedBox(height: 12),
         _field('Monthly Income', _monthlyIncomeCtrl,
-            keyboardType: TextInputType.number, prefix: '₱'),
+            keyboardType: TextInputType.number,
+            prefix: '₱',
+            validator: _numberValidator),
         const SizedBox(height: 12),
-        _field('GCash Number', _gcashCtrl, keyboardType: TextInputType.phone),
+        _field('GCash Number', _gcashCtrl,
+            keyboardType: TextInputType.phone, validator: _phoneValidator),
       ],
     );
   }
@@ -225,13 +249,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const SizedBox(height: 20),
         _sectionTitle('Home Address'),
         const SizedBox(height: 8),
-        _simpleField('Street / Barangay'),
+        _simpleField('Street / Barangay', controller: _streetCtrl),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: _simpleField('City')),
+            Expanded(
+                child: _simpleField('City', controller: _cityCtrl)),
             const SizedBox(width: 12),
-            Expanded(child: _simpleField('Province')),
+            Expanded(
+                child: _simpleField('Province', controller: _provinceCtrl)),
           ],
         ),
         const SizedBox(height: 20),
@@ -239,13 +265,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: _simpleField('Contact Name')),
+            Expanded(
+                child: _simpleField('Contact Name',
+                    controller: _emergencyNameCtrl)),
             const SizedBox(width: 12),
-            Expanded(child: _simpleField('Relationship')),
+            Expanded(
+                child: _simpleField('Relationship',
+                    controller: _emergencyRelCtrl)),
           ],
         ),
         const SizedBox(height: 8),
-        _simpleField('Phone Number', keyboardType: TextInputType.phone),
+        _simpleField('Phone Number',
+            controller: _emergencyPhoneCtrl, keyboardType: TextInputType.phone),
       ],
     );
   }
@@ -261,7 +292,9 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
         _field('Loan Amount', _amountCtrl,
-            keyboardType: TextInputType.number, prefix: '₱'),
+            keyboardType: TextInputType.number,
+            prefix: '₱',
+            validator: _numberValidator),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
           initialValue: _frequency,
@@ -362,23 +395,27 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _simpleField('Co-Maker First Name')),
+            Expanded(child: _simpleField('Co-Maker First Name',
+                controller: _coFirstCtrl)),
             const SizedBox(width: 12),
-            Expanded(child: _simpleField('Co-Maker Last Name')),
+            Expanded(child: _simpleField('Co-Maker Last Name',
+                controller: _coLastCtrl)),
           ],
         ),
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _simpleField('Relationship')),
+            Expanded(child: _simpleField('Relationship',
+                controller: _coRelCtrl)),
             const SizedBox(width: 12),
             Expanded(
-                child:
-                    _simpleField('Phone', keyboardType: TextInputType.phone)),
+                child: _simpleField('Phone',
+                    controller: _coPhoneCtrl,
+                    keyboardType: TextInputType.phone)),
           ],
         ),
         const SizedBox(height: 12),
-        _simpleField('Address'),
+        _simpleField('Address', controller: _coAddressCtrl),
       ],
     );
   }
@@ -479,6 +516,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Future<void> _nextStep() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     await _saveStepData();
     if (mounted) setState(() => _step++);
   }
@@ -495,6 +533,35 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           'last_name': _lastNameCtrl.text,
           'monthly_income': _monthlyIncomeCtrl.text,
           'gcash_number': _gcashCtrl.text,
+        },
+      1 => {
+          'addresses': [
+            {
+              'address_type': 'home',
+              'street': _streetCtrl.text,
+              'city': _cityCtrl.text,
+              'province': _provinceCtrl.text,
+            }
+          ],
+          'emergency_contacts': [
+            {
+              'name': _emergencyNameCtrl.text,
+              'relationship': _emergencyRelCtrl.text,
+              'phone_number': _emergencyPhoneCtrl.text,
+            }
+          ],
+        },
+      2 => {
+          'principal_amount': _amountCtrl.text,
+          'frequency': _frequency,
+          'purpose': _purposeCtrl.text,
+        },
+      3 => {
+          'first_name': _coFirstCtrl.text,
+          'last_name': _coLastCtrl.text,
+          'relationship': _coRelCtrl.text,
+          'phone_number': _coPhoneCtrl.text,
+          'address': _coAddressCtrl.text,
         },
       _ => <String, dynamic>{},
     };
@@ -517,6 +584,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     if (_appId == null) {
       await _createDraft();
       if (_appId == null) return;
@@ -531,15 +599,45 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     }
   }
 
+  String? _requiredValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'This field is required';
+    }
+    return null;
+  }
+
+  String? _numberValidator(String? value) {
+    final v = _requiredValidator(value);
+    if (v != null) return v;
+    if (double.tryParse(value!.trim()) == null) {
+      return 'Enter a valid amount';
+    }
+    return null;
+  }
+
+  String? _phoneValidator(String? value) {
+    final v = _requiredValidator(value);
+    if (v != null) return v;
+    if (!RegExp(r'^[0-9+\-() ]{7,15}$').hasMatch(value!.trim())) {
+      return 'Enter a valid phone number';
+    }
+    return null;
+  }
+
   Widget _field(String label, TextEditingController ctrl,
-      {TextInputType? keyboardType, int maxLines = 1, String? prefix}) {
-    return TextField(
+      {TextInputType? keyboardType,
+      int maxLines = 1,
+      String? prefix,
+      FormFieldValidator<String>? validator}) {
+    return TextFormField(
       controller: ctrl,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      validator: validator ?? _requiredValidator,
       decoration: InputDecoration(
         labelText: label,
         prefixText: prefix,
+        errorMaxLines: 2,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -547,11 +645,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  Widget _simpleField(String label, {TextInputType? keyboardType}) {
-    return TextField(
+  Widget _simpleField(String label,
+      {TextEditingController? controller, TextInputType? keyboardType}) {
+    return TextFormField(
+      controller: controller,
       keyboardType: keyboardType,
+      validator: _requiredValidator,
       decoration: InputDecoration(
         labelText: label,
+        errorMaxLines: 2,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -574,8 +676,19 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     _lastNameCtrl.dispose();
     _monthlyIncomeCtrl.dispose();
     _gcashCtrl.dispose();
+    _streetCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
+    _emergencyNameCtrl.dispose();
+    _emergencyRelCtrl.dispose();
+    _emergencyPhoneCtrl.dispose();
     _amountCtrl.dispose();
     _purposeCtrl.dispose();
+    _coFirstCtrl.dispose();
+    _coLastCtrl.dispose();
+    _coRelCtrl.dispose();
+    _coPhoneCtrl.dispose();
+    _coAddressCtrl.dispose();
     super.dispose();
   }
 }

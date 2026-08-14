@@ -99,6 +99,8 @@ import '../../presentation/features/rider/disbursements/screens/rider_disburseme
 import '../../presentation/features/rider/disbursements/screens/rider_disbursement_upload_proof_screen.dart';
 import '../../presentation/features/rider/notifications/screens/rider_notifications_screen.dart';
 import '../../presentation/features/rider/profile/screens/rider_profile_screen.dart';
+import '../../presentation/features/rider/profile/screens/rider_edit_profile_screen.dart'
+    as rider_edit_profile;
 import '../../presentation/shared/providers/auth_state_provider.dart';
 import '../../presentation/shared/providers/connectivity_provider.dart';
 import '../constants/app_constants.dart';
@@ -468,6 +470,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.riderProfile,
           builder: (ctx, s) => const RiderProfileScreen()),
+      GoRoute(
+          path: RouteConstants.riderEditProfile,
+          builder: (ctx, s) =>
+              const rider_edit_profile.RiderProfileEditScreen()),
 
       // ── Lender ──
       GoRoute(

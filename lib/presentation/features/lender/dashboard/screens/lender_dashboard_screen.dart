@@ -2,15 +2,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
 
@@ -62,9 +63,26 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     super.dispose();
   }
 
+  static const _inReviewStatuses = {
+    'pending',
+    'under_review',
+    'ci_required',
+    'ci_assigned',
+    'ci_completed',
+  };
+
   LoanModel? _approvedUnreleased(List<LoanModel> loans) {
     for (final loan in loans) {
       if (loan.status == 'approved' && loan.disbursedAt == null) {
+        return loan;
+      }
+    }
+    return null;
+  }
+
+  LoanModel? _inReviewLoan(List<LoanModel> loans) {
+    for (final loan in loans) {
+      if (_inReviewStatuses.contains(loan.status)) {
         return loan;
       }
     }
@@ -77,6 +95,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     final loanState = ref.watch(lenderLoanProvider);
     final activeLoan = loanState.isLoading ? null : loanState.activeLoan;
     final approvedLoan = _approvedUnreleased(loanState.loans);
+    final inReviewLoan = _inReviewLoan(loanState.loans);
 
     return MobileScaffold(
       title: 'My Account',
@@ -105,7 +124,10 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         const SizedBox(height: 20),
                       ],
                       if (activeLoan == null) ...[
-                        _QuickActions(context: context),
+                        if (inReviewLoan != null)
+                          _PendingLoanCard(loan: inReviewLoan)
+                        else
+                          _QuickActions(context: context),
                         const SizedBox(height: 20),
                       ],
                       if (activeLoan != null) ...[
@@ -274,8 +296,7 @@ class _QuickActions extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_circle_outline,
-                      color: Colors.white, size: 22),
+                  Icon(Icons.add_circle_outline, color: Colors.white, size: 22),
                   SizedBox(width: 8),
                   Text(
                     'Apply Now',
@@ -288,6 +309,70 @@ class _QuickActions extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingLoanCard extends StatelessWidget {
+  final LoanModel loan;
+  const _PendingLoanCard({required this.loan});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push(
+          RouteConstants.lenderLoanApplicationStatus
+              .replaceFirst(':id', loan.id),
+        ),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.warningLight,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: AppColors.warning,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.hourglass_top,
+                    color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Loan #${loan.loanNumber} Under Review',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Your application has been submitted. Track its progress here.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.warning),
+            ],
           ),
         ),
       ),
@@ -590,8 +675,7 @@ class _MyLoansOverview extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionLabel('My Loans'),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
         const Text(
           'Need cash now?',
           textAlign: TextAlign.center,

@@ -83,6 +83,7 @@ class RouteConstants {
   static const String riderSubmitCiReport = '/rider/ci/:id/submit';
   static const String riderNotifications = '/rider/notifications';
   static const String riderProfile = '/rider/profile';
+  static const String riderEditProfile = '/rider/profile/edit';
 
   // Lender
   static const String lenderDashboard = '/lender/dashboard';

@@ -1,13 +1,11 @@
 // lib/presentation/features/rider/profile/screens/rider_profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
-import '../../../../shared/widgets/dialogs/error_dialog.dart';
-import '../../../../shared/widgets/dialogs/success_dialog.dart';
-import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar_upload.dart';
@@ -45,55 +43,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
         route: RouteConstants.riderProfile),
   ];
 
-  final _firstCtrl = TextEditingController();
-  final _lastCtrl = TextEditingController();
-  final _plateCtrl = TextEditingController();
-  final _licenseCtrl = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _populated = false;
-
-  @override
-  void dispose() {
-    _firstCtrl.dispose();
-    _lastCtrl.dispose();
-    _plateCtrl.dispose();
-    _licenseCtrl.dispose();
-    super.dispose();
-  }
-
-  void _populate(state) {
-    if (_populated || state.user == null) return;
-    _firstCtrl.text = state.user!.firstName;
-    _lastCtrl.text = state.user!.lastName;
-    _plateCtrl.text = state.plateNumber ?? '';
-    _licenseCtrl.text = state.licenseNumber ?? '';
-    _populated = true;
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    final notifier = ref.read(riderProfileProvider.notifier);
-    final ok = await notifier.update({
-      'first_name': _firstCtrl.text.trim(),
-      'last_name': _lastCtrl.text.trim(),
-      'rider_profile': {
-        'plate_number': _plateCtrl.text.trim(),
-        'drivers_license_number': _licenseCtrl.text.trim(),
-      },
-    });
-    if (!mounted) return;
-    if (ok) {
-      showDialog(
-          context: context,
-          builder: (_) =>
-              const SuccessDialog(message: 'Profile updated successfully'));
-    } else {
-      showDialog(
-          context: context,
-          builder: (_) =>
-              const ErrorDialog(message: 'Failed to update profile'));
-    }
-  }
+  void _openEditProfile() => context.push(RouteConstants.riderEditProfile);
 
   Future<void> _logout() async {
     final confirmed = await showDialog<bool>(
@@ -121,7 +71,6 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(riderProfileProvider);
-    _populate(state);
 
     return MobileScaffold(
       title: 'My Profile',
@@ -131,83 +80,36 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
           ? const ShimmerLoader()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(state),
-                    const SizedBox(height: 22),
-                    _sectionTitle('Personal Information'),
-                    const SizedBox(height: 10),
-                    _buildFieldCard([
-                      AppTextField(
-                        controller: _firstCtrl,
-                        label: 'First Name',
-                        prefixIcon: Icons.person_outline,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'First name is required'
-                            : null,
-                      ),
-                      const SizedBox(height: 14),
-                      AppTextField(
-                        controller: _lastCtrl,
-                        label: 'Last Name',
-                        prefixIcon: Icons.person_outline,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Last name is required'
-                            : null,
-                      ),
-                    ]),
-                    const SizedBox(height: 22),
-                    _sectionTitle('Rider Information'),
-                    const SizedBox(height: 10),
-                    _buildFieldCard([
-                      AppTextField(
-                        controller: _plateCtrl,
-                        label: 'Plate Number',
-                        prefixIcon: Icons.directions_bike_outlined,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Plate number is required'
-                            : null,
-                      ),
-                      const SizedBox(height: 14),
-                      AppTextField(
-                        controller: _licenseCtrl,
-                        label: "Driver's License Number",
-                        prefixIcon: Icons.badge_outlined,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? "Driver's license number is required"
-                            : null,
-                      ),
-                    ]),
-                    const SizedBox(height: 22),
-                    _sectionTitle('Account'),
-                    const SizedBox(height: 10),
-                    _buildLegalCard(),
-                    const SizedBox(height: 22),
-                    AppButton(
-                      label: state.isSaving ? 'Saving...' : 'Save Changes',
-                      onPressed: state.isSaving ? null : _save,
-                      color: AppColors.riderGreen,
-                      isExpanded: true,
-                      icon: Icons.save_outlined,
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _logout,
-                      icon: const Icon(Icons.logout, color: AppColors.error),
-                      label: const Text('Log Out',
-                          style: TextStyle(color: AppColors.error)),
-                      style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.error),
-                          minimumSize: const Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(state),
+                  const SizedBox(height: 18),
+                  AppButton(
+                    label: 'Edit Profile',
+                    onPressed: _openEditProfile,
+                    color: AppColors.riderGreen,
+                    isExpanded: true,
+                    icon: Icons.edit_outlined,
+                  ),
+                  const SizedBox(height: 22),
+                  _sectionTitle('Account'),
+                  const SizedBox(height: 10),
+                  _buildLegalCard(),
+                  const SizedBox(height: 22),
+                  OutlinedButton.icon(
+                    onPressed: _logout,
+                    icon: const Icon(Icons.logout, color: AppColors.error),
+                    label: const Text('Log Out',
+                        style: TextStyle(color: AppColors.error)),
+                    style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.error),
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12))),
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
             ),
     );
@@ -216,72 +118,45 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
   Widget _buildHeader(state) {
     final user = state.user;
     final name = user != null ? '${user.firstName} ${user.lastName}' : 'Rider';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.riderGreen, AppColors.riderGreenDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: _statusPill(user?.accountStatus),
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.riderGreen.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.riderGreen, width: 3),
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: _statusPill(user?.accountStatus),
+          child: ProfileAvatarUpload(
+            photoUrl: user?.profilePhotoUrl,
+            name: name,
+            color: AppColors.riderGreen,
+            radius: 38,
+            onUploaded: _updateAvatar,
           ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-            ),
-            child: ProfileAvatarUpload(
-              photoUrl: user?.profilePhotoUrl,
-              name: name,
-              color: AppColors.riderGreen,
-              radius: 38,
-              onUploaded: _updateAvatar,
-            ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          name,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'PlayfairDisplay',
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: AppColors.riderGreen,
           ),
-          const SizedBox(height: 14),
-          Text(
-            name,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontFamily: 'PlayfairDisplay',
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _roleChip(Icons.directions_bike, 'Rider'),
-              const SizedBox(width: 8),
-              _roleChip(Icons.verified_outlined, 'CI Collector'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Tap the camera icon to change your profile picture',
-            style: TextStyle(fontSize: 11, color: Colors.white70),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Tap the camera icon to change your profile picture',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+        ),
+      ],
     );
   }
 
@@ -305,9 +180,9 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
+        color: AppColors.riderGreen.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -317,32 +192,9 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
           Text(
             label,
             style: const TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _roleChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border.all(color: AppColors.gold, width: 1),
-        borderRadius: BorderRadius.circular(20),
-        color: AppColors.gold.withValues(alpha: 0.15),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: AppColors.goldLight),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: AppColors.goldLight),
+                color: AppColors.riderGreen),
           ),
         ],
       ),
@@ -371,10 +223,6 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
         ),
       ],
     );
-  }
-
-  Widget _buildFieldCard(List<Widget> children) {
-    return SizedBox(width: double.infinity, child: Column(children: children));
   }
 
   Future<void> _updateAvatar(String url) async {

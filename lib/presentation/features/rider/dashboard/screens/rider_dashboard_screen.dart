@@ -2,12 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../dashboard/providers/rider_dashboard_provider.dart';
 
 class RiderDashboardScreen extends ConsumerStatefulWidget {
@@ -24,7 +25,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     final state = ref.watch(riderDashboardProvider);
 
     return MobileScaffold(
-      title: 'Rider Dashboard',
+      title: 'Rider Home',
       accentColor: AppColors.riderGreen,
       navItems: const [
         MobileNavItem(
@@ -59,43 +60,32 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
               onRefresh: () =>
                   ref.read(riderDashboardProvider.notifier).refresh(),
               child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(context),
-                      const SizedBox(height: 14),
-                      _buildHero(context, state),
-                      const SizedBox(height: 14),
-                      _buildQuickActions(context),
-                      const SizedBox(height: 20),
-                      _buildStatCard(context, state),
-                      const SizedBox(height: 20),
-                      _buildSectionLabel(
-                        context,
-                        label: 'Today\'s Collections',
-                        count: state.todayCollections.length,
-                        icon: Icons.payments_outlined,
-                        onMore: () =>
-                            context.push(RouteConstants.riderCollections),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildCollectionTasks(context, state),
-                      const SizedBox(height: 20),
-                      _buildSectionLabel(
-                        context,
-                        label: 'CI Assignments',
-                        count: state.todayCiTasks.length,
-                        icon: Icons.search_outlined,
-                        onMore: () => context.push(RouteConstants.riderCi),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildCiTasks(context, state),
-                    ],
-                  ),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(context),
+                    const SizedBox(height: 14),
+                    _buildHero(context, state),
+                    const SizedBox(height: 14),
+                    _buildCiTasksCard(context, state),
+                    const SizedBox(height: 20),
+                    _buildQuickActions(context),
+                    const SizedBox(height: 20),
+                    _buildSectionLabel(
+                      context,
+                      label: 'CI Assignments',
+                      count: state.todayCiTasks.length,
+                      icon: Icons.search_outlined,
+                      onMore: () => context.push(RouteConstants.riderCi),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildCiTasks(context, state),
+                  ],
                 ),
               ),
+            ),
     );
   }
 
@@ -220,7 +210,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     return 'Evening';
   }
 
-  Widget _buildHero(BuildContext context, dynamic state) {
+  Widget _buildHero(BuildContext context, RiderDashboardState state) {
     final kpi = state.kpi;
     final ratio = kpi.totalAssignedCollections > 0
         ? (kpi.totalCompletedCollections / kpi.totalAssignedCollections)
@@ -336,118 +326,72 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     );
   }
 
-  Widget _buildStatCard(BuildContext context, dynamic state) {
+  Widget _buildCiTasksCard(BuildContext context, RiderDashboardState state) {
     final kpi = state.kpi;
     final ciRatio = kpi.totalCiAssignments > 0
         ? (kpi.totalCiCompleted / kpi.totalCiAssignments).clamp(0.0, 1.0)
         : 0.0;
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: Row(
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              _MiniStat(
-                label: 'Assigned',
-                value: kpi.totalAssignedCollections.toString(),
-                icon: Icons.assignment_outlined,
-                color: AppColors.info,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.search_outlined,
+                    color: AppColors.info, size: 20),
               ),
-              _buildDivider(),
-              _MiniStat(
-                label: 'Completed',
-                value: kpi.totalCompletedCollections.toString(),
-                icon: Icons.check_circle_outline,
-                color: AppColors.success,
+              const SizedBox(width: 10),
+              const Text(
+                'CI Tasks',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
-              _buildDivider(),
-              _MiniStat(
-                label: 'Failed',
-                value: kpi.totalFailedCollections.toString(),
-                icon: Icons.cancel_outlined,
-                color: AppColors.error,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.info.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.search_outlined,
-                        color: AppColors.info, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'CI Tasks',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${kpi.totalCiCompleted}/${kpi.totalCiAssignments}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.info,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: ciRatio,
-                  minHeight: 8,
-                  backgroundColor: AppColors.border,
-                  valueColor: const AlwaysStoppedAnimation(AppColors.info),
+              const Spacer(),
+              Text(
+                '${kpi.totalCiCompleted}/${kpi.totalCiAssignments}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.info,
                 ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: ciRatio,
+              minHeight: 8,
+              backgroundColor: AppColors.border,
+              valueColor: const AlwaysStoppedAnimation(AppColors.info),
+            ),
+          ),
+        ],
+      ),
     );
   }
-
-  Widget _buildDivider() =>
-      Container(width: 1, height: 38, color: AppColors.border);
 
   Widget _buildSectionLabel(
     BuildContext context, {
@@ -493,7 +437,8 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     );
   }
 
-  Widget _buildCollectionTasks(BuildContext context, dynamic state) {
+  Widget _buildCollectionTasks(
+      BuildContext context, RiderDashboardState state) {
     if (state.todayCollections.isEmpty) {
       return _buildEmptyCard(
           'No active collection tasks today', Icons.inbox_outlined);
@@ -520,7 +465,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     );
   }
 
-  Widget _buildCiTasks(BuildContext context, dynamic state) {
+  Widget _buildCiTasks(BuildContext context, RiderDashboardState state) {
     if (state.todayCiTasks.isEmpty) {
       return _buildEmptyCard('No active CI tasks today', Icons.search_off);
     }
