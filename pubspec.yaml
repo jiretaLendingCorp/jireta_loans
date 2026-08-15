@@ -124,7 +124,6 @@ flutter:
   assets:
     - assets/env/.env
     - assets/images/
-    - assets/icons/
     - assets/rive/
     - assets/fonts/Inter/
     - assets/fonts/Playfair_Display/
