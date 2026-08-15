@@ -75,8 +75,9 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
                     itemCount: state.documents.length,
-                    itemBuilder: (ctx, i) =>
-                        _DocumentCard(doc: state.documents[i]),
+                    itemBuilder: (ctx, i) => _DocumentCard(
+                        key: ValueKey(state.documents[i].id),
+                        doc: state.documents[i]),
                   ),
                 ),
     );
@@ -85,7 +86,7 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
 
 class _DocumentCard extends StatefulWidget {
   final dynamic doc;
-  const _DocumentCard({required this.doc});
+  const _DocumentCard({super.key, required this.doc});
 
   @override
   State<_DocumentCard> createState() => _DocumentCardState();

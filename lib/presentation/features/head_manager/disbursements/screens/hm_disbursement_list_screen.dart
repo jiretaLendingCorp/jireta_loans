@@ -156,6 +156,7 @@ class _HmDisbursementListScreenState
 
   Widget _buildRow(BuildContext context, DisbursementModel d) {
     return InkWell(
+      key: ValueKey(d.id),
       onTap: () => context.go('/hm/disbursements/${d.id}'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

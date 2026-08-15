@@ -107,6 +107,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (ctx, i) => _CiCard(
+                              key: ValueKey(state.investigations[i].id),
                               ci: state.investigations[i],
                               onTap: () => ctx.push(
                                   '${RouteConstants.riderCi}/${state.investigations[i].id}'),
@@ -123,7 +124,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
 class _CiCard extends StatelessWidget {
   final CreditInvestigationModel ci;
   final VoidCallback onTap;
-  const _CiCard({required this.ci, required this.onTap});
+  const _CiCard({super.key, required this.ci, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

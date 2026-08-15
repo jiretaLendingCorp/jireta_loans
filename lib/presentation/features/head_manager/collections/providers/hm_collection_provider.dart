@@ -49,12 +49,13 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
     with RealtimeRefreshMixin {
   final CollectionRemoteDataSource _ds;
   HmCollectionNotifier(this._ds) : super(const HmCollectionState()) {
-    bindRealtimeRefresh(['collection_assignments', 'payments'], refresh: fetch);
+    bindRealtimeRefresh(['collection_assignments', 'payments'],
+        refresh: () => fetch(silent: true));
     fetch();
   }
 
-  Future<void> fetch({int page = 1}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> fetch({int page = 1, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final list = await _ds.getCollectionList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
@@ -68,6 +69,7 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
         totalCount: list.length + (page - 1) * 20,
       );
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

@@ -165,6 +165,7 @@ class _HmLoanApplicationsListScreenState
     final color = _statusColor(loan.displayStatus);
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     return InkWell(
+      key: ValueKey(loan.id),
       onTap: () => context.go(
         RouteConstants.hmLoanApplicationDetails.replaceFirst(':id', loan.id),
       ),

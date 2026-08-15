@@ -35,13 +35,13 @@ class _AuditNotifier extends StateNotifier<_AuditState>
     with RealtimeRefreshMixin<_AuditState> {
   final AuditRemoteDataSource _ds;
   _AuditNotifier(this._ds) : super(const _AuditState()) {
-    bindRealtimeRefresh(['audit_logs'], refresh: fetch);
+    bindRealtimeRefresh(['audit_logs'], refresh: () => fetch(silent: true));
     fetch();
   }
 
   Future<void> fetch(
-      {int page = 1, String? action, String? performedBy}) async {
-    state = state.copyWith(isLoading: true);
+      {int page = 1, String? action, String? performedBy, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final res = await _ds.getAuditLogs(
           page: page, action: action, performedBy: performedBy);
@@ -53,7 +53,7 @@ class _AuditNotifier extends StateNotifier<_AuditState>
           currentPage: meta['page'] as int? ?? 1,
           totalPages: meta['total_pages'] as int? ?? 1);
     } catch (_) {
-      state = state.copyWith(isLoading: false);
+      if (!silent) state = state.copyWith(isLoading: false);
     }
   }
 }
@@ -216,6 +216,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
     final user = log['performed_by_user'] as Map<String, dynamic>? ?? {};
     final isExpanded = _expandedLog == log;
     return Column(
+      key: ValueKey(log['id']),
       children: [
         InkWell(
           onTap: () => setState(() => _expandedLog = isExpanded ? null : log),

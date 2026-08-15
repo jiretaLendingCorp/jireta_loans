@@ -67,6 +67,7 @@ class RiderNotificationsScreen extends ConsumerWidget {
                       separatorBuilder: (_, __) =>
                           const Divider(height: 1, indent: 16, endIndent: 16),
                       itemBuilder: (ctx, i) => _NotificationTile(
+                        key: ValueKey(state.notifications[i].id),
                         notification: state.notifications[i],
                         onTap: () {
                           if (!state.notifications[i].isRead) {
@@ -85,7 +86,8 @@ class RiderNotificationsScreen extends ConsumerWidget {
 class _NotificationTile extends StatelessWidget {
   final NotificationModel notification;
   final VoidCallback onTap;
-  const _NotificationTile({required this.notification, required this.onTap});
+  const _NotificationTile(
+      {super.key, required this.notification, required this.onTap});
 
   IconData _iconFor(String type) {
     switch (type) {

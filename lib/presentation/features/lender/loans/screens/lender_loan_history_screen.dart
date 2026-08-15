@@ -83,6 +83,7 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
                     padding: const EdgeInsets.all(16),
                     itemCount: state.loans.length,
                     itemBuilder: (_, i) => _LoanCard(
+                        key: ValueKey(state.loans[i].id),
                         loan: state.loans[i],
                         onTap: () =>
                             context.push('/lender/loans/${state.loans[i].id}')),
@@ -95,7 +96,7 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
 class _LoanCard extends StatelessWidget {
   final dynamic loan;
   final VoidCallback onTap;
-  const _LoanCard({required this.loan, required this.onTap});
+  const _LoanCard({super.key, required this.loan, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

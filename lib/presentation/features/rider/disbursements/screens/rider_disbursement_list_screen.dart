@@ -116,6 +116,7 @@ class _RiderDisbursementListScreenState
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final delivery = disbursement.deliveryDate;
     return Container(
+      key: ValueKey(disbursement.id),
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

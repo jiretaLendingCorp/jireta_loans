@@ -49,12 +49,12 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   EmpRiderStateNotifier(this._ds) : super(const EmpRiderState()) {
-    bindRealtimeRefresh(['users', 'rider_profiles'], refresh: load);
+    bindRealtimeRefresh(['users', 'rider_profiles'], refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getUsers(
         role: 'rider',
@@ -64,6 +64,7 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
       );
       state = state.copyWith(riders: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

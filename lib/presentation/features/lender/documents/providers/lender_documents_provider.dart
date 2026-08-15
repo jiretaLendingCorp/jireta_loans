@@ -47,12 +47,13 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
 
   LenderDocumentsNotifier(this._client, this._storage)
       : super(const LenderDocumentsState()) {
-    bindRealtimeRefresh(['account_upgrade_documents'], refresh: loadDocuments);
+    bindRealtimeRefresh(['account_upgrade_documents'],
+        refresh: () => loadDocuments(silent: true));
     loadDocuments();
   }
 
-  Future<void> loadDocuments() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> loadDocuments({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _client.get(ApiEndpoints.accountUpgradeGetStatus);
       final data = res.data as Map<String, dynamic>;
@@ -63,6 +64,7 @@ class LenderDocumentsNotifier extends StateNotifier<LenderDocumentsState>
           [];
       state = state.copyWith(documents: docs, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

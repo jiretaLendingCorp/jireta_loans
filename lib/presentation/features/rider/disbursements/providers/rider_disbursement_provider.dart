@@ -42,16 +42,18 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
   final DisbursementRemoteDataSource _ds;
 
   RiderDisbursementNotifier(this._ds) : super(const RiderDisbursementState()) {
-    bindRealtimeRefresh(['disbursements', 'loans'], refresh: load);
+    bindRealtimeRefresh(['disbursements', 'loans'],
+        refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final list = await _ds.getDisbursements(status: 'pending');
       state = state.copyWith(disbursements: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

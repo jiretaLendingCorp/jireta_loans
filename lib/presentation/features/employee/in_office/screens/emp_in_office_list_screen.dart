@@ -124,6 +124,7 @@ class _ApplicationList extends StatelessWidget {
         final createdAt = app['created_at'] as String?;
 
         return Card(
+          key: ValueKey(app['id']),
           elevation: 1,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

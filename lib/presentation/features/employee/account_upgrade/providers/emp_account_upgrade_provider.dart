@@ -16,16 +16,18 @@ class EmpAccountUpgradeNotifier
   EmpAccountUpgradeNotifier(this._ds)
       : super(const AsyncData({'items': [], 'total': 0})) {
     bindRealtimeRefresh(['account_upgrade_documents', 'lender_profiles'],
-        refresh: loadList);
+        refresh: () => loadList(silent: true));
   }
 
-  Future<void> loadList({String? status, String? search, int page = 1}) async {
-    state = const AsyncLoading();
+  Future<void> loadList(
+      {String? status, String? search, int page = 1, bool silent = false}) async {
+    if (!silent) state = const AsyncLoading();
     try {
       final data =
           await _ds.getList(status: status, search: search, page: page);
       state = AsyncData(data);
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

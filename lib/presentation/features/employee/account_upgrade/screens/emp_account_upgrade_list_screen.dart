@@ -199,6 +199,7 @@ class _EmpAccountUpgradeListScreenState
         '';
 
     return InkWell(
+      key: ValueKey(accountUpgrade['id']),
       onTap: () => context.go(RouteConstants.empAccountUpgradeDetails
           .replaceFirst(':id', lenderId)),
       child: Container(

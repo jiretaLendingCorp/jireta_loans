@@ -118,6 +118,7 @@ class _HmNotificationCenterScreenState
         itemCount: state.notifications.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) => _NotifCard(
+          key: ValueKey(state.notifications[i].id),
           notif: state.notifications[i],
           onMarkRead: () => ref
               .read(hmNotificationProvider.notifier)
@@ -142,6 +143,7 @@ class _HmNotificationCenterScreenState
       itemBuilder: (_, i) {
         final log = state.smsLogs[i];
         return ListTile(
+          key: ValueKey(log['id']),
           leading: const CircleAvatar(
             backgroundColor: AppColors.infoLight,
             child: Icon(Icons.sms, color: AppColors.info, size: 18),
@@ -187,7 +189,7 @@ class _NotifCard extends StatelessWidget {
   final NotificationModel notif;
   final VoidCallback onMarkRead;
 
-  const _NotifCard({required this.notif, required this.onMarkRead});
+  const _NotifCard({super.key, required this.notif, required this.onMarkRead});
 
   @override
   Widget build(BuildContext context) {

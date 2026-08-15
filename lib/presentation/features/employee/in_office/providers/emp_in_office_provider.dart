@@ -19,17 +19,20 @@ class EmpInOfficeNotifier
 
   EmpInOfficeNotifier(this._ds, this._loanDs)
       : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(['in_office_applications'], refresh: loadList);
+    bindRealtimeRefresh(['in_office_applications'],
+        refresh: () => loadList(silent: true));
     loadList();
   }
 
-  Future<void> loadList({String? status, int page = 1}) async {
-    state = const AsyncLoading();
+  Future<void> loadList(
+      {String? status, int page = 1, bool silent = false}) async {
+    if (!silent) state = const AsyncLoading();
     try {
       final data = await _ds.getList(
           status: status == 'all' ? null : status, page: page);
       state = AsyncData({'items': data, 'total': data.length});
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

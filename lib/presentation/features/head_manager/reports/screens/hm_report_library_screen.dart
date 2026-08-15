@@ -37,12 +37,12 @@ class _ReportNotifier extends StateNotifier<_ReportState>
     with RealtimeRefreshMixin<_ReportState> {
   final ReportRemoteDataSource _ds;
   _ReportNotifier(this._ds) : super(const _ReportState()) {
-    bindRealtimeRefresh(['reports'], refresh: init);
+    bindRealtimeRefresh(['reports'], refresh: () => init(silent: true));
     init();
   }
 
-  Future<void> init() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> init({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final templates = await _ds.getReportList();
       final history = await _ds.getRawHistory();
@@ -52,7 +52,7 @@ class _ReportNotifier extends StateNotifier<_ReportState>
         isLoading: false,
       );
     } catch (_) {
-      state = state.copyWith(isLoading: false);
+      if (!silent) state = state.copyWith(isLoading: false);
     }
   }
 
@@ -249,6 +249,7 @@ class HmReportLibraryScreen extends ConsumerWidget {
         children: state.history.asMap().entries.map((e) {
           final r = e.value;
           return Container(
+            key: ValueKey(r['id']),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: e.key.isEven

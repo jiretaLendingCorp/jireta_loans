@@ -206,6 +206,7 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
       itemBuilder: (context, i) {
         final ci = items[i];
         return _CiCard(
+          key: ValueKey(ci['id']),
           ci: ci,
           onTap: () => context.go(
             RouteConstants.empCiDetails.replaceFirst(':id', ci['id'] ?? ''),
@@ -220,7 +221,7 @@ class _CiCard extends StatelessWidget {
   final Map<String, dynamic> ci;
   final VoidCallback onTap;
 
-  const _CiCard({required this.ci, required this.onTap});
+  const _CiCard({super.key, required this.ci, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

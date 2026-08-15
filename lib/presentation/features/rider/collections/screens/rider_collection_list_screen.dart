@@ -152,6 +152,7 @@ class _RiderCollectionListScreenState
         : '';
 
     return GestureDetector(
+      key: ValueKey(c.id),
       onTap: () => context.push('${RouteConstants.riderCollections}/${c.id}'),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),

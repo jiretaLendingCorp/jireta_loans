@@ -158,6 +158,7 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
   Widget _buildRow(LoanModel loan, bool isEven, NumberFormat fmt) {
     final color = _statusColor(loan.displayStatus);
     return InkWell(
+      key: ValueKey(loan.id),
       onTap: () =>
           context.go(RouteConstants.hmLoanDetails.replaceFirst(':id', loan.id)),
       child: Container(

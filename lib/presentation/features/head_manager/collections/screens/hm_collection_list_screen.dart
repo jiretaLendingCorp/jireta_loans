@@ -79,6 +79,7 @@ class HmCollectionListScreen extends ConsumerWidget {
       itemBuilder: (ctx, i) {
         final col = state.items[i];
         return _CollectionCard(
+          key: ValueKey(col.id),
           collection: col,
           fmt: fmt,
           onTap: () => context.go(
@@ -110,7 +111,7 @@ class _CollectionCard extends StatefulWidget {
   final NumberFormat fmt;
   final VoidCallback onTap;
   const _CollectionCard(
-      {required this.collection, required this.fmt, required this.onTap});
+      {super.key, required this.collection, required this.fmt, required this.onTap});
 
   @override
   State<_CollectionCard> createState() => _CollectionCardState();

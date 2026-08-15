@@ -45,12 +45,12 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
     with RealtimeRefreshMixin {
   final LoanRemoteDataSource _ds;
   EmpLoanNotifier(this._ds) : super(const EmpLoanState()) {
-    bindRealtimeRefresh(['loans', 'loan_schedules'], refresh: load);
+    bindRealtimeRefresh(['loans', 'loan_schedules'], refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final list = await _ds.getLoanList(
         status: state.statusFilter,
@@ -59,6 +59,7 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
       );
       state = state.copyWith(loans: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

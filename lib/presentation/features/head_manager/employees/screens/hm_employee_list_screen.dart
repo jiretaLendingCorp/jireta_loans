@@ -153,6 +153,7 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
   Widget _buildTableRow(UserModel user, bool isEven) {
     final isActive = user.accountStatus == 'active';
     return InkWell(
+      key: ValueKey(user.id),
       onTap: () => context.go(
         RouteConstants.hmEmployeeDetails.replaceFirst(':id', user.id),
       ),

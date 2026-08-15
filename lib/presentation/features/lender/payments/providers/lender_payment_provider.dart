@@ -42,16 +42,18 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
   final PaymentRemoteDataSource _ds;
 
   LenderPaymentNotifier(this._ds) : super(const LenderPaymentState()) {
-    bindRealtimeRefresh(['payments', 'loan_schedules'], refresh: loadPayments);
+    bindRealtimeRefresh(['payments', 'loan_schedules'],
+        refresh: () => loadPayments(silent: true));
     loadPayments();
   }
 
-  Future<void> loadPayments() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> loadPayments({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final payments = await _ds.getPaymentList(page: 1);
       state = state.copyWith(payments: payments, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

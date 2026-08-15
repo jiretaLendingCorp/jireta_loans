@@ -41,16 +41,18 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
   final UserRemoteDataSource _ds;
 
   RiderProfileNotifier(this._ds) : super(const RiderProfileState()) {
-    bindRealtimeRefresh(['users', 'rider_profiles'], refresh: loadProfile);
+    bindRealtimeRefresh(['users', 'rider_profiles'],
+        refresh: () => loadProfile(silent: true));
     loadProfile();
   }
 
-  Future<void> loadProfile() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> loadProfile({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final user = await _ds.getProfile();
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

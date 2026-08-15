@@ -133,6 +133,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
   Widget _buildRow(UserModel rider, bool isEven) {
     final isActive = rider.accountStatus == 'active';
     return InkWell(
+      key: ValueKey(rider.id),
       onTap: () => context
           .go(RouteConstants.empRiderDetails.replaceFirst(':id', rider.id)),
       child: Container(

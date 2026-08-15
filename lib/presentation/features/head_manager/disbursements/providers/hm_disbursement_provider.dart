@@ -46,12 +46,13 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
   final DisbursementRemoteDataSource _ds;
 
   HmDisbursementNotifier(this._ds) : super(const HmDisbursementState()) {
-    bindRealtimeRefresh(['disbursements', 'loans'], refresh: load);
+    bindRealtimeRefresh(['disbursements', 'loans'],
+        refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getDisbursements(
         method: state.methodFilter == 'all' ? null : state.methodFilter,
@@ -59,6 +60,7 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
       );
       state = state.copyWith(disbursements: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

@@ -121,8 +121,10 @@ class _EmpCollectionListScreenState
                         padding: const EdgeInsets.all(16),
                         itemCount: items.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) =>
-                            _CollectionCard(collection: items[i]),
+                        itemBuilder: (ctx, i) => _CollectionCard(
+                          key: ValueKey(items[i]['id']),
+                          collection: items[i],
+                        ),
                       ),
           ),
           if (totalPages > 1)
@@ -147,7 +149,7 @@ class _EmpCollectionListScreenState
 
 class _CollectionCard extends ConsumerWidget {
   final Map<String, dynamic> collection;
-  const _CollectionCard({required this.collection});
+  const _CollectionCard({super.key, required this.collection});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

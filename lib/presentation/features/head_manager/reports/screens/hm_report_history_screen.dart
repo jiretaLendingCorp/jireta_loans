@@ -198,14 +198,15 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
     return ListView.builder(
       padding: const EdgeInsets.all(24),
       itemCount: reports.length,
-      itemBuilder: (context, i) => _ReportHistoryCard(report: reports[i]),
+      itemBuilder: (context, i) =>
+          _ReportHistoryCard(key: ValueKey(reports[i]['id']), report: reports[i]),
     );
   }
 }
 
 class _ReportHistoryCard extends StatelessWidget {
   final Map<String, dynamic> report;
-  const _ReportHistoryCard({required this.report});
+  const _ReportHistoryCard({super.key, required this.report});
 
   @override
   Widget build(BuildContext context) {

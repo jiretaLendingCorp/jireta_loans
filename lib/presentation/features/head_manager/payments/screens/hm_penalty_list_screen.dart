@@ -31,16 +31,17 @@ class _PenaltyNotifier extends StateNotifier<_PenaltyState>
     with RealtimeRefreshMixin<_PenaltyState> {
   final LoanRemoteDataSource _ds;
   _PenaltyNotifier(this._ds) : super(const _PenaltyState()) {
-    bindRealtimeRefresh(['penalty_logs'], refresh: () => load());
+    bindRealtimeRefresh(['penalty_logs'], refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getPenaltyLogs();
       state = state.copyWith(items: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
@@ -148,6 +149,7 @@ class HmPenaltyListScreen extends ConsumerWidget {
       );
 
   Widget _buildRow(PenaltyLogModel p) => Container(
+        key: ValueKey(p.id),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: Color(0xFFEEEEEE)))),

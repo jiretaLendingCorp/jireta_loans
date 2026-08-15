@@ -14,15 +14,16 @@ class HmAuditNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   final AuditRemoteDataSource _ds;
   HmAuditNotifier(this._ds)
       : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(['audit_logs'], refresh: loadLogs);
+    bindRealtimeRefresh(['audit_logs'], refresh: () => loadLogs(silent: true));
   }
 
   Future<void> loadLogs(
       {String? action,
       String? performedBy,
       String? tableName,
-      int page = 1}) async {
-    state = const AsyncLoading();
+      int page = 1,
+      bool silent = false}) async {
+    if (!silent) state = const AsyncLoading();
     try {
       final data = await _ds.getLogs(
           action: action,
@@ -31,6 +32,7 @@ class HmAuditNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
           page: page);
       state = AsyncData(data);
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

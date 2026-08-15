@@ -68,11 +68,11 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
 
   EmpCiNotifier(this._ds, this._userDs) : super(const EmpCiState()) {
     bindRealtimeRefresh(['credit_investigations', 'ci_documents'],
-        refresh: load);
+        refresh: () => load(silent: true));
   }
 
-  Future<void> load({String? status, String? riderId, int page = 1}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> load({String? status, String? riderId, int page = 1, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final list =
           await _ds.getCiList(status: status, riderId: riderId, page: page);
@@ -82,6 +82,7 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
         total: list.length,
       );
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message, items: []);
     }

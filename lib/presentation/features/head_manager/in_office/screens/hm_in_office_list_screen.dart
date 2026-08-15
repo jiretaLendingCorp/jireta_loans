@@ -106,6 +106,7 @@ class _HmInOfficeListScreenState extends ConsumerState<HmInOfficeListScreen>
               ? DateTime.tryParse(app['created_at'])
               : null;
           return Container(
+            key: ValueKey(app['id']),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,

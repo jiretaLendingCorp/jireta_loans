@@ -53,12 +53,12 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
 
   LenderLoanNotifier(this._ds, this._disbDs) : super(const LenderLoanState()) {
     bindRealtimeRefresh(['loans', 'loan_schedules', 'disbursements'],
-        refresh: loadLoans);
+        refresh: () => loadLoans(silent: true));
     loadLoans();
   }
 
-  Future<void> loadLoans() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> loadLoans({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final loans = await _ds.getLoanList(page: 1);
       // Active Loan surfaces real active/overdue loans. An approved-but-not-yet-
@@ -72,6 +72,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
       state =
           state.copyWith(loans: loans, activeLoan: active, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

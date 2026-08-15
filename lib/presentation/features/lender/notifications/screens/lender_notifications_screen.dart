@@ -78,6 +78,7 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
                     separatorBuilder: (_, __) =>
                         const Divider(height: 1, indent: 72),
                     itemBuilder: (ctx, i) => _NotifTile(
+                        key: ValueKey(state.notifications[i].id),
                         item: state.notifications[i],
                         onTap: () {
                           if (!state.notifications[i].isRead) {
@@ -95,7 +96,7 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
 class _NotifTile extends StatelessWidget {
   final dynamic item;
   final VoidCallback onTap;
-  const _NotifTile({required this.item, required this.onTap});
+  const _NotifTile({super.key, required this.item, required this.onTap});
 
   IconData _icon(String type) {
     switch (type) {

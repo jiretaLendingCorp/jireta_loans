@@ -41,7 +41,7 @@ class HmReportNotifier extends StateNotifier<HmReportState>
     with RealtimeRefreshMixin {
   final ReportRemoteDataSource _ds;
   HmReportNotifier(this._ds) : super(const HmReportState()) {
-    bindRealtimeRefresh(['reports'], refresh: loadHistory);
+    bindRealtimeRefresh(['reports'], refresh: () => loadHistory(silent: true));
   }
 
   Future<void> loadTemplates() async {
@@ -55,12 +55,13 @@ class HmReportNotifier extends StateNotifier<HmReportState>
     }
   }
 
-  Future<void> loadHistory({int page = 1}) async {
-    state = state.copyWith(isLoadingHistory: true, error: null);
+  Future<void> loadHistory({int page = 1, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoadingHistory: true, error: null);
     try {
       final history = await _ds.getRawHistory(page: page, limit: 50);
       state = state.copyWith(history: history, isLoadingHistory: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoadingHistory: false, error: ErrorHandler.handle(e).message);
     }

@@ -19,12 +19,12 @@ class LenderCollectionNotifier
   final DioClient _client;
   LenderCollectionNotifier(this._locationDs, this._client)
       : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(['collection_assignments'], refresh: loadList);
+    bindRealtimeRefresh(['collection_assignments'], refresh: () => loadList(silent: true));
     loadList();
   }
 
-  Future<void> loadList({String? status, int page = 1}) async {
-    state = const AsyncLoading();
+  Future<void> loadList({String? status, int page = 1, bool silent = false}) async {
+    if (!silent) state = const AsyncLoading();
     try {
       final res = await _client.get(
         ApiEndpoints.collectionsGetList,
@@ -36,6 +36,7 @@ class LenderCollectionNotifier
       );
       state = AsyncData(res.data as Map<String, dynamic>);
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

@@ -51,12 +51,12 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
 
   RiderCiNotifier(this._ds) : super(const RiderCiState()) {
     bindRealtimeRefresh(['credit_investigations', 'ci_documents'],
-        refresh: load);
+        refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load({String? status}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> load({String? status, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final list = await _ds.getCiList(
         status: status ?? (state.activeTab == 'all' ? null : state.activeTab),
@@ -64,6 +64,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       );
       state = state.copyWith(ciList: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

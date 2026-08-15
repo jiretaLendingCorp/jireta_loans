@@ -73,7 +73,8 @@ class _LenderAccountUpgradeStatusScreenState
                     if (state.documents.isNotEmpty) ...[
                       _sectionLabel('Submitted Documents'),
                       const SizedBox(height: 12),
-                      ...state.documents.map((d) => _DocumentTile(doc: d)),
+                      ...state.documents
+                          .map((d) => _DocumentTile(key: ValueKey(d.id), doc: d)),
                     ],
                     if (state.status == 'rejected') ...[
                       const SizedBox(height: 16),
@@ -293,7 +294,7 @@ class _TimelineTile extends StatelessWidget {
 
 class _DocumentTile extends StatelessWidget {
   final dynamic doc;
-  const _DocumentTile({required this.doc});
+  const _DocumentTile({super.key, required this.doc});
 
   @override
   Widget build(BuildContext context) {

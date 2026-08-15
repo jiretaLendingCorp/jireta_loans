@@ -38,12 +38,12 @@ class RiderNotificationNotifier extends StateNotifier<RiderNotificationState>
   final NotificationRemoteDataSource _ds;
 
   RiderNotificationNotifier(this._ds) : super(const RiderNotificationState()) {
-    bindRealtimeRefresh(['notifications'], refresh: load);
+    bindRealtimeRefresh(['notifications'], refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final result = await _ds.getListWithUnread(page: 1);
       state = state.copyWith(
@@ -52,6 +52,7 @@ class RiderNotificationNotifier extends StateNotifier<RiderNotificationState>
         unreadCount: result.unreadCount,
       );
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

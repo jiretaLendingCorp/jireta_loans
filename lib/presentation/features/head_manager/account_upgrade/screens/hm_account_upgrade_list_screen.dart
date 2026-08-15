@@ -87,6 +87,7 @@ class _HmAccountUpgradeListScreenState
         child: Column(
           children: state.docs.map((doc) {
             return _AccountUpgradeRow(
+              key: ValueKey(doc.id),
               doc: doc,
               onTap: () => context.go(
                 RouteConstants.hmAccountUpgradeDetails.replaceFirst(
@@ -228,6 +229,7 @@ class _AccountUpgradeRow extends StatefulWidget {
   final VoidCallback onReject;
 
   const _AccountUpgradeRow({
+    super.key,
     required this.doc,
     required this.onTap,
     required this.onVerify,

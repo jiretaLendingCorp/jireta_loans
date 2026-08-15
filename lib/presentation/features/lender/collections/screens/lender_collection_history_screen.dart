@@ -79,15 +79,16 @@ class _State extends ConsumerState<LenderCollectionHistoryScreen> {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
-      itemBuilder: (ctx, i) =>
-          _CollectionCard(item: items[i] as Map<String, dynamic>),
+      itemBuilder: (ctx, i) => _CollectionCard(
+          key: ValueKey(items[i]['id']),
+          item: items[i] as Map<String, dynamic>),
     );
   }
 }
 
 class _CollectionCard extends StatelessWidget {
   final Map<String, dynamic> item;
-  const _CollectionCard({required this.item});
+  const _CollectionCard({super.key, required this.item});
 
   @override
   Widget build(BuildContext context) {

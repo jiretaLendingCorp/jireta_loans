@@ -152,6 +152,7 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
   Widget _buildRow(LoanModel loan, bool isEven, NumberFormat fmt) {
     final color = _statusColor(loan.displayStatus);
     return InkWell(
+      key: ValueKey(loan.id),
       onTap: () =>
           context.go(RouteConstants.empLoanDetails.replaceFirst(':id', loan.id)),
       child: Container(

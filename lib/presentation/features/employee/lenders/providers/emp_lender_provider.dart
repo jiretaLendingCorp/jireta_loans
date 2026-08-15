@@ -49,12 +49,13 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   EmpLenderNotifier(this._ds) : super(const EmpLenderState()) {
-    bindRealtimeRefresh(['users', 'lender_profiles'], refresh: load);
+    bindRealtimeRefresh(['users', 'lender_profiles'],
+        refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getUsers(
         role: 'lender',
@@ -64,6 +65,7 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
       );
       state = state.copyWith(lenders: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

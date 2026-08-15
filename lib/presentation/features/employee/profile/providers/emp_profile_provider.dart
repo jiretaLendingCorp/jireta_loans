@@ -14,15 +14,17 @@ class EmpProfileNotifier extends StateNotifier<AsyncValue<UserModel?>>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   EmpProfileNotifier(this._ds) : super(const AsyncData(null)) {
-    bindRealtimeRefresh(['users', 'employee_profiles'], refresh: loadProfile);
+    bindRealtimeRefresh(['users', 'employee_profiles'],
+        refresh: () => loadProfile(silent: true));
   }
 
-  Future<void> loadProfile() async {
-    state = const AsyncLoading();
+  Future<void> loadProfile({bool silent = false}) async {
+    if (!silent) state = const AsyncLoading();
     try {
       final data = await _ds.getProfile();
       state = AsyncData(data);
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

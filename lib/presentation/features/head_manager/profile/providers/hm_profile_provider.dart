@@ -28,16 +28,17 @@ class HmProfileNotifier extends StateNotifier<HmProfileState>
 
   HmProfileNotifier(this._userDs, this._authDs)
       : super(const HmProfileState()) {
-    bindRealtimeRefresh(['users'], refresh: loadProfile);
+    bindRealtimeRefresh(['users'], refresh: () => loadProfile(silent: true));
     loadProfile();
   }
 
-  Future<void> loadProfile() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> loadProfile({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final user = await _userDs.getProfile();
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

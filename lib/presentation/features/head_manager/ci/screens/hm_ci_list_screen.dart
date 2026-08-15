@@ -89,6 +89,7 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
       itemBuilder: (ctx, i) {
         final ci = state.items[i];
         return _CiCard(
+          key: ValueKey(ci.id),
           ci: ci,
           onTap: () => context.go(
             RouteConstants.hmCiDetails.replaceFirst(':id', ci.id),
@@ -117,7 +118,7 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
 class _CiCard extends StatefulWidget {
   final dynamic ci;
   final VoidCallback onTap;
-  const _CiCard({required this.ci, required this.onTap});
+  const _CiCard({super.key, required this.ci, required this.onTap});
 
   @override
   State<_CiCard> createState() => _CiCardState();

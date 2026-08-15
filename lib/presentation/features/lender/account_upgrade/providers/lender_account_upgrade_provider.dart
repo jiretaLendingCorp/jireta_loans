@@ -51,16 +51,17 @@ class LenderAccountUpgradeNotifier
   LenderAccountUpgradeNotifier(this._ds)
       : super(const LenderAccountUpgradeState()) {
     bindRealtimeRefresh(['account_upgrade_documents', 'lender_profiles'],
-        refresh: loadStatus);
+        refresh: () => loadStatus(silent: true));
     loadStatus();
   }
 
-  Future<void> loadStatus() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> loadStatus({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final status = await _ds.accountUpgradeGetStatus();
       state = state.copyWith(accountUpgradeStatus: status, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

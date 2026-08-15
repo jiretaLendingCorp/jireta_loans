@@ -45,16 +45,17 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
       'in_office_applications',
       'disbursements',
       'notifications',
-    ], refresh: loadKpis);
+    ], refresh: () => loadKpis(silent: true));
     loadKpis();
   }
 
-  Future<void> loadKpis() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> loadKpis({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final kpi = await _ds.getHeadManagerKpis();
       state = state.copyWith(kpi: kpi, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

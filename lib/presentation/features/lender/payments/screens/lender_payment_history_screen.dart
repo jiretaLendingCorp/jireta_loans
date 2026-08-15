@@ -74,8 +74,9 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: state.payments.length,
-                        itemBuilder: (ctx, i) =>
-                            _PaymentCard(item: state.payments[i]),
+                        itemBuilder: (ctx, i) => _PaymentCard(
+                            key: ValueKey(state.payments[i].id),
+                            item: state.payments[i]),
                       ),
                     ),
     );
@@ -84,7 +85,7 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
 
 class _PaymentCard extends StatelessWidget {
   final PaymentModel item;
-  const _PaymentCard({required this.item});
+  const _PaymentCard({super.key, required this.item});
 
   @override
   Widget build(BuildContext context) {

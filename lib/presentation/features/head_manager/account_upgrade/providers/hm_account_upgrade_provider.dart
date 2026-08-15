@@ -55,12 +55,12 @@ class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
 
   HmAccountUpgradeNotifier(this._ds) : super(const HmAccountUpgradeState()) {
     bindRealtimeRefresh(['account_upgrade_documents', 'lender_profiles'],
-        refresh: fetch);
+        refresh: () => fetch(silent: true));
     fetch();
   }
 
-  Future<void> fetch({int page = 1}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> fetch({int page = 1, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.accountUpgradeGetList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
@@ -80,6 +80,7 @@ class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
         totalCount: (meta['total'] as num?)?.toInt() ?? list.length,
       );
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

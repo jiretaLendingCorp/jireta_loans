@@ -49,12 +49,13 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
   final CollectionRemoteDataSource _ds;
 
   RiderCollectionNotifier(this._ds) : super(const RiderCollectionState()) {
-    bindRealtimeRefresh(['collection_assignments', 'payments'], refresh: load);
+    bindRealtimeRefresh(['collection_assignments', 'payments'],
+        refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load({String? status}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> load({String? status, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final list = await _ds.getCollectionList(
         status: status ?? state.activeTab,
@@ -62,6 +63,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       );
       state = state.copyWith(collections: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

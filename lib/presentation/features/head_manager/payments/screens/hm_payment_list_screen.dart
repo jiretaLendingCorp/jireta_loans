@@ -40,12 +40,13 @@ class _PaymentNotifier extends StateNotifier<_PaymentState>
     with RealtimeRefreshMixin<_PaymentState> {
   final PaymentRemoteDataSource _ds;
   _PaymentNotifier(this._ds) : super(const _PaymentState()) {
-    bindRealtimeRefresh(['payments'], refresh: () => fetch());
+    bindRealtimeRefresh(['payments'], refresh: () => fetch(silent: true));
     fetch();
   }
 
-  Future<void> fetch({int page = 1, String? method, String? status}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> fetch(
+      {int page = 1, String? method, String? status, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.getPaymentListPage(
           page: page, method: method, status: status);
@@ -58,6 +59,7 @@ class _PaymentNotifier extends StateNotifier<_PaymentState>
           currentPage: meta['page'] as int? ?? 1,
           totalPages: meta['total_pages'] as int? ?? 1);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
@@ -212,6 +214,7 @@ class _HmPaymentListScreenState extends ConsumerState<HmPaymentListScreen>
             ? AppColors.warning
             : AppColors.error;
     return Container(
+      key: ValueKey(p['id']),
       color: isEven
           ? Colors.white
           : AppColors.surfaceVariant.withValues(alpha: 0.3),

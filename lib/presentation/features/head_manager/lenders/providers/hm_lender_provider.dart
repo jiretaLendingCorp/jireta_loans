@@ -41,12 +41,13 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   HmLenderNotifier(this._ds) : super(const HmLenderState()) {
-    bindRealtimeRefresh(['users', 'lender_profiles'], refresh: load);
+    bindRealtimeRefresh(['users', 'lender_profiles'],
+        refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getUsers(
         role: 'lender',
@@ -55,6 +56,7 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
       );
       state = state.copyWith(lenders: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

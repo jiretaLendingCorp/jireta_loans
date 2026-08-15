@@ -160,6 +160,7 @@ class _PaymentListView extends StatelessWidget {
         final date = p['created_at'] as String? ?? '-';
 
         return Card(
+          key: ValueKey(id),
           elevation: 1,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

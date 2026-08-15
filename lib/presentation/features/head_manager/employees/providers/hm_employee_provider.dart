@@ -49,12 +49,13 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
   HmEmployeeNotifier(this._ds) : super(const HmEmployeeState()) {
-    bindRealtimeRefresh(['users', 'employee_profiles'], refresh: load);
+    bindRealtimeRefresh(['users', 'employee_profiles'],
+        refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getUsers(
         role: 'employee',
@@ -64,6 +65,7 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
       );
       state = state.copyWith(employees: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

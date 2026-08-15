@@ -67,6 +67,7 @@ class _EmpNotificationsScreenState
                     final id = n['id'] as String? ?? '';
 
                     return ListTile(
+                      key: ValueKey(id),
                       tileColor: isRead
                           ? Colors.transparent
                           : AppColors.deepNavy.withValues(alpha: 0.04),

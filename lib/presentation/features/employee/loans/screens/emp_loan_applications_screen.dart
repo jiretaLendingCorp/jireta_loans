@@ -154,6 +154,7 @@ class _EmpLoanApplicationsScreenState
 
   Widget _buildTableRow(LoanModel loan, bool isEven) {
     return InkWell(
+      key: ValueKey(loan.id),
       onTap: () => context.go(
         RouteConstants.empLoanDetails.replaceFirst(':id', loan.id),
       ),

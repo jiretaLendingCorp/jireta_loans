@@ -66,13 +66,14 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
       : super(HmLoanState(
             statusFilter: _apiStatus(initialFilter),
             tabFilter: initialFilter)) {
-    bindRealtimeRefresh(['loans', 'loan_schedules'], refresh: fetchLoans);
+    bindRealtimeRefresh(['loans', 'loan_schedules'],
+        refresh: () => fetchLoans(silent: true));
     fetchLoans();
   }
 
-  Future<void> fetchLoans({int page = 1}) async {
+  Future<void> fetchLoans({int page = 1, bool silent = false}) async {
     final seq = ++_requestSeq;
-    state = state.copyWith(isLoading: true, error: null);
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.getList(
         page: page,
@@ -92,6 +93,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
       );
     } catch (e) {
       if (seq != _requestSeq) return;
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

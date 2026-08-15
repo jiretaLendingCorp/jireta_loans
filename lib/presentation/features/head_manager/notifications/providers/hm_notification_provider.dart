@@ -38,16 +38,17 @@ class HmNotificationNotifier extends StateNotifier<HmNotificationState>
   final NotificationRemoteDataSource _ds;
 
   HmNotificationNotifier(this._ds) : super(const HmNotificationState()) {
-    bindRealtimeRefresh(['notifications'], refresh: loadNotifications);
+    bindRealtimeRefresh(['notifications'], refresh: () => loadNotifications(silent: true));
     loadNotifications();
   }
 
-  Future<void> loadNotifications() async {
-    state = state.copyWith(isLoading: true);
+  Future<void> loadNotifications({bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getList(page: 1);
       state = state.copyWith(notifications: list, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

@@ -14,17 +14,18 @@ class HmPaymentNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   final PaymentRemoteDataSource _ds;
   HmPaymentNotifier(this._ds)
       : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(['payments'], refresh: loadList);
+    bindRealtimeRefresh(['payments'], refresh: () => loadList(silent: true));
     loadList();
   }
 
-  Future<void> loadList({String? method, String? status, int page = 1}) async {
-    state = const AsyncLoading();
+  Future<void> loadList({String? method, String? status, int page = 1, bool silent = false}) async {
+    if (!silent) state = const AsyncLoading();
     try {
       final data =
           await _ds.getList(method: method, status: status, page: page);
       state = AsyncData(data);
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

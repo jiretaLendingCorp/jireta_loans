@@ -41,12 +41,12 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
   final InOfficeRemoteDataSource _ds;
   final LoanRemoteDataSource _loanDs;
   HmInOfficeNotifier(this._ds, this._loanDs) : super(const HmInOfficeState()) {
-    bindRealtimeRefresh(['in_office_applications'], refresh: load);
+    bindRealtimeRefresh(['in_office_applications'], refresh: () => load(silent: true));
     load();
   }
 
-  Future<void> load({String? status, int page = 1}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> load({String? status, int page = 1, bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final data = await _ds.getList(
         status: status == 'all' ? null : status,
@@ -54,6 +54,7 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
       );
       state = state.copyWith(applications: data, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }

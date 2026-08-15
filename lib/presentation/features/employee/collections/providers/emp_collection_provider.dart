@@ -18,17 +18,21 @@ class EmpCollectionNotifier
   final UserRemoteDataSource _userDs;
   EmpCollectionNotifier(this._ds, this._userDs)
       : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(['collection_assignments'], refresh: loadList);
+    bindRealtimeRefresh(['collection_assignments'],
+        refresh: () => loadList(silent: true));
     loadList();
   }
 
-  Future<void> loadList({String? status, String? riderId, int page = 1}) async {
-    state = const AsyncLoading();
+  Future<void> loadList(
+      {String? status, String? riderId, int page = 1, bool silent = false})
+      async {
+    if (!silent) state = const AsyncLoading();
     try {
       final data =
           await _ds.getList(status: status, riderId: riderId, page: page);
       state = AsyncData(data);
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

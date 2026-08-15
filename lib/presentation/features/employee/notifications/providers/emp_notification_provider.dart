@@ -15,16 +15,18 @@ class EmpNotificationNotifier
   final NotificationRemoteDataSource _ds;
   EmpNotificationNotifier(this._ds)
       : super(const AsyncData({'items': [], 'total': 0})) {
-    bindRealtimeRefresh(['notifications'], refresh: loadList);
+    bindRealtimeRefresh(['notifications'], refresh: () => loadList(silent: true));
     loadList();
   }
 
-  Future<void> loadList({bool? isRead, int page = 1}) async {
-    state = const AsyncLoading();
+  Future<void> loadList(
+      {bool? isRead, int page = 1, bool silent = false}) async {
+    if (!silent) state = const AsyncLoading();
     try {
       final data = await _ds.getListMap(isRead: isRead, page: page);
       state = AsyncData(data);
     } catch (e, s) {
+      if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
   }

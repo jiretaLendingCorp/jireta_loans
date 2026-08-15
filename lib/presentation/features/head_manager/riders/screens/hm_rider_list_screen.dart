@@ -190,6 +190,7 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
   Widget _row(UserModel user, bool isEven) {
     final isActive = user.accountStatus == 'active';
     return InkWell(
+      key: ValueKey(user.id),
       onTap: () => context.go(
         RouteConstants.hmRiderDetails.replaceFirst(':id', user.id),
       ),
