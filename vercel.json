@@ -1,4 +1,8 @@
 {
     "buildCommand": "bash scripts/vercel-build.sh",
-    "outputDirectory": "build/web"
+    "outputDirectory": "build/web",
+    "rewrites": [
+        { "source": "/(.*)", "destination": "filesystem" },
+        { "source": "/(.*)", "destination": "/index.html" }
+    ]
 }
