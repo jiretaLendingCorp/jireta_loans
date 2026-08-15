@@ -68,39 +68,85 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
         color: Colors.white,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() => _search = v.toLowerCase()),
-              decoration: InputDecoration(
-                hintText: 'Search by lender or rider name...',
-                prefixIcon: const Icon(Icons.search, size: 18),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 640;
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _search = v.toLowerCase()),
+                  decoration: InputDecoration(
+                    hintText: 'Search by lender or rider name...',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                  ),
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _statusChip('all', 'All'),
+                      const SizedBox(width: 6),
+                      _statusChip('assigned', 'Assigned'),
+                      const SizedBox(width: 6),
+                      _statusChip('accepted', 'Accepted'),
+                      const SizedBox(width: 6),
+                      _statusChip('in_progress', 'In Progress'),
+                      const SizedBox(width: 6),
+                      _statusChip('completed', 'Completed'),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _search = v.toLowerCase()),
+                  decoration: InputDecoration(
+                    hintText: 'Search by lender or rider name...',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          _statusChip('all', 'All'),
-          const SizedBox(width: 6),
-          _statusChip('assigned', 'Assigned'),
-          const SizedBox(width: 6),
-          _statusChip('accepted', 'Accepted'),
-          const SizedBox(width: 6),
-          _statusChip('in_progress', 'In Progress'),
-          const SizedBox(width: 6),
-          _statusChip('completed', 'Completed'),
-        ],
+              const SizedBox(width: 12),
+              _statusChip('all', 'All'),
+              const SizedBox(width: 6),
+              _statusChip('assigned', 'Assigned'),
+              const SizedBox(width: 6),
+              _statusChip('accepted', 'Accepted'),
+              const SizedBox(width: 6),
+              _statusChip('in_progress', 'In Progress'),
+              const SizedBox(width: 6),
+              _statusChip('completed', 'Completed'),
+            ],
+          );
+        },
       ),
     );
   }

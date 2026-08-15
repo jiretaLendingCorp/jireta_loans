@@ -26,59 +26,82 @@ class TablePagination extends StatelessWidget {
         color: Colors.white,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
-        children: [
-          Text(
-            'Total: $totalCount records',
-            style:
-                const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          const Spacer(),
-          _PageBtn(
-            icon: Icons.chevron_left,
-            enabled: currentPage > 1,
-            onTap: () => onPageChange(currentPage - 1),
-          ),
-          const SizedBox(width: 4),
-          ...List.generate(totalPages, (i) {
-            final page = i + 1;
-            final isSelected = page == currentPage;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: GestureDetector(
-                onTap: () => onPageChange(page),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.deepNavy : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: isSelected ? AppColors.deepNavy : AppColors.border,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$page',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          isSelected ? Colors.white : AppColors.textSecondary,
-                    ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 560;
+          return Row(
+            children: [
+              if (!isNarrow) ...[
+                Text(
+                  'Total: $totalCount records',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const Spacer(),
+              ],
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  reverse: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _PageBtn(
+                        icon: Icons.chevron_left,
+                        enabled: currentPage > 1,
+                        onTap: () => onPageChange(currentPage - 1),
+                      ),
+                      const SizedBox(width: 4),
+                      ...List.generate(totalPages, (i) {
+                        final page = i + 1;
+                        final isSelected = page == currentPage;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: GestureDetector(
+                            onTap: () => onPageChange(page),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppColors.deepNavy
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppColors.deepNavy
+                                      : AppColors.border,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '$page',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      const SizedBox(width: 4),
+                      _PageBtn(
+                        icon: Icons.chevron_right,
+                        enabled: currentPage < totalPages,
+                        onTap: () => onPageChange(currentPage + 1),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            );
-          }),
-          const SizedBox(width: 4),
-          _PageBtn(
-            icon: Icons.chevron_right,
-            enabled: currentPage < totalPages,
-            onTap: () => onPageChange(currentPage + 1),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

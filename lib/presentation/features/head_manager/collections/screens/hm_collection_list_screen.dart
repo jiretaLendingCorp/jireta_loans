@@ -183,12 +183,15 @@ class _CollectionCardState extends State<_CollectionCard> {
                         const Icon(Icons.delivery_dining_outlined,
                             size: 13, color: AppColors.textTertiary),
                         const SizedBox(width: 4),
-                        Text(
-                          rider.isNotEmpty
-                              ? '${rider['first_name']} ${rider['last_name']}'
-                              : 'Unassigned',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
+                        Flexible(
+                          child: Text(
+                            rider.isNotEmpty
+                                ? '${rider['first_name']} ${rider['last_name']}'
+                                : 'Unassigned',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         if (col.collectionSchedule != null) ...[
                           const SizedBox(width: 12),

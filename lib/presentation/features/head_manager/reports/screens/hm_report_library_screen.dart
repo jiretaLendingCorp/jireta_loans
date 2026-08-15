@@ -184,15 +184,19 @@ class HmReportLibraryScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
               Text(t['name'] as String? ?? 'Report',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 14)),
               const SizedBox(height: 4),
-              Text(t['description'] as String? ?? '',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis),
-              const Spacer(),
+              Expanded(
+                child: Text(t['description'] as String? ?? '',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: generating
                     ? null

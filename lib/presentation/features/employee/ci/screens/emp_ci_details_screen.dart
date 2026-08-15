@@ -60,18 +60,34 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
         children: [
           _buildHeader(ci, status, loanNumber, lenderName),
           const SizedBox(height: 24),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                  flex: 2,
-                  child: _buildDetails(
-                      ci, riderName, deadline, notes, assignedBy)),
-              const SizedBox(width: 24),
-              Expanded(
-                  flex: 3,
-                  child: _buildDocuments(documents, reportSummary, status)),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 760) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildDetails(
+                        ci, riderName, deadline, notes, assignedBy),
+                    const SizedBox(height: 24),
+                    _buildDocuments(documents, reportSummary, status),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                      flex: 2,
+                      child: _buildDetails(
+                          ci, riderName, deadline, notes, assignedBy)),
+                  const SizedBox(width: 24),
+                  Expanded(
+                      flex: 3,
+                      child:
+                          _buildDocuments(documents, reportSummary, status)),
+                ],
+              );
+            },
           ),
           if (status == 'pending' || status == 'ci_required') ...[
             const SizedBox(height: 24),
@@ -110,12 +126,15 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      'CI – $loanNumber',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                    Flexible(
+                      child: Text(
+                        'CI – $loanNumber',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -214,8 +233,8 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
     );
   }
 
-  Widget _detailRow(String label, String value,
-      {IconData? icon, Color? valueColor}) {
+Widget _detailRow(String label, String value,
+    {IconData? icon, Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -224,11 +243,15 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
             Icon(icon, size: 16, color: AppColors.textTertiary),
             const SizedBox(width: 8),
           ],
-          Text(
-            '$label:',
-            style: const TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
+          Flexible(
+            child: Text(
+              '$label:',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           const SizedBox(width: 8),

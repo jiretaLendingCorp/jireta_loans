@@ -283,18 +283,18 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
                     )
                   ],
           ),
-          child: Row(
-            children: [
-              ProfileAvatar(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 620;
+              final avatar = ProfileAvatar(
                 photoUrl: doc.lender?['profile_photo_url'] as String?,
                 name: doc.lenderName,
                 color: AppColors.info,
                 radius: 20,
                 fallback: const Icon(Icons.verified_user_outlined,
                     size: 20, color: AppColors.info),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
+              );
+              final info = Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -314,29 +314,67 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
                     ),
                   ],
                 ),
-              ),
-              StatusBadge(status: status),
-              const SizedBox(width: 12),
-              if (status != 'verified')
-                _ActionButton(
-                  icon: Icons.check_circle_outline,
-                  label: 'Verify',
-                  color: AppColors.success,
-                  onPressed: widget.onVerify,
-                ),
-              if (status != 'verified' && status != 'rejected') ...[
-                const SizedBox(width: 8),
-                _ActionButton(
-                  icon: Icons.cancel_outlined,
-                  label: 'Reject',
-                  color: AppColors.error,
-                  onPressed: widget.onReject,
-                ),
-              ],
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right,
-                  size: 18, color: AppColors.textTertiary),
-            ],
+              );
+              final statusBadge = StatusBadge(status: status);
+              final actionButtons = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (status != 'verified')
+                    _ActionButton(
+                      icon: Icons.check_circle_outline,
+                      label: 'Verify',
+                      color: AppColors.success,
+                      onPressed: widget.onVerify,
+                    ),
+                  if (status != 'verified' && status != 'rejected') ...[
+                    const SizedBox(width: 8),
+                    _ActionButton(
+                      icon: Icons.cancel_outlined,
+                      label: 'Reject',
+                      color: AppColors.error,
+                      onPressed: widget.onReject,
+                    ),
+                  ],
+                ],
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        avatar,
+                        const SizedBox(width: 14),
+                        info,
+                        const SizedBox(width: 8),
+                        statusBadge,
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: actionButtons,
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  avatar,
+                  const SizedBox(width: 14),
+                  info,
+                  const SizedBox(width: 8),
+                  statusBadge,
+                  const SizedBox(width: 12),
+                  actionButtons,
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right,
+                      size: 18, color: AppColors.textTertiary),
+                ],
+              );
+            },
           ),
         ),
       ),

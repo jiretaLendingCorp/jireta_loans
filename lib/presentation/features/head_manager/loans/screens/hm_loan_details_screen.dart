@@ -111,64 +111,105 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.deepNavy,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.account_balance_wallet,
-                  color: AppColors.gold, size: 28),
+        child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 620;
+          final info = Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(loan['loan_number'] as String? ?? '-',
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(
+                    'Released: ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 14)),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(loan['loan_number'] as String? ?? '-',
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(
-                      'Released: ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 14)),
-                ],
-              ),
+          );
+          final statusPill = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20)),
+            child: Text(
+              status.replaceAll('_', ' ').toUpperCase(),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: statusColor,
+                  fontWeight: FontWeight.bold),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20)),
-              child: Text(
-                status.replaceAll('_', ' ').toUpperCase(),
+          );
+          final penaltyPill = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20)),
+            child: const Text('PENALTY APPLIED',
                 style: TextStyle(
-                    fontSize: 12,
-                    color: statusColor,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
-            if (loan['penalty_applied'] == true) ...[
-              const SizedBox(width: 8),
+                    fontSize: 11,
+                    color: AppColors.error,
+                    fontWeight: FontWeight.bold)),
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppColors.deepNavy,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.account_balance_wallet,
+                          color: AppColors.gold, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    info,
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    statusPill,
+                    if (loan['penalty_applied'] == true) penaltyPill,
+                  ],
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20)),
-                child: const Text('PENALTY APPLIED',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.error,
-                        fontWeight: FontWeight.bold)),
+                  color: AppColors.deepNavy,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.account_balance_wallet,
+                    color: AppColors.gold, size: 28),
               ),
+              const SizedBox(width: 16),
+              info,
+              statusPill,
+              if (loan['penalty_applied'] == true) ...[
+                const SizedBox(width: 8),
+                penaltyPill,
+              ],
             ],
-          ],
-        ),
+          );
+        },
+      ),
       ),
     );
   }

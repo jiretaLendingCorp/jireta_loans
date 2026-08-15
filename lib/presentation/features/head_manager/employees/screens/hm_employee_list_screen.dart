@@ -103,14 +103,26 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Card(
-        child: Column(
-          children: [
-            _buildTableHeader(),
-            const Divider(height: 1),
-            ...employees.asMap().entries.map(
-                  (e) => _buildTableRow(e.value, e.key.isEven),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tableWidth =
+                constraints.maxWidth < 760 ? 760.0 : constraints.maxWidth;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                child: Column(
+                  children: [
+                    _buildTableHeader(),
+                    const Divider(height: 1),
+                    ...employees.asMap().entries.map(
+                          (e) => _buildTableRow(e.value, e.key.isEven),
+                        ),
+                  ],
                 ),
-          ],
+              ),
+            );
+          },
         ),
       ),
     );

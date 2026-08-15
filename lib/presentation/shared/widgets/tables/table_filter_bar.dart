@@ -28,64 +28,108 @@ class TableFilterBar extends StatelessWidget {
         color: Colors.white,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 240,
-            height: 38,
-            child: TextField(
-              controller: searchController,
-              onChanged: onSearch,
-              decoration: InputDecoration(
-                hintText: searchHint,
-                hintStyle: const TextStyle(
-                    fontSize: 13, color: AppColors.textTertiary),
-                prefixIcon: const Icon(Icons.search,
-                    size: 18, color: AppColors.textTertiary),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      const BorderSide(color: AppColors.deepNavy, width: 1.5),
-                ),
-                filled: true,
-                fillColor: AppColors.surfaceWhite,
-              ),
-              style: const TextStyle(fontSize: 13),
-            ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 700;
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSearch(width: null),
+                if (chips.isNotEmpty ||
+                    extra != null ||
+                    onExportCsv != null) ...[
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ...chips.map((c) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _FilterDropdown(data: c),
+                            )),
+                        if (extra != null) ...[
+                          const SizedBox(width: 8),
+                          extra!,
+                        ],
+                        if (onExportCsv != null) ...[
+                          const SizedBox(width: 8),
+                          _buildExport(),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              _buildSearch(width: 240),
+              const SizedBox(width: 12),
+              ...chips.map((c) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _FilterDropdown(data: c),
+                  )),
+              if (extra != null) ...[const SizedBox(width: 8), extra!],
+              const Spacer(),
+              if (onExportCsv != null) _buildExport(),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSearch({double? width}) {
+    return SizedBox(
+      width: width,
+      height: 38,
+      child: TextField(
+        controller: searchController,
+        onChanged: onSearch,
+        decoration: InputDecoration(
+          hintText: searchHint,
+          hintStyle: const TextStyle(
+              fontSize: 13, color: AppColors.textTertiary),
+          prefixIcon: const Icon(Icons.search,
+              size: 18, color: AppColors.textTertiary),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppColors.border),
           ),
-          const SizedBox(width: 12),
-          ...chips.map((c) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _FilterDropdown(data: c),
-              )),
-          if (extra != null) ...[const SizedBox(width: 8), extra!],
-          const Spacer(),
-          if (onExportCsv != null)
-            OutlinedButton.icon(
-              onPressed: onExportCsv,
-              icon: const Icon(Icons.download_outlined, size: 16),
-              label: const Text('Export', style: TextStyle(fontSize: 13)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.deepNavy,
-                side: const BorderSide(color: AppColors.border),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                minimumSize: const Size(0, 36),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-        ],
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.5),
+          ),
+          filled: true,
+          fillColor: AppColors.surfaceWhite,
+        ),
+        style: const TextStyle(fontSize: 13),
+      ),
+    );
+  }
+
+  Widget _buildExport() {
+    return OutlinedButton.icon(
+      onPressed: onExportCsv,
+      icon: const Icon(Icons.download_outlined, size: 16),
+      label: const Text('Export', style: TextStyle(fontSize: 13)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.deepNavy,
+        side: const BorderSide(color: AppColors.border),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        minimumSize: const Size(0, 36),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }

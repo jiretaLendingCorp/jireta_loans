@@ -115,37 +115,48 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _buildHeader(loan),
         const SizedBox(height: 20),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-              flex: 2,
-              child: Column(children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 760) {
+              return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _buildLoanCard(loan),
                 const SizedBox(height: 16),
                 _buildScheduleCard(loan),
+                const SizedBox(height: 16),
+                _buildLenderCard(loan),
+                const SizedBox(height: 16),
+                _buildActionsCard(loan),
+              ]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                  flex: 2,
+                  child: Column(children: [
+                    _buildLoanCard(loan),
+                    const SizedBox(height: 16),
+                    _buildScheduleCard(loan),
+                  ])),
+              const SizedBox(width: 16),
+              Expanded(
+                  child: Column(children: [
+                _buildLenderCard(loan),
+                const SizedBox(height: 16),
+                _buildActionsCard(loan),
               ])),
-          const SizedBox(width: 16),
-          Expanded(
-              child: Column(children: [
-            _buildLenderCard(loan),
-            const SizedBox(height: 16),
-            _buildActionsCard(loan),
-          ])),
-        ]),
+            ]);
+          },
+        ),
       ]),
     );
   }
 
   Widget _buildHeader(LoanModel loan) {
     final color = _statusColor(loan.displayStatus);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-            colors: [AppColors.deepNavy, AppColors.navyLight]),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(children: [
-        Container(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 620;
+        final iconBox = Container(
           width: 56,
           height: 56,
           decoration: BoxDecoration(
@@ -155,9 +166,8 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
           ),
           child: const Icon(Icons.description_outlined,
               color: AppColors.gold, size: 28),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
+        );
+        final titleCol = Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(loan.loanNumber,
@@ -170,8 +180,8 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
           Text('Lender: ${loan.lenderName ?? 'N/A'}',
               style: TextStyle(
                   fontSize: 13, color: Colors.white.withValues(alpha: 0.7))),
-        ])),
-        Container(
+        ]));
+        final statusPill = Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.15),
@@ -179,13 +189,43 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
             border: Border.all(color: color.withValues(alpha: 0.4)),
           ),
           child: Text(loan.displayStatus.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                   color: color,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1)),
-        ),
-      ]),
+        );
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [AppColors.deepNavy, AppColors.navyLight]),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      iconBox,
+                      const SizedBox(width: 16),
+                      titleCol,
+                    ]),
+                    const SizedBox(height: 12),
+                    statusPill,
+                  ],
+                )
+              : Row(children: [
+                  iconBox,
+                  const SizedBox(width: 16),
+                  titleCol,
+                  const SizedBox(width: 12),
+                  statusPill,
+                ]),
+        );
+      },
     );
   }
 

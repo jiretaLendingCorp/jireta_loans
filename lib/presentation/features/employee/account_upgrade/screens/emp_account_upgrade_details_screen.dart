@@ -86,21 +86,35 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-            flex: 2,
-            child: Column(children: [
-              _infoCard(lender, accountUpgradeStatus),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 760;
+          final leftColumn = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _infoCard(lender, accountUpgradeStatus),
+            const SizedBox(height: 16),
+            _financialCard(lender),
+            const SizedBox(height: 16),
+            _emergencyCard(contacts),
+            const SizedBox(height: 16),
+            _docsCard(docs),
+          ]);
+          if (stacked) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              leftColumn,
               const SizedBox(height: 16),
-              _financialCard(lender),
-              const SizedBox(height: 16),
-              _emergencyCard(contacts),
-              const SizedBox(height: 16),
-              _docsCard(docs),
-            ])),
-        const SizedBox(width: 16),
-        Expanded(child: _actionCard(docs, accountUpgradeStatus)),
-      ]),
+              _actionCard(docs, accountUpgradeStatus),
+            ]);
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 2, child: leftColumn),
+              const SizedBox(width: 16),
+              Expanded(child: _actionCard(docs, accountUpgradeStatus)),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -226,19 +240,25 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                              color: AppColors.info.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4)),
-                          child: Text(
-                              d['document_type'] ?? d['doc_type'] ?? 'Document',
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.info))),
-                      const Spacer(),
+                      Flexible(
+                        child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                                color: AppColors.info.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4)),
+                            child: Text(
+                                d['document_type'] ??
+                                    d['doc_type'] ??
+                                    'Document',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.info))),
+                      ),
+                      const SizedBox(width: 8),
                       StatusBadge(status: d['status'] ?? 'pending'),
                     ]),
                     const SizedBox(height: 8),

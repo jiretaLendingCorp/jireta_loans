@@ -68,50 +68,53 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
         color: Colors.white,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
-        children: [
-          const Text(
-            'Filter:',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            const Text(
+              'Filter:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          _typeChip('all', 'All Reports'),
-          const SizedBox(width: 8),
-          _typeChip('loan', 'Loan'),
-          const SizedBox(width: 8),
-          _typeChip('payment', 'Payment'),
-          const SizedBox(width: 8),
-          _typeChip('collection', 'Collection'),
-          const SizedBox(width: 8),
-          _typeChip('financial', 'Financial'),
-          const Spacer(),
-          OutlinedButton.icon(
-            onPressed: _pickDateRange,
-            icon: const Icon(Icons.date_range, size: 16),
-            label: Text(
-              _dateRange == null
-                  ? 'Date Range'
-                  : '${_dateRange!.start.toDisplay()} – ${_dateRange!.end.toDisplay()}',
-              style: const TextStyle(fontSize: 12),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-          ),
-          if (_dateRange != null) ...[
+            const SizedBox(width: 12),
+            _typeChip('all', 'All Reports'),
             const SizedBox(width: 8),
-            IconButton(
-              onPressed: () => setState(() => _dateRange = null),
-              icon: const Icon(Icons.clear, size: 16),
-              tooltip: 'Clear date filter',
+            _typeChip('loan', 'Loan'),
+            const SizedBox(width: 8),
+            _typeChip('payment', 'Payment'),
+            const SizedBox(width: 8),
+            _typeChip('collection', 'Collection'),
+            const SizedBox(width: 8),
+            _typeChip('financial', 'Financial'),
+            const SizedBox(width: 16),
+            OutlinedButton.icon(
+              onPressed: _pickDateRange,
+              icon: const Icon(Icons.date_range, size: 16),
+              label: Text(
+                _dateRange == null
+                    ? 'Date Range'
+                    : '${_dateRange!.start.toDisplay()} – ${_dateRange!.end.toDisplay()}',
+                style: const TextStyle(fontSize: 12),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.border),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
             ),
+            if (_dateRange != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () => setState(() => _dateRange = null),
+                icon: const Icon(Icons.clear, size: 16),
+                tooltip: 'Clear date filter',
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

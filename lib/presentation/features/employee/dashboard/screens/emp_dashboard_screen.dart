@@ -104,6 +104,7 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
         : hour < 18
             ? 'Good afternoon'
             : 'Good evening';
+    final showBadge = MediaQuery.of(context).size.width >= 640;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -156,31 +157,35 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.riderGreen,
-                    shape: BoxShape.circle,
+          if (showBadge) ...[
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.riderGreen,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Active',
-                  style: TextStyle(fontSize: 12, color: AppColors.gold),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Active',
+                    style: TextStyle(fontSize: 12, color: AppColors.gold),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -220,21 +225,24 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
       ),
     ];
 
-    return Row(
-      children: actions
-          .asMap()
-          .entries
-          .map(
-            (e) => Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  right: e.key < actions.length - 1 ? 12 : 0,
-                ),
-                child: _QuickActionCard(action: e.value),
-              ),
-            ),
-          )
-          .toList(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns =
+            constraints.maxWidth >= 900 ? 5 : constraints.maxWidth >= 600 ? 3 : 2;
+        const spacing = 12.0;
+        final cardWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: actions
+              .map((a) => SizedBox(
+                    width: cardWidth,
+                    child: _QuickActionCard(action: a),
+                  ))
+              .toList(),
+        );
+      },
     );
   }
 
@@ -319,19 +327,27 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
   }
 
   Widget _buildGridRow(List<Widget> cards) {
-    return Row(
-      children: cards
-          .asMap()
-          .entries
-          .map(
-            (e) => Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(left: e.key > 0 ? 12 : 0),
-                child: e.value,
-              ),
-            ),
-          )
-          .toList(),
+    const spacing = 12.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1200
+            ? 4
+            : constraints.maxWidth >= 700
+                ? 3
+                : constraints.maxWidth >= 480
+                    ? 2
+                    : 1;
+        final cardWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: cards
+              .where((card) => card is! _EmptyCard)
+              .map((card) => SizedBox(width: cardWidth, child: card))
+              .toList(),
+        );
+      },
     );
   }
 }

@@ -12,6 +12,8 @@ import '../../providers/auth_state_provider.dart';
 
 final _sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 
+const double _desktopBreakpoint = 900;
+
 class WebScaffold extends ConsumerWidget {
   final String title;
   final Widget body;
@@ -32,40 +34,133 @@ class WebScaffold extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
     final role = authState.role ?? '';
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
-      body: Row(
-        children: [
-          RepaintBoundary(child: _Sidebar(collapsed: collapsed, role: role)),
-          Expanded(
-            child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isDesktop = constraints.maxWidth >= _desktopBreakpoint;
+
+        if (isDesktop) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF0F2F5),
+            body: Row(
               children: [
-                _TopBar(
-                  title: title,
-                  actions: actions,
-                  onMenuTap: () => ref
-                      .read(_sidebarCollapsedProvider.notifier)
-                      .state = !collapsed,
-                  authState: authState,
+                RepaintBoundary(
+                  child: _Sidebar(collapsed: collapsed, role: role),
                 ),
                 Expanded(
-                  child: Stack(
+                  child: Column(
                     children: [
-                      body,
-                      if (floatingActionButton != null)
-                        Positioned(
-                          bottom: 24,
-                          right: 24,
-                          child: floatingActionButton!,
-                        ),
+                      _TopBar(
+                        title: title,
+                        actions: actions,
+                        onMenuTap: () => ref
+                            .read(_sidebarCollapsedProvider.notifier)
+                            .state = !collapsed,
+                        authState: authState,
+                      ),
+                      Expanded(
+                        child: _buildBody(floatingActionButton),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF0F2F5),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFFF0F2F5),
+            foregroundColor: AppColors.textPrimary,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            leading: Builder(
+              builder: (ctx) => IconButton(
+                icon: const Icon(Icons.menu, color: AppColors.textSecondary),
+                tooltip: 'Open Menu',
+                onPressed: () => Scaffold.of(ctx).openDrawer(),
+              ),
+            ),
+            title: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            actions: [
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  reverse: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...?actions,
+                      _MobileActions(authState: authState),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+          drawer: Drawer(
+            width: 280,
+            child: SafeArea(
+              child: _Sidebar(collapsed: false, role: role, inDrawer: true),
+            ),
+          ),
+          body: _buildBody(floatingActionButton),
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(Widget? floatingActionButton) {
+    return Stack(
+      children: [
+        body,
+        if (floatingActionButton != null)
+          Positioned(
+            bottom: 24,
+            right: 24,
+            child: floatingActionButton,
+          ),
+      ],
+    );
+  }
+}
+
+class _MobileActions extends ConsumerWidget {
+  final AuthState authState;
+  const _MobileActions({required this.authState});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = authState.role ?? '';
+    void onNotificationTap() {
+      if (role == AppConstants.roleHeadManager) {
+        context.go(RouteConstants.hmNotifications);
+      } else if (role == AppConstants.roleEmployee) {
+        context.go(RouteConstants.empNotifications);
+      }
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          onPressed: onNotificationTap,
+          icon: const Icon(
+            Icons.notifications_outlined,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        _UserAvatar(authState: authState),
+      ],
     );
   }
 }
@@ -264,10 +359,12 @@ class _UserAvatar extends ConsumerWidget {
 class _Sidebar extends StatelessWidget {
   final bool collapsed;
   final String role;
+  final bool inDrawer;
 
   const _Sidebar({
     required this.collapsed,
     required this.role,
+    this.inDrawer = false,
   });
 
   @override
@@ -275,7 +372,7 @@ class _Sidebar extends StatelessWidget {
     final items = role == AppConstants.roleHeadManager
         ? _hmItems(context)
         : _empItems(context);
-    final w = collapsed ? 68.0 : 240.0;
+    final w = inDrawer ? double.infinity : (collapsed ? 68.0 : 240.0);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -289,12 +386,15 @@ class _Sidebar extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _SidebarHeader(collapsed: collapsed),
+          _SidebarHeader(collapsed: inDrawer ? false : collapsed),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: items
-                  .map((item) => _SidebarItem(item: item, collapsed: collapsed))
+                  .map((item) => _SidebarItem(
+                        item: item,
+                        collapsed: inDrawer ? false : collapsed,
+                      ))
                   .toList(),
             ),
           ),

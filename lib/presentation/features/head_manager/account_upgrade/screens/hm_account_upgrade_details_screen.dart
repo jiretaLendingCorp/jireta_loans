@@ -156,174 +156,168 @@ class _HmAccountUpgradeDetailsScreenState
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _SectionCard(
-                  title: 'Lender Information',
-                  child: Column(
-                    children: [
-                      Center(
-                        child: ProfileAvatar(
-                          photoUrl: lender['profile_photo_url'] as String?,
-                          name:
-                              '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
-                                  .trim(),
-                          color: AppColors.lenderBlue,
-                          radius: 32,
-                          fallback: const Icon(Icons.person_outline,
-                              size: 28, color: AppColors.lenderBlue),
-                        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 760;
+          final leftColumn = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionCard(
+                title: 'Lender Information',
+                child: Column(
+                  children: [
+                    Center(
+                      child: ProfileAvatar(
+                        photoUrl: lender['profile_photo_url'] as String?,
+                        name:
+                            '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
+                                .trim(),
+                        color: AppColors.lenderBlue,
+                        radius: 32,
+                        fallback: const Icon(Icons.person_outline,
+                            size: 28, color: AppColors.lenderBlue),
                       ),
-                      const SizedBox(height: 12),
-                      _InfoRow(
-                          'Full Name',
-                          '${lender['first_name'] ?? ''} ${lender['middle_name'] ?? ''} ${lender['last_name'] ?? ''}'
-                              .replaceAll(RegExp(r'\s+'), ' ')
-                              .trim()),
-                      _InfoRow('Phone', lender['phone_number'] ?? '—'),
-                      _InfoRow('Email', lender['email'] ?? '—'),
-                      _InfoRow('Account Upgrade Status', accountUpgradeStatus),
-                      _InfoRow(
-                        'Address',
-                        [
-                          lender['street_address'],
-                          lender['barangay'],
-                          lender['city'],
-                          lender['province'],
-                          lender['zip_code'],
-                        ]
-                                .where(
-                                    (e) => e != null && e.toString().isNotEmpty)
-                                .join(', ')
-                                .isEmpty
-                            ? '—'
-                            : [
-                                lender['street_address'],
-                                lender['barangay'],
-                                lender['city'],
-                                lender['province'],
-                                lender['zip_code'],
-                              ]
-                                .where(
-                                    (e) => e != null && e.toString().isNotEmpty)
-                                .join(', '),
-                      ),
-                      _InfoRow(
-                          'Source of Funds', lender['source_of_funds'] ?? '—'),
-                      _InfoRow('Employment', lender['employment_type'] ?? '—'),
-                      _InfoRow('Employer', lender['employer_name'] ?? '—'),
-                      _InfoRow(
-                          'Monthly Income',
-                          lender['monthly_income'] != null
-                              ? '₱${lender['monthly_income']}'
-                              : '—'),
-                      _InfoRow('GCash', lender['gcash_number'] ?? '—'),
-                      _InfoRow('Gender', lender['gender'] ?? '—'),
-                      _InfoRow('Civil Status', lender['civil_status'] ?? '—'),
-                      _InfoRow('Date of Birth', lender['date_of_birth'] ?? '—'),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 12),
+                    _InfoRow(
+                        'Full Name',
+                        '${lender['first_name'] ?? ''} ${lender['middle_name'] ?? ''} ${lender['last_name'] ?? ''}'
+                            .replaceAll(RegExp(r'\s+'), ' ')
+                            .trim()),
+                    _InfoRow('Phone', lender['phone_number'] ?? '—'),
+                    _InfoRow('Email', lender['email'] ?? '—'),
+                    _InfoRow('Account Upgrade Status', accountUpgradeStatus),
+                    _InfoRow(
+                      'Address',
+                      [
+                        lender['street_address'],
+                        lender['barangay'],
+                        lender['city'],
+                        lender['province'],
+                        lender['zip_code'],
+                      ]
+                              .where(
+                                  (e) => e != null && e.toString().isNotEmpty)
+                              .join(', ')
+                              .isEmpty
+                          ? '—'
+                          : [
+                              lender['street_address'],
+                              lender['barangay'],
+                              lender['city'],
+                              lender['province'],
+                              lender['zip_code'],
+                            ]
+                              .where(
+                                  (e) => e != null && e.toString().isNotEmpty)
+                              .join(', '),
+                    ),
+                    _InfoRow(
+                        'Source of Funds', lender['source_of_funds'] ?? '—'),
+                    _InfoRow('Employment', lender['employment_type'] ?? '—'),
+                    _InfoRow('Employer', lender['employer_name'] ?? '—'),
+                    _InfoRow(
+                        'Monthly Income',
+                        lender['monthly_income'] != null
+                            ? '₱${lender['monthly_income']}'
+                            : '—'),
+                    _InfoRow('GCash', lender['gcash_number'] ?? '—'),
+                    _InfoRow('Gender', lender['gender'] ?? '—'),
+                    _InfoRow('Civil Status', lender['civil_status'] ?? '—'),
+                    _InfoRow('Date of Birth', lender['date_of_birth'] ?? '—'),
+                  ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              _SectionCard(
+                title: 'Submitted Documents',
+                child: docs.isEmpty
+                    ? const Text('No documents submitted.',
+                        style: TextStyle(
+                            color: AppColors.textSecondary, fontSize: 13))
+                    : Column(
+                        children: docs.map((doc) {
+                          final d = doc as Map<String, dynamic>;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppColors.border),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        d['document_type'] ?? 'Document',
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                    StatusBadge(
+                                        status: d['status'] ?? 'pending'),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                if (d['created_at'] != null)
+                                  Text(
+                                    'Submitted: ${d['created_at']}'
+                                        .substring(0, 32),
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary),
+                                  ),
+                                if (d['rejection_notes'] != null &&
+                                    (d['rejection_notes'] as String).isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Text(
+                                      'Note: ${d['rejection_notes']}',
+                                      style: const TextStyle(
+                                          fontSize: 12, color: AppColors.error),
+                                    ),
+                                  ),
+                                if (d['file_url'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => _openDocument(d),
+                                      icon: const Icon(Icons.open_in_new,
+                                          size: 14),
+                                      label: const Text('View Document',
+                                          style: TextStyle(fontSize: 12)),
+                                      style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 6)),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+              ),
+              if (contacts.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _SectionCard(
-                  title: 'Submitted Documents',
-                  child: docs.isEmpty
-                      ? const Text('No documents submitted.',
-                          style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 13))
-                      : Column(
-                          children: docs.map((doc) {
-                            final d = doc as Map<String, dynamic>;
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: AppColors.border),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          d['document_type'] ?? 'Document',
-                                          style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600),
-                                        ),
-                                      ),
-                                      StatusBadge(
-                                          status: d['status'] ?? 'pending'),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  if (d['created_at'] != null)
-                                    Text(
-                                      'Submitted: ${d['created_at']}'
-                                          .substring(0, 32),
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary),
-                                    ),
-                                  if (d['rejection_notes'] != null &&
-                                      (d['rejection_notes'] as String)
-                                          .isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 6),
-                                      child: Text(
-                                        'Note: ${d['rejection_notes']}',
-                                        style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.error),
-                                      ),
-                                    ),
-                                  if (d['file_url'] != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: OutlinedButton.icon(
-                                        onPressed: () => _openDocument(d),
-                                        icon: const Icon(Icons.open_in_new,
-                                            size: 14),
-                                        label: const Text('View Document',
-                                            style: TextStyle(fontSize: 12)),
-                                        style: OutlinedButton.styleFrom(
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 6)),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                ),
-                if (contacts.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    title: 'Emergency Contact',
-                    child: Column(
-                      children: contacts.map((c) {
-                        final m = c as Map<String, dynamic>;
-                        return _InfoRow(
-                            '${m['name'] ?? '—'} (${m['relationship'] ?? '—'})',
-                            m['phone_number'] ?? '—');
-                      }).toList(),
-                    ),
+                  title: 'Emergency Contact',
+                  child: Column(
+                    children: contacts.map((c) {
+                      final m = c as Map<String, dynamic>;
+                      return _InfoRow(
+                          '${m['name'] ?? '—'} (${m['relationship'] ?? '—'})',
+                          m['phone_number'] ?? '—');
+                    }).toList(),
                   ),
-                ],
+                ),
               ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
+            ],
+          );
+          final rightRail = SizedBox(
             width: 320,
             child: Column(
               children: [
@@ -403,8 +397,26 @@ class _HmAccountUpgradeDetailsScreenState
                 ),
               ],
             ),
-          ),
-        ],
+          );
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                leftColumn,
+                const SizedBox(height: 16),
+                rightRail,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 2, child: leftColumn),
+              const SizedBox(width: 16),
+              rightRail,
+            ],
+          );
+        },
       ),
     );
   }

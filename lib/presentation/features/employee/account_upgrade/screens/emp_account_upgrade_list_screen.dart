@@ -69,48 +69,68 @@ class _EmpAccountUpgradeListScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
-      child: Row(children: [
-        Expanded(
-            child: TextField(
-          controller: _searchCtrl,
-          decoration: InputDecoration(
-            hintText: 'Search by lender name...',
-            prefixIcon: const Icon(Icons.search, size: 20),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.border)),
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          ),
-          onChanged: (v) => ref
-              .read(empAccountUpgradeProvider.notifier)
-              .loadList(search: v, status: _statusFilter),
-        )),
-        const SizedBox(width: 12),
-        DropdownButton<String?>(
-          value: _statusFilter,
-          hint: const Text('All Status'),
-          items: const [
-            DropdownMenuItem(value: null, child: Text('All Status')),
-            DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
-            DropdownMenuItem(value: 'verified', child: Text('Verified')),
-            DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
-          ],
-          onChanged: (v) {
-            setState(() => _statusFilter = v);
-            ref
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final search = TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search by lender name...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border)),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            onChanged: (v) => ref
                 .read(empAccountUpgradeProvider.notifier)
-                .loadList(status: v, search: _searchCtrl.text);
-          },
-        ),
-        const SizedBox(width: 12),
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          tooltip: 'Refresh',
-          onPressed: () => ref
-              .read(empAccountUpgradeProvider.notifier)
-              .loadList(status: _statusFilter),
-        ),
-      ]),
+                .loadList(search: v, status: _statusFilter),
+          );
+          final statusDropdown = DropdownButton<String?>(
+            value: _statusFilter,
+            hint: const Text('All Status'),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('All Status')),
+              DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
+              DropdownMenuItem(value: 'verified', child: Text('Verified')),
+              DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+            ],
+            onChanged: (v) {
+              setState(() => _statusFilter = v);
+              ref
+                  .read(empAccountUpgradeProvider.notifier)
+                  .loadList(status: v, search: _searchCtrl.text);
+            },
+          );
+          final refreshBtn = IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () => ref
+                .read(empAccountUpgradeProvider.notifier)
+                .loadList(status: _statusFilter),
+          );
+
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                search,
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(child: statusDropdown),
+                  refreshBtn,
+                ]),
+              ],
+            );
+          }
+          return Row(children: [
+            Expanded(child: search),
+            const SizedBox(width: 12),
+            statusDropdown,
+            const SizedBox(width: 12),
+            refreshBtn,
+          ]);
+        },
+      ),
     );
   }
 
@@ -122,12 +142,24 @@ class _EmpAccountUpgradeListScreenState
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: AppColors.border)),
-        child: Column(children: [
-          _buildHeader(),
-          const Divider(height: 1),
-          ...items.asMap().entries.map(
-              (e) => _buildRow(e.value as Map<String, dynamic>, e.key.isEven)),
-        ]),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tableWidth =
+                constraints.maxWidth < 760 ? 760.0 : constraints.maxWidth;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                child: Column(children: [
+                  _buildHeader(),
+                  const Divider(height: 1),
+                  ...items.asMap().entries.map((e) =>
+                      _buildRow(e.value as Map<String, dynamic>, e.key.isEven)),
+                ]),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

@@ -186,10 +186,13 @@ class _CiCardState extends State<_CiCard> {
                         const Icon(Icons.person_outline,
                             size: 13, color: AppColors.textTertiary),
                         const SizedBox(width: 4),
-                        Text(
-                          'Rider: ${ci.riderName ?? 'Unassigned'}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
+                        Flexible(
+                          child: Text(
+                            'Rider: ${ci.riderName ?? 'Unassigned'}',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Icon(Icons.calendar_today_outlined,
