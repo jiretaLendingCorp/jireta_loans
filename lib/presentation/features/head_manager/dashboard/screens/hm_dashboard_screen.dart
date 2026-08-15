@@ -2,9 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/num_extensions.dart';
+import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -187,7 +188,8 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
               decoration: BoxDecoration(
                 color: AppColors.gold.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                border:
+                    Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -202,7 +204,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
                   ),
                   const SizedBox(width: 6),
                   const Text(
-                    'System Online',
+                    'Sysstem Online',
                     style: TextStyle(fontSize: 12, color: AppColors.gold),
                   ),
                 ],
@@ -250,7 +252,11 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 900 ? 5 : constraints.maxWidth >= 600 ? 3 : 2;
+        final columns = constraints.maxWidth >= 900
+            ? 5
+            : constraints.maxWidth >= 600
+                ? 3
+                : 2;
         const spacing = 12.0;
         final cardWidth =
             (constraints.maxWidth - (spacing * (columns - 1))) / columns;
