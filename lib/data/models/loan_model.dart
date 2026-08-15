@@ -9,6 +9,7 @@ class LoanModel extends LoanEntity {
   final String? ciStatus;
   final String? disbursementAccount;
   final Map<String, dynamic>? lenderAddress;
+  final bool riderDeliveryAssigned;
 
   const LoanModel({
     required super.id,
@@ -38,6 +39,7 @@ class LoanModel extends LoanEntity {
     this.ciStatus,
     this.disbursementAccount,
     this.lenderAddress,
+    this.riderDeliveryAssigned = false,
   });
 
   factory LoanModel.fromJson(Map<String, dynamic> json) {
@@ -79,6 +81,7 @@ class LoanModel extends LoanEntity {
       ciStatus: json['ci_status'],
       disbursementAccount: json['disbursement_account'],
       lenderAddress: json['lender_address'],
+      riderDeliveryAssigned: json['rider_delivery_assigned'] == true,
     );
   }
 
@@ -127,6 +130,13 @@ class LoanModel extends LoanEntity {
   }
 
   String get paymentFrequency => frequency;
+
+  /// Status shown in lists/details. Once a delivery rider is assigned to an
+  /// approved loan (loan stays `approved` until the rider completes delivery),
+  /// surface it as `rider_delivery_assigned` so staff see the real state.
+  String get displayStatus => (riderDeliveryAssigned && status == 'approved')
+      ? 'rider_delivery_assigned'
+      : status;
 
   String get formattedLenderAddress {
     final a = lenderAddress;

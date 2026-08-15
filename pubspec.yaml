@@ -105,6 +105,7 @@ dependencies:
   lottie: ^3.1.2
   animated_text_kit: ^4.2.2
   camera: ^0.12.0+2
+  rive: ^0.14.11
 
 dev_dependencies:
   flutter_test:
@@ -122,6 +123,7 @@ flutter:
     - assets/env/.env
     - assets/images/
     - assets/icons/
+    - assets/rive/
     - assets/fonts/Inter/
     - assets/fonts/Playfair_Display/
 

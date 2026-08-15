@@ -171,7 +171,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       Container(
                         width: 100,
                         height: 100,
-                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,

@@ -202,7 +202,7 @@ class _EmpLoanApplicationsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _LoanStatusBadge(status: loan.status),
+                  _LoanStatusBadge(status: loan.displayStatus),
                   if (loan.ciStatus != null &&
                       (loan.ciStatus == 'assigned' ||
                           loan.ciStatus == 'accepted' ||
@@ -484,6 +484,11 @@ class _LoanStatusBadge extends StatelessWidget {
         color = AppColors.deepNavy;
         bg = AppColors.deepNavy.withValues(alpha: 0.1);
         label = 'CI Completed';
+        break;
+      case 'rider_delivery_assigned':
+        color = AppColors.lenderBlue;
+        bg = AppColors.lenderBlue.withValues(alpha: 0.1);
+        label = 'Rider Delivery Assigned';
         break;
       case 'approved':
         color = AppColors.success;

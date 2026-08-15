@@ -163,6 +163,7 @@ async function handleCiDecline(req: Request) {
   if (ci.status !== 'assigned') return errorResponse('CI is not in assigned status', 400, 'INVALID_STATUS');
   await db.from('credit_investigations').update({ status: 'declined', response_at: new Date().toISOString(), notes: decline_reason ?? null }).eq('id', ci_id);
   await db.from('loans').update({ status: 'under_review' }).eq('id', ci.loan_id);
+  await db.from('rider_profiles').update({ is_available: true }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_decline', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
   if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'CI Declined', body: 'The rider has declined the CI assignment. Please reassign.', type: 'ci_declined', referenceId: ci_id });
   return jsonResponse({ message: 'CI declined' });

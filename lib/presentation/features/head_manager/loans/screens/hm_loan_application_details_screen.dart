@@ -165,7 +165,11 @@ class _HmLoanApplicationDetailsScreenState
   }
 
   Widget _buildHeaderCard(Map<String, dynamic> loan, NumberFormat fmt) {
-    final status = loan['status'] as String? ?? '';
+    final rawStatus = loan['status'] as String? ?? '';
+    final status = (loan['rider_delivery_assigned'] == true &&
+            rawStatus == 'approved')
+        ? 'rider_delivery_assigned'
+        : rawStatus;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -650,6 +654,9 @@ class _HmLoanApplicationDetailsScreenState
         c = AppColors.statusRejected;
         break;
       case 'ci_completed':
+        c = AppColors.lenderBlue;
+        break;
+      case 'rider_delivery_assigned':
         c = AppColors.lenderBlue;
         break;
       default:

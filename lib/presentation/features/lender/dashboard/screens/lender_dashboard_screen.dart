@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:rive/rive.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
@@ -13,6 +14,7 @@ import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../loans/providers/lender_loan_provider.dart';
+import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
 
 class LenderDashboardScreen extends ConsumerStatefulWidget {
@@ -93,6 +95,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(lenderDashboardProvider);
     final loanState = ref.watch(lenderLoanProvider);
+    final profileState = ref.watch(lenderProfileProvider);
     final activeLoan = loanState.isLoading ? null : loanState.activeLoan;
     final approvedLoan = _approvedUnreleased(loanState.loans);
     final inReviewLoan = _inReviewLoan(loanState.loans);
@@ -117,16 +120,20 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _WelcomeBanner(kpi: state.kpi),
+                      _WelcomeBanner(
+                        kpi: state.kpi,
+                        firstName: profileState.user?.firstName,
+                        showBalance: activeLoan == null,
+                      ),
                       const SizedBox(height: 20),
-                      if (approvedLoan != null) ...[
+                      if (approvedLoan != null && activeLoan == null) ...[
                         _ApprovedLoanBanner(loan: approvedLoan),
                         const SizedBox(height: 20),
                       ],
                       if (activeLoan == null) ...[
                         if (inReviewLoan != null)
                           _PendingLoanCard(loan: inReviewLoan)
-                        else
+                        else if (approvedLoan == null)
                           _QuickActions(context: context),
                         const SizedBox(height: 20),
                       ],
@@ -152,52 +159,202 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
 
 class _WelcomeBanner extends StatelessWidget {
   final dynamic kpi;
-  const _WelcomeBanner({required this.kpi});
+  final String? firstName;
+  final bool showBalance;
+  const _WelcomeBanner(
+      {required this.kpi, this.firstName, this.showBalance = true});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    if (!showBalance) {
+      return Align(
+        alignment: Alignment.topRight,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: _FoxyRiveGroup(firstName: firstName),
         ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.lenderBlue.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 16),
-          const Text(
-            'Outstanding Balance',
-            style: TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-          const SizedBox(height: 4),
-          CountUpAnimation(
-            value: (kpi?.remainingBalance ?? 0).toDouble(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'PlayfairDisplay',
+      );
+    }
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          top: -10,
+          right: 4,
+          child: _FoxyRiveGroup(firstName: firstName),
+        ),
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(top: 95),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            prefix: '₱',
-            decimalPlaces: 2,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.lenderBlue.withValues(alpha: 0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              const Text(
+                'Outstanding Balance',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              CountUpAnimation(
+                value: (kpi?.remainingBalance ?? 0).toDouble(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'PlayfairDisplay',
+                ),
+                prefix: '₱',
+                decimalPlaces: 2,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FoxyRiveGroup extends StatelessWidget {
+  final String? firstName;
+  const _FoxyRiveGroup({this.firstName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _GoodMorningBubble(name: firstName),
+        const SizedBox(width: 6),
+        const SizedBox(
+          width: 110,
+          height: 110,
+          child: _FoxyRive(),
+        ),
+      ],
+    );
+  }
+}
+
+class _GoodMorningBubble extends StatefulWidget {
+  final String? name;
+  const _GoodMorningBubble({this.name});
+
+  @override
+  State<_GoodMorningBubble> createState() => _GoodMorningBubbleState();
+}
+
+class _GoodMorningBubbleState extends State<_GoodMorningBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Good morning'
+        : hour < 18
+            ? 'Good afternoon'
+            : 'Good evening';
+    final name = widget.name?.trim() ?? '';
+    final message = name.isEmpty ? '$greeting!' : '$greeting, $name!';
+
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0.6, 0.4),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack)),
+      child: FadeTransition(
+        opacity: _ctrl,
+        child: Container(
+          margin: const EdgeInsets.only(top: 26),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Text(
+                message,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Positioned(
+                right: -8,
+                bottom: -10,
+                child: ClipPath(
+                  clipper: _BubbleTailClipper(),
+                  child: Container(
+                    width: 16,
+                    height: 14,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+class _BubbleTailClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(0, size.height);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _BubbleTailClipper oldClipper) => false;
 }
 
 class _ApprovedLoanBanner extends StatelessWidget {
@@ -750,6 +907,47 @@ class _ErrorBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FoxyRive extends StatefulWidget {
+  const _FoxyRive();
+
+  @override
+  State<_FoxyRive> createState() => _FoxyRiveState();
+}
+
+class _FoxyRiveState extends State<_FoxyRive> {
+  late final FileLoader _loader;
+
+  @override
+  void initState() {
+    super.initState();
+    _loader = FileLoader.fromAsset(
+      'assets/rive/foxy.riv',
+      riveFactory: Factory.rive,
+    );
+  }
+
+  @override
+  void dispose() {
+    _loader.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RiveWidgetBuilder(
+      fileLoader: _loader,
+      builder: (context, state) => switch (state) {
+        RiveLoading() => const SizedBox.shrink(),
+        RiveFailed() => const SizedBox.shrink(),
+        RiveLoaded() => RiveWidget(
+            controller: state.controller,
+            fit: Fit.contain,
+          ),
+      },
     );
   }
 }

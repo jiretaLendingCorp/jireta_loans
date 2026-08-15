@@ -177,6 +177,7 @@ async function handleGetList(req: Request) {
         assigned_rider_name: ciRider
           ? `${ciRider.first_name} ${ciRider.last_name}`.trim()
           : null,
+        rider_delivery_assigned: disb?.method === 'rider_delivery' ?? false,
       };
     });
 
@@ -249,6 +250,8 @@ async function handleGetDetails(req: Request) {
       payments: payments,
       credit_investigations: ci ?? [],
       disbursements: disbursements ?? [],
+      rider_delivery_assigned: (disbursements ?? []).some(
+        (d) => d?.method === 'rider_delivery'),
       penalties: penalties ?? [],
       co_makers: coMakers ?? [],
     };

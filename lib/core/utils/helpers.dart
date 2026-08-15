@@ -46,6 +46,8 @@ class AppHelpers {
         return 'CI Assigned';
       case 'ci_completed':
         return 'CI Completed';
+      case 'rider_delivery_assigned':
+        return 'Rider Delivery Assigned';
       case 'approved':
         return 'Approved';
       case 'active':
@@ -111,6 +113,8 @@ String loanStatusLabel(String status) {
       return 'CI Assigned';
     case 'ci_completed':
       return 'CI Completed';
+    case 'rider_delivery_assigned':
+      return 'Rider Delivery Assigned';
     case 'approved':
       return 'Approved';
     case 'active':

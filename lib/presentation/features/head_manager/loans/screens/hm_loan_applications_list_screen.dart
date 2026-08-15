@@ -162,7 +162,7 @@ class _HmLoanApplicationsListScreenState
   }
 
   Widget _buildRow(LoanModel loan, bool isEven) {
-    final color = _statusColor(loan.status);
+    final color = _statusColor(loan.displayStatus);
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     return InkWell(
       onTap: () => context.go(
@@ -226,7 +226,7 @@ class _HmLoanApplicationsListScreenState
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      _formatStatus(loan.status),
+                      _formatStatus(loan.displayStatus),
                       style: TextStyle(
                           fontSize: 12,
                           color: color,
@@ -468,6 +468,8 @@ class _HmLoanApplicationsListScreenState
       case 'ci_assigned':
         return AppColors.gold;
       case 'ci_completed':
+        return AppColors.lenderBlue;
+      case 'rider_delivery_assigned':
         return AppColors.lenderBlue;
       case 'approved':
         return AppColors.statusActive;

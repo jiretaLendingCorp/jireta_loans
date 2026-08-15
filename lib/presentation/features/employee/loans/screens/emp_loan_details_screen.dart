@@ -73,6 +73,8 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
       case 'ci_assigned':
       case 'ci_completed':
         return AppColors.warning;
+      case 'rider_delivery_assigned':
+        return AppColors.lenderBlue;
       case 'approved':
         return AppColors.success;
       case 'active':
@@ -134,7 +136,7 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
   }
 
   Widget _buildHeader(LoanModel loan) {
-    final color = _statusColor(loan.status);
+    final color = _statusColor(loan.displayStatus);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -176,7 +178,7 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: color.withValues(alpha: 0.4)),
           ),
-          child: Text(loan.status.toUpperCase(),
+          child: Text(loan.displayStatus.toUpperCase(),
               style: TextStyle(
                   color: color,
                   fontSize: 12,

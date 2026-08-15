@@ -168,7 +168,13 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            StatusBadge(status: data['status'] ?? 'pending', large: true),
+            StatusBadge(
+              status: (data['rider_delivery_assigned'] == true &&
+                      (data['status'] ?? 'pending') == 'approved')
+                  ? 'rider_delivery_assigned'
+                  : (data['status'] ?? 'pending'),
+              large: true,
+            ),
           ],
         ),
       ),

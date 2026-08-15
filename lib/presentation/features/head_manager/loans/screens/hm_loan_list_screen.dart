@@ -156,7 +156,7 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
   }
 
   Widget _buildRow(LoanModel loan, bool isEven, NumberFormat fmt) {
-    final color = _statusColor(loan.status);
+    final color = _statusColor(loan.displayStatus);
     return InkWell(
       onTap: () =>
           context.go(RouteConstants.hmLoanDetails.replaceFirst(':id', loan.id)),
@@ -211,7 +211,7 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
                     color: color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(4)),
                 child: Text(
-                  loan.status
+                  loan.displayStatus
                       .replaceAll('_', ' ')
                       .split(' ')
                       .map((w) => w.isEmpty
@@ -279,6 +279,8 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen>
 
   Color _statusColor(String status) {
     switch (status) {
+      case 'rider_delivery_assigned':
+        return AppColors.lenderBlue;
       case 'active':
         return AppColors.statusActive;
       case 'completed':

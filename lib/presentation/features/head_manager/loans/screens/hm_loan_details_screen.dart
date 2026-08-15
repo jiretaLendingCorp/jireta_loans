@@ -97,7 +97,11 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
   }
 
   Widget _buildHeaderCard(Map<String, dynamic> loan, NumberFormat fmt) {
-    final status = loan['status'] as String? ?? '';
+    final rawStatus = loan['status'] as String? ?? '';
+    final status = (loan['rider_delivery_assigned'] == true &&
+            rawStatus == 'approved')
+        ? 'rider_delivery_assigned'
+        : rawStatus;
     final statusColor = _statusColor(status);
     return Card(
       elevation: 0,
@@ -549,6 +553,8 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
 
   Color _statusColor(String status) {
     switch (status) {
+      case 'rider_delivery_assigned':
+        return AppColors.lenderBlue;
       case 'active':
         return AppColors.statusActive;
       case 'completed':

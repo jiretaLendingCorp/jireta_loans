@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../features/lender/notifications/providers/lender_notification_provider.dart';
@@ -65,14 +66,16 @@ class MobileScaffold extends ConsumerWidget {
           backgroundColor: accentColor,
           foregroundColor: Colors.white,
           elevation: 0,
-          title: title.isEmpty ? null : Text(
-            title,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
+          title: title.isEmpty
+              ? null
+              : Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
           automaticallyImplyLeading: showBackButton && appBarLeading == null,
           leading: appBarLeading,
           actions: [
@@ -145,7 +148,7 @@ class _FloatingBottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
           child: Container(
             height: 62,
             decoration: BoxDecoration(
@@ -193,9 +196,7 @@ class _FloatingBottomNav extends StatelessWidget {
                         curve: Curves.easeOutCubic,
                         padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
-                          color: isSelected
-                              ? accentColor
-                              : Colors.transparent,
+                          color: isSelected ? accentColor : Colors.transparent,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: AnimatedSwitcher(
@@ -243,10 +244,8 @@ class _FloatingBottomNav extends StatelessWidget {
                     duration: const Duration(milliseconds: 220),
                     style: TextStyle(
                       fontSize: 10,
-                      fontWeight:
-                          isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color:
-                          isSelected ? accentColor : AppColors.textTertiary,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? accentColor : AppColors.textTertiary,
                       fontFamily: 'Inter',
                     ),
                     child: Text(item.label),

@@ -89,6 +89,26 @@ async function handleApprove(req: Request) {
 
     await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', loan_id);
 
+    // Approving a loan finalises the credit investigation: close any
+    // in-flight CI (assigned/accepted/in_progress) for this loan and release
+    // its rider(s) so they become assignable again (e.g. delivery disbursement).
+    // Without this, a rider who accepted a CI but never submitted it stays
+    // is_available=false forever and vanishes from every "available rider" list.
+    const { data: openCis } = await db
+      .from('credit_investigations')
+      .select('rider_id')
+      .eq('loan_id', loan_id)
+      .in('status', ['assigned', 'accepted', 'in_progress']);
+    if (openCis && openCis.length > 0) {
+      const riderIds = [...new Set(openCis.map((c) => c.rider_id))];
+      await db
+        .from('credit_investigations')
+        .update({ status: 'completed' })
+        .eq('loan_id', loan_id)
+        .in('status', ['assigned', 'accepted', 'in_progress']);
+      await db.from('rider_profiles').update({ is_available: true }).in('id', riderIds);
+    }
+
     await writeAuditLog({ performedBy: user.id, action: 'loan_approve', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'approved' }, ipAddress: ip });
     await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved', body: 'Congratulations! Your loan has been approved. Please choose how you want to receive the funds to complete the release.', type: 'loan_approved', referenceId: loan_id });
 
