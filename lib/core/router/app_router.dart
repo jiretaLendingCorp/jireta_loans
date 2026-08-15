@@ -29,6 +29,7 @@ import '../../presentation/features/employee/lenders/screens/emp_lender_list_scr
 import '../../presentation/features/employee/loans/screens/emp_loan_application_details_screen.dart';
 import '../../presentation/features/employee/loans/screens/emp_loan_applications_screen.dart';
 import '../../presentation/features/employee/loans/screens/emp_loan_details_screen.dart';
+import '../../presentation/features/employee/loans/screens/emp_loan_list_screen.dart';
 import '../../presentation/features/employee/notifications/screens/emp_notifications_screen.dart';
 import '../../presentation/features/employee/payments/screens/emp_payment_details_screen.dart';
 import '../../presentation/features/employee/payments/screens/emp_payment_list_screen.dart';
@@ -361,6 +362,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.empLoans,
           builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      GoRoute(
+          path: RouteConstants.empActiveLoans,
+          builder: (ctx, s) => const EmpLoanListScreen()),
       GoRoute(
           path: RouteConstants.empLoanApplicationDetails,
           builder: (ctx, s) =>

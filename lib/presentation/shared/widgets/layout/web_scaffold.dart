@@ -366,6 +366,11 @@ class _Sidebar extends StatelessWidget {
           RouteConstants.empLoans,
         ),
         const _NavItem(
+          Icons.account_balance_wallet_outlined,
+          'Active Loans',
+          RouteConstants.empActiveLoans,
+        ),
+        const _NavItem(
           Icons.storefront_outlined,
           'In-Office Application',
           RouteConstants.empInOffice,

@@ -50,6 +50,7 @@ class RouteConstants {
   static const String empRiderDetails = '/employee/riders/:id';
   static const String empLoans = '/employee/loans';
   static const String empLoanApplicationDetails = '/employee/loans/:id';
+  static const String empActiveLoans = '/employee/active-loans';
   static const String empLoanDetails = '/employee/loan-details/:id';
   static const String empAccountUpgrade = '/employee/account-upgrade';
   static const String empAccountUpgradeDetails =

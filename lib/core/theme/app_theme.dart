@@ -134,6 +134,35 @@ class AppTheme {
         unselectedItemColor: AppColors.textTertiary,
         type: BottomNavigationBarType.fixed,
       ),
+      // Desktop/web navigation should swap content instantly. Every staff screen
+      // carries its own sidebar (WebScaffold), so the default MaterialPage
+      // zoom/fade transition makes the sidebar re-animate on every route change
+      // instead of staying steady. An instant swap keeps the sidebar put and
+      // only the content area changes.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.windows: _InstantPageTransitionsBuilder(),
+          TargetPlatform.macOS: _InstantPageTransitionsBuilder(),
+          TargetPlatform.linux: _InstantPageTransitionsBuilder(),
+        },
+      ),
     );
+  }
+}
+
+/// Swaps routed pages with no animation so the sidebar/layout never re-animates
+/// on navigation (web + desktop).
+class _InstantPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _InstantPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
   }
 }
