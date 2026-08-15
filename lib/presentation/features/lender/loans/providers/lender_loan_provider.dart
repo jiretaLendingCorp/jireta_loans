@@ -92,9 +92,11 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
   Future<void> getSchedulePreview({
     required double amount,
     required String frequency,
+    int? termPeriods,
   }) async {
     try {
-      final preview = await _ds.getSchedulePreview(amount, frequency);
+      final preview =
+          await _ds.getSchedulePreview(amount, frequency, termPeriods: termPeriods);
       state = state.copyWith(schedulePreview: preview);
     } catch (e) {
       state = state.copyWith(error: ErrorHandler.handle(e).message);
@@ -107,6 +109,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
     required String purpose,
     Map<String, dynamic>? coMaker,
     Map<String, dynamic>? disbursement,
+    int? termPeriods,
   }) async {
     state = state.copyWith(isSubmitting: true);
     try {
@@ -116,6 +119,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
         purpose: purpose,
         coMaker: coMaker,
         disbursement: disbursement,
+        termPeriods: termPeriods,
       );
       state = state.copyWith(isSubmitting: false);
       await loadLoans();

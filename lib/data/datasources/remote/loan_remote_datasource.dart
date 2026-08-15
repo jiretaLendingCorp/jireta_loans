@@ -14,6 +14,7 @@ class LoanRemoteDataSource {
     required String purpose,
     Map<String, dynamic>? coMaker,
     Map<String, dynamic>? disbursement,
+    int? termPeriods,
   }) async {
     final res = await _client.post(
       ApiEndpoints.loansApply,
@@ -21,6 +22,7 @@ class LoanRemoteDataSource {
         'principal_amount': amount,
         'frequency': frequency,
         'purpose': purpose,
+        if (termPeriods != null) 'term_periods': termPeriods,
         if (coMaker != null) 'co_maker': coMaker,
         if (disbursement != null) 'disbursement': disbursement,
       },
@@ -87,10 +89,15 @@ class LoanRemoteDataSource {
   }
 
   Future<Map<String, dynamic>> getSchedulePreview(
-      double principal, String frequency) async {
+      double principal, String frequency,
+      {int? termPeriods}) async {
     final res = await _client.post(
       ApiEndpoints.loansGetSchedulePreview,
-      data: {'principal': principal, 'frequency': frequency},
+      data: {
+        'principal': principal,
+        'frequency': frequency,
+        if (termPeriods != null) 'term_periods': termPeriods,
+      },
     );
     return res.data as Map<String, dynamic>;
   }

@@ -28,6 +28,7 @@ class LenderApplyLoanScreen extends ConsumerStatefulWidget {
 class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   double _amount = 3000;
   String _frequency = 'weekly';
+  int? _termPeriods;
   final _purposeCtrl = TextEditingController();
   bool _previewLoading = false;
   Map<String, dynamic>? _coMaker;
@@ -78,7 +79,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     await ref.read(lenderLoanProvider.notifier).getSchedulePreview(
           amount: _amount,
           frequency: _frequency,
+          termPeriods: _termPeriods,
         );
+    // Clamp the chosen term to the new maximum so a stale selection (after the
+    // amount or frequency changed) never exceeds what the server allows.
+    final preview = ref.read(lenderLoanProvider).schedulePreview;
+    final maxPeriods = (preview?['max_periods'] as num?)?.toInt();
+    if (maxPeriods != null &&
+        _termPeriods != null &&
+        _termPeriods! > maxPeriods) {
+      _termPeriods = null;
+    }
     setState(() => _previewLoading = false);
   }
 
@@ -120,7 +131,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       context: context,
       builder: (_) => ConfirmationDialog(
         title: 'Submit Loan Application',
-        message: 'Apply for ${_amount.toCurrency} via $_frequency payments?',
+        message:
+            'Apply for ${_amount.toCurrency} via $_frequency payments over ${_termLabel()}?',
         confirmLabel: 'Submit Application',
         confirmColor: AppColors.lenderBlue,
       ),
@@ -132,6 +144,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
           amount: _amount,
           frequency: _frequency,
+          termPeriods: _termPeriods,
           purpose: _purposeCtrl.text.trim(),
           coMaker: coMaker,
         );
@@ -193,6 +206,96 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   void _goBack() => setState(() => _step = _step - 1);
 
+  String _termUnit() {
+    switch (_frequency) {
+      case 'daily':
+        return 'days';
+      case 'weekly':
+        return 'weeks';
+      default:
+        return 'months';
+    }
+  }
+
+  /// Common term choices for the selected frequency, capped by the server's
+  /// maximum for the current amount. The max value is always included so the
+  /// default (full) term stays selectable.
+  List<int> _termOptions(int max) {
+    const candidates = <String, List<int>>{
+      'daily': [7, 10, 14, 20, 21, 28, 30, 35, 40, 45, 60, 70, 80, 90, 120, 180],
+      'weekly': [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 26],
+      'monthly': [1, 2, 3, 4, 5, 6],
+    };
+    final opts =
+        (candidates[_frequency] ?? const <int>[]).where((v) => v <= max).toList();
+    if (!opts.contains(max)) opts.add(max);
+    return opts;
+  }
+
+  /// Effective term label used in the review step and the submit dialog, e.g.
+  /// "6 weeks", "30 days", or "2 months".
+  String _termLabel() {
+    final preview = ref.read(lenderLoanProvider).schedulePreview;
+    final max = (preview?['max_periods'] as num?)?.toInt() ?? 0;
+    final periods = _termPeriods ?? max;
+    return periods > 0 ? '$periods ${_termUnit()}' : 'the full term';
+  }
+
+  Widget _buildTermSelector(int maxPeriods) {
+    if (maxPeriods < 1) return const SizedBox.shrink();
+    final unit = _termUnit();
+    final options = _termOptions(maxPeriods);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('Loan Term'),
+        const SizedBox(height: 4),
+        const Text(
+          'Choose how long you want to repay this loan.',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((value) {
+            final isMax = value == maxPeriods;
+            final selected = isMax
+                ? _termPeriods == null
+                : _termPeriods == value;
+            return InkWell(
+              onTap: () {
+                setState(() => _termPeriods = isMax ? null : value);
+                _refreshPreview();
+              },
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.lenderBlue : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected ? AppColors.lenderBlue : AppColors.border,
+                  ),
+                ),
+                child: Text(
+                  '$value $unit',
+                  style: TextStyle(
+                    color: selected ? Colors.white : AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   Widget _buildLoanDetailsStep(
       NumberFormat fmt, Map<String, dynamic>? preview) {
     return SingleChildScrollView(
@@ -244,7 +347,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   padding: const EdgeInsets.only(right: 8),
                   child: InkWell(
                     onTap: () {
-                      setState(() => _frequency = f);
+                      setState(() {
+                        _frequency = f;
+                        _termPeriods = null;
+                      });
                       _refreshPreview();
                     },
                     borderRadius: BorderRadius.circular(10),
@@ -276,6 +382,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               );
             }).toList(),
           ),
+          const SizedBox(height: 20),
+          _buildTermSelector(
+              (preview?['max_periods'] as num?)?.toInt() ?? 0),
           const SizedBox(height: 20),
           const _SectionTitle('Purpose'),
           const SizedBox(height: 8),
@@ -404,6 +513,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           _ReviewCard(
             amount: _amount,
             frequency: _frequency,
+            termLabel: _termLabel(),
             purpose: _purposeCtrl.text.trim(),
             coMaker: _coMaker,
             fmt: fmt,
@@ -850,8 +960,10 @@ class _SchedulePreview extends StatelessWidget {
     final interest =
         (preview['interest'] ?? preview['interest_amount'] ?? 0).toDouble();
     final installment = (preview['installment_amount'] ?? 0).toDouble();
-    final termDays = preview['term_days'] ?? 0;
     final installments = preview['installments'] ?? 0;
+    final freq = (preview['frequency'] ?? '').toString();
+    final intervalDays = freq == 'weekly' ? 7 : (freq == 'monthly' ? 30 : 1);
+    final termDays = installments * intervalDays;
     final schedule =
         List<dynamic>.from(preview['schedule'] ?? preview['due_dates'] ?? []);
 
@@ -1123,6 +1235,7 @@ class _StepDot extends StatelessWidget {
 class _ReviewCard extends StatelessWidget {
   final double amount;
   final String frequency;
+  final String termLabel;
   final String purpose;
   final Map<String, dynamic>? coMaker;
   final NumberFormat fmt;
@@ -1133,6 +1246,7 @@ class _ReviewCard extends StatelessWidget {
   const _ReviewCard({
     required this.amount,
     required this.frequency,
+    required this.termLabel,
     required this.purpose,
     required this.coMaker,
     required this.fmt,
@@ -1168,6 +1282,7 @@ class _ReviewCard extends StatelessWidget {
             'Payment Frequency',
             frequency[0].toUpperCase() + frequency.substring(1),
           ),
+          _row('Loan Term', termLabel),
           _row('Purpose', purpose.isEmpty ? '-' : purpose),
           if (interest != null) ...[
             _row('Interest (20%)',

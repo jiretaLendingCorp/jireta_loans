@@ -266,7 +266,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
                         ),
                       )
                     : const Text(
-                        'Sign In',
+                        'Login',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
