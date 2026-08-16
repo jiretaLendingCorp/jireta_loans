@@ -16,6 +16,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validateEmail, sanitizeString, validatePhone } from '../_shared/validators.ts';
+import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 
@@ -145,7 +146,7 @@ async function handleCreateEmployee(req: Request) {
 
   await db.from('password_history').insert({
     user_id: user.id,
-    password_hash: DEFAULT_PASSWORD,
+    password_hash: await hashPassword(user.id, DEFAULT_PASSWORD),
   });
 
   await writeAuditLog({
@@ -192,7 +193,10 @@ async function handleCreateRider(req: Request) {
     phone_confirm: true,
     app_metadata: { role: 'rider' },
   });
-  if (authErr || !authUser.user) return errorResponse('Failed to create auth user: ' + authErr?.message, 500, 'SERVER_ERROR');
+  if (authErr || !authUser.user) {
+    console.error('[users-create] rider auth user creation failed:', authErr?.message);
+    return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
+  }
 
   const { data: roleData } = await db.from('roles').select('id').eq('name', 'rider').single();
   if (!roleData) return errorResponse('Rider role not found', 500, 'SERVER_ERROR');
@@ -206,7 +210,7 @@ async function handleCreateRider(req: Request) {
     phone_number: phone.trim(),
     role_id: roleData.id,
     account_status: 'active',
-    force_password_change: false,
+    force_password_change: true,
     created_by: user.id,
   }, { onConflict: 'id' }).select('id').single();
 
@@ -223,6 +227,11 @@ async function handleCreateRider(req: Request) {
     drivers_license_expiry: drivers_license_expiry || null,
     vehicle_brand: vehicle_brand ? sanitizeString(vehicle_brand) : null,
     is_available: true,
+  });
+
+  await db.from('password_history').insert({
+    user_id: newUser.id,
+    password_hash: await hashPassword(newUser.id, riderDefaultPassword),
   });
 
   await writeAuditLog({ performedBy: user.id, action: 'create_rider', tableName: 'users', recordId: newUser.id, ipAddress: ip });
@@ -263,7 +272,10 @@ async function handleCreateLender(req: Request) {
     phone_confirm: true,
     app_metadata: { role: 'lender' },
   });
-  if (authErr || !authUser.user) return errorResponse('Failed to create auth user: ' + authErr?.message, 500, 'SERVER_ERROR');
+  if (authErr || !authUser.user) {
+    console.error('[users-create] lender auth user creation failed:', authErr?.message);
+    return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
+  }
 
   const { data: roleData } = await db.from('roles').select('id').eq('name', 'lender').single();
   if (!roleData) return errorResponse('Lender role not found', 500, 'SERVER_ERROR');
@@ -277,7 +289,7 @@ async function handleCreateLender(req: Request) {
     phone_number: phone.trim(),
     role_id: roleData.id,
     account_status: 'active',
-    force_password_change: false,
+    force_password_change: true,
     created_by: user.id,
   }, { onConflict: 'id' }).select('id').single();
 
@@ -300,9 +312,15 @@ async function handleCreateLender(req: Request) {
   });
 
   if (lenderProfileErr) {
+    console.error('[users-create] lender profile insert failed:', lenderProfileErr.message);
     await db.auth.admin.deleteUser(authUser.user.id);
-    return errorResponse('Failed to create lender profile: ' + lenderProfileErr.message, 500, 'SERVER_ERROR');
+    return errorResponse('Failed to create lender profile', 500, 'SERVER_ERROR');
   }
+
+  await db.from('password_history').insert({
+    user_id: newUser.id,
+    password_hash: await hashPassword(newUser.id, lenderDefaultPassword),
+  });
 
   await writeAuditLog({ performedBy: user.id, action: 'create_lender', tableName: 'users', recordId: newUser.id, ipAddress: ip });
 

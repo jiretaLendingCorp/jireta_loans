@@ -15,6 +15,7 @@ import { writeAuditLog } from "../_shared/audit.ts";
 import { isAuthUser, requireAuth } from "../_shared/auth.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient, getAnonClient } from "../_shared/db.ts";
+import { hashPassword, matchesPasswordHistory } from "../_shared/password_hash.ts";
 import { checkRateLimit } from "../_shared/rate_limiter.ts";
 import { singleWithObjectEmbeds } from "../_shared/types.ts";
 import {
@@ -163,7 +164,7 @@ async function handleResetPassword(req: Request) {
 
   await db.from("password_history").insert({
     user_id: userId,
-    password_hash: "hashed",
+    password_hash: await hashPassword(userId, pw),
   });
 
   await writeAuditLog({
@@ -207,12 +208,26 @@ async function handleForceChangePassword(req: Request) {
 
   // Verify the current password is correct before allowing the change.
   // Use the anon client (signInWithPassword) — it validates against auth.users.
+  // Lenders/riders authenticate by PHONE (staff-created temp email is an
+  // internal GoTrue credential); staff authenticate by EMAIL. Try the
+  // identifier the account actually uses, falling back to the other if needed.
   const anonClient = getAnonClient();
-  const { error: verifyErr } = await anonClient.auth.signInWithPassword({
-    email: authResult.email ?? "",
-    password: current_password,
-  });
-  if (verifyErr) {
+  const verifyWithPhone = async (phone: string, password: string) => {
+    const { error } = await anonClient.auth.signInWithPassword({ phone, password });
+    return !error;
+  };
+  const verifyWithEmail = async (email: string, password: string) => {
+    const { error } = await anonClient.auth.signInWithPassword({ email, password });
+    return !error;
+  };
+
+  const passwordValid =
+    (!!authResult.phone &&
+      (await verifyWithPhone(authResult.phone, current_password))) ||
+    (!!authResult.email &&
+      (await verifyWithEmail(authResult.email, current_password)));
+
+  if (!passwordValid) {
     return errorResponse(
       "Current password is incorrect",
       401,
@@ -246,7 +261,7 @@ async function handleForceChangePassword(req: Request) {
     .limit(PASSWORD_HISTORY_LIMIT);
 
   for (const h of history ?? []) {
-    if (h.password_hash === cleanNew) {
+    if (await matchesPasswordHistory(authResult.id, cleanNew, h.password_hash)) {
       return errorResponse(
         `Cannot reuse last ${PASSWORD_HISTORY_LIMIT} passwords`,
         400,
@@ -272,7 +287,7 @@ async function handleForceChangePassword(req: Request) {
 
   await db.from("password_history").insert({
     user_id: authResult.id,
-    password_hash: cleanNew,
+    password_hash: await hashPassword(authResult.id, cleanNew),
   });
 
   await db.from("auth_logs").insert({
@@ -355,7 +370,7 @@ async function handleChangePassword(req: Request) {
     .limit(PASSWORD_HISTORY_LIMIT);
 
   for (const h of history ?? []) {
-    if (h.password_hash === cleanNew) {
+    if (await matchesPasswordHistory(authResult.id, cleanNew, h.password_hash)) {
       return errorResponse(
         `Cannot reuse last ${PASSWORD_HISTORY_LIMIT} passwords`,
         400,
@@ -382,7 +397,7 @@ async function handleChangePassword(req: Request) {
 
   await db.from("password_history").insert({
     user_id: authResult.id,
-    password_hash: cleanNew,
+    password_hash: await hashPassword(authResult.id, cleanNew),
   });
 
   await db.from("auth_logs").insert({

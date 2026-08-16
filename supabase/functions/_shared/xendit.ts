@@ -74,5 +74,17 @@ export function verifyWebhookToken(req: Request): boolean {
   const callbackToken = req.headers.get('x-callback-token');
   const expectedToken = Deno.env.get('XENDIT_WEBHOOK_TOKEN');
   if (!expectedToken || !callbackToken) return false;
-  return callbackToken === expectedToken;
+  return timingSafeEqual(callbackToken, expectedToken);
+}
+
+// Constant-time string comparison (avoids leaking byte-by-byte timing which a
+// naive `===` comparison is vulnerable to when used against secret tokens).
+export function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const bufA = enc.encode(a);
+  const bufB = enc.encode(b);
+  if (bufA.length !== bufB.length) return false;
+  let diff = 0;
+  for (let i = 0; i < bufA.length; i++) diff |= bufA[i] ^ bufB[i];
+  return diff === 0;
 }

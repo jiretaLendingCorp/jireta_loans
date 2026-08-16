@@ -193,7 +193,12 @@ async function handleVerifyOtp(req: Request) {
   // Mock OTP (123456) bypasses the stored-OTP checks entirely so ANY phone
   // can sign in for testing without a real SMS delivery — no need to wait for
   // auth-send-otp first or worry about expiry/attempt limits.
-  const isMockOtp = otpCode === '123456';
+  //
+  // SECURITY: only accepted when USE_MOCK_SMS is explicitly enabled. In
+  // production this env var is unset, so `123456` is treated like any other
+  // wrong code and goes through the real stored-OTP verification (a hardcoded
+  // bypass would let ANYONE sign in as ANY phone number).
+  const isMockOtp = Deno.env.get('USE_MOCK_SMS') === 'true' && otpCode === '123456';
 
   if (!isMockOtp) {
     const { data: otpRow } = await db

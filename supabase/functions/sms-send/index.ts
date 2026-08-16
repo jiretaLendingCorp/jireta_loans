@@ -13,6 +13,8 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { sendSms } from '../_shared/sms.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { requireAuth, isAuthUser } from '../_shared/auth.ts';
+import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getSchedulePayment } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
 
@@ -43,6 +45,11 @@ serve(async (req) => {
 
 // ── [moved from functions/sms-send-otp/index.ts] ────────────────────────────
 async function handleSendOtp(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
+  if (roleCheck) return roleCheck;
+
   const body = await req.json();
   const { phone, otp } = body;
 
@@ -72,7 +79,12 @@ async function handleSendOtp(req: Request) {
 }
 
 // ── [moved from functions/sms-send-reminder/index.ts] ───────────────────────
-async function handleSendReminder(_req: Request) {
+async function handleSendReminder(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
+  if (roleCheck) return roleCheck;
+
   const db = getAdminClient();
 
   const targetDate = new Date();
