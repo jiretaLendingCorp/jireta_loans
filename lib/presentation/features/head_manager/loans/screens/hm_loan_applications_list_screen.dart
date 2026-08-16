@@ -12,6 +12,7 @@ import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmLoanApplicationsListScreen extends ConsumerStatefulWidget {
   const HmLoanApplicationsListScreen({super.key});
@@ -341,7 +342,7 @@ class _HmLoanApplicationsListScreenState
               await ref.read(hmLoanProvider.notifier).approveLoan(loan.id);
           if (!mounted) return;
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
+          context.showSnackBarAsToast(
             SnackBar(
               content:
                   Text(ok ? 'Loan approved successfully' : 'Approval failed'),
@@ -364,7 +365,7 @@ class _HmLoanApplicationsListScreenState
       ),
     );
     if (assigned == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Delivery rider assigned'),
           backgroundColor: AppColors.success,
@@ -380,7 +381,7 @@ class _HmLoanApplicationsListScreenState
       builder: (_) => CiAssignModal(loanId: loan.id),
     );
     if (assigned == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Rider assigned for credit investigation'),
           backgroundColor: AppColors.success,
@@ -402,7 +403,7 @@ class _HmLoanApplicationsListScreenState
               .rejectLoan(loan.id, reason ?? '');
           if (!mounted) return;
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
+          context.showSnackBarAsToast(
             SnackBar(
               content: Text(ok ? 'Loan rejected' : 'Reject failed'),
               backgroundColor: ok ? AppColors.error : AppColors.textSecondary,

@@ -11,6 +11,7 @@ import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../widgets/assign_rider_collection_modal.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 final _collectionDetailProvider =
     FutureProvider.family<CollectionAssignmentModel?, String>(
@@ -189,7 +190,7 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     );
     if (result == true && context.mounted) {
       ref.invalidate(_collectionDetailProvider(col.id));
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(content: Text('Rider assigned successfully')),
       );
     }

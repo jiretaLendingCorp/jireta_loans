@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/loans/widgets/approve_reject_modal.dart
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class ApproveRejectModal extends StatefulWidget {
   final String loanId;
@@ -100,7 +101,7 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
 
   Future<void> _confirm() async {
     if (!widget.isApprove && _reasonCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
             content: Text('Please provide a rejection reason'),
             backgroundColor: AppColors.error),

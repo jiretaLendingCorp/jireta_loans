@@ -119,7 +119,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Provide the borrower\'s home address and emergency contact information.',
+            'Provide the lender\'s home address and emergency contact information.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 20),

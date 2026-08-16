@@ -6,6 +6,7 @@ import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/forms/app_dropdown.dart';
 import '../../../../shared/widgets/forms/app_date_picker.dart';
 import '../providers/emp_collection_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpAssignRiderModal extends ConsumerStatefulWidget {
   final String loanScheduleId;
@@ -55,7 +56,7 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
 
   Future<void> _submit() async {
     if (_selectedRiderId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
           const SnackBar(content: Text('Please select a rider.')));
       return;
     }
@@ -72,7 +73,7 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
       Navigator.of(context).pop();
       widget.onAssigned();
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
           const SnackBar(content: Text('Failed to assign rider. Try again.')));
     }
   }

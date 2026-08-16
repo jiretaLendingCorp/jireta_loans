@@ -10,6 +10,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_ci_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderCiBorrowerInfoScreen extends ConsumerStatefulWidget {
   final String ciId;
@@ -46,7 +47,7 @@ class _RiderCiBorrowerInfoScreenState
     final ci = state.selectedCi;
 
     return MobileScaffold(
-      title: 'Borrower Info (CI)',
+      title: 'Lender Info (CI)',
       accentColor: AppColors.riderGreen,
       showBottomNav: false,
       navItems: const [],
@@ -89,7 +90,7 @@ class _RiderCiBorrowerInfoScreenState
             onSms: () => _smsBorrower(phone),
             onCopy: () {
               Clipboard.setData(ClipboardData(text: phone));
-              ScaffoldMessenger.of(context).showSnackBar(
+              context.showSnackBarAsToast(
                 const SnackBar(
                     content: Text('Phone copied'),
                     backgroundColor: AppColors.riderGreen),

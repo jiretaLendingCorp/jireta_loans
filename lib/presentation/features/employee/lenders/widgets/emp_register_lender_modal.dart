@@ -5,6 +5,7 @@ import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/validators.dart';
 import '../providers/emp_lender_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpRegisterLenderModal extends ConsumerStatefulWidget {
   const EmpRegisterLenderModal({super.key});
@@ -44,7 +45,7 @@ class _EmpRegisterLenderModalState
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_dob == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(content: Text('Date of birth is required')),
       );
       return;
@@ -66,7 +67,7 @@ class _EmpRegisterLenderModalState
       });
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(
             content: Text('Lender registered successfully'),
             backgroundColor: AppColors.success,
@@ -75,7 +76,7 @@ class _EmpRegisterLenderModalState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           SnackBar(
             content: Text(ErrorHandler.handle(e).message),
             backgroundColor: AppColors.error,

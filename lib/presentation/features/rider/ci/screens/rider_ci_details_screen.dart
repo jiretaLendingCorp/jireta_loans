@@ -14,6 +14,7 @@ import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/rider_ci_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderCiDetailsScreen extends ConsumerStatefulWidget {
   final String ciId;
@@ -56,7 +57,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
 
   Future<void> _uploadDocuments() async {
     if (_pickedImages.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
           const SnackBar(content: Text('Please select at least one photo')));
       return;
     }
@@ -87,7 +88,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
 
   Future<void> _submitReport() async {
     if (_reportCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      context.showSnackBarAsToast(const SnackBar(
           content: Text('Please write your investigation report')));
       return;
     }
@@ -171,7 +172,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
       child: Column(
         children: [
           _SectionCard(
-            title: 'Borrower Information',
+            title: 'Lender Information',
             icon: Icons.person_outline,
             color: AppColors.lenderBlue,
             children: [
@@ -244,7 +245,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
           if (ci.status == 'accepted' || ci.status == 'in_progress') ...[
             const SizedBox(height: 16),
             AppButton(
-              label: 'Navigate to Borrower',
+              label: 'Navigate to Lender',
               onPressed: () {},
               icon: Icons.map_outlined,
               color: AppColors.info,
@@ -268,7 +269,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
                   color: AppColors.textPrimary)),
           const SizedBox(height: 8),
           const Text(
-              'Upload photos of the borrower\'s residence, neighborhood, and supporting evidence.',
+              'Upload photos of the lender\'s residence, neighborhood, and supporting evidence.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 20),
           InkWell(

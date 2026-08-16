@@ -5,6 +5,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmSettingsScreen extends ConsumerStatefulWidget {
   const HmSettingsScreen({super.key});
@@ -371,7 +372,7 @@ class _SmsTemplatesTabState extends State<_SmsTemplatesTab> {
                       template['content'] = _ctrl.text;
                       _editingKey = null;
                     });
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    context.showSnackBarAsToast(
                       const SnackBar(
                         content: Text('Template saved'),
                         backgroundColor: AppColors.success,

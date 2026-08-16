@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/forms/app_dropdown.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../providers/hm_rider_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EditRiderModal extends ConsumerStatefulWidget {
   final UserModel rider;
@@ -77,13 +78,13 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
           );
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(content: Text('Rider updated successfully')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           SnackBar(
               content: Text(e.toString()), backgroundColor: AppColors.error),
         );

@@ -7,6 +7,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../providers/hm_report_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmReportHistoryScreen extends ConsumerStatefulWidget {
   const HmReportHistoryScreen({super.key});
@@ -374,7 +375,7 @@ class _DownloadButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: () {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           SnackBar(
             content: Text('Opening $label report...'),
             backgroundColor: color,

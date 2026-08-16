@@ -12,6 +12,7 @@ import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../providers/rider_collection_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderUploadProofScreen extends ConsumerStatefulWidget {
   final String assignmentId;
@@ -50,7 +51,7 @@ class _RiderUploadProofScreenState
 
   Future<void> _submit() async {
     if (_proofPhoto == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
             content: Text('Payment proof photo is required'),
             backgroundColor: AppColors.error),
@@ -322,7 +323,7 @@ class _RiderUploadProofScreenState
             children: [
               Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
               SizedBox(width: 8),
-              Text('Borrower Signature',
+              Text('Lender Signature',
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -330,7 +331,7 @@ class _RiderUploadProofScreenState
             ],
           ),
           const SizedBox(height: 4),
-          const Text('Ask the borrower to sign below',
+          const Text('Ask the lender to sign below',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
           SignaturePad(

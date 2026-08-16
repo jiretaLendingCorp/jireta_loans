@@ -12,6 +12,7 @@ import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../providers/rider_disbursement_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderDisbursementUploadProofScreen extends ConsumerStatefulWidget {
   final String disbursementId;
@@ -43,7 +44,7 @@ class _RiderDisbursementUploadProofScreenState
 
   Future<void> _submit() async {
     if (_proofPhoto == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
             content: Text('Delivery proof photo is required'),
             backgroundColor: AppColors.error),

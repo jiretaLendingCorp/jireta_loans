@@ -133,7 +133,7 @@ class _Step1IdentifyBorrowerState extends ConsumerState<Step1IdentifyBorrower> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Identify Borrower',
+            'Identify Lender',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,

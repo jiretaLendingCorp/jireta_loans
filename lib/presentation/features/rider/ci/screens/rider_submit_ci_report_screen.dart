@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../providers/rider_ci_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderSubmitCiReportScreen extends ConsumerStatefulWidget {
   final String ciId;
@@ -92,7 +93,7 @@ class _RiderSubmitCiReportScreenState
     setState(() => _submitting = false);
 
     if (ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('CI Report submitted successfully!'),
           backgroundColor: AppColors.riderGreen,
@@ -186,7 +187,7 @@ class _RiderSubmitCiReportScreenState
             ),
             const SizedBox(height: 6),
             const Text(
-              'Describe your findings: visit details, borrower verification, property assessment, neighbor statements, and any observations relevant to creditworthiness.',
+              'Describe your findings: visit details, lender verification, property assessment, neighbor statements, and any observations relevant to creditworthiness.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 10),
@@ -210,7 +211,7 @@ class _RiderSubmitCiReportScreenState
                 style: const TextStyle(fontSize: 14),
                 decoration: const InputDecoration(
                   hintText:
-                      'e.g. Visited borrower at provided address on [date]. Property confirmed as residential. Spoke with neighbor who confirmed lender has lived here for 3 years. Borrower showed employment ID. No red flags observed.',
+                      'e.g. Visited lender at provided address on [date]. Property confirmed as residential. Spoke with neighbor who confirmed lender has lived here for 3 years. Lender showed employment ID. No red flags observed.',
                   hintStyle:
                       TextStyle(fontSize: 13, color: AppColors.textTertiary),
                   border: InputBorder.none,

@@ -6,6 +6,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_collection_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderNavigateToBorrowerScreen extends ConsumerStatefulWidget {
   final String collectionId;
@@ -36,7 +37,7 @@ class _RiderNavigateToBorrowerScreenState
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(
               content: Text('Could not open Google Maps'),
               backgroundColor: AppColors.error),
@@ -59,7 +60,7 @@ class _RiderNavigateToBorrowerScreenState
     final col = state.selectedCollection;
 
     return MobileScaffold(
-      title: 'Navigate to Borrower',
+      title: 'Navigate to Lender',
       accentColor: AppColors.riderGreen,
       showBottomNav: false,
       navItems: const [],
@@ -72,12 +73,8 @@ class _RiderNavigateToBorrowerScreenState
   }
 
   Widget _buildContent(dynamic col) {
-    final schedule = col.loanSchedule as Map<String, dynamic>?;
-    final loan = schedule?['loan'] as Map<String, dynamic>?;
-    final lender = loan?['lender'] as Map<String, dynamic>?;
-    final user = lender?['user'] as Map<String, dynamic>?;
-    final addresses = lender?['addresses'] as List? ?? [];
-    final borrowerName = user?['full_name'] as String? ?? 'Borrower';
+    final addresses = col.lenderAddresses as List? ?? [];
+    final borrowerName = (col.lenderName as String).isEmpty ? 'Lender' : col.lenderName;
 
     final homeAddr = addresses.firstWhere(
       (a) => (a as Map)['address_type'] == 'home',
@@ -121,7 +118,7 @@ class _RiderNavigateToBorrowerScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Borrower',
+                    const Text('Lender',
                         style: TextStyle(color: Colors.white70, fontSize: 12)),
                     Text(borrowerName,
                         style: const TextStyle(

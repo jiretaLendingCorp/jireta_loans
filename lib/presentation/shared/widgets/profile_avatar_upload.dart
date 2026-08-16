@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/config/env_config.dart';
 import '../../../core/services/supabase_storage_service.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 /// A profile avatar that lets every user change their own profile picture.
 /// Uploads to the `avatars` public bucket and returns the public URL.
@@ -64,7 +65,7 @@ class _ProfileAvatarUploadState extends State<ProfileAvatarUpload> {
       final publicUrl = '$_publicUrl$path';
       await widget.onUploaded(publicUrl);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(
             content: Text('Profile picture updated'),
             backgroundColor: AppColors.success,
@@ -73,7 +74,7 @@ class _ProfileAvatarUploadState extends State<ProfileAvatarUpload> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           SnackBar(
             content: Text('Upload failed: $e'),
             backgroundColor: AppColors.error,

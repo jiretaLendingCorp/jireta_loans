@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../utils/error_suppression.dart';
+import '../../widgets/app_toast.dart';
 
 Future<bool?> showConfirmationDialog(
   BuildContext context, {
@@ -149,36 +150,10 @@ class ConfirmationDialog extends StatelessWidget {
 }
 
 void showSuccessSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Row(children: [
-        const Icon(Icons.check_circle, color: Colors.white, size: 18),
-        const SizedBox(width: 8),
-        Flexible(
-            child: Text(message, style: const TextStyle(color: Colors.white))),
-      ]),
-      backgroundColor: AppColors.riderGreen,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      margin: const EdgeInsets.all(16),
-    ),
-  );
+  AppToast.show(context, message, type: AppToastType.success);
 }
 
 void showErrorSnackBar(BuildContext context, String message) {
   if (shouldSuppressNetworkError(context, message)) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Row(children: [
-        const Icon(Icons.error_outline, color: Colors.white, size: 18),
-        const SizedBox(width: 8),
-        Flexible(
-            child: Text(message, style: const TextStyle(color: Colors.white))),
-      ]),
-      backgroundColor: AppColors.error,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      margin: const EdgeInsets.all(16),
-    ),
-  );
+  AppToast.show(context, message, type: AppToastType.error);
 }

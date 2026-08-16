@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/emp_rider_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpCreateRiderModal extends ConsumerStatefulWidget {
   const EmpCreateRiderModal({super.key});
@@ -38,7 +39,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_licenseExpiry == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
           const SnackBar(content: Text('Please select license expiry date')));
       return;
     }
@@ -57,13 +58,13 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
       });
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        context.showSnackBarAsToast(const SnackBar(
             content: Text('Rider created. Default password: 12345678'),
             backgroundColor: AppColors.success));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        context.showSnackBarAsToast(SnackBar(
             content: Text('Error: $e'), backgroundColor: AppColors.error));
       }
     } finally {

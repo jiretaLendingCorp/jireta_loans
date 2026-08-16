@@ -14,6 +14,7 @@ import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_collection_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderRecordCollectionScreen extends ConsumerStatefulWidget {
   final String collectionId;
@@ -53,7 +54,7 @@ class _RiderRecordCollectionScreenState
 
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
             content: Text('Enter a valid amount'),
             backgroundColor: AppColors.error),
@@ -66,7 +67,7 @@ class _RiderRecordCollectionScreenState
       builder: (_) => ConfirmationDialog(
         title: 'Confirm Collection',
         message:
-            'Record ₱${amount.toStringAsFixed(2)} as collected from borrower?',
+            'Record ₱${amount.toStringAsFixed(2)} as collected from lender?',
         confirmText: 'Confirm',
         confirmColor: AppColors.riderGreen,
       ),
@@ -132,12 +133,9 @@ class _RiderRecordCollectionScreenState
   }
 
   Widget _buildForm(dynamic col) {
-    final schedule = col.loanSchedule as Map<String, dynamic>?;
-    final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
-    final loan = schedule?['loan'] as Map<String, dynamic>?;
-    final lender = loan?['lender'] as Map<String, dynamic>?;
-    final user = lender?['user'] as Map<String, dynamic>?;
-    final borrowerName = user?['full_name'] as String? ?? '—';
+    final amountDue = col.amountDue;
+    final borrowerName = (col.lenderName as String).isEmpty ? '—' : col.lenderName;
+    final loanNumber = (col.loanNumber as String).isEmpty ? '—' : col.loanNumber;
 
     return Form(
       key: _formKey,
@@ -147,7 +145,7 @@ class _RiderRecordCollectionScreenState
           _CollectionSummaryCard(
             borrowerName: borrowerName,
             amountDue: amountDue,
-            loanNumber: loan?['loan_number'] as String? ?? '—',
+            loanNumber: loanNumber,
           ),
           const SizedBox(height: 20),
           Container(

@@ -75,6 +75,26 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                     const SizedBox(height: 20),
                     _buildSectionLabel(
                       context,
+                      label: 'Collections',
+                      count: state.todayCollections.length,
+                      icon: Icons.payments_outlined,
+                      onMore: () => context.push(RouteConstants.riderCollections),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildCollectionTasks(context, state),
+                    const SizedBox(height: 20),
+                    _buildSectionLabel(
+                      context,
+                      label: 'Cash Deliveries',
+                      count: state.todayDeliveries.length,
+                      icon: Icons.delivery_dining_outlined,
+                      onMore: () => context.push(RouteConstants.riderDisbursements),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDeliveryTasks(context, state),
+                    const SizedBox(height: 20),
+                    _buildSectionLabel(
+                      context,
                       label: 'CI Assignments',
                       count: state.todayCiTasks.length,
                       icon: Icons.search_outlined,
@@ -441,15 +461,14 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       BuildContext context, RiderDashboardState state) {
     if (state.todayCollections.isEmpty) {
       return _buildEmptyCard(
-          'No active collection tasks today', Icons.inbox_outlined);
+          'No assigned collection tasks yet', Icons.inbox_outlined);
     }
     return Column(
       children: state.todayCollections.take(5).map<Widget>((c) {
-        final schedule = c.collectionSchedule?.toDateString();
-        final loanNo = c.loanNumber;
-        final subtitle = loanNo.isNotEmpty
-            ? 'Loan $loanNo · $schedule'
-            : schedule ?? 'Scheduled';
+        final lender = c.lenderName;
+        final subtitle = lender.isNotEmpty
+            ? 'To: $lender'
+            : 'Loan ${c.loanNumber}';
         return _buildTaskCard(
           context,
           title: 'Collection #${c.id.substring(0, 8).toUpperCase()}',
@@ -460,6 +479,37 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
           iconColor: AppColors.riderGreen,
           onTap: () =>
               context.push('${RouteConstants.riderCollections}/${c.id}'),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDeliveryTasks(
+      BuildContext context, RiderDashboardState state) {
+    if (state.todayDeliveries.isEmpty) {
+      return _buildEmptyCard('No cash deliveries assigned',
+          Icons.delivery_dining_outlined);
+    }
+    return Column(
+      children: state.todayDeliveries.take(5).map<Widget>((d) {
+        final delivery = d.deliveryDate;
+        final lender = d.lenderName;
+        final subtitle = lender.isNotEmpty
+            ? 'To: $lender'
+            : 'Loan ${d.loanNumber}';
+        return _buildTaskCard(
+          context,
+          title: 'Loan ${d.loanNumber}',
+          subtitle: delivery != null
+              ? '$subtitle · Due ${delivery.toDateString()}'
+              : subtitle,
+          status: 'Deliver',
+          statusColor: AppColors.gold,
+          icon: Icons.delivery_dining_outlined,
+          iconColor: AppColors.gold,
+          onTap: () => context.push(
+              RouteConstants.riderDisbursementUploadProof.replaceFirst(
+                  ':id', d.id)),
         );
       }).toList(),
     );
@@ -601,6 +651,8 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     switch (s) {
       case 'pending':
         return AppColors.statusPending;
+      case 'assigned':
+        return AppColors.info;
       case 'accepted':
         return AppColors.riderGreen;
       case 'completed':
@@ -627,48 +679,6 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       default:
         return AppColors.textSecondary;
     }
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _MiniStat({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

@@ -9,6 +9,7 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/forms/app_dropdown.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../providers/hm_employee_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EditEmployeeModal extends ConsumerStatefulWidget {
   final UserModel employee;
@@ -77,13 +78,13 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
           );
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(content: Text('Employee updated successfully')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           SnackBar(
               content: Text(e.toString()), backgroundColor: AppColors.error),
         );

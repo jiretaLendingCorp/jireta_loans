@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/num_extensions.dart';
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -15,6 +16,7 @@ import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../providers/rider_collection_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderCollectionDetailsScreen extends ConsumerStatefulWidget {
   final String collectionId;
@@ -72,7 +74,7 @@ class _RiderCollectionDetailsScreenState
   Future<void> _recordCollection(CollectionAssignmentModel col) async {
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
           const SnackBar(content: Text('Please enter a valid amount')));
       return;
     }
@@ -104,7 +106,7 @@ class _RiderCollectionDetailsScreenState
 
   Future<void> _uploadProof() async {
     if (_proofPhoto == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
           const SnackBar(content: Text('Please take a proof photo')));
       return;
     }
@@ -234,6 +236,13 @@ class _RiderCollectionDetailsScreenState
                   _InfoTile(
                       'Period', 'Period ${schedule?['period_number'] ?? ''}'),
                   _InfoTile('Status', col.status),
+                  if (col.amountCollected != null)
+                    _InfoTile('Collected', col.amountCollected!.toCurrency),
+                  if (col.completedAt != null)
+                    _InfoTile(
+                        'Completed At',
+                        DateFormat('MMM d, yyyy h:mm a')
+                            .format(col.completedAt!)),
                   if (col.collectionSchedule != null)
                     _InfoTile(
                         'Scheduled At',
@@ -256,7 +265,7 @@ class _RiderCollectionDetailsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Borrower Information',
+                  const Text('Lender Information',
                       style:
                           TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 14),
@@ -312,8 +321,10 @@ class _RiderCollectionDetailsScreenState
           if (col.status == 'accepted') ...[
             const SizedBox(height: 16),
             AppButton(
-                label: 'Navigate to Borrower',
-                onPressed: () {},
+                label: 'Navigate to Lender',
+                onPressed: () => context.push(
+                    RouteConstants.riderNavigateToBorrower.replaceFirst(
+                        ':id', widget.collectionId)),
                 icon: Icons.map_outlined,
                 color: AppColors.info),
           ],
@@ -323,6 +334,26 @@ class _RiderCollectionDetailsScreenState
   }
 
   Widget _buildCollectTab(CollectionAssignmentModel col) {
+    if (col.status == 'completed' || col.status == 'declined') {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle_outline,
+                  size: 56, color: AppColors.riderGreen),
+              SizedBox(height: 12),
+              Text(
+                  'This collection has been processed.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 14)),
+            ],
+          ),
+        ),
+      );
+    }
     if (col.status != 'accepted' && col.status != 'in_progress') {
       return const Center(
         child: Padding(
@@ -390,6 +421,41 @@ class _RiderCollectionDetailsScreenState
   }
 
   Widget _buildProofTab(CollectionAssignmentModel col) {
+    if (col.status == 'completed') {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.verified_outlined,
+                  size: 56, color: AppColors.riderGreen),
+              const SizedBox(height: 12),
+              const Text('Collection completed successfully!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary)),
+              const SizedBox(height: 6),
+              Text(
+                'Amount collected: ${col.amountCollected?.toCurrency ?? '—'}',
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary),
+              ),
+              if (col.completedAt != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Completed: ${DateFormat('MMM d, yyyy h:mm a').format(col.completedAt!)}',
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(

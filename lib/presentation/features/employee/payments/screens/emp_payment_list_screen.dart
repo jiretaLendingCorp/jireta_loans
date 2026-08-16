@@ -13,6 +13,7 @@ import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/emp_payment_provider.dart';
 import '../widgets/record_office_payment_modal.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpPaymentListScreen extends ConsumerStatefulWidget {
   const EmpPaymentListScreen({super.key});
@@ -130,7 +131,7 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen> {
         onRecorded: () {
           ref.read(empPaymentListProvider.notifier).loadList(
               method: _methodFilter, status: _statusFilter, page: _currentPage);
-          ScaffoldMessenger.of(context).showSnackBar(
+          context.showSnackBarAsToast(
               const SnackBar(content: Text('Payment recorded successfully.')));
         },
       ),

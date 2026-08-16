@@ -11,6 +11,7 @@ import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   const EmpLoanApplicationsScreen({super.key});
@@ -319,7 +320,7 @@ class _EmpLoanApplicationsScreenState
           final ok = await ref.read(empLoanProvider.notifier).approve(loan.id);
           if (!mounted) return;
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
+          context.showSnackBarAsToast(
             SnackBar(
               content:
                   Text(ok ? 'Loan approved successfully' : 'Approval failed'),
@@ -337,7 +338,7 @@ class _EmpLoanApplicationsScreenState
       builder: (_) => EmpCiAssignModal(loanId: loan.id, ciId: ''),
     );
     if (assigned == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Rider assigned for credit investigation'),
           backgroundColor: AppColors.success,
@@ -358,7 +359,7 @@ class _EmpLoanApplicationsScreenState
       ),
     );
     if (assigned == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Delivery rider assigned'),
           backgroundColor: AppColors.success,
@@ -380,7 +381,7 @@ class _EmpLoanApplicationsScreenState
           final ok = await notifier.reject(loan.id, reason ?? '');
           if (!mounted) return;
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
+          context.showSnackBarAsToast(
             SnackBar(
               content: Text(ok ? 'Loan rejected' : 'Reject failed'),
               backgroundColor: ok ? AppColors.error : AppColors.textSecondary,

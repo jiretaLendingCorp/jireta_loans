@@ -8,6 +8,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../providers/lender_payment_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 const _lenderNavItems = [
   MobileNavItem(
@@ -138,7 +139,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   }
 
   void _showInfo(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
         SnackBar(content: Text(message)));
   }
 

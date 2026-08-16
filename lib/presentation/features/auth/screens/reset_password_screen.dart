@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -48,7 +49,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     if (ok) {
       setState(() => _done = true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Reset link may have expired. Request a new one.'),
           backgroundColor: AppColors.error,

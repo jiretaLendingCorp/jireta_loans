@@ -10,6 +10,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_account_upgrade_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
   const EmpAccountUpgradeListScreen({super.key});
@@ -275,7 +276,7 @@ class _EmpAccountUpgradeListScreenState
           action: action,
         );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
       SnackBar(
         content: Text(ok
             ? (action == 'verified'
@@ -334,7 +335,7 @@ class _EmpAccountUpgradeListScreenState
           ElevatedButton(
             onPressed: () {
               if (notesCtrl.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                context.showSnackBarAsToast(
                   const SnackBar(
                     content: Text('Please provide a rejection reason'),
                     backgroundColor: AppColors.error,
@@ -360,7 +361,7 @@ class _EmpAccountUpgradeListScreenState
             rejectionNotes: notesCtrl.text.trim(),
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         SnackBar(
           content:
               Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),

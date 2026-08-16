@@ -335,12 +335,12 @@ class _RiderTermsSheet extends StatelessWidget {
                   _RiderTermSection(
                     title: '2. Responsibilities of Riders',
                     body:
-                        'As an assigned rider you agree to perform credit investigations and cash collections professionally, safeguard borrower information, and follow the schedules and instructions given by authorized personnel.',
+                        'As an assigned rider you agree to perform credit investigations and cash collections professionally, safeguard lender information, and follow the schedules and instructions given by authorized personnel.',
                   ),
                   _RiderTermSection(
                     title: '3. Data Privacy',
                     body:
-                        'Borrower and company information you access must be kept confidential and used only for official duties, in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).',
+                        'Lender and company information you access must be kept confidential and used only for official duties, in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).',
                   ),
                   _RiderTermSection(
                     title: '4. Prohibited Acts',

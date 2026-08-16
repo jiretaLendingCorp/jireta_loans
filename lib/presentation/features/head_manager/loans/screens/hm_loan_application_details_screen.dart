@@ -9,6 +9,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../providers/hm_loan_provider.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmLoanApplicationDetailsScreen extends ConsumerStatefulWidget {
   final String loanId;
@@ -145,7 +146,7 @@ class _HmLoanApplicationDetailsScreenState
       ),
     );
     if (assigned == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Delivery rider assigned'),
           backgroundColor: AppColors.success,

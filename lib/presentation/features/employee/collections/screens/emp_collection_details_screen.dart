@@ -220,7 +220,7 @@ class _EmpCollectionDetailsScreenState
                       ),
                     if (_detail!['borrower_signature'] != null)
                       _ProofImage(
-                        label: 'Borrower Signature',
+                        label: 'Lender Signature',
                         url: _detail!['borrower_signature'],
                       ),
                     if (_detail!['collection_photo'] != null)

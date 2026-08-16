@@ -8,6 +8,7 @@ import '../../../../shared/widgets/forms/app_date_range_picker.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../providers/hm_report_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class GenerateReportModal extends ConsumerStatefulWidget {
   final Map<String, dynamic> template;
@@ -54,7 +55,7 @@ class _GenerateReportModalState extends ConsumerState<GenerateReportModal> {
 
   Future<void> _generate() async {
     if (_dateRange == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(content: Text('Please select a date range')),
       );
       return;

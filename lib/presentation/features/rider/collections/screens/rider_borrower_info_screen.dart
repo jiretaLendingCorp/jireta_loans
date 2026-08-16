@@ -10,6 +10,7 @@ import '../../../../../core/extensions/string_extensions.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../providers/rider_collection_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderBorrowerInfoScreen extends ConsumerStatefulWidget {
   final String collectionId;
@@ -48,7 +49,7 @@ class _RiderBorrowerInfoScreenState
     final col = state.selectedCollection;
 
     return MobileScaffold(
-      title: 'Borrower Info',
+      title: 'Lender Info',
       accentColor: AppColors.riderGreen,
       showBottomNav: false,
       navItems: const [],
@@ -61,14 +62,10 @@ class _RiderBorrowerInfoScreenState
   }
 
   Widget _buildContent(dynamic col) {
-    final schedule = col.loanSchedule as Map<String, dynamic>?;
-    final loan = schedule?['loan'] as Map<String, dynamic>?;
-    final lender = loan?['lender'] as Map<String, dynamic>?;
-    final user = lender?['user'] as Map<String, dynamic>?;
-    final fullName = user?['full_name'] as String? ?? '—';
-    final phone = user?['phone'] as String? ?? '—';
-    final gcash = lender?['gcash_number'] as String? ?? '—';
-    final addresses = lender?['addresses'] as List? ?? [];
+    final fullName = (col.lenderName as String).isEmpty ? '—' : col.lenderName;
+    final phone = (col.lenderPhone as String).isEmpty ? '—' : col.lenderPhone;
+    final gcash = (col.lenderGcash as String).isEmpty ? '—' : col.lenderGcash;
+    final addresses = col.lenderAddresses as List? ?? [];
 
     return RefreshIndicator(
       color: AppColors.riderGreen,
@@ -88,7 +85,7 @@ class _RiderBorrowerInfoScreenState
             onSms: () => _smsLender(phone),
             onCopy: () {
               Clipboard.setData(ClipboardData(text: phone));
-              ScaffoldMessenger.of(context).showSnackBar(
+              context.showSnackBarAsToast(
                 const SnackBar(
                     content: Text('Phone copied'),
                     backgroundColor: AppColors.riderGreen),
@@ -120,7 +117,7 @@ class _RiderBorrowerInfoScreenState
                   .replaceFirst(':id', widget.collectionId),
             ),
             icon: const Icon(Icons.navigation_outlined),
-            label: const Text('Navigate to Borrower',
+            label: const Text('Navigate to Lender',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
           ),
         ],
@@ -212,7 +209,7 @@ class _ContactActionsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Contact Borrower',
+          const Text('Contact Lender',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,

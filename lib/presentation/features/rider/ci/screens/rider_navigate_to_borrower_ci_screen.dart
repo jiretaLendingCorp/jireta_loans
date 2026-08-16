@@ -65,7 +65,7 @@ class _RiderNavigateToBorrowerCiScreenState
     final loan = ci.loan as Map<String, dynamic>?;
     final lender = loan?['lender'] as Map<String, dynamic>?;
     final user = lender?['user'] as Map<String, dynamic>?;
-    final borrowerName = user?['full_name'] as String? ?? 'Borrower';
+    final borrowerName = user?['full_name'] as String? ?? 'Lender';
     final addresses = lender?['addresses'] as List? ?? [];
 
     return ListView(
@@ -227,7 +227,7 @@ class _InstructionCard extends StatelessWidget {
           SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Navigate to the borrower\'s address to conduct the credit investigation. Visit all provided addresses.',
+              'Navigate to the lender\'s address to conduct the credit investigation. Visit all provided addresses.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ),

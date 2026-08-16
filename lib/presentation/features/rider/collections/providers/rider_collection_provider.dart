@@ -29,6 +29,7 @@ class RiderCollectionState {
   RiderCollectionState copyWith({
     List<CollectionAssignmentModel>? collections,
     CollectionAssignmentModel? selectedCollection,
+    bool clearSelection = false,
     bool? isLoading,
     String? error,
     String? activeTab,
@@ -36,7 +37,9 @@ class RiderCollectionState {
   }) =>
       RiderCollectionState(
         collections: collections ?? this.collections,
-        selectedCollection: selectedCollection ?? this.selectedCollection,
+        selectedCollection: clearSelection
+            ? null
+            : selectedCollection ?? this.selectedCollection,
         isLoading: isLoading ?? this.isLoading,
         error: error,
         activeTab: activeTab ?? this.activeTab,
@@ -74,7 +77,11 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     load(status: tab);
   }
 
-  Future<void> loadDetails(String assignmentId) async {
+  Future<void> loadDetails(String assignmentId, {bool silent = false}) async {
+    if (!silent) {
+      state = state.copyWith(
+          isLoading: true, error: null, clearSelection: true);
+    }
     try {
       final list = await _ds.getCollectionList(page: 1, limit: 100);
       final matches = list.where((c) => c.id == assignmentId);
@@ -83,6 +90,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         isLoading: false,
       );
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
@@ -94,6 +102,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       await _ds.acceptCollection(assignmentId: assignmentId);
       state = state.copyWith(isSubmitting: false);
       await load();
+      await loadDetails(assignmentId, silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -108,6 +117,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       await _ds.declineCollection(assignmentId: assignmentId);
       state = state.copyWith(isSubmitting: false);
       await load();
+      await loadDetails(assignmentId, silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -132,6 +142,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       );
       state = state.copyWith(isSubmitting: false);
       await load();
+      await loadDetails(assignmentId, silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -159,6 +170,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       await _ds.uploadProof(assignmentId: assignmentId, proofs: proofs);
       state = state.copyWith(isSubmitting: false);
       await load();
+      await loadDetails(assignmentId, silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(

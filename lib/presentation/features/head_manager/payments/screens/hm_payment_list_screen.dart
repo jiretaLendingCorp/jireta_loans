@@ -9,6 +9,7 @@ import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class _PaymentState {
   final List<Map<String, dynamic>> payments;
@@ -334,7 +335,7 @@ class _HmPaymentListScreenState extends ConsumerState<HmPaymentListScreen>
       final ok =
           await ref.read(_hmPaymentProvider.notifier).reversePayment(paymentId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           SnackBar(
               content:
                   Text(ok ? 'Payment reversed' : 'Failed to reverse payment'),

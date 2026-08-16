@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class ForceChangePasswordScreen extends ConsumerStatefulWidget {
   const ForceChangePasswordScreen({super.key});
@@ -69,7 +70,7 @@ class _ForceChangePasswordScreenState
       context.go(RouteConstants.webLogin);
     } else {
       final err = ref.read(authProvider).error;
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         SnackBar(
           content: Text(err?.toString() ?? 'Failed to change password.'),
           backgroundColor: AppColors.error,

@@ -8,8 +8,10 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../shared/providers/connectivity_provider.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class WebLoginScreen extends ConsumerStatefulWidget {
   const WebLoginScreen({super.key});
@@ -55,30 +57,15 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
 
   void _showNoInternetToast() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.wifi_off, color: Colors.white, size: 18),
-              SizedBox(width: 8),
-              Text('No Internet Connection'),
-            ],
-          ),
-          duration: const Duration(seconds: 4),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.deepNavy,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
+    AppToast.show(
+      context,
+      'No Internet Connection',
+      type: AppToastType.info,
+    );
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
       SnackBar(
         content: Text(msg),
         backgroundColor: AppColors.error,

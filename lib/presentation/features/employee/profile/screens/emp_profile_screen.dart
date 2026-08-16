@@ -11,6 +11,7 @@ import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../profile/providers/emp_profile_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpProfileScreen extends ConsumerStatefulWidget {
   const EmpProfileScreen({super.key});
@@ -39,7 +40,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     await ds.updateProfile({'profile_photo_url': url});
     await ref.read(empProfileProvider.notifier).loadProfile();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Profile picture updated'),
           backgroundColor: AppColors.success,
@@ -314,7 +315,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
 
   Future<void> _changePassword() async {
     if (_newPassCtrl.text != _confirmPassCtrl.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('New passwords do not match'),
           backgroundColor: AppColors.error,
@@ -323,7 +324,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
       return;
     }
     if (_newPassCtrl.text.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Password must be at least 8 characters'),
           backgroundColor: AppColors.error,
@@ -342,14 +343,14 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
           _currentPassCtrl.clear();
           _newPassCtrl.clear();
           _confirmPassCtrl.clear();
-          ScaffoldMessenger.of(context).showSnackBar(
+          context.showSnackBarAsToast(
             const SnackBar(
               content: Text('Password updated successfully'),
               backgroundColor: AppColors.success,
             ),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+          context.showSnackBarAsToast(
             const SnackBar(
               content:
                   Text('Failed to update password. Check current password.'),

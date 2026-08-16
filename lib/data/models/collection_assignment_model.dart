@@ -23,6 +23,9 @@ class CollectionAssignmentModel {
   final Map<String, dynamic>? assignedByUser;
   final String? flatLoanNumber;
   final String? flatLenderName;
+  final String? flatLenderPhone;
+  final String? flatLenderGcash;
+  final List<dynamic>? flatLenderAddresses;
   final String? flatRiderName;
 
   const CollectionAssignmentModel({
@@ -49,6 +52,9 @@ class CollectionAssignmentModel {
     this.assignedByUser,
     this.flatLoanNumber,
     this.flatLenderName,
+    this.flatLenderPhone,
+    this.flatLenderGcash,
+    this.flatLenderAddresses,
     this.flatRiderName,
   });
 
@@ -85,6 +91,10 @@ class CollectionAssignmentModel {
         assignedByUser: json['assigned_by_user'] as Map<String, dynamic>?,
         flatLoanNumber: json['loan_number'],
         flatLenderName: json['lender_name'],
+        flatLenderPhone: json['lender_phone'],
+        flatLenderGcash: json['lender_gcash'],
+        flatLenderAddresses:
+            (json['lender_addresses'] as List?)?.cast<dynamic>(),
         flatRiderName: json['rider_name'],
       );
 
@@ -111,6 +121,29 @@ class CollectionAssignmentModel {
     if (l == null) return '';
     return '${l['first_name'] ?? ''} ${l['last_name'] ?? ''}'.trim();
   }
+
+  String get lenderPhone {
+    if (flatLenderPhone != null && flatLenderPhone!.isNotEmpty) return flatLenderPhone!;
+    return loanSchedule?['loan']?['lender_profiles']?['users']
+            ?['phone_number'] ??
+        '';
+  }
+
+  String get lenderGcash {
+    if (flatLenderGcash != null && flatLenderGcash!.isNotEmpty) return flatLenderGcash!;
+    return loanSchedule?['loan']?['lender_profiles']?['gcash_number'] ?? '';
+  }
+
+  List<dynamic> get lenderAddresses {
+    if (flatLenderAddresses != null) return flatLenderAddresses!;
+    final users = loanSchedule?['loan']?['lender_profiles']?['users'];
+    final list = users is Map<String, dynamic> ? users['addresses'] : null;
+    if (list is List) return list;
+    return const [];
+  }
+
+  double get amountDue =>
+      (loanSchedule?['amount_due'] as num?)?.toDouble() ?? 0;
 
   String get statusLabel {
     switch (status) {

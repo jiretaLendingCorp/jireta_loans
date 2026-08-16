@@ -435,7 +435,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const Text('Documents & Signature',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('Upload required documents and capture borrower signature.',
+        const Text('Upload required documents and capture lender signature.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
         _docUploadRow('Valid Government ID'),
@@ -443,7 +443,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         _docUploadRow('Barangay Clearance'),
         _docUploadRow('Pay Slip'),
         const SizedBox(height: 20),
-        const Text('Borrower Signature',
+        const Text('Lender Signature',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         Container(

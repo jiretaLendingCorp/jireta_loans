@@ -17,7 +17,7 @@ class RiderCollectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final schedule = collection.loanSchedule;
     final borrowerName = collection.lenderName.isEmpty
-        ? 'Unknown Borrower'
+        ? 'Unknown Lender'
         : collection.lenderName;
     final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
     final dueDate = schedule?['due_date'] as String?;

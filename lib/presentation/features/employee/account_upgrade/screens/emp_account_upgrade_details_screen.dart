@@ -10,6 +10,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_account_upgrade_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 final _empAccountUpgradeDetailProvider =
     FutureProvider.family<Map<String, dynamic>?, String>((ref, lenderId) {
@@ -47,13 +48,13 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        context.showSnackBarAsToast(const SnackBar(
             content: Text('Unable to open document.'),
             backgroundColor: AppColors.error));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        context.showSnackBarAsToast(SnackBar(
             content: Text('Failed to open document: $e'),
             backgroundColor: AppColors.error));
       }
@@ -347,7 +348,7 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
         .verifyAll(lenderId: widget.lenderId, action: action);
     if (mounted) {
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      context.showSnackBarAsToast(SnackBar(
         content:
             Text(ok ? 'All documents $action successfully' : 'Action failed'),
         backgroundColor: ok ? AppColors.success : AppColors.error,

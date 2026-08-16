@@ -9,6 +9,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 final _empLoanDetailProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
@@ -129,7 +130,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
       ),
     );
     if (assigned == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      context.showSnackBarAsToast(const SnackBar(
           content: Text('Delivery rider assigned'),
           backgroundColor: AppColors.success));
       ref.invalidate(_empLoanDetailProvider(loanId));

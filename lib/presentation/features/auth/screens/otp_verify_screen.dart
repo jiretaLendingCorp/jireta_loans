@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class OtpVerifyScreen extends ConsumerStatefulWidget {
   final String phone;
@@ -151,7 +152,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
             ref.read(authProvider.notifier).extractErrorMessage(err) ?? message;
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         SnackBar(
           content: Text(message),
           backgroundColor: AppColors.error,
@@ -173,7 +174,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
       }
       setState(() => _error = null);
       _focusNodes[0].requestFocus();
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('OTP sent successfully.'),
           backgroundColor: AppColors.success,

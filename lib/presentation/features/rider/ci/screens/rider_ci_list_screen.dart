@@ -174,7 +174,7 @@ class _CiCard extends StatelessWidget {
                     children: [
                       Text(
                           ci.borrowerName.isEmpty
-                              ? 'Borrower'
+                              ? 'Lender'
                               : ci.borrowerName,
                           style: const TextStyle(
                               fontSize: 14,

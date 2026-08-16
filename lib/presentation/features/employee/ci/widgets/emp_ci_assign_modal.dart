@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/emp_ci_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpCiAssignModal extends ConsumerStatefulWidget {
   final String loanId;
@@ -304,7 +305,7 @@ class _EmpCiAssignModalState extends ConsumerState<EmpCiAssignModal> {
     if (mounted) {
       setState(() => _isLoading = false);
       Navigator.pop(context, ok);
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         SnackBar(
           content: Text(
               ok ? 'Rider assigned successfully' : 'Failed to assign rider'),

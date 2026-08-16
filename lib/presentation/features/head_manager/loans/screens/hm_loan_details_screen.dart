@@ -7,6 +7,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../providers/hm_loan_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmLoanDetailsScreen extends ConsumerStatefulWidget {
   final String loanId;
@@ -562,7 +563,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
     if (confirm == true && mounted) {
       final ok = await ref.read(hmLoanProvider.notifier).applyPenalty(loanId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         SnackBar(
             content: Text(ok ? 'Penalty applied' : 'Failed to apply penalty'),
             backgroundColor: ok ? AppColors.success : AppColors.error),

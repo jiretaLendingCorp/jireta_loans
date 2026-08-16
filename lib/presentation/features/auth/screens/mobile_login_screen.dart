@@ -12,6 +12,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class MobileLoginScreen extends ConsumerStatefulWidget {
   const MobileLoginScreen({super.key});
@@ -98,7 +99,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
       SnackBar(
         content: Text(msg),
         backgroundColor: AppColors.error,

@@ -11,6 +11,7 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 final _ciDetailProvider =
     FutureProvider.family<Map<String, dynamic>?, String>((ref, ciId) async {
@@ -151,7 +152,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     final principal = ci['loans']?['principal_amount'];
 
     return _InfoCard(
-      title: 'Borrower Information',
+      title: 'Lender Information',
       icon: Icons.person_outline,
       children: [
         _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName),
@@ -458,7 +459,7 @@ class _AssignRiderFormState extends ConsumerState<_AssignRiderForm> {
         deadline: _deadline?.toIso8601String(),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(
               content: Text('Rider assigned successfully'),
               backgroundColor: AppColors.success),
@@ -467,7 +468,7 @@ class _AssignRiderFormState extends ConsumerState<_AssignRiderForm> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           SnackBar(
               content: Text('Error: $e'), backgroundColor: AppColors.error),
         );

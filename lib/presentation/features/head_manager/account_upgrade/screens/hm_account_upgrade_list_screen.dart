@@ -12,6 +12,7 @@ import '../../../../shared/widgets/profile_avatar.dart';
 import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_account_upgrade_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmAccountUpgradeListScreen extends ConsumerStatefulWidget {
   const HmAccountUpgradeListScreen({super.key});
@@ -108,7 +109,7 @@ class _HmAccountUpgradeListScreenState
           action: action,
         );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
       SnackBar(
         content: Text(ok
             ? (action == 'verified'
@@ -168,7 +169,7 @@ class _HmAccountUpgradeListScreenState
           ElevatedButton(
             onPressed: () {
               if (notesCtrl.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                context.showSnackBarAsToast(
                   const SnackBar(
                     content: Text('Please provide a rejection reason'),
                     backgroundColor: AppColors.error,
@@ -194,7 +195,7 @@ class _HmAccountUpgradeListScreenState
             rejectionNotes: notesCtrl.text.trim(),
           );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         SnackBar(
           content:
               Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),

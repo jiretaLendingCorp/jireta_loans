@@ -10,6 +10,7 @@ import '../../../../shared/utils/report_exporter.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class _ReportState {
   final List<Map<String, dynamic>> templates;
@@ -468,7 +469,7 @@ class HmReportLibraryScreen extends ConsumerWidget {
                           result['data'],
                         );
                       } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        context.showSnackBarAsToast(
                           const SnackBar(
                               content: Text('Failed to generate report'),
                               backgroundColor: AppColors.error),
@@ -571,7 +572,7 @@ class HmReportLibraryScreen extends ConsumerWidget {
 
   void _notifyDownload(BuildContext context, String title, String format) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
       SnackBar(
         content: Text('$title downloaded as $format'),
         backgroundColor: AppColors.success,
@@ -581,7 +582,7 @@ class HmReportLibraryScreen extends ConsumerWidget {
 
   void _notifyError(BuildContext context) {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
       const SnackBar(
           content: Text('Failed to download report'),
           backgroundColor: AppColors.error),

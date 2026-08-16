@@ -20,6 +20,7 @@ import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_account_upgrade_provider.dart';
 import 'valid_id_scanner_screen.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class LenderAccountUpgradeSubmitScreen extends ConsumerStatefulWidget {
   const LenderAccountUpgradeSubmitScreen({super.key});
@@ -264,7 +265,7 @@ class _LenderAccountUpgradeSubmitScreenState
     if (_step == 0) {
       if (_dob == null) {
         setState(() => _dobError = 'Date of birth is required');
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        context.showSnackBarAsToast(const SnackBar(
           content: Text('Please select your date of birth to continue.'),
           backgroundColor: AppColors.error,
         ));
@@ -273,7 +274,7 @@ class _LenderAccountUpgradeSubmitScreenState
       if (!_isAdult(_dob!)) {
         setState(() => _dobError =
             'You must be at least 18 years old to submit account upgrade.');
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        context.showSnackBarAsToast(const SnackBar(
           content:
               Text('You must be at least 18 years old to continue.'),
           backgroundColor: AppColors.error,
@@ -292,7 +293,7 @@ class _LenderAccountUpgradeSubmitScreenState
         .map((e) => _docLabels[e.key]!)
         .toList();
     if (missing.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
           SnackBar(content: Text('Please upload: ${missing.join(', ')}')));
       return;
     }
@@ -304,7 +305,7 @@ class _LenderAccountUpgradeSubmitScreenState
     if (!_isAdult(_dob!)) {
       setState(() => _dobError =
           'You must be at least 18 years old to submit account upgrade.');
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text(
               'You must be at least 18 years old to submit account upgrade documents.'),

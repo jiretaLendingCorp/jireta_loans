@@ -16,6 +16,7 @@ import '../../../../../data/models/loan_model.dart';
 import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_loan_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class LenderApplyLoanScreen extends ConsumerStatefulWidget {
   const LenderApplyLoanScreen({super.key});
@@ -95,7 +96,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   Future<void> _submit() async {
     if (_purposeCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Please enter your loan purpose.'),
           backgroundColor: AppColors.error,
@@ -106,7 +107,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     final cmValid = _coMakerFormKey.currentState?.validate() ?? false;
     if (!cmValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Please complete the co-maker details.'),
           backgroundColor: AppColors.error,
@@ -118,7 +119,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
       setState(() =>
           _signatureError = 'Co-maker must sign the pad before submission');
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Please provide the co-maker signature.'),
           backgroundColor: AppColors.error,
@@ -151,7 +152,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Loan application submitted successfully!'),
           backgroundColor: AppColors.success,
@@ -160,7 +161,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       context.go(RouteConstants.lenderDashboard);
     } else {
       final err = ref.read(lenderLoanProvider).error ?? 'An error occurred.';
-      ScaffoldMessenger.of(context).showSnackBar(
+      context.showSnackBarAsToast(
         SnackBar(content: Text(err), backgroundColor: AppColors.error),
       );
     }
@@ -169,7 +170,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   void _goNext() {
     if (_step == 0) {
       if (_purposeCtrl.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(
             content: Text('Please enter your loan purpose to continue.'),
             backgroundColor: AppColors.error,
@@ -180,7 +181,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     } else if (_step == 1) {
       final valid = _coMakerFormKey.currentState?.validate() ?? false;
       if (!valid) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(
             content: Text('Please complete the co-maker details.'),
             backgroundColor: AppColors.error,
@@ -192,7 +193,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
         setState(() =>
             _signatureError = 'Co-maker must sign the pad before submission');
-        ScaffoldMessenger.of(context).showSnackBar(
+        context.showSnackBarAsToast(
           const SnackBar(
             content: Text('Please provide the co-maker signature to continue.'),
             backgroundColor: AppColors.error,
@@ -1923,7 +1924,7 @@ class _ChooseDisbursementViewState
     setState(() => _submitting = false);
 
     final err = ref.read(lenderLoanProvider).error;
-    ScaffoldMessenger.of(context).showSnackBar(
+    context.showSnackBarAsToast(
       SnackBar(
         content: Text(
           ok ? 'Your disbursement method has been saved.' : err ?? 'Failed to save your disbursement method.',

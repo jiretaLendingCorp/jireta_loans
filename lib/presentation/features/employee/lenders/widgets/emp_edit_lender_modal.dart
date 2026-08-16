@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/emp_lender_provider.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpEditLenderModal extends ConsumerStatefulWidget {
   final Map<String, dynamic> lenderData;
@@ -64,7 +65,7 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        context.showSnackBarAsToast(SnackBar(
             content: Text('Error: $e'), backgroundColor: AppColors.error));
       }
     } finally {
