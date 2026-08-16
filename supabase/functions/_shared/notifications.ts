@@ -36,6 +36,8 @@ export async function sendPushNotification(params: {
       const fcmKey = Deno.env.get('FCM_SERVER_KEY');
       if (!fcmKey) return;
 
+      // Bound the FCM call so a slow/unreachable FCM endpoint can never hang
+      // the caller's request response (the DB row is already written above).
       await fetch('https://fcm.googleapis.com/fcm/send', {
         method: 'POST',
         headers: {
@@ -47,6 +49,7 @@ export async function sendPushNotification(params: {
           notification: { title: params.title, body: params.body },
           data: { type: params.type, reference_id: params.referenceId ?? '' },
         }),
+        signal: AbortSignal.timeout(5000),
       });
     }
   } catch (err) {

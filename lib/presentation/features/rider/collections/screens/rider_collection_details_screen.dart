@@ -260,17 +260,12 @@ class _RiderCollectionDetailsScreenState
                       style:
                           TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 14),
-                  _InfoTile(
-                      'Name',
-                      col.loanSchedule?['loans']?['lender']?['first_name'] !=
-                              null
-                          ? '${col.loanSchedule!['loans']['lender']['first_name']} ${col.loanSchedule!['loans']['lender']['last_name']}'
-                          : 'N/A'),
-                  _InfoTile('Loan #',
-                      col.loanSchedule?['loans']?['loan_number'] ?? 'N/A'),
+                  _InfoTile('Name', col.lenderName.isEmpty ? 'N/A' : col.lenderName),
+                  _InfoTile('Loan #', col.loanNumber.isEmpty ? 'N/A' : col.loanNumber),
                   _InfoTile(
                       'Phone',
-                      col.loanSchedule?['loans']?['lender']?['phone_number'] ??
+                      col.loanSchedule?['loan']?['lender_profiles']?['users']
+                              ?['phone_number'] ??
                           'N/A'),
                 ],
               ),

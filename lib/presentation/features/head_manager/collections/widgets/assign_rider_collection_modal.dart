@@ -12,10 +12,12 @@ import '../providers/hm_collection_provider.dart';
 class AssignRiderCollectionModal extends ConsumerStatefulWidget {
   final String loanScheduleId;
   final String loanId;
+  final String? assignmentId;
   const AssignRiderCollectionModal({
     super.key,
     required this.loanScheduleId,
     required this.loanId,
+    this.assignmentId,
   });
 
   @override
@@ -101,6 +103,7 @@ class _AssignRiderCollectionModalState
             loanScheduleId: widget.loanScheduleId,
             loanId: widget.loanId,
             riderId: _selectedRiderId!,
+            assignmentId: widget.assignmentId,
             collectionSchedule: _collectionSchedule,
             notes: _notesCtrl.text.trim(),
           );

@@ -53,7 +53,7 @@ async function handleCollectionGetList(req: Request) {
     .select(`id, status, collection_type, rider_id, assigned_by, requested_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
       notes:collection_notes,
       proof_photo, borrower_signature, collection_photo,
-      loan_schedule:loan_schedules(installment_number, due_date, amount_due, loan:loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number)))),
+      loan_schedule:loan_schedules(installment_number, period_number, due_date, amount_due, loan:loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number)))),
       rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name)),
       assigned_by_user:users!collection_assignments_assigned_by_fkey(id, first_name, last_name)`, { count: 'exact' });
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
@@ -69,15 +69,24 @@ async function handleCollectionGetList(req: Request) {
   const mapped = (data ?? []).map((r) => {
     const schedule = embedAsObject(r.loan_schedule);
     const loanEmbed = schedule ? embedAsObject(schedule.loan) : null;
+    const lenderProf = loanEmbed ? embedAsObject(loanEmbed.lender_profiles) : null;
+    const lenderUser = lenderProf ? embedAsObject(lenderProf.users) : null;
+    const rider = embedAsObject(r.rider);
+    const riderUser = rider ? embedAsObject(rider.users) : null;
     const loan = loanEmbed
       ? { ...loanEmbed, outstanding_balance: financials[loanEmbed.id]?.outstanding_balance ?? null }
       : null;
     return {
       ...r,
       loans: loan,
-      loan_schedule: schedule
-        ? { installment_number: schedule.installment_number, due_date: schedule.due_date, amount_due: schedule.amount_due }
-        : null,
+      // Flat convenience fields so every consumer (employee/HM/rider screens)
+      // can render correctly regardless of which nested keys it reads.
+      loan_number: loanEmbed?.loan_number ?? null,
+      lender_name: [lenderUser?.first_name, lenderUser?.last_name].filter(Boolean).join(' ') || null,
+      rider_name: [riderUser?.first_name, riderUser?.last_name].filter(Boolean).join(' ') || null,
+      amount_due: schedule?.amount_due ?? null,
+      period_number: schedule?.period_number ?? null,
+      due_date: schedule?.due_date ?? null,
     };
   });
   return jsonResponse({ data: mapped, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });

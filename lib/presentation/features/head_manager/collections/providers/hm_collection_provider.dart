@@ -84,6 +84,7 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
     required String loanScheduleId,
     required String loanId,
     required String riderId,
+    String? assignmentId,
     DateTime? collectionSchedule,
     String notes = '',
   }) async {
@@ -91,6 +92,7 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
       await _ds.assignCollection(
         loanScheduleId: loanScheduleId,
         riderId: riderId,
+        assignmentId: assignmentId,
         collectionSchedule: collectionSchedule?.toIso8601String(),
         notes: notes,
       );

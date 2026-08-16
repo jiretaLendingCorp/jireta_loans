@@ -10,6 +10,7 @@ import '../../../../../data/datasources/remote/collection_remote_datasource.dart
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../widgets/assign_rider_collection_modal.dart';
 
 final _collectionDetailProvider =
     FutureProvider.family<CollectionAssignmentModel?, String>(
@@ -50,12 +51,12 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                 style: const TextStyle(color: AppColors.error))),
         data: (col) => col == null
             ? const Center(child: Text('Collection not found'))
-            : _buildContent(col, fmt, dateFmt),
+            : _buildContent(context, ref, col, fmt, dateFmt),
       ),
     );
   }
 
-  Widget _buildContent(
+  Widget _buildContent(BuildContext context, WidgetRef ref,
       CollectionAssignmentModel col, NumberFormat fmt, DateFormat dateFmt) {
     final schedule = col.loanSchedule ?? {};
     final rider = col.rider ?? {};
@@ -68,6 +69,22 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeaderCard(col, fmt, isOffice),
+          if (col.status == 'requested' && !isOffice) ...[
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: () => _assignRider(context, ref, col),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.riderGreen,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 12),
+                ),
+                icon: const Icon(Icons.local_shipping_outlined, size: 18),
+                label: const Text('Assign Rider'),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,6 +173,26 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _assignRider(
+      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
+    final loanId =
+        (col.loanSchedule?['loan']?['id'] as String?) ?? '';
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AssignRiderCollectionModal(
+        loanScheduleId: col.loanScheduleId,
+        loanId: loanId,
+        assignmentId: col.id,
+      ),
+    );
+    if (result == true && context.mounted) {
+      ref.invalidate(_collectionDetailProvider(col.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rider assigned successfully')),
+      );
+    }
   }
 
   Widget _buildHeaderCard(

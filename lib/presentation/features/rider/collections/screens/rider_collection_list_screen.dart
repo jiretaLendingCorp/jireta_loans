@@ -143,9 +143,7 @@ class _RiderCollectionListScreenState
 
   Widget _buildCard(BuildContext context, dynamic c) {
     final loanSchedule = c.loanSchedule as Map<String, dynamic>?;
-    final lenderName = loanSchedule?['loan']?['lender'] != null
-        ? '${loanSchedule!['loan']['lender']['first_name']} ${loanSchedule['loan']['lender']['last_name']}'
-        : 'Lender';
+    final lenderName = (c.lenderName as String).isEmpty ? 'Lender' : c.lenderName;
     final amountDue = loanSchedule?['installment_amount']?.toString() ?? '0.00';
     final dueDate = loanSchedule?['due_date'] != null
         ? DateTime.tryParse(loanSchedule!['due_date'])?.toDateString() ?? ''

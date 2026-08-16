@@ -21,6 +21,9 @@ class CollectionAssignmentModel {
   final Map<String, dynamic>? loanSchedule;
   final Map<String, dynamic>? rider;
   final Map<String, dynamic>? assignedByUser;
+  final String? flatLoanNumber;
+  final String? flatLenderName;
+  final String? flatRiderName;
 
   const CollectionAssignmentModel({
     required this.id,
@@ -44,6 +47,9 @@ class CollectionAssignmentModel {
     this.loanSchedule,
     this.rider,
     this.assignedByUser,
+    this.flatLoanNumber,
+    this.flatLenderName,
+    this.flatRiderName,
   });
 
   factory CollectionAssignmentModel.fromJson(Map<String, dynamic> json) =>
@@ -77,9 +83,13 @@ class CollectionAssignmentModel {
         loanSchedule: json['loan_schedule'] as Map<String, dynamic>?,
         rider: json['rider'] as Map<String, dynamic>?,
         assignedByUser: json['assigned_by_user'] as Map<String, dynamic>?,
+        flatLoanNumber: json['loan_number'],
+        flatLenderName: json['lender_name'],
+        flatRiderName: json['rider_name'],
       );
 
   String get riderName {
+    if (flatRiderName != null && flatRiderName!.isNotEmpty) return flatRiderName!;
     if (rider == null) return '';
     return '${rider!['first_name'] ?? ''} ${rider!['last_name'] ?? ''}'.trim();
   }
@@ -90,10 +100,14 @@ class CollectionAssignmentModel {
         .trim();
   }
 
-  String get loanNumber => loanSchedule?['loan']?['loan_number'] ?? '';
+  String get loanNumber {
+    if (flatLoanNumber != null && flatLoanNumber!.isNotEmpty) return flatLoanNumber!;
+    return loanSchedule?['loan']?['loan_number'] ?? '';
+  }
 
   String get lenderName {
-    final l = loanSchedule?['loan']?['lender'];
+    if (flatLenderName != null && flatLenderName!.isNotEmpty) return flatLenderName!;
+    final l = loanSchedule?['loan']?['lender_profiles']?['users'];
     if (l == null) return '';
     return '${l['first_name'] ?? ''} ${l['last_name'] ?? ''}'.trim();
   }
