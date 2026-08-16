@@ -962,8 +962,9 @@ class _SchedulePreview extends StatelessWidget {
     final installment = (preview['installment_amount'] ?? 0).toDouble();
     final installments = preview['installments'] ?? 0;
     final freq = (preview['frequency'] ?? '').toString();
-    final intervalDays = freq == 'weekly' ? 7 : (freq == 'monthly' ? 30 : 1);
-    final termDays = installments * intervalDays;
+    final termUnit = freq == 'weekly'
+        ? 'weeks'
+        : (freq == 'monthly' ? 'months' : 'days');
     final schedule =
         List<dynamic>.from(preview['schedule'] ?? preview['due_dates'] ?? []);
 
@@ -1013,7 +1014,8 @@ class _SchedulePreview extends StatelessWidget {
                     AppColors.success),
                 _PreviewRow('Number of Periods', '$installments',
                     AppColors.textSecondary),
-                _PreviewRow('Term', '$termDays days', AppColors.textSecondary),
+                _PreviewRow('Term', '$installments $termUnit',
+                    AppColors.textSecondary),
                 const Divider(height: 20),
                 const Align(
                   alignment: Alignment.centerLeft,

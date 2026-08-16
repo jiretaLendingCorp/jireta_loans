@@ -23,6 +23,7 @@ class LoanModel extends LoanEntity {
     required super.outstandingBalance,
     required super.frequency,
     required super.termDays,
+    required super.termPeriods,
     super.releaseDate,
     super.dueDate,
     required super.status,
@@ -55,6 +56,7 @@ class LoanModel extends LoanEntity {
       outstandingBalance: _toDouble(json['outstanding_balance']),
       frequency: json['frequency'] ?? 'monthly',
       termDays: (json['term_days'] as num?)?.toInt() ?? 0,
+      termPeriods: (json['term_periods'] as num?)?.toInt() ?? 0,
       releaseDate: json['release_date'] != null
           ? DateTime.parse(json['release_date'])
           : null,
@@ -130,6 +132,28 @@ class LoanModel extends LoanEntity {
   }
 
   String get paymentFrequency => frequency;
+
+  String get termUnit {
+    switch (frequency) {
+      case 'daily':
+        return 'days';
+      case 'weekly':
+        return 'weeks';
+      default:
+        return 'months';
+    }
+  }
+
+  /// Human-readable chosen repayment term, e.g. "6 weeks" or "60 days".
+  /// Falls back to the default full term (`term_days`) when the borrower kept
+  /// the maximum allowed number of periods.
+  String get termLabel {
+    if (termPeriods > 0) return '$termPeriods $termUnit';
+    return '$termDays days';
+  }
+
+  /// Number of installments the borrower chose to pay.
+  int get numberOfPayments => termPeriods;
 
   /// Status shown in lists/details. Once a delivery rider is assigned to an
   /// approved loan (loan stays `approved` until the rider completes delivery),

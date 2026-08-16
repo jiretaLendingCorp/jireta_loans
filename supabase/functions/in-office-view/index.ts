@@ -196,7 +196,9 @@ async function handleSubmit(req: Request) {
 
     const principalAmount = s3.principal_amount;
     const frequency = s3.payment_frequency ?? 'monthly';
-    const sched = computeSchedule(Number(principalAmount), frequency);
+    const periodsOverride =
+      s3.term_periods != null ? Number(s3.term_periods) : undefined;
+    const sched = computeSchedule(Number(principalAmount), frequency, new Date(), periodsOverride);
     const termDays = sched.termDays;
     const dueDates = sched.dueDates;
     const amounts = sched.amounts;
@@ -217,6 +219,8 @@ async function handleSubmit(req: Request) {
       interest_rate: 20,
       payment_frequency: frequency,
       term_days: termDays,
+      term_periods: sched.installments,
+      installment_amount: sched.installmentAmount,
       status: 'pending',
       purpose: s3.purpose,
     }).select().single();

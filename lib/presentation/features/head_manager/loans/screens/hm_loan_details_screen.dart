@@ -275,7 +275,9 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                 bold: true),
             _row('Frequency',
                 _capitalize(loan['payment_frequency'] as String? ?? '-')),
-            _row('Term', '${loan['term_days'] ?? '-'} days'),
+            _row('Loan Term', _loanTermLabel(loan)),
+            _row('Number of Payments',
+                '${loan['term_periods'] ?? '-'}'),
             _row('Installment',
                 '₱${fmt.format(loan['installment_amount'] ?? 0)}'),
             _row('Due Date', _formatDate(loan['due_date'])),
@@ -626,4 +628,17 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
   String _capitalize(String s) => s.isEmpty
       ? s
       : '${s[0].toUpperCase()}${s.substring(1).replaceAll('_', ' ')}';
+
+  String _loanTermLabel(Map<String, dynamic> loan) {
+    final periods = (loan['term_periods'] as num?)?.toInt() ?? 0;
+    final frequency = (loan['payment_frequency'] as String? ?? '').toLowerCase();
+    final unit = frequency == 'daily'
+        ? 'days'
+        : frequency == 'weekly'
+            ? 'weeks'
+            : 'months';
+    if (periods > 0) return '$periods $unit';
+    final days = loan['term_days'];
+    return days != null ? '$days days' : '-';
+  }
 }

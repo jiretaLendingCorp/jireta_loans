@@ -243,7 +243,10 @@ class _AmountCard extends StatelessWidget {
           _divider(),
           _row('Frequency', (loan.paymentFrequency ?? '').toUpperCase()),
           _divider(),
-          _row('Term', '${loan.termDays ?? 0} days'),
+          _row('Loan Term',
+              loan.termLabel?.toString() ?? '${loan.termDays ?? 0} days'),
+          _divider(),
+          _row('Number of Payments', '${loan.termPeriods ?? '—'}'),
         ],
       ),
     );

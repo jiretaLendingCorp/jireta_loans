@@ -11,6 +11,7 @@ class LoanEntity {
   final double outstandingBalance;
   final String frequency;
   final int termDays;
+  final int termPeriods;
   final DateTime? releaseDate;
   final DateTime? dueDate;
   final String status;
@@ -33,6 +34,7 @@ class LoanEntity {
     required this.outstandingBalance,
     required this.frequency,
     required this.termDays,
+    required this.termPeriods,
     this.releaseDate,
     this.dueDate,
     required this.status,

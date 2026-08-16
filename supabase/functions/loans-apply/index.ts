@@ -98,6 +98,8 @@ serve(async (req) => {
         interest_rate: 20,
         payment_frequency: frequency,
         term_days: sched.termDays,
+        term_periods: sched.installments,
+        installment_amount: sched.installmentAmount,
         purpose: String(purpose).substring(0, 500),
         status: 'pending',
       })

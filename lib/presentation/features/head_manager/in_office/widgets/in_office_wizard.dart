@@ -350,10 +350,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
               '₱${(p['interest_amount'] as num?)?.toStringAsFixed(2) ?? '0'}'),
           _previewRow('Installment',
               '₱${(p['installment_amount'] as num?)?.toStringAsFixed(2) ?? '0'}'),
-          _previewRow('Term', '${p['term_days'] ?? 0} days'),
+          _previewRow('Term',
+              '${p['installments'] ?? p['term_days'] ?? 0} ${_termUnitFor(p['frequency'])}'),
         ],
       ),
     );
+  }
+
+  String _termUnitFor(dynamic frequency) {
+    final f = (frequency ?? '').toString().toLowerCase();
+    if (f == 'weekly') return 'weeks';
+    if (f == 'monthly') return 'months';
+    return 'days';
   }
 
   Widget _previewRow(String l, String v) {
@@ -554,6 +562,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       2 => {
           'principal_amount': _amountCtrl.text,
           'frequency': _frequency,
+          'term_periods':
+              (_schedulePreview?['installments'] as num?)?.toInt(),
           'purpose': _purposeCtrl.text,
         },
       3 => {

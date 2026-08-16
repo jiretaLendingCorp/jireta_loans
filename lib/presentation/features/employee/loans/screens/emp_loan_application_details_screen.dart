@@ -237,7 +237,10 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
             _row('Total Payable',
                 '₱${(data['total_payable'] ?? 0).toStringAsFixed(2)}'),
             _row('Frequency', (data['frequency'] ?? '').toUpperCase()),
-            _row('Term', '${data['term_days'] ?? '—'} days'),
+            _row('Loan Term', _loanTermLabel(data)),
+            _row('Number of Payments', '${data['term_periods'] ?? '—'}'),
+            _row('Installment',
+                '₱${(data['installment_amount'] ?? 0).toStringAsFixed(2)}'),
             _row('Purpose', data['purpose'] ?? '—'),
           ],
         ),
@@ -387,6 +390,19 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                     fontSize: 13, fontWeight: FontWeight.w600))),
       ]),
     );
+  }
+
+  String _loanTermLabel(Map<String, dynamic> data) {
+    final periods = (data['term_periods'] as num?)?.toInt() ?? 0;
+    final frequency = (data['frequency'] as String? ?? '').toLowerCase();
+    final unit = frequency == 'daily'
+        ? 'days'
+        : frequency == 'weekly'
+            ? 'weeks'
+            : 'months';
+    if (periods > 0) return '$periods $unit';
+    final days = data['term_days'];
+    return days != null ? '$days days' : '—';
   }
 
   Widget _buildShimmer() => ListView.separated(

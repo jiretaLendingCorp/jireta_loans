@@ -243,7 +243,8 @@ class _LoanDetailBodyState extends ConsumerState<_LoanDetailBody> {
           _InfoRow('Outstanding Balance', loan.outstandingBalance.toCurrency,
               valueColor: AppColors.warning),
           _InfoRow('Payment Frequency', loan.frequency.toUpperCase()),
-          _InfoRow('Term', '${loan.termDays} days'),
+          _InfoRow('Loan Term', loan.termLabel),
+          _InfoRow('Number of Payments', '${loan.numberOfPayments}'),
           if (loan.dueDate != null)
             _InfoRow('Due Date', loan.dueDate!.toDisplayDate),
           if (loan.disbursedAt != null)

@@ -247,6 +247,7 @@ async function saveStep3(applicationId: string, data: Record<string, unknown>) {
     interest_rate: data.interest_rate != null ? Number(data.interest_rate) : 20.00,
     payment_frequency: data.frequency ?? data.payment_frequency ?? null,
     term_days: data.term_days != null ? Number(data.term_days) : null,
+    term_periods: data.term_periods != null ? Number(data.term_periods) : null,
     purpose: data.purpose ?? null,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'application_id' });

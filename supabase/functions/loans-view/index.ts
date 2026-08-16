@@ -90,7 +90,7 @@ async function handleGetList(req: Request) {
     // To reach the user's name we embed lender_profiles → users.
     let query = db.from('loans')
       .select(`id, loan_number, lender_id, principal_amount, interest_rate,
-        payment_frequency, term_days, status, created_at,
+        payment_frequency, term_days, term_periods, installment_amount, status, created_at,
         updated_at,
         lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)),
         in_office_applications!fk_loans_in_office(created_by),
@@ -166,6 +166,8 @@ async function handleGetList(req: Request) {
         payment_frequency: r.payment_frequency,
         frequency: r.payment_frequency,
         term_days: r.term_days,
+        term_periods: r.term_periods,
+        installment_amount: r.installment_amount,
         status: r.status,
         created_at: r.created_at,
         disbursed_at: disb?.disbursed_at ?? null,
@@ -177,7 +179,7 @@ async function handleGetList(req: Request) {
         assigned_rider_name: ciRider
           ? `${ciRider.first_name} ${ciRider.last_name}`.trim()
           : null,
-        rider_delivery_assigned: disb?.method === 'rider_delivery' ?? false,
+        rider_delivery_assigned: disb?.method === 'rider_delivery',
       };
     });
 
