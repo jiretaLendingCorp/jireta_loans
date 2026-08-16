@@ -1,17 +1,14 @@
 // lib/presentation/features/employee/loans/screens/emp_loan_application_details_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
-import '../../../head_manager/ci/widgets/ci_assign_modal.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
-import '../providers/emp_loan_provider.dart';
 
 final _empLoanDetailProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
@@ -41,13 +38,6 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   Widget _buildContent(
       BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
     final status = data['status'] as String? ?? '';
-    final canAct = [
-      'pending',
-      'under_review',
-      'ci_required',
-      'ci_assigned',
-      'ci_completed'
-    ].contains(status);
     final canAssignDeliveryRider =
         status == 'approved' && data['disbursement_method'] == 'rider_delivery';
 
@@ -67,14 +57,14 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                     _buildLenderInfo(data),
                     const SizedBox(height: 16),
                     _buildLoanInfo(data),
+                    const SizedBox(height: 16),
+                    _buildCoMakerCard(data),
                   ])),
               const SizedBox(width: 20),
               Expanded(
                   flex: 2,
                   child: Column(children: [
                     _buildAccountUpgradeStatus(data),
-                    const SizedBox(height: 16),
-                    if (canAct) _buildActionPanel(context, ref, data),
                     if (canAssignDeliveryRider) ...[
                       const SizedBox(height: 16),
                       _buildDisbursementAction(context, ref, data),
@@ -236,7 +226,10 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                 '₱${(data['interest_amount'] ?? 0).toStringAsFixed(2)}'),
             _row('Total Payable',
                 '₱${(data['total_payable'] ?? 0).toStringAsFixed(2)}'),
-            _row('Frequency', (data['frequency'] ?? '').toUpperCase()),
+            _row('Frequency',
+                ((data['frequency'] ?? data['payment_frequency']) ?? '')
+                    .toString()
+                    .toUpperCase()),
             _row('Loan Term', _loanTermLabel(data)),
             _row('Number of Payments', '${data['term_periods'] ?? '—'}'),
             _row('Installment',
@@ -246,6 +239,81 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildCoMakerCard(Map<String, dynamic> data) {
+    final coMakers =
+        (data['co_makers'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    if (coMakers.isEmpty) return const SizedBox.shrink();
+    final cm = coMakers.first;
+    final signature = cm['signature'] as String?;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Co-Maker',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy)),
+            const Divider(height: 20),
+            _row('Name',
+                '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim()),
+            _row('Relationship', cm['relationship'] ?? '—'),
+            _row('Phone', cm['phone_number'] ?? '—'),
+            _row('Birthday', cm['date_of_birth'] ?? '—'),
+            _row('Address', cm['address'] ?? '—'),
+            if (signature != null && signature.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('Co-Maker Signature',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              Container(
+                width: 280,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _buildSignatureImage(signature),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignatureImage(String signature) {
+    const placeholder = Center(
+      child: Icon(Icons.draw_outlined,
+          size: 40, color: AppColors.textTertiary),
+    );
+    if (signature.startsWith('data:') || signature.startsWith('http')) {
+      return Image.network(
+        signature,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => placeholder,
+      );
+    }
+    try {
+      final bytes = base64Decode(signature);
+      return Image.memory(
+        bytes,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => placeholder,
+      );
+    } catch (_) {
+      return placeholder;
+    }
   }
 
   Widget _buildAccountUpgradeStatus(Map<String, dynamic> data) {
@@ -278,103 +346,6 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionPanel(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
-    final status = data['status'] as String? ?? '';
-    final canApprove = [
-      'pending',
-      'under_review',
-      'ci_required',
-      'ci_assigned',
-      'ci_completed'
-    ].contains(status);
-    final canAssignCi =
-        ['pending', 'under_review', 'ci_required'].contains(status);
-    final canRequestCi = status == 'under_review';
-    final canReject = [
-      'pending',
-      'under_review',
-      'ci_required',
-      'ci_assigned',
-      'ci_completed'
-    ].contains(status);
-    final canCancel = ['pending', 'under_review'].contains(status);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Actions',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy)),
-            const Divider(height: 20),
-            if (canApprove)
-              _actionBtn(
-                  'Approve Loan',
-                  AppColors.success,
-                  Icons.check_circle_outline,
-                  () => _approve(context, ref, data)),
-            if (canAssignCi) ...[
-              if (canApprove) const SizedBox(height: 10),
-              _actionBtn('Assign Rider for CI', AppColors.gold, Icons.search,
-                  () => _showAssignRider(context, ref, data)),
-            ],
-            if (canRequestCi) ...[
-              const SizedBox(height: 10),
-              _actionBtn('Request CI', AppColors.lenderBlue, Icons.search,
-                  () => _requestCI(context, ref, data)),
-            ],
-            if (canReject) ...[
-              const SizedBox(height: 10),
-              _actionBtn('Reject Loan', AppColors.error, Icons.cancel_outlined,
-                  () => _reject(context, ref, data)),
-            ],
-            if (canCancel) ...[
-              const SizedBox(height: 10),
-              _actionBtn('Cancel', AppColors.textSecondary, Icons.close,
-                  () => _cancel(context, ref, data)),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showAssignRider(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> data) async {
-    final assigned = await showDialog<bool>(
-      context: context,
-      builder: (_) => CiAssignModal(loanId: data['id'] as String),
-    );
-    if (assigned == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Rider assigned for credit investigation'),
-          backgroundColor: AppColors.success));
-      ref.invalidate(_empLoanDetailProvider(loanId));
-    }
-  }
-
-  Widget _actionBtn(
-      String label, Color color, IconData icon, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 16, color: color),
-        label: Text(label),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          side: BorderSide(color: color),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-      ),
-    );
-  }
-
   Widget _row(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
@@ -393,14 +364,17 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   }
 
   String _loanTermLabel(Map<String, dynamic> data) {
-    final periods = (data['term_periods'] as num?)?.toInt() ?? 0;
-    final frequency = (data['frequency'] as String? ?? '').toLowerCase();
-    final unit = frequency == 'daily'
+    final frequency =
+        (data['frequency'] ?? data['payment_frequency'] ?? '').toString();
+    final unit = frequency.toLowerCase() == 'daily'
         ? 'days'
-        : frequency == 'weekly'
+        : frequency.toLowerCase() == 'weekly'
             ? 'weeks'
             : 'months';
+    final periods = (data['term_periods'] as num?)?.toInt() ?? 0;
     if (periods > 0) return '$periods $unit';
+    final schedules = (data['loan_schedules'] as List?) ?? const [];
+    if (schedules.isNotEmpty) return '${schedules.length} $unit';
     final days = data['term_days'];
     return days != null ? '$days days' : '—';
   }
@@ -412,85 +386,4 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
         itemBuilder: (_, __) => const ShimmerLoader(height: 180),
       );
 
-  Future<void> _approve(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> data) async {
-    final ok = await showDialog<bool>(
-        context: context,
-        builder: (_) => ConfirmationDialog(
-            title: 'Approve Loan',
-            message: 'Approve loan #${data['loan_number']}?'));
-    if (ok == true && context.mounted) {
-      final success = await ref
-          .read(empLoanProvider.notifier)
-          .approve(data['id'] as String);
-      if (context.mounted) {
-        if (success) {
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Loan approved'),
-              backgroundColor: AppColors.success));
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Failed to approve'),
-              backgroundColor: AppColors.error));
-        }
-      }
-    }
-  }
-
-  Future<void> _requestCI(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> data) async {
-    final ok = await showDialog<bool>(
-        context: context,
-        builder: (_) => const ConfirmationDialog(
-            title: 'Request CI', message: 'Move to Credit Investigation?'));
-    if (ok == true && context.mounted) {
-      await ref.read(empLoanProvider.notifier).requestCI(data['id'] as String);
-      if (context.mounted) ref.invalidate(_empLoanDetailProvider(loanId));
-    }
-  }
-
-  Future<void> _reject(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> data) async {
-    final reasonCtrl = TextEditingController();
-    final ok = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-              title: const Text('Reject Loan'),
-              content: TextField(
-                  controller: reasonCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Reason for rejection'),
-                  maxLines: 3),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel')),
-                ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.error),
-                    child: const Text('Reject')),
-              ],
-            ));
-    if (ok == true && context.mounted) {
-      await ref
-          .read(empLoanProvider.notifier)
-          .reject(data['id'] as String, reasonCtrl.text.trim());
-      if (context.mounted) context.pop();
-    }
-  }
-
-  Future<void> _cancel(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> data) async {
-    final ok = await showDialog<bool>(
-        context: context,
-        builder: (_) => const ConfirmationDialog(
-            title: 'Cancel Application',
-            message: 'Cancel this loan application?'));
-    if (ok == true && context.mounted) {
-      await ref.read(empLoanProvider.notifier).cancel(data['id'] as String);
-      if (context.mounted) context.pop();
-    }
-  }
 }

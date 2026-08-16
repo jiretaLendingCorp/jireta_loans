@@ -36,6 +36,7 @@ class EmpPaymentNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
       required String loanScheduleId,
       required double amount,
       String? notes,
+      String? assignmentId,
       required String idempotencyKey}) async {
     try {
       await _ds.recordOffice(
@@ -43,6 +44,7 @@ class EmpPaymentNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
           loanScheduleId: loanScheduleId,
           amount: amount,
           notes: notes,
+          assignmentId: assignmentId,
           idempotencyKey: idempotencyKey);
       return true;
     } catch (e) {

@@ -82,22 +82,14 @@ class _LenderLoanDetailsScreenState
                         _InfoCard(loan: loan),
                         const SizedBox(height: 16),
                         if (loan.status == 'active') ...[
-                          AppButton(
-                            label: 'Pay via GCash',
-                            onPressed: () => context.push(
-                                RouteConstants.lenderPayViaGcash,
-                                extra: {'loan_id': loan.id}),
-                            color: AppColors.lenderBlue,
-                            icon: Icons.payment,
-                          ),
-                          const SizedBox(height: 10),
-                          AppButton(
-                            label: 'View Payment Schedule',
-                            onPressed: () =>
-                                context.push(RouteConstants.lenderPayments),
-                            color: AppColors.info,
-                            icon: Icons.calendar_month,
-                            outlined: true,
+                          Center(
+                            child: AppButton(
+                              label: 'Pay',
+                              onPressed: () => context
+                                  .push(RouteConstants.lenderPayments),
+                              color: AppColors.lenderBlue,
+                              icon: Icons.payment,
+                            ),
                           ),
                         ],
                         if (loan.status == 'pending' ||

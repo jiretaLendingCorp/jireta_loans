@@ -90,7 +90,7 @@ async function handleGetList(req: Request) {
     // To reach the user's name we embed lender_profiles → users.
     let query = db.from('loans')
       .select(`id, loan_number, lender_id, principal_amount, interest_rate,
-        payment_frequency, term_days, term_periods, installment_amount, status, created_at,
+        payment_frequency, term_days, term_periods, installment_amount, status, purpose, created_at,
         updated_at,
         lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)),
         in_office_applications!fk_loans_in_office(created_by),
@@ -206,7 +206,7 @@ async function handleGetDetails(req: Request) {
     if (user.role === ROLES.LENDER && loan.lender_id !== user.id) return errorResponse('Access denied', 403, 'FORBIDDEN');
     if (user.role === ROLES.RIDER) return errorResponse('Access denied', 403, 'FORBIDDEN');
 
-    const { data: schedule } = await db.from('loan_schedules').select('*').eq('loan_id', loanId).order('installment_number');
+    const { data: schedule } = await db.from('v_loan_schedules').select('*').eq('loan_id', loanId).order('installment_number');
     const scheduleIds = (schedule ?? []).map((s) => s.id);
     let payments: Record<string, unknown>[] = [];
     if (scheduleIds.length > 0) {

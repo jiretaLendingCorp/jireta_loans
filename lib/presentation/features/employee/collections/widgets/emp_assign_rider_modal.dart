@@ -9,11 +9,13 @@ import '../providers/emp_collection_provider.dart';
 
 class EmpAssignRiderModal extends ConsumerStatefulWidget {
   final String loanScheduleId;
+  final String? assignmentId;
   final VoidCallback onAssigned;
 
   const EmpAssignRiderModal({
     super.key,
     required this.loanScheduleId,
+    this.assignmentId,
     required this.onAssigned,
   });
 
@@ -60,6 +62,7 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
     setState(() => _loading = true);
     final ok = await ref.read(empCollectionListProvider.notifier).assign(
           loanScheduleId: widget.loanScheduleId,
+          assignmentId: widget.assignmentId,
           riderId: _selectedRiderId!,
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
           schedule: _scheduleDate?.toIso8601String(),

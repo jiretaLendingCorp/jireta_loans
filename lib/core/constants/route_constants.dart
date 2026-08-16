@@ -98,6 +98,8 @@ class RouteConstants {
   static const String lenderPayments = '/lender/payments';
   static const String lenderPaymentHistory = '/lender/payment-history';
   static const String lenderPayViaGcash = '/lender/pay-gcash';
+  static const String lenderPaymentMethod = '/lender/payment-method';
+  static const String lenderOfficePayment = '/lender/pay-office';
   static const String lenderPaymentReceipt = '/lender/receipt/:id';
   static const String lenderCollections = '/lender/collections';
   static const String lenderCollectionDetails = '/lender/collections/:id';

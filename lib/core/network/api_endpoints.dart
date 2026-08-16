@@ -53,6 +53,7 @@ class ApiEndpoints {
   static const String ciGetList = 'ci-view?fn=get-list';
 
   // Collections
+  static const String collectionsRequest = 'collections-manage?fn=request';
   static const String collectionsAssign = 'collections-manage?fn=assign';
   static const String collectionsAccept = 'collections-manage?fn=accept';
   static const String collectionsDecline = 'collections-manage?fn=decline';

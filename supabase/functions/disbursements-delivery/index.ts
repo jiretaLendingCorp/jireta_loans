@@ -202,8 +202,10 @@ async function handleRiderDelivery(req: Request) {
   if (!rider.is_available) return errorResponse('Rider is not available', 400, 'INVALID_STATUS');
 
   const amount = Number(loan.principal_amount);
-  const now = new Date().toISOString();
 
+  // The cash has NOT been handed over yet — only a rider was assigned. Keep
+  // disbursed_at null so the lender's app keeps showing the "approved /
+  // awaiting release" card instead of treating the loan as already disbursed.
   const { data: disbursement, error: disbErr } = await db
     .from('disbursements')
     .insert({
@@ -214,7 +216,7 @@ async function handleRiderDelivery(req: Request) {
       delivery_date,
       delivery_notes: notes ?? null,
       authorized_by: authResult.id,
-      disbursed_at: now,
+      disbursed_at: null,
       status: 'pending',
     })
     .select()
@@ -332,6 +334,7 @@ async function handleUploadProof(req: Request) {
     .update({
       ...updates,
       status: 'completed',
+      disbursed_at: new Date().toISOString(),
       delivered_at: new Date().toISOString(),
     })
     .eq('id', disbursement_id);

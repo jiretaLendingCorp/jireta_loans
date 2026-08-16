@@ -6,10 +6,13 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/models/loan_model.dart';
+import '../../../../../data/models/loan_schedule_model.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/lender_payment_provider.dart';
+import '../../collections/providers/lender_collection_provider.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 
 const _lenderNavItems = [
@@ -38,20 +41,60 @@ class LenderPaymentScheduleScreen extends ConsumerStatefulWidget {
 }
 
 class _State extends ConsumerState<LenderPaymentScheduleScreen> {
+  bool _resolving = true;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(lenderLoanProvider.notifier).loadLoans();
-      ref.read(lenderPaymentProvider.notifier).loadPayments();
-    });
+    Future.microtask(_load);
+  }
+
+  Future<void> _load() async {
+    await ref.read(lenderLoanProvider.notifier).loadLoans();
+    if (!mounted) return;
+    final loan = _pickLoan(ref.read(lenderLoanProvider));
+    if (loan != null) {
+      await ref.read(lenderLoanProvider.notifier).loadLoanDetails(loan.id);
+    }
+    if (!mounted) return;
+    setState(() => _resolving = false);
+    ref.read(lenderPaymentProvider.notifier).loadPayments();
+  }
+
+  /// The lender's relevant loan for the schedule: the active one, or the
+  /// approved loan that is awaiting fund release.
+  LoanModel? _pickLoan(LenderLoanState state) {
+    if (state.activeLoan != null) return state.activeLoan;
+    for (final l in state.loans) {
+      if (l.status == 'approved') return l;
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final loanState = ref.watch(lenderLoanProvider);
-    final loan = loanState.activeLoan;
-    final schedules = loan?.schedules ?? [];
+    final loan = loanState.selectedLoan;
+    final schedules = (loan?.schedules ?? const [])
+        .map((e) => LoanScheduleModel.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    final collAsync = ref.watch(lenderCollectionProvider);
+    final collItems = collAsync.valueOrNull?['items'] as List? ?? [];
+    final collectionBySchedule = <String, String>{};
+    final collectionTypeBySchedule = <String, String>{};
+    for (final item in collItems) {
+      if (item is! Map) continue;
+      final schedId = item['loan_schedule_id'] as String? ?? '';
+      final status = item['status'] as String? ?? '';
+      if (schedId.isNotEmpty &&
+          ['requested', 'assigned', 'accepted', 'in_progress']
+              .contains(status)) {
+        collectionBySchedule[schedId] = status;
+        collectionTypeBySchedule[schedId] =
+            (item['collection_type'] as String? ?? 'rider');
+      }
+    }
 
     return MobileScaffold(
       title: 'Payment Schedule',
@@ -64,7 +107,7 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
           onPressed: () => context.push(RouteConstants.lenderPaymentHistory),
         ),
       ],
-      body: loanState.isLoading
+      body: _resolving || loanState.isLoading
           ? const ShimmerLoader()
           : loan == null
               ? Center(
@@ -107,6 +150,10 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                                 schedule: schedules[i],
                                 index: i,
                                 activeLoanId: loan.id,
+                                collectionStatus: collectionBySchedule[
+                                    schedules[i].id],
+                                collectionType: collectionTypeBySchedule[
+                                    schedules[i].id],
                               ),
                             ),
                     ),
@@ -164,13 +211,17 @@ class _Col extends StatelessWidget {
 }
 
 class _ScheduleTile extends ConsumerWidget {
-  final dynamic schedule;
+  final LoanScheduleModel schedule;
   final int index;
   final String activeLoanId;
+  final String? collectionStatus;
+  final String? collectionType;
   const _ScheduleTile(
       {required this.schedule,
       required this.index,
-      required this.activeLoanId});
+      required this.activeLoanId,
+      this.collectionStatus,
+      this.collectionType});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -222,14 +273,14 @@ class _ScheduleTile extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                    'Due: ${schedule.dueDate != null ? (schedule.dueDate as DateTime).toDateString() : ''}',
+                    'Due: ${schedule.dueDate.toDateString()}',
                     style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                         color: AppColors.textPrimary)),
                 const SizedBox(height: 3),
                 Text(
-                    'Amount: ${(schedule.amountDue as num?)?.toCurrency ?? '₱0'}',
+                    'Amount: ${schedule.amountDue.toCurrency}',
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textSecondary)),
               ],
@@ -238,15 +289,21 @@ class _ScheduleTile extends ConsumerWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              StatusBadge(status: schedule.status ?? 'pending'),
+              StatusBadge(status: schedule.status),
               const SizedBox(height: 6),
-              if (isPending)
+              if (collectionStatus != null)
+                _CollectionChip(
+                    status: collectionStatus!,
+                    type: collectionType ?? 'rider')
+              else if (isPending)
                 GestureDetector(
-                  onTap: () => context.push(RouteConstants.lenderPayViaGcash,
-                      extra: {
-                        'loan_id': activeLoanId,
-                        'schedule_id': schedule.id
-                      }),
+                  onTap: () =>
+                      context.push(RouteConstants.lenderPaymentMethod, extra: {
+                    'loan_id': activeLoanId,
+                    'schedule_id': schedule.id,
+                    'amount': schedule.amountDue,
+                    'due_date': schedule.dueDate.toDateString(),
+                  }),
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -263,6 +320,50 @@ class _ScheduleTile extends ConsumerWidget {
                 ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CollectionChip extends StatelessWidget {
+  final String status;
+  final String type;
+  const _CollectionChip({required this.status, this.type = 'rider'});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPendingRequest = status == 'requested';
+    final isOffice = type == 'office';
+    final label = isPendingRequest
+        ? (isOffice
+            ? 'Office visit pending'
+            : 'Rider collection pending')
+        : (isOffice
+            ? 'Office visit in progress'
+            : 'Rider collection in progress');
+    final color =
+        isPendingRequest ? AppColors.warning : AppColors.lenderBlue;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+              isOffice
+                  ? Icons.storefront_outlined
+                  : Icons.delivery_dining_outlined,
+              size: 13,
+              color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 10, fontWeight: FontWeight.w600)),
         ],
       ),
     );

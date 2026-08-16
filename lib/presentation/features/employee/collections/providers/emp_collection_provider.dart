@@ -39,12 +39,14 @@ class EmpCollectionNotifier
 
   Future<bool> assign(
       {required String loanScheduleId,
+      String? assignmentId,
       required String riderId,
       String? notes,
       String? schedule}) async {
     try {
       await _ds.assign(
           loanScheduleId: loanScheduleId,
+          assignmentId: assignmentId,
           riderId: riderId,
           collectionSchedule: schedule,
           notes: notes);

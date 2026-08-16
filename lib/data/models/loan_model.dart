@@ -8,8 +8,10 @@ class LoanModel extends LoanEntity {
   final String? assignedRiderName;
   final String? ciStatus;
   final String? disbursementAccount;
+  final String? purpose;
   final Map<String, dynamic>? lenderAddress;
   final bool riderDeliveryAssigned;
+  final double _installmentAmount;
 
   const LoanModel({
     required super.id,
@@ -39,9 +41,11 @@ class LoanModel extends LoanEntity {
     this.assignedRiderName,
     this.ciStatus,
     this.disbursementAccount,
+    this.purpose,
     this.lenderAddress,
     this.riderDeliveryAssigned = false,
-  });
+    double installmentAmount = 0,
+  }) : _installmentAmount = installmentAmount;
 
   factory LoanModel.fromJson(Map<String, dynamic> json) {
     return LoanModel(
@@ -82,8 +86,10 @@ class LoanModel extends LoanEntity {
       assignedRiderName: json['assigned_rider_name'],
       ciStatus: json['ci_status'],
       disbursementAccount: json['disbursement_account'],
+      purpose: json['purpose'],
       lenderAddress: json['lender_address'],
       riderDeliveryAssigned: json['rider_delivery_assigned'] == true,
+      installmentAmount: _toDouble(json['installment_amount']),
     );
   }
 
@@ -131,6 +137,14 @@ class LoanModel extends LoanEntity {
     return parts.length > 1 ? parts.sublist(1).join(' ') : '';
   }
 
+  /// Installment (per-period) amount. Falls back to the first schedule's due
+  /// amount when the loan payload omits `installment_amount`.
+  double get installmentAmount => _installmentAmount > 0
+      ? _installmentAmount
+      : ((schedules?.isNotEmpty ?? false)
+          ? ((schedules!.first['amount_due'] as num?)?.toDouble() ?? 0.0)
+          : 0.0);
+
   String get paymentFrequency => frequency;
 
   String get termUnit {
@@ -149,6 +163,8 @@ class LoanModel extends LoanEntity {
   /// the maximum allowed number of periods.
   String get termLabel {
     if (termPeriods > 0) return '$termPeriods $termUnit';
+    final sched = schedules;
+    if (sched != null && sched.isNotEmpty) return '${sched.length} $termUnit';
     return '$termDays days';
   }
 

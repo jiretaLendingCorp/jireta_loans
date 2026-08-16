@@ -65,12 +65,14 @@ class CollectionRemoteDataSource {
     required String riderId,
     String? collectionSchedule,
     String? notes,
+    String? assignmentId,
   }) =>
       assignCollection(
         loanScheduleId: loanScheduleId,
         riderId: riderId,
         collectionSchedule: collectionSchedule,
         notes: notes,
+        assignmentId: assignmentId,
       );
 
   Future<CollectionAssignmentModel> assignCollection({
@@ -78,10 +80,12 @@ class CollectionRemoteDataSource {
     required String riderId,
     String? collectionSchedule,
     String? notes,
+    String? assignmentId,
   }) async {
     final res = await _client.post(
       ApiEndpoints.collectionsAssign,
       data: {
+        if (assignmentId != null) 'assignment_id': assignmentId,
         'loan_schedule_id': loanScheduleId,
         'rider_id': riderId,
         if (collectionSchedule != null)
@@ -90,6 +94,18 @@ class CollectionRemoteDataSource {
       },
     );
     return CollectionAssignmentModel.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// Lender requests a rider to collect their installment at home, or an
+  /// office visit to pay at the office (`type` = 'rider' | 'office').
+  Future<void> requestRiderCollection({
+    required String loanScheduleId,
+    String type = 'rider',
+  }) async {
+    await _client.post(
+      ApiEndpoints.collectionsRequest,
+      data: {'loan_schedule_id': loanScheduleId, 'type': type},
+    );
   }
 
   Future<void> acceptCollection({required String assignmentId}) async {

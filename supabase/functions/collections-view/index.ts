@@ -50,7 +50,7 @@ async function handleCollectionGetList(req: Request) {
   const offset = (page - 1) * limit;
   const db = getAdminClient();
   let query = db.from('collection_assignments')
-    .select(`id, status, rider_id, assigned_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
+    .select(`id, status, collection_type, rider_id, assigned_by, requested_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
       notes:collection_notes,
       proof_photo, borrower_signature, collection_photo,
       loan_schedule:loan_schedules(installment_number, due_date, amount_due, loan:loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number)))),

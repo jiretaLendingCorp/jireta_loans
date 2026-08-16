@@ -5,6 +5,7 @@ class CollectionAssignmentModel {
   final String? riderId;
   final String? assignedBy;
   final String status;
+  final String collectionType;
   final double? amountCollected;
   final String? notes;
   final DateTime? collectionSchedule;
@@ -27,6 +28,7 @@ class CollectionAssignmentModel {
     this.riderId,
     this.assignedBy,
     required this.status,
+    this.collectionType = 'rider',
     this.amountCollected,
     this.notes,
     this.collectionSchedule,
@@ -51,6 +53,7 @@ class CollectionAssignmentModel {
         riderId: json['rider_id'],
         assignedBy: json['assigned_by'],
         status: json['status'] ?? 'pending',
+        collectionType: json['collection_type'] ?? 'rider',
         amountCollected: (json['amount_collected'] as num?)?.toDouble(),
         notes: json['notes'],
         collectionSchedule: json['collection_schedule'] != null

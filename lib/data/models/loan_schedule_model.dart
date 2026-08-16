@@ -24,7 +24,9 @@ class LoanScheduleModel {
       LoanScheduleModel(
         id: json['id'] ?? '',
         loanId: json['loan_id'] ?? '',
-        periodNumber: (json['period_number'] as num?)?.toInt() ?? 0,
+        periodNumber: (json['period_number'] as num?)?.toInt() ??
+            (json['installment_number'] as num?)?.toInt() ??
+            0,
         dueDate: json['due_date'] != null
             ? DateTime.parse(json['due_date'])
             : DateTime.now(),

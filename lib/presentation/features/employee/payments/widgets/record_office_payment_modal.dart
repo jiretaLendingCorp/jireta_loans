@@ -8,7 +8,18 @@ import '../providers/emp_payment_provider.dart';
 
 class RecordOfficePaymentModal extends ConsumerStatefulWidget {
   final VoidCallback onRecorded;
-  const RecordOfficePaymentModal({super.key, required this.onRecorded});
+  final String? loanId;
+  final String? loanScheduleId;
+  final double? amount;
+  final String? assignmentId;
+  const RecordOfficePaymentModal({
+    super.key,
+    required this.onRecorded,
+    this.loanId,
+    this.loanScheduleId,
+    this.amount,
+    this.assignmentId,
+  });
 
   @override
   ConsumerState<RecordOfficePaymentModal> createState() =>
@@ -17,9 +28,11 @@ class RecordOfficePaymentModal extends ConsumerStatefulWidget {
 
 class _RecordOfficePaymentModalState
     extends ConsumerState<RecordOfficePaymentModal> {
-  final _loanIdCtrl = TextEditingController();
-  final _scheduleIdCtrl = TextEditingController();
-  final _amountCtrl = TextEditingController();
+  late final _loanIdCtrl = TextEditingController(text: widget.loanId ?? '');
+  late final _scheduleIdCtrl =
+      TextEditingController(text: widget.loanScheduleId ?? '');
+  late final _amountCtrl = TextEditingController(
+      text: widget.amount != null ? widget.amount!.toStringAsFixed(2) : '');
   final _notesCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
@@ -61,6 +74,7 @@ class _RecordOfficePaymentModalState
           loanScheduleId: scheduleId,
           amount: amount,
           notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          assignmentId: widget.assignmentId,
           idempotencyKey: idempotencyKey,
         );
 

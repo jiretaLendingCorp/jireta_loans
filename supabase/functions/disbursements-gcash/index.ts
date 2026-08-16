@@ -80,7 +80,7 @@ serve(async (req) => {
         xendit_reference: externalId,
         xendit_status: xenditResult.status,
         authorized_by: authResult.id,
-        disbursed_at: now,
+        disbursed_at: xenditResult.status === 'COMPLETED' ? now : null,
         status: xenditResult.status === 'COMPLETED' ? 'completed' : 'pending',
       })
       .select()

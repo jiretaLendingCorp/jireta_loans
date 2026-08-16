@@ -38,6 +38,7 @@ class HmCollectionListScreen extends ConsumerWidget {
                 value: state.statusFilter,
                 options: [
                   'all',
+                  'requested',
                   'assigned',
                   'accepted',
                   'declined',
@@ -125,6 +126,7 @@ class _CollectionCardState extends State<_CollectionCard> {
     final col = widget.collection;
     final schedule = col.loanSchedule as Map<String, dynamic>? ?? {};
     final rider = col.rider as Map<String, dynamic>? ?? {};
+    final isOffice = col.collectionType == 'office';
     final amount = col.amountCollected ??
         (schedule['amount_due'] as num?)?.toDouble() ??
         0.0;
@@ -163,8 +165,12 @@ class _CollectionCardState extends State<_CollectionCard> {
                   color: AppColors.riderGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.local_shipping_outlined,
-                    color: AppColors.riderGreen, size: 22),
+                child: Icon(
+                    isOffice
+                        ? Icons.storefront_outlined
+                        : Icons.local_shipping_outlined,
+                    color: AppColors.riderGreen,
+                    size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -181,14 +187,18 @@ class _CollectionCardState extends State<_CollectionCard> {
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        const Icon(Icons.delivery_dining_outlined,
+                        Icon(isOffice
+                            ? Icons.storefront_outlined
+                            : Icons.delivery_dining_outlined,
                             size: 13, color: AppColors.textTertiary),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                            rider.isNotEmpty
-                                ? '${rider['first_name']} ${rider['last_name']}'
-                                : 'Unassigned',
+                            isOffice
+                                ? 'Office visit payment'
+                                : rider.isNotEmpty
+                                    ? '${rider['first_name']} ${rider['last_name']}'
+                                    : 'Unassigned',
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textSecondary),
                             overflow: TextOverflow.ellipsis,

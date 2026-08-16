@@ -52,11 +52,12 @@ async function handleCiGetList(req: Request) {
   const offset = (page - 1) * limit;
   const db = getAdminClient();
   let query = db.from('credit_investigations')
-    .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary,
+    .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at,
       loan_id,
-      loans(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number))),
+      loans(id, loan_number, lender_id, principal_amount, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number))),
       rider:rider_profiles(users!rider_profiles_id_fkey(id, first_name, last_name)),
-      assigner:users(id, first_name, last_name)`, { count: 'exact' });
+      assigner:users(id, first_name, last_name),
+      ci_documents:ci_documents(id, document_type, file_path, file_name, mime_type, notes, uploaded_at)`, { count: 'exact' });
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
   else if (riderId) query = query.eq('rider_id', riderId);
   if (ciId) query = query.eq('id', ciId);
@@ -70,25 +71,46 @@ async function handleCiGetList(req: Request) {
     .filter(Boolean);
   const lenderAddresses = await getLenderAddressBatch(db, lenderIds);
 
-  const rows = (data ?? []).map((r) => {
-    const loan = embedAsObject(r.loans);
-    const lp = loan ? embedAsObject(loan.lender_profiles) : null;
-    const users = lp ? embedAsObject(lp.users) : null;
-    const lenderId = loan?.lender_id ?? null;
-    return {
-      ...r,
-      loans: loan
-        ? {
-            ...loan,
-            lender_name: users
-              ? `${users.first_name ?? ''} ${users.last_name ?? ''}`.trim()
-              : null,
-            lender_profile: lp,
-            lender_address: lenderId ? (lenderAddresses[lenderId] ?? null) : null,
-          }
-        : null,
-    };
-  });
+  const rows = await Promise.all(
+    (data ?? []).map(async (r) => {
+      const loan = embedAsObject(r.loans);
+      const lp = loan ? embedAsObject(loan.lender_profiles) : null;
+      const users = lp ? embedAsObject(lp.users) : null;
+      const lenderId = loan?.lender_id ?? null;
+
+      const rawDocs = Array.isArray(r.ci_documents) ? r.ci_documents : [];
+      const ciDocs = [];
+      for (const doc of rawDocs) {
+        let fileUrl: string | null = null;
+        if (doc.file_path) {
+          const { data: signedUrl } = await db.storage
+            .from('ci-documents')
+            .createSignedUrl(doc.file_path, 3600);
+          fileUrl = signedUrl?.signedUrl ?? null;
+        }
+        ciDocs.push({
+          ...doc,
+          file_url: fileUrl,
+          caption: doc.notes ?? null,
+        });
+      }
+
+      return {
+        ...r,
+        loans: loan
+          ? {
+              ...loan,
+              lender_name: users
+                ? `${users.first_name ?? ''} ${users.last_name ?? ''}`.trim()
+                : null,
+              lender_profile: lp,
+              lender_address: lenderId ? (lenderAddresses[lenderId] ?? null) : null,
+            }
+          : null,
+        ci_documents: ciDocs,
+      };
+    }),
+  );
 
   return jsonResponse({ data: rows, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
 }

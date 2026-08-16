@@ -9,6 +9,7 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../providers/emp_collection_provider.dart';
 import '../widgets/emp_assign_rider_modal.dart';
+import '../../payments/widgets/record_office_payment_modal.dart';
 
 class EmpCollectionDetailsScreen extends ConsumerStatefulWidget {
   final String collectionId;
@@ -43,13 +44,40 @@ class _EmpCollectionDetailsScreenState
 
   Future<void> _reassign() async {
     if (_detail == null) return;
+    final isRequested = _detail!['status'] == 'requested';
     await showDialog(
       context: context,
       builder: (_) => EmpAssignRiderModal(
         loanScheduleId: _detail!['loan_schedule_id'] as String? ?? '',
+        assignmentId: isRequested ? _detail!['id'] as String? : null,
         onAssigned: () {
           _loadDetail();
-          showSuccessDialog(context, message: 'Rider reassigned successfully.');
+          showSuccessDialog(context,
+              message: isRequested
+                  ? 'Rider assigned to collection request successfully.'
+                  : 'Rider reassigned successfully.');
+        },
+      ),
+    );
+  }
+
+  Future<void> _recordOfficePayment() async {
+    if (_detail == null) return;
+    final loanEmbed = _detail!['loans'] as Map<String, dynamic>?;
+    final amountDue = (_detail!['amount_due'] as num?)?.toDouble() ??
+        (_detail!['loan_schedule']?['amount_due'] as num?)?.toDouble();
+    await showDialog(
+      context: context,
+      builder: (_) => RecordOfficePaymentModal(
+        loanId: loanEmbed?['id'] as String?,
+        loanScheduleId: _detail!['loan_schedule_id'] as String?,
+        amount: amountDue,
+        assignmentId: _detail!['id'] as String?,
+        onRecorded: () {
+          _loadDetail();
+          showSuccessDialog(context,
+              message:
+                  'Office payment recorded. The visit request has been completed.');
         },
       ),
     );
@@ -69,16 +97,48 @@ class _EmpCollectionDetailsScreenState
 
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final status = _detail!['status'] as String? ?? '';
-    final canReassign = ['assigned', 'declined'].contains(status);
+    final loanEmbed = _detail!['loans'] as Map<String, dynamic>?;
+    final loanNumber = _detail!['loan_number'] ??
+        loanEmbed?['loan_number'] ??
+        '-';
+    final lenderUsers = loanEmbed?['lender_profiles']?['users'];
+    final lenderName = _detail!['lender_name'] ??
+        '${lenderUsers?['first_name'] ?? ''} ${lenderUsers?['last_name'] ?? ''}'
+            .trim();
+    final riderUsers = _detail!['rider']?['users'];
+    final riderName = (_detail!['rider_name'] ??
+            '${riderUsers?['first_name'] ?? ''} ${riderUsers?['last_name'] ?? ''}'
+                .trim())
+        .toString()
+        .trim();
+    final amountDue = (_detail!['amount_due'] as num?)?.toDouble() ??
+        (_detail!['loan_schedule']?['amount_due'] as num?)?.toDouble() ??
+        0.0;
+    final isOffice = (_detail!['collection_type'] as String? ?? 'rider') ==
+        'office';
+    final isRequested = status == 'requested';
+    final isOfficeRequest = isRequested && isOffice;
+    final canReassign =
+        ['assigned', 'declined'].contains(status) && !isOffice;
 
     return WebScaffold(
       title: 'Collection Details',
       actions: [
-        if (canReassign)
+        if (isOfficeRequest)
+          ElevatedButton.icon(
+            onPressed: _recordOfficePayment,
+            icon: const Icon(Icons.storefront_outlined, size: 18),
+            label: const Text('Record Office Payment'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepNavy,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        if ((isRequested && !isOffice) || canReassign)
           ElevatedButton.icon(
             onPressed: _reassign,
-            icon: const Icon(Icons.swap_horiz, size: 18),
-            label: const Text('Reassign Rider'),
+            icon: Icon(isRequested ? Icons.local_shipping_outlined : Icons.swap_horiz, size: 18),
+            label: Text(isRequested ? 'Assign Rider' : 'Reassign Rider'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.deepNavy,
               foregroundColor: Colors.white,
@@ -95,13 +155,17 @@ class _EmpCollectionDetailsScreenState
               title: 'Assignment Overview',
               child: Column(
                 children: [
-                  _InfoRow('Loan Number', _detail!['loan_number'] ?? '-'),
-                  _InfoRow('Lender', _detail!['lender_name'] ?? '-'),
+                  _InfoRow('Loan Number', loanNumber),
+                  _InfoRow('Lender', lenderName),
                   _InfoRow('Status', '', badge: status),
+                  _InfoRow(
+                      'Request Type',
+                      isOffice
+                          ? 'Pay at the Office'
+                          : 'Rider Collection'),
                   _InfoRow('Assigned By', _detail!['assigned_by_name'] ?? '-'),
                   _InfoRow('Assignment Date', _detail!['created_at'] ?? '-'),
-                  _InfoRow('Amount Due',
-                      '₱${fmt.format((_detail!['amount_due'] as num?)?.toDouble() ?? 0)}'),
+                  _InfoRow('Amount Due', '₱${fmt.format(amountDue)}'),
                   if (_detail!['collection_schedule'] != null)
                     _InfoRow(
                         'Collection Schedule', _detail!['collection_schedule']),
@@ -112,13 +176,16 @@ class _EmpCollectionDetailsScreenState
             ),
             const SizedBox(height: 16),
             _SectionCard(
-              title: 'Rider Information',
+              title: isOffice ? 'Payment Location' : 'Rider Information',
               child: Column(
                 children: [
-                  _InfoRow(
-                      'Rider Name', _detail!['rider_name'] ?? 'Unassigned'),
-                  _InfoRow('Rider Phone', _detail!['rider_phone'] ?? '-'),
-                  _InfoRow('Response', _detail!['response_at'] ?? 'Pending'),
+                  if (isOffice)
+                    const _InfoRow('Location', 'Pay at the Office')
+                  else ...[
+                    _InfoRow('Rider Name', riderName.isEmpty ? 'Unassigned' : riderName),
+                    _InfoRow('Rider Phone', _detail!['rider_phone'] ?? '-'),
+                    _InfoRow('Response', _detail!['response_at'] ?? 'Pending'),
+                  ],
                 ],
               ),
             ),

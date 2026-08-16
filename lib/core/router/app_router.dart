@@ -80,8 +80,10 @@ import '../../presentation/features/lender/loans/screens/lender_loan_history_scr
 import '../../presentation/features/lender/notifications/screens/lender_notifications_screen.dart';
 import '../../presentation/features/lender/payments/screens/lender_pay_via_gcash_screen.dart';
 import '../../presentation/features/lender/payments/screens/lender_payment_history_screen.dart';
+import '../../presentation/features/lender/payments/screens/lender_payment_method_screen.dart';
 import '../../presentation/features/lender/payments/screens/lender_payment_receipt_screen.dart';
 import '../../presentation/features/lender/payments/screens/lender_payment_schedule_screen.dart';
+import '../../presentation/features/lender/payments/screens/lender_office_payment_screen.dart';
 import '../../presentation/features/lender/profile/screens/lender_profile_screen.dart';
 import '../../presentation/features/rider/ci/screens/rider_ci_borrower_info_screen.dart';
 import '../../presentation/features/rider/ci/screens/rider_ci_details_screen.dart';
@@ -512,6 +514,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.lenderPayViaGcash,
           builder: (ctx, s) => LenderPayViaGcashScreen(
+              extra: s.extra as Map<String, dynamic>? ?? {})),
+      GoRoute(
+          path: RouteConstants.lenderPaymentMethod,
+          builder: (ctx, s) => LenderPaymentMethodScreen(
+              extra: s.extra as Map<String, dynamic>? ?? {})),
+      GoRoute(
+          path: RouteConstants.lenderOfficePayment,
+          builder: (ctx, s) => LenderOfficePaymentScreen(
               extra: s.extra as Map<String, dynamic>? ?? {})),
       GoRoute(
           path: RouteConstants.lenderPaymentReceipt,

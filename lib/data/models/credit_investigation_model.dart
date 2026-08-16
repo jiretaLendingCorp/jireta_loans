@@ -63,7 +63,8 @@ class CreditInvestigationModel {
         rider: json['rider'] as Map<String, dynamic>?,
         assignedByUser: json['assigner'] as Map<String, dynamic>? ??
             json['assigned_by_user'] as Map<String, dynamic>?,
-        documents: (json['documents'] as List?)?.cast<Map<String, dynamic>>(),
+        documents: (json['ci_documents'] as List?)?.cast<Map<String, dynamic>>() ??
+            (json['documents'] as List?)?.cast<Map<String, dynamic>>(),
       );
 
   String get loanNumber => loan?['loan_number'] ?? '';
@@ -124,7 +125,13 @@ class CreditInvestigationModel {
 
   String get riderName {
     if (rider == null) return '';
-    return '${rider!['first_name'] ?? ''} ${rider!['last_name'] ?? ''}'.trim();
+    // ci-get-list embeds the rider as rider_profiles(users(first_name, last_name)).
+    final r = rider!;
+    final nested = r['users'];
+    if (nested is Map) {
+      return '${nested['first_name'] ?? ''} ${nested['last_name'] ?? ''}'.trim();
+    }
+    return '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}'.trim();
   }
 
   String get assignedByName {

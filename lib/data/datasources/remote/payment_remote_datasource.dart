@@ -37,6 +37,7 @@ class PaymentRemoteDataSource {
     required String loanScheduleId,
     required double amount,
     String? notes,
+    String? assignmentId,
     required String idempotencyKey,
   }) async {
     final res = await _client.postWithIdempotency(
@@ -46,6 +47,7 @@ class PaymentRemoteDataSource {
         'loan_schedule_id': loanScheduleId,
         'amount': amount,
         if (notes != null) 'notes': notes,
+        if (assignmentId != null) 'assignment_id': assignmentId,
       },
       idempotencyKey: idempotencyKey,
     );
@@ -155,6 +157,7 @@ class PaymentRemoteDataSource {
     required String loanScheduleId,
     required double amount,
     String? notes,
+    String? assignmentId,
     required String idempotencyKey,
   }) =>
       recordOfficePayment(
@@ -162,6 +165,7 @@ class PaymentRemoteDataSource {
         loanScheduleId: loanScheduleId,
         amount: amount,
         notes: notes,
+        assignmentId: assignmentId,
         idempotencyKey: idempotencyKey,
       );
 }

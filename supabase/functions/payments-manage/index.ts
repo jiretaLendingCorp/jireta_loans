@@ -54,7 +54,7 @@ async function handleRecordOffice(req: Request) {
   const idempotencyKey = req.headers.get('x-idempotency-key');
   if (!idempotencyKey) return errorResponse('Idempotency key required', 400, 'VALIDATION_ERROR');
 
-  const { loan_id, loan_schedule_id, amount, notes } = await req.json();
+  const { loan_id, loan_schedule_id, amount, notes, assignment_id } = await req.json();
 
   if (!loan_id || !loan_schedule_id || !amount) {
     return errorResponse('loan_id, loan_schedule_id, and amount are required', 400, 'VALIDATION_ERROR');
@@ -110,6 +110,14 @@ async function handleRecordOffice(req: Request) {
   }).select().single();
 
   if (payErr || !payment) return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
+
+  // If this payment settles a lender-initiated office visit request, complete it.
+  if (assignment_id) {
+    await db.from('collection_assignments')
+      .update({ status: 'completed', completed_at: new Date().toISOString(), amount_collected: Number(amount) })
+      .eq('id', assignment_id)
+      .eq('status', 'requested');
+  }
 
   const newBalance = Math.max(0, Math.round((financials.outstanding_balance - Number(amount)) * 100) / 100);
   const loanStatus = newBalance <= 0 ? 'completed' : loan.status;

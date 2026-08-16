@@ -274,7 +274,9 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                 '₱${fmt.format(loan['outstanding_balance'] ?? 0)}',
                 bold: true),
             _row('Frequency',
-                _capitalize(loan['payment_frequency'] as String? ?? '-')),
+                _capitalize((loan['payment_frequency'] ?? loan['frequency'])
+                        ?.toString() ??
+                    '-')),
             _row('Loan Term', _loanTermLabel(loan)),
             _row('Number of Payments',
                 '${loan['term_periods'] ?? '-'}'),
@@ -630,14 +632,17 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
       : '${s[0].toUpperCase()}${s.substring(1).replaceAll('_', ' ')}';
 
   String _loanTermLabel(Map<String, dynamic> loan) {
-    final periods = (loan['term_periods'] as num?)?.toInt() ?? 0;
-    final frequency = (loan['payment_frequency'] as String? ?? '').toLowerCase();
-    final unit = frequency == 'daily'
+    final frequency =
+        (loan['payment_frequency'] ?? loan['frequency'] ?? '').toString();
+    final unit = frequency.toLowerCase() == 'daily'
         ? 'days'
-        : frequency == 'weekly'
+        : frequency.toLowerCase() == 'weekly'
             ? 'weeks'
             : 'months';
+    final periods = (loan['term_periods'] as num?)?.toInt() ?? 0;
     if (periods > 0) return '$periods $unit';
+    final schedules = (loan['loan_schedules'] as List?) ?? const [];
+    if (schedules.isNotEmpty) return '${schedules.length} $unit';
     final days = loan['term_days'];
     return days != null ? '$days days' : '-';
   }

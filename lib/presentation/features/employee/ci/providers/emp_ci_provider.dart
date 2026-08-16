@@ -92,7 +92,12 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
     state = state.copyWith(isLoadingDetail: true, error: null);
     try {
       final detail = await _ds.getCiDetails(ciId);
-      state = state.copyWith(isLoadingDetail: false, detail: detail);
+      state = state.copyWith(
+        isLoadingDetail: false,
+        detail: detail != null
+            ? _ciModelToMap(CreditInvestigationModel.fromJson(detail))
+            : null,
+      );
     } catch (e) {
       state = state.copyWith(
           isLoadingDetail: false,

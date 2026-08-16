@@ -30,6 +30,7 @@ class _EmpCollectionListScreenState
 
   final _tabs = [
     ('all', 'All'),
+    ('requested', 'Requested'),
     ('assigned', 'Assigned'),
     ('accepted', 'Accepted'),
     ('in_progress', 'In Progress'),
@@ -155,11 +156,31 @@ class _CollectionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final id = collection['id'] as String? ?? '';
-    final loanNumber = collection['loan_number'] as String? ?? '-';
-    final lenderName = collection['lender_name'] as String? ?? '-';
-    final riderName = collection['rider_name'] as String? ?? 'Unassigned';
+    final loanNumber = collection['loan_number'] ??
+        collection['loans']?['loan_number'] ??
+        '-';
+    final lenderProf = collection['loans']?['lender_profiles'];
+    final lenderUsers = lenderProf?['users'];
+    final lenderName = collection['lender_name'] ??
+        '${lenderUsers?['first_name'] ?? ''} ${lenderUsers?['last_name'] ?? ''}'
+            .trim();
+    final riderUsers = collection['rider']?['users'];
+    final riderName = (collection['rider_name'] ??
+            '${riderUsers?['first_name'] ?? ''} ${riderUsers?['last_name'] ?? ''}'
+                .trim())
+        .toString()
+        .isEmpty
+        ? 'Unassigned'
+        : collection['rider_name'] ??
+            '${riderUsers?['first_name'] ?? ''} ${riderUsers?['last_name'] ?? ''}'
+                .trim();
     final status = collection['status'] as String? ?? 'assigned';
-    final amount = (collection['amount_due'] as num?)?.toDouble() ?? 0.0;
+    final collectionType =
+        collection['collection_type'] as String? ?? 'rider';
+    final isOffice = collectionType == 'office';
+    final amount = (collection['amount_due'] as num?)?.toDouble() ??
+        (collection['loan_schedule']?['amount_due'] as num?)?.toDouble() ??
+        0.0;
     final schedule = collection['collection_schedule'] as String?;
 
     return Card(
@@ -181,8 +202,12 @@ class _CollectionCard extends ConsumerWidget {
                   color: AppColors.deepNavy.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.local_shipping_outlined,
-                    color: AppColors.deepNavy, size: 22),
+                child: Icon(
+                    isOffice
+                        ? Icons.storefront_outlined
+                        : Icons.local_shipping_outlined,
+                    color: AppColors.deepNavy,
+                    size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -202,7 +227,7 @@ class _CollectionCard extends ConsumerWidget {
                     Text(lenderName,
                         style: const TextStyle(
                             fontSize: 13, color: AppColors.textSecondary)),
-                    Text('Rider: $riderName',
+                    Text(isOffice ? 'Office visit payment' : 'Rider: $riderName',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textTertiary)),
                     if (schedule != null)

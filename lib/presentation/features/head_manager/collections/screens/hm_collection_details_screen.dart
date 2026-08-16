@@ -15,8 +15,11 @@ final _collectionDetailProvider =
     FutureProvider.family<CollectionAssignmentModel?, String>(
   (ref, id) async {
     final ds = sl<CollectionRemoteDataSource>();
-    final list = await ds.getCollectionList(limit: 1);
-    return list.isNotEmpty ? list.first : null;
+    final list = await ds.getCollectionList(limit: 1000);
+    for (final c in list) {
+      if (c.id == id) return c;
+    }
+    return null;
   },
 );
 
@@ -57,13 +60,14 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     final schedule = col.loanSchedule ?? {};
     final rider = col.rider ?? {};
     final assignedBy = col.assignedByUser ?? {};
+    final isOffice = col.collectionType == 'office';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeaderCard(col, fmt),
+          _buildHeaderCard(col, fmt, isOffice),
           const SizedBox(height: 20),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,10 +79,17 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                   rows: [
                     _Row('Status', col.status),
                     _Row(
-                        'Assigned Rider',
-                        rider.isNotEmpty
-                            ? '${rider['first_name']} ${rider['last_name']}'
-                            : 'N/A'),
+                        'Request Type',
+                        isOffice
+                            ? 'Pay at the Office'
+                            : 'Rider Collection'),
+                    _Row(
+                        isOffice ? 'Payment Location' : 'Assigned Rider',
+                        isOffice
+                            ? 'Office'
+                            : rider.isNotEmpty
+                                ? '${rider['first_name']} ${rider['last_name']}'
+                                : 'N/A'),
                     _Row(
                         'Assigned By',
                         assignedBy.isNotEmpty
@@ -147,7 +158,8 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeaderCard(CollectionAssignmentModel col, NumberFormat fmt) {
+  Widget _buildHeaderCard(
+      CollectionAssignmentModel col, NumberFormat fmt, bool isOffice) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -165,17 +177,24 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                 color: AppColors.riderGreen.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.local_shipping_outlined,
-                  color: AppColors.riderGreen, size: 28),
+              child: Icon(
+                  isOffice
+                      ? Icons.storefront_outlined
+                      : Icons.local_shipping_outlined,
+                  color: AppColors.riderGreen,
+                  size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Collection Assignment',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    isOffice
+                        ? 'Office Payment Request'
+                        : 'Collection Assignment',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(

@@ -144,6 +144,9 @@ class AppTheme {
           TargetPlatform.windows: _InstantPageTransitionsBuilder(),
           TargetPlatform.macOS: _InstantPageTransitionsBuilder(),
           TargetPlatform.linux: _InstantPageTransitionsBuilder(),
+          TargetPlatform.android: _InstantPageTransitionsBuilder(),
+          TargetPlatform.iOS: _InstantPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: _InstantPageTransitionsBuilder(),
         },
       ),
     );

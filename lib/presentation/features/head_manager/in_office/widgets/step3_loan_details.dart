@@ -76,6 +76,13 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
     });
   }
 
+  String _termUnitFor(dynamic frequency) {
+    final f = (frequency ?? '').toString().toLowerCase();
+    if (f == 'weekly') return 'weeks';
+    if (f == 'monthly') return 'months';
+    return 'days';
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -229,7 +236,8 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
                   const Divider(height: 16),
                   _PreviewRow(
                     label: 'Term',
-                    value: '${_preview!['term_days'] ?? 0} days',
+                    value:
+                        '${(_preview!['installments'] as num?)?.toInt() ?? (_preview!['term_days'] ?? 0)} ${_termUnitFor(_preview!['frequency'])}',
                   ),
                   _PreviewRow(
                     label: 'Installment Amount',

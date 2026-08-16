@@ -8,6 +8,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
 
@@ -63,19 +64,20 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
 
   Widget _buildContent(BuildContext context, Map<String, dynamic> ci) {
     final status = ci['status'] as String? ?? '';
+    final model = CreditInvestigationModel.fromJson(ci);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeaderCard(ci, status),
+          _buildHeaderCard(model, status),
           const SizedBox(height: 20),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _buildBorrowerCard(ci)),
+              Expanded(child: _buildBorrowerCard(ci, model)),
               const SizedBox(width: 20),
-              Expanded(child: _buildAssignmentCard(ci)),
+              Expanded(child: _buildAssignmentCard(ci, model)),
             ],
           ),
           const SizedBox(height: 20),
@@ -94,7 +96,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     );
   }
 
-  Widget _buildHeaderCard(Map<String, dynamic> ci, String status) {
+  Widget _buildHeaderCard(CreditInvestigationModel model, String status) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -121,7 +123,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'CI-${ci['id'].toString().substring(0, 8).toUpperCase()}',
+                    'CI-${model.id.substring(0, 8).toUpperCase()}',
                     style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -129,7 +131,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Loan: ${ci['loan']?['loan_number'] ?? 'N/A'}',
+                    'Loan: ${model.loanNumber.isEmpty ? 'N/A' : model.loanNumber}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 14),
                   ),
@@ -143,28 +145,26 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     );
   }
 
-  Widget _buildBorrowerCard(Map<String, dynamic> ci) {
-    final loan = ci['loan'] as Map<String, dynamic>? ?? {};
-    final lender = loan['lender'] as Map<String, dynamic>? ?? {};
-    final addresses = ci['borrower_addresses'] as List? ?? [];
+  Widget _buildBorrowerCard(
+      Map<String, dynamic> ci, CreditInvestigationModel model) {
+    final addresses = ci['loans']?['lender_address'];
+    final principal = ci['loans']?['principal_amount'];
 
     return _InfoCard(
       title: 'Borrower Information',
       icon: Icons.person_outline,
       children: [
+        _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName),
         _InfoRow(
-            'Name',
-            '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
-                .trim()),
-        _InfoRow('Phone', lender['phone_number'] ?? 'N/A'),
+            'Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone),
         _InfoRow(
             'Loan Amount',
-            ci['loan']?['principal_amount'] != null
-                ? '₱${_fmt.format((ci['loan']['principal_amount'] as num).toDouble())}'
+            principal != null
+                ? '₱${_fmt.format((principal as num).toDouble())}'
                 : 'N/A'),
-        if (addresses.isNotEmpty)
+        if (addresses is Map)
           _InfoRow('Primary Address',
-              _formatAddress(addresses.first as Map<String, dynamic>)),
+              _formatAddress(Map<String, dynamic>.from(addresses))),
         _InfoRow('CI Notes', ci['investigation_notes'] ?? 'None'),
         _InfoRow(
             'Deadline',
@@ -176,10 +176,8 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     );
   }
 
-  Widget _buildAssignmentCard(Map<String, dynamic> ci) {
-    final rider = ci['rider'] as Map<String, dynamic>? ?? {};
-    final assignedBy = ci['assigned_by_user'] as Map<String, dynamic>? ?? {};
-
+  Widget _buildAssignmentCard(
+      Map<String, dynamic> ci, CreditInvestigationModel model) {
     return _InfoCard(
       title: 'Assignment Details',
       icon: Icons.assignment_outlined,
@@ -187,20 +185,14 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         _InfoRow('Status', ci['status'] ?? 'N/A'),
         _InfoRow(
             'Assigned Rider',
-            rider.isNotEmpty
-                ? '${rider['first_name'] ?? ''} ${rider['last_name'] ?? ''}'
-                    .trim()
-                : 'Not Assigned'),
+            model.riderName.isEmpty ? 'Not Assigned' : model.riderName),
         _InfoRow(
             'Assigned By',
-            assignedBy.isNotEmpty
-                ? '${assignedBy['first_name'] ?? ''} ${assignedBy['last_name'] ?? ''}'
-                    .trim()
-                : 'N/A'),
+            model.assignedByName.isEmpty ? 'N/A' : model.assignedByName),
         _InfoRow(
             'Assigned At',
-            ci['assigned_at'] != null
-                ? _dateFmt.format(DateTime.parse(ci['assigned_at']))
+            ci['created_at'] != null
+                ? _dateFmt.format(DateTime.parse(ci['created_at']))
                 : 'N/A'),
         _InfoRow(
             'Accepted At',

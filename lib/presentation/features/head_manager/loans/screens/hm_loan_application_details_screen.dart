@@ -1,4 +1,5 @@
 // lib/presentation/features/head_manager/loans/screens/hm_loan_application_details_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,8 +8,6 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../providers/hm_loan_provider.dart';
-import '../widgets/approve_reject_modal.dart';
-import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 
 class HmLoanApplicationDetailsScreen extends ConsumerStatefulWidget {
@@ -64,13 +63,6 @@ class _HmLoanApplicationDetailsScreenState
   Widget _buildContent() {
     final loan = _loan!;
     final status = loan['status'] as String? ?? '';
-    final isPending = [
-      'pending',
-      'under_review',
-      'ci_required',
-      'ci_assigned',
-      'ci_completed'
-    ].contains(status);
     final fmt = NumberFormat('#,##0.00', 'en_PH');
 
     return SingleChildScrollView(
@@ -93,7 +85,6 @@ class _HmLoanApplicationDetailsScreenState
           const SizedBox(height: 20),
           _buildSchedulePreview(loan, fmt),
           const SizedBox(height: 20),
-          if (isPending) _buildActionButtons(loan, status),
           if (status == 'approved' &&
               loan['disbursement_method'] == 'rider_delivery')
             _buildDisbursementAction(loan),
@@ -249,8 +240,6 @@ class _HmLoanApplicationDetailsScreenState
                 profile['monthly_income'] != null
                     ? '₱${NumberFormat('#,##0.00').format(profile['monthly_income'])}'
                     : '-'),
-            _row('Blacklisted',
-                profile['is_blacklisted'] == true ? '🔴 Yes' : '🟢 No'),
           ],
         ),
       ),
@@ -300,24 +289,38 @@ class _HmLoanApplicationDetailsScreenState
                   border: Border.all(color: AppColors.border),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: signature.startsWith('data:') ||
-                        signature.startsWith('http')
-                    ? Image.network(
-                        signature,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Center(
-                            child: Icon(Icons.draw_outlined,
-                                size: 40, color: AppColors.textTertiary)),
-                      )
-                    : const Center(
-                        child: Icon(Icons.draw_outlined,
-                            size: 40, color: AppColors.textTertiary)),
+                child: _buildSignatureImage(signature),
               ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildSignatureImage(String signature) {
+    const placeholder = Center(
+      child: Icon(Icons.draw_outlined,
+          size: 40, color: AppColors.textTertiary),
+    );
+    if (signature.startsWith('data:') || signature.startsWith('http')) {
+      return Image.network(
+        signature,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => placeholder,
+      );
+    }
+    try {
+      final bytes = base64Decode(signature);
+      return Image.memory(
+        bytes,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => placeholder,
+      );
+    } catch (_) {
+      return placeholder;
+    }
   }
 
   Widget _buildLoanCard(Map<String, dynamic> loan, NumberFormat fmt) {
@@ -341,7 +344,9 @@ class _HmLoanApplicationDetailsScreenState
             _row('Total Payable', '₱${fmt.format(loan['total_payable'] ?? 0)}',
                 bold: true),
             _row('Frequency',
-                _capitalize(loan['payment_frequency'] as String? ?? '-')),
+                _capitalize((loan['payment_frequency'] ?? loan['frequency'])
+                        ?.toString() ??
+                    '-')),
             _row('Loan Term', _loanTermLabel(loan)),
             _row('Number of Payments', '${loan['term_periods'] ?? '-'}'),
             _row('Installment',
@@ -412,203 +417,6 @@ class _HmLoanApplicationDetailsScreenState
         ),
       ),
     );
-  }
-
-  Widget _buildActionButtons(Map<String, dynamic> loan, String status) {
-    final canApprove = status == 'ci_completed';
-    final canAssignCi =
-        ['pending', 'under_review', 'ci_required'].contains(status);
-    final canRequestCi = status == 'under_review';
-    final canReject = [
-      'pending',
-      'under_review',
-      'ci_required',
-      'ci_assigned',
-      'ci_completed'
-    ].contains(status);
-    final canCancel = ['pending', 'under_review'].contains(status);
-
-    return Card(
-      elevation: 0,
-      color: AppColors.infoLight,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.info),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Actions',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            const Text(
-              'Review all details above before taking action.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                if (canApprove)
-                  ElevatedButton.icon(
-                    onPressed: () => _showApprove(loan['id'] as String),
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
-                    label: const Text('Approve'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                if (canAssignCi)
-                  ElevatedButton.icon(
-                    onPressed: () => _showAssignRider(loan['id'] as String),
-                    icon: const Icon(Icons.search, size: 18),
-                    label: const Text('Assign Rider for CI'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black87,
-                    ),
-                  ),
-                if (canRequestCi)
-                  ElevatedButton.icon(
-                    onPressed: () => _requestCi(loan['id'] as String),
-                    icon: const Icon(Icons.search, size: 18),
-                    label: const Text('Request CI'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black87,
-                    ),
-                  ),
-                if (canReject)
-                  OutlinedButton.icon(
-                    onPressed: () => _showReject(loan['id'] as String),
-                    icon: const Icon(Icons.cancel_outlined,
-                        size: 18, color: AppColors.error),
-                    label: const Text('Reject',
-                        style: TextStyle(color: AppColors.error)),
-                    style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.error)),
-                  ),
-                if (canCancel)
-                  TextButton.icon(
-                    onPressed: () => _confirmCancel(loan['id'] as String),
-                    icon: const Icon(Icons.close,
-                        size: 18, color: AppColors.textSecondary),
-                    label: const Text('Cancel',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showApprove(String loanId) {
-    showDialog(
-      context: context,
-      builder: (_) => ApproveRejectModal(
-        loanId: loanId,
-        isApprove: true,
-        onConfirm: (_, __) async {
-          final ok =
-              await ref.read(hmLoanProvider.notifier).approveLoan(loanId);
-          if (!mounted) return;
-          Navigator.of(context).pop();
-          if (ok) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Loan approved successfully'),
-                  backgroundColor: AppColors.success),
-            );
-            context.go(RouteConstants.hmLoanApplications);
-          }
-        },
-      ),
-    );
-  }
-
-  void _showReject(String loanId) {
-    showDialog(
-      context: context,
-      builder: (_) => ApproveRejectModal(
-        loanId: loanId,
-        isApprove: false,
-        onConfirm: (_, reason) async {
-          final ok = await ref
-              .read(hmLoanProvider.notifier)
-              .rejectLoan(loanId, reason ?? '');
-          if (!mounted) return;
-          Navigator.of(context).pop();
-          if (ok) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('Loan rejected'),
-                  backgroundColor: AppColors.error),
-            );
-            context.go(RouteConstants.hmLoanApplications);
-          }
-        },
-      ),
-    );
-  }
-
-  Future<void> _showAssignRider(String loanId) async {
-    final assigned = await showDialog<bool>(
-      context: context,
-      builder: (_) => CiAssignModal(loanId: loanId),
-    );
-    if (assigned == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Rider assigned for credit investigation'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-      await _load();
-    }
-  }
-
-  Future<void> _requestCi(String loanId) async {
-    final ok = await ref.read(hmLoanProvider.notifier).requestCi(loanId);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-            Text(ok ? 'CI requested successfully' : 'Failed to request CI'),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ),
-    );
-    if (ok) await _load();
-  }
-
-  Future<void> _confirmCancel(String loanId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cancel Application'),
-        content: const Text(
-            'Are you sure you want to cancel this loan application?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('No')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Yes, Cancel'),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true && mounted) {
-      final ok = await ref.read(hmLoanProvider.notifier).cancelLoan(loanId);
-      if (ok && mounted) context.go(RouteConstants.hmLoanApplications);
-    }
   }
 
   Widget _row(String label, String value, {bool bold = false}) {
@@ -694,15 +502,17 @@ class _HmLoanApplicationDetailsScreenState
       : '${s[0].toUpperCase()}${s.substring(1).replaceAll('_', ' ')}';
 
   String _loanTermLabel(Map<String, dynamic> loan) {
-    final periods = (loan['term_periods'] as num?)?.toInt() ?? 0;
     final frequency =
-        (loan['payment_frequency'] as String? ?? '').toLowerCase();
-    final unit = frequency == 'daily'
+        (loan['payment_frequency'] ?? loan['frequency'] ?? '').toString();
+    final unit = frequency.toLowerCase() == 'daily'
         ? 'days'
-        : frequency == 'weekly'
+        : frequency.toLowerCase() == 'weekly'
             ? 'weeks'
             : 'months';
+    final periods = (loan['term_periods'] as num?)?.toInt() ?? 0;
     if (periods > 0) return '$periods $unit';
+    final schedules = (loan['loan_schedules'] as List?) ?? const [];
+    if (schedules.isNotEmpty) return '${schedules.length} $unit';
     final days = loan['term_days'];
     return days != null ? '$days days' : '-';
   }

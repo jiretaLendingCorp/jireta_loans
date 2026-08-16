@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
+import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/models/payment_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
@@ -40,8 +41,10 @@ class LenderPaymentState {
 class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
     with RealtimeRefreshMixin {
   final PaymentRemoteDataSource _ds;
+  final CollectionRemoteDataSource _collectionDs;
 
-  LenderPaymentNotifier(this._ds) : super(const LenderPaymentState()) {
+  LenderPaymentNotifier(this._ds, this._collectionDs)
+      : super(const LenderPaymentState()) {
     bindRealtimeRefresh(['payments', 'loan_schedules'],
         refresh: () => loadPayments(silent: true));
     loadPayments();
@@ -87,6 +90,36 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
     }
   }
 
+  /// Requests a rider to collect the installment at the lender's home.
+  Future<bool> requestRiderCollection({required String loanScheduleId}) async {
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _collectionDs.requestRiderCollection(
+          loanScheduleId: loanScheduleId, type: 'rider');
+      state = state.copyWith(isSubmitting: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
+      return false;
+    }
+  }
+
+  /// Requests an office visit so the lender can pay the installment in person.
+  Future<bool> requestOfficePayment({required String loanScheduleId}) async {
+    state = state.copyWith(isSubmitting: true, error: null);
+    try {
+      await _collectionDs.requestRiderCollection(
+          loanScheduleId: loanScheduleId, type: 'office');
+      state = state.copyWith(isSubmitting: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+          isSubmitting: false, error: ErrorHandler.handle(e).message);
+      return false;
+    }
+  }
+
   Future<void> loadPaymentHistory() => loadPayments();
 
   Future<Map<String, dynamic>> getReceiptData(String paymentId) async {
@@ -112,5 +145,8 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
 final lenderPaymentProvider =
     AutoDisposeStateNotifierProvider<LenderPaymentNotifier, LenderPaymentState>(
         (ref) {
-  return LenderPaymentNotifier(sl<PaymentRemoteDataSource>());
+  return LenderPaymentNotifier(
+    sl<PaymentRemoteDataSource>(),
+    sl<CollectionRemoteDataSource>(),
+  );
 });

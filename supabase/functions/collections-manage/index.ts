@@ -18,7 +18,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
-import { sendPushNotification } from '../_shared/notifications.ts';
+import { sendPushNotification, notifyStaff } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import {
   getSchedulePayment,
@@ -70,6 +70,9 @@ serve(async (req) => {
   try {
     const fn = new URL(req.url).searchParams.get('fn') ?? DEFAULT_ACTION;
     switch (fn) {
+      case 'request':
+        // ── [new] lender requests a rider to collect a payment ─────────────
+        return await handleCollectionRequest(req);
       case 'assign':
         // ── [moved from functions/collections-assign/index.ts] ───────────
         return await handleCollectionAssign(req);
@@ -94,6 +97,85 @@ serve(async (req) => {
   }
 });
 
+// ── [new] lender requests a rider to collect a payment ──────────────────────
+async function handleCollectionRequest(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+  const roleCheck = requireRole(user, ROLES.LENDER);
+  if (roleCheck) return roleCheck;
+
+  const { loan_schedule_id, type = 'rider' } = await req.json();
+  if (!loan_schedule_id) return errorResponse('loan_schedule_id is required', 400, 'VALIDATION_ERROR');
+  if (!['rider', 'office'].includes(type)) {
+    return errorResponse('type must be rider or office', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: schedule } = await db
+    .from('loan_schedules')
+    .select('id, loan_id, amount_due, due_date, loans(id, lender_id, status)')
+    .eq('id', loan_schedule_id)
+    .single();
+  if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
+
+  const loan = embedAsObject(schedule.loans);
+  if (!loan || loan.lender_id !== user.id) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
+  if (loan.status !== 'active') return errorResponse('Loan is not active', 400, 'INVALID_STATUS');
+
+  const payment = await getSchedulePayment(db, loan_schedule_id);
+  if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') {
+    return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
+  }
+
+  const { data: active } = await db
+    .from('collection_assignments')
+    .select('id, status')
+    .eq('loan_schedule_id', loan_schedule_id)
+    .in('status', ['requested', 'assigned', 'accepted', 'in_progress'])
+    .maybeSingle();
+  if (active) return errorResponse('A collection is already in progress for this schedule', 409, 'INVALID_STATUS');
+
+  const { data: assignment, error: insErr } = await db.from('collection_assignments').insert({
+    loan_schedule_id,
+    requested_by: user.id,
+    collection_type: type,
+    status: 'requested',
+  }).select('id').single();
+  if (insErr) return errorResponse('Failed to create collection request', 500, 'SERVER_ERROR');
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'collection_request',
+    tableName: 'collection_assignments',
+    recordId: assignment.id,
+    newValues: { loan_schedule_id, collection_type: type, status: 'requested' },
+    ipAddress: ip,
+  });
+
+  if (type === 'office') {
+    await notifyStaff({
+      title: 'Office Payment Request',
+      body: 'A lender will visit the office to pay an installment. Please prepare to record the payment.',
+      type: 'office_payment_requested',
+      referenceId: assignment.id,
+      sentBy: user.id,
+    });
+  } else {
+    await notifyStaff({
+      title: 'New Collection Request',
+      body: 'A lender has requested a rider to collect a payment. Please assign a rider.',
+      type: 'collection_requested',
+      referenceId: assignment.id,
+      sentBy: user.id,
+    });
+  }
+
+  return jsonResponse({ message: 'Collection request created', assignment_id: assignment.id }, 201);
+}
+
 // ── [moved from functions/collections-assign/index.ts] ──────────────────────
 async function handleCollectionAssign(req: Request) {
   const authResult = await requireAuth(req);
@@ -101,10 +183,49 @@ async function handleCollectionAssign(req: Request) {
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
-  const { loan_schedule_id, rider_id, collection_schedule, notes } = await req.json();
-  if (!loan_schedule_id || !rider_id) return errorResponse('loan_schedule_id and rider_id are required', 400, 'VALIDATION_ERROR');
+  const { loan_schedule_id, rider_id, collection_schedule, notes, assignment_id } = await req.json();
+  if ((!loan_schedule_id && !assignment_id) || !rider_id) {
+    return errorResponse('loan_schedule_id (or assignment_id) and rider_id are required', 400, 'VALIDATION_ERROR');
+  }
   const db = getAdminClient();
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  // When a lender already requested a collection, assign a rider to that
+  // existing request instead of creating a duplicate assignment.
+  if (assignment_id) {
+    const { data: existing } = await db.from('collection_assignments')
+      .select('id, status, loan_schedule_id, requested_by')
+      .eq('id', assignment_id).single();
+    if (!existing) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
+    if (existing.status !== 'requested') return errorResponse('Assignment is not in requested status', 400, 'INVALID_STATUS');
+
+    const { data: schedule } = await db.from('loan_schedules')
+      .select('id, loan_id, amount_due, due_date, loans(status)')
+      .eq('id', existing.loan_schedule_id).single();
+    if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
+    if (embedAsObject(schedule?.loans)?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');
+    const payment = await getSchedulePayment(db, existing.loan_schedule_id);
+    if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') {
+      return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
+    }
+
+    const { data: rider } = await db.from('rider_profiles').select('is_available').eq('id', rider_id).single();
+    if (!rider?.is_available) return errorResponse('Rider is not available', 400, 'VALIDATION_ERROR');
+
+    const { error: updErr } = await db.from('collection_assignments').update({
+      rider_id,
+      assigned_by: user.id,
+      collection_schedule: collection_schedule ?? null,
+      collection_notes: notes ?? null,
+      status: 'assigned',
+    }).eq('id', assignment_id);
+    if (updErr) return errorResponse('Failed to assign rider', 500, 'SERVER_ERROR');
+
+    await writeAuditLog({ performedBy: user.id, action: 'collection_assign', tableName: 'collection_assignments', recordId: assignment_id, newValues: { rider_id, status: 'assigned' }, ipAddress: ip });
+    await sendPushNotification({ userId: rider_id, title: 'New Collection Assignment', body: 'You have a new cash collection assignment. Please review and accept.', type: 'collection_assigned', referenceId: assignment_id });
+    return jsonResponse({ message: 'Collection assigned', assignment_id }, 200);
+  }
+
   const { data: schedule } = await db.from('loan_schedules').select('id, loan_id, amount_due, due_date, loans(status)').eq('id', loan_schedule_id).single();
   if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
   if (embedAsObject(schedule?.loans)?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');

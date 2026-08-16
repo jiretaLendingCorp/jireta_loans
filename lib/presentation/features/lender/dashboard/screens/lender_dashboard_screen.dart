@@ -96,15 +96,18 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     final state = ref.watch(lenderDashboardProvider);
     final loanState = ref.watch(lenderLoanProvider);
     final profileState = ref.watch(lenderProfileProvider);
-    final activeLoan = loanState.isLoading ? null : loanState.activeLoan;
+    final activeLoan = loanState.activeLoan;
     final approvedLoan = _approvedUnreleased(loanState.loans);
     final inReviewLoan = _inReviewLoan(loanState.loans);
+    // Keep showing the loader until loans are resolved so the "no active loan"
+    // layout (balance card / overview) never flashes before the active loan.
+    final showLoanLoader = loanState.isLoading && loanState.loans.isEmpty;
 
     return MobileScaffold(
       title: 'My Account',
       accentColor: AppColors.lenderBlue,
       navItems: _riderNavItems,
-      body: state.isLoading
+      body: state.isLoading || showLoanLoader
           ? const ShimmerLoader()
           : RefreshIndicator(
               onRefresh: () async {
@@ -125,7 +128,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         firstName: profileState.user?.firstName,
                         showBalance: activeLoan == null,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 0),
                       if (approvedLoan != null && activeLoan == null) ...[
                         _ApprovedLoanBanner(loan: approvedLoan),
                         const SizedBox(height: 20),
@@ -138,8 +141,11 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         const SizedBox(height: 20),
                       ],
                       if (activeLoan != null) ...[
-                        _MyLoanCard(loan: activeLoan),
-                        const SizedBox(height: 24),
+                        Transform.translate(
+                          offset: const Offset(0, -14),
+                          child: _MyLoanCard(loan: activeLoan),
+                        ),
+                        const SizedBox(height: 6),
                         _LoanHistorySection(
                           loans: loanState.loans,
                           activeLoanId: activeLoan.id,
@@ -169,10 +175,7 @@ class _WelcomeBanner extends StatelessWidget {
     if (!showBalance) {
       return Align(
         alignment: Alignment.topRight,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: _FoxyRiveGroup(firstName: firstName),
-        ),
+        child: _FoxyRiveGroup(firstName: firstName),
       );
     }
     return Stack(
@@ -243,8 +246,8 @@ class _FoxyRiveGroup extends StatelessWidget {
         _GoodMorningBubble(name: firstName),
         const SizedBox(width: 6),
         const SizedBox(
-          width: 110,
-          height: 110,
+          width: 118,
+          height: 118,
           child: _FoxyRive(),
         ),
       ],
@@ -402,9 +405,11 @@ class _ApprovedLoanBanner extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Choose how you want to receive your funds to complete the release.',
-                      style: TextStyle(
+                    Text(
+                      loan.disbursementMethod == null
+                          ? 'Choose how you want to receive your funds to complete the release.'
+                          : 'Your funds are being prepared. We will notify you once your loan is released.',
+                      style: const TextStyle(
                           fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
@@ -563,8 +568,6 @@ class _MyLoanCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionLabel('My Loan'),
-        const SizedBox(height: 12),
         GestureDetector(
           onTap: () => context.push(
             RouteConstants.lenderLoanDetails.replaceFirst(':id', loan.id),
@@ -647,6 +650,36 @@ class _MyLoanCard extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: GestureDetector(
+            onTap: () => context.push(
+              RouteConstants.lenderPaymentMethod,
+              extra: {'loan_id': loan.id},
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.lenderBlue),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.payment, size: 18, color: AppColors.lenderBlue),
+                  SizedBox(width: 8),
+                  Text('Pay',
+                      style: TextStyle(
+                        color: AppColors.lenderBlue,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      )),
+                ],
+              ),
             ),
           ),
         ),
@@ -946,6 +979,7 @@ class _FoxyRiveState extends State<_FoxyRive> {
         RiveLoaded() => RiveWidget(
             controller: state.controller,
             fit: Fit.contain,
+            alignment: Alignment.bottomCenter,
           ),
       },
     );

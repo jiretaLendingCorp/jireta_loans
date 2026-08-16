@@ -93,6 +93,8 @@ class StatusBadge extends StatelessWidget {
         return (AppColors.error, AppColors.errorLight, 'Blacklisted');
       case 'accepted':
         return (AppColors.riderGreen, AppColors.successLight, 'Accepted');
+      case 'requested':
+        return (AppColors.warning, AppColors.warningLight, 'Requested');
       case 'declined':
         return (AppColors.error, AppColors.errorLight, 'Declined');
       case 'in_progress':
