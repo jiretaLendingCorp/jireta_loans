@@ -188,7 +188,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                         ),
                         child: ClipOval(
                           child: Image.asset(AssetConstants.logoJpg,
-                              fit: BoxFit.cover),
+                              fit: BoxFit.contain),
                         ),
                       ),
                       const SizedBox(height: 16),

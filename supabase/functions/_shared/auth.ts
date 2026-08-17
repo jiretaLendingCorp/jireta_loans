@@ -43,6 +43,14 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     return errorResponse('Account is archived', 403, 'ACCOUNT_ARCHIVED');
   }
 
+  if (dbUser.account_status === 'pending') {
+    return errorResponse(
+      'Account is pending approval',
+      403,
+      'ACCOUNT_PENDING',
+    );
+  }
+
   return {
     id: dbUser.id,
     role: dbUser?.roles?.name ?? '',

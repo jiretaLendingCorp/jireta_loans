@@ -45,7 +45,12 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
     'rider',
     'lender',
   ];
-  static const List<String> _statuses = ['active', 'inactive', 'archived'];
+  static const List<String> _statuses = [
+    'active',
+    'pending',
+    'inactive',
+    'archived',
+  ];
 
   @override
   void initState() {
@@ -302,6 +307,8 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
     switch (s) {
       case 'active':
         return 'Active';
+      case 'pending':
+        return 'Pending Approval';
       case 'inactive':
         return 'Inactive';
       case 'archived':

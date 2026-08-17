@@ -175,6 +175,14 @@ serve(async (req) => {
       return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
     }
 
+    if (user.account_status === 'pending') {
+      return errorResponse(
+        'Account pending approval. Please wait for the head manager to approve your account.',
+        403,
+        'ACCOUNT_PENDING',
+      );
+    }
+
     // ── Step 5: role check ────────────────────────────────────────────────
     const role = user?.roles?.name as string | undefined;
 

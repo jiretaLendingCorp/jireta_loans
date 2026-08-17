@@ -17,6 +17,32 @@ class AuthRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> register({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String phoneNumber,
+    required String position,
+    required String password,
+    String? gender,
+    String? civilStatus,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.authRegister,
+      data: {
+        'first_name': firstName,
+        'last_name': lastName,
+        'email': email,
+        'phone_number': phoneNumber,
+        'position': position,
+        'password': password,
+        if (gender != null) 'gender': gender,
+        if (civilStatus != null) 'civil_status': civilStatus,
+      },
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> sendOtp({required String phone}) async {
     final res = await _client.post(
       ApiEndpoints.authSendOtp,

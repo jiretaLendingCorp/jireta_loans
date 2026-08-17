@@ -16,6 +16,7 @@ import '../../presentation/features/auth/screens/reset_password_screen.dart';
 import '../../presentation/features/auth/screens/splash_screen.dart';
 import '../../presentation/features/auth/screens/terms_conditions_screen.dart';
 import '../../presentation/features/auth/screens/web_login_screen.dart';
+import '../../presentation/features/auth/screens/web_register_screen.dart';
 import '../../presentation/features/employee/ci/screens/emp_ci_details_screen.dart';
 import '../../presentation/features/employee/ci/screens/emp_ci_list_screen.dart';
 import '../../presentation/features/employee/collections/screens/emp_collection_details_screen.dart';
@@ -164,6 +165,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.splash,
         RouteConstants.terms,
         RouteConstants.webLogin,
+        RouteConstants.webRegister,
         RouteConstants.mobileLogin,
         RouteConstants.otpVerify,
         RouteConstants.forgotPassword,
@@ -227,6 +229,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.webLogin,
           builder: (ctx, s) => const WebLoginScreen()),
+      GoRoute(
+          path: RouteConstants.webRegister,
+          builder: (ctx, s) => const WebRegisterScreen()),
       GoRoute(
           path: RouteConstants.mobileLogin,
           builder: (ctx, s) => const MobileLoginScreen()),

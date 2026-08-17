@@ -4,6 +4,7 @@ class ApiEndpoints {
 
   // Auth
   static const String authLogin = 'auth-login?fn=login';
+  static const String authRegister = 'auth-register?fn=register';
   static const String authSendOtp = 'auth-otp?fn=send-otp';
   static const String authVerifyOtp = 'auth-otp?fn=verify-otp';
   static const String authForceChangePassword =

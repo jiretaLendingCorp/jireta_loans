@@ -128,7 +128,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         firstName: profileState.user?.firstName,
                         showBalance: activeLoan == null,
                       ),
-                      const SizedBox(height: 0),
+                      const SizedBox(height: 16),
                       if (approvedLoan != null && activeLoan == null) ...[
                         _ApprovedLoanBanner(loan: approvedLoan),
                         const SizedBox(height: 20),
@@ -458,7 +458,7 @@ class _QuickActions extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_circle_outline, color: Colors.white, size: 22),
+                  Icon(Icons.arrow_forward, color: Colors.white, size: 22),
                   SizedBox(width: 8),
                   Text(
                     'Apply Now',

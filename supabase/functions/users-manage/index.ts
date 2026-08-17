@@ -101,7 +101,7 @@ async function handleUpdateProfile(req: Request) {
   // Account status — head manager only.
   if (
     body.account_status !== undefined &&
-    ['active', 'inactive', 'archived'].includes(body.account_status) &&
+    ['active', 'pending', 'inactive', 'archived'].includes(body.account_status) &&
     ['head_manager'].includes(user.role)
   ) {
     updateFields.account_status = body.account_status;

@@ -5,6 +5,7 @@ class RouteConstants {
   static const String splash = '/';
   static const String terms = '/terms';
   static const String webLogin = '/login';
+  static const String webRegister = '/register';
   static const String mobileLogin = '/mobile-login';
   static const String otpVerify = '/otp-verify';
   static const String forceChangePassword = '/force-change-password';

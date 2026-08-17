@@ -172,7 +172,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
             border: Border.all(color: AppColors.gold),
           ),
           child: ClipOval(
-            child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.cover),
+            child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.contain),
           ),
         ),
         const SizedBox(height: 14),
@@ -304,7 +304,24 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
                       ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "Don't have Account?",
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                ),
+                TextButton(
+                  onPressed: () => context.go(RouteConstants.webRegister),
+                  child: const Text(
+                    'Create an account',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),

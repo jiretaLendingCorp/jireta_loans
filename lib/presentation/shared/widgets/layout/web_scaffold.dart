@@ -7,8 +7,12 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../data/models/user_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/employee/profile/providers/emp_profile_provider.dart';
+import '../../../features/head_manager/profile/providers/hm_profile_provider.dart';
 import '../../providers/auth_state_provider.dart';
+import '../profile_avatar.dart';
 
 final _sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 
@@ -268,7 +272,16 @@ class _UserAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final name = authState.user?.fullName ?? '';
+    final role = authState.role;
+    UserModel? profileUser;
+    if (role == AppConstants.roleHeadManager) {
+      profileUser = ref.watch(hmProfileProvider).user;
+    } else if (role == AppConstants.roleEmployee) {
+      profileUser = ref.watch(empProfileProvider).valueOrNull;
+    }
+
+    final user = profileUser ?? authState.user;
+    final name = user?.fullName ?? '';
     final initials = name.isNotEmpty
         ? name
             .trim()
@@ -278,14 +291,18 @@ class _UserAvatar extends ConsumerWidget {
             .join()
             .toUpperCase()
         : 'U';
+    final photoUrl =
+        profileUser?.profilePhotoUrl ?? authState.user?.profilePhotoUrl;
 
     return PopupMenuButton<String>(
       offset: const Offset(0, 48),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: CircleAvatar(
+      child: ProfileAvatar(
+        photoUrl: photoUrl,
+        name: name,
+        color: AppColors.deepNavy,
         radius: 18,
-        backgroundColor: AppColors.gold.withValues(alpha: 0.2),
-        child: Text(
+        fallback: Text(
           initials,
           style: const TextStyle(
             fontSize: 13,
@@ -516,7 +533,7 @@ class _SidebarHeader extends StatelessWidget {
               border: Border.all(color: AppColors.gold.withValues(alpha: 0.7)),
             ),
             child: ClipOval(
-              child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.cover),
+              child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.contain),
             ),
           ),
           if (!collapsed) ...[

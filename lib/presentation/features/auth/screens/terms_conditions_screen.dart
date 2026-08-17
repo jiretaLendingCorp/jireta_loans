@@ -87,7 +87,7 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
                       ),
                       child: ClipOval(
                         child: Image.asset(AssetConstants.logoJpg,
-                            fit: BoxFit.cover),
+                            fit: BoxFit.contain),
                       ),
                     ),
                     const SizedBox(height: 12),

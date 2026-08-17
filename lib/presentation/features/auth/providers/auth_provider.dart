@@ -53,6 +53,36 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  Future<String?> register({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String phoneNumber,
+    required String position,
+    required String password,
+    String? gender,
+    String? civilStatus,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.register(
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        phoneNumber: phoneNumber,
+        position: position,
+        password: password,
+        gender: gender,
+        civilStatus: civilStatus,
+      );
+      state = const AsyncData(null);
+      return null;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return extractErrorMessage(e);
+    }
+  }
+
   Future<bool> sendOtp({required String phone}) async {
     state = const AsyncLoading();
     try {
@@ -387,6 +417,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
     if (message.contains('Account suspended')) {
       return 'Your account is suspended.';
+    }
+    if (message.contains('Account pending approval')) {
+      return 'Account pending approval. Please wait for the head manager to approve your account.';
     }
     if (message.contains('LOGIN_RATE_LIMITED') ||
         message.contains('Too many login attempts')) {
