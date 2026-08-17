@@ -4,10 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../core/di/injection.dart';
+import '../../../../shared/widgets/details/details_section_card.dart';
+import '../../../../shared/widgets/details/user_profile_header_card.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/profile_avatar.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../widgets/emp_edit_lender_modal.dart';
 
@@ -44,250 +45,118 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
         error: (e, _) => Center(
             child: Text('Error: $e',
                 style: const TextStyle(color: AppColors.error))),
-        data: (data) => _buildContent(context, data),
+        data: (data) => _buildContent(data),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, Map<String, dynamic> data) {
+  Widget _buildContent(Map<String, dynamic> data) {
+    final name =
+        '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
+    final lp = data['lender_profiles'] as Map<String, dynamic>?;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildPersonalInfo(data),
+          UserProfileHeaderCard(
+            photoUrl: data['profile_photo_url'] as String?,
+            name: name.isEmpty ? 'Lender' : name,
+            subtitle: data['email'] ?? '—',
+            subtitleIcon: Icons.email_outlined,
+            roleLabel: 'Lender',
+            roleIcon: Icons.account_balance_wallet_outlined,
+            accentColor: AppColors.lenderBlue,
+            accountStatus: data['account_status'] ?? 'active',
+          ),
           const SizedBox(height: 20),
-          _buildContactInfo(data),
+          DetailsSectionCard(
+            title: 'Personal Information',
+            icon: Icons.person_outline,
+            accentColor: AppColors.lenderBlue,
+            items: [
+              DetailsItem('Gender', lp?['gender'] ?? '—'),
+              DetailsItem('Civil Status', lp?['civil_status'] ?? '—'),
+              DetailsItem(
+                'Date of Birth',
+                (lp?['date_of_birth'] ?? '').toString().substring(0, 10),
+              ),
+              DetailsItem('Employment', lp?['employment_type'] ?? '—'),
+              DetailsItem('Employer', lp?['employer_name'] ?? '—'),
+              DetailsItem(
+                'Monthly Income',
+                lp?['monthly_income'] != null
+                    ? '₱${lp?['monthly_income']}'
+                    : '—',
+              ),
+              DetailsItem('Source of Funds', lp?['source_of_funds'] ?? '—'),
+            ],
+          ),
           const SizedBox(height: 20),
-          _buildAddressInfo(data),
+          DetailsSectionCard(
+            title: 'Contact Information',
+            icon: Icons.phone_outlined,
+            accentColor: AppColors.lenderBlue,
+            items: [
+              DetailsItem('Phone', data['phone_number'] ?? data['phone'] ?? '—'),
+              DetailsItem('Email', data['email'] ?? '—'),
+              DetailsItem('GCash Number', lp?['gcash_number'] ?? '—'),
+            ],
+          ),
           const SizedBox(height: 20),
-          _buildEmergencyContact(data),
-          if ((data['emergency_contacts'] as List?)?.isNotEmpty == true)
+          DetailsSectionCard(
+            title: 'Address',
+            icon: Icons.location_on_outlined,
+            accentColor: AppColors.lenderBlue,
+            items: [
+              DetailsItem('Street', data['street_address'] ?? '—'),
+              DetailsItem('Barangay', data['barangay'] ?? '—'),
+              DetailsItem('City', data['city'] ?? '—'),
+              DetailsItem('Province', data['province'] ?? '—'),
+              DetailsItem('Zip Code', data['zip_code'] ?? '—'),
+            ],
+          ),
+          if ((data['emergency_contacts'] as List?)?.isNotEmpty == true) ...[
             const SizedBox(height: 20),
-          _buildAccountStatus(data),
+            DetailsSectionCard(
+              title: 'Emergency Contact',
+              icon: Icons.contact_emergency_outlined,
+              accentColor: AppColors.lenderBlue,
+              items: [
+                for (final c in (data['emergency_contacts'] as List))
+                  DetailsItem(
+                    '${(c as Map)['name'] ?? '—'} (${c['relationship'] ?? '—'})',
+                    '${c['phone_number'] ?? '—'}'
+                    '${(c['address'] != null && c['address'].toString().isNotEmpty) ? ' — ${c['address']}' : ''}',
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
-          _buildAccountUpgradeStatus(data),
+          DetailsSectionCard(
+            title: 'Account',
+            icon: Icons.account_circle_outlined,
+            accentColor: AppColors.lenderBlue,
+            items: [
+              DetailsItem('Account Status', data['account_status'] ?? '—'),
+              DetailsItem(
+                'Created At',
+                (data['created_at'] ?? '').toString().substring(0, 10),
+              ),
+              DetailsItem(
+                'Account Upgrade',
+                '',
+                valueWidget: StatusBadge(
+                  status: lp?['account_upgrade_status'] ??
+                      data['account_upgrade_status'] ??
+                      'not_submitted',
+                  small: true,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPersonalInfo(Map<String, dynamic> data) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                ProfileAvatar(
-                  photoUrl: data['profile_photo_url'] as String?,
-                  name: (data['first_name'] as String? ?? 'L'),
-                  color: AppColors.lenderBlue,
-                  radius: 32,
-                  textColor: AppColors.lenderBlue,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'
-                            .trim(),
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(data['email'] ?? '—',
-                          style:
-                              const TextStyle(color: AppColors.textSecondary)),
-                    ],
-                  ),
-                ),
-                StatusBadge(status: data['account_status'] ?? 'active'),
-              ],
-            ),
-            const Divider(height: 28),
-            _buildSectionTitle('Personal Information'),
-            const SizedBox(height: 12),
-            _buildInfoGrid([
-              _InfoItem('Gender', data['lender_profiles']?['gender'] ?? '—'),
-              _InfoItem('Civil Status',
-                  data['lender_profiles']?['civil_status'] ?? '—'),
-              _InfoItem('Date of Birth',
-                  data['lender_profiles']?['date_of_birth'] ?? '—'),
-              _InfoItem('Employment',
-                  data['lender_profiles']?['employment_type'] ?? '—'),
-              _InfoItem(
-                  'Employer', data['lender_profiles']?['employer_name'] ?? '—'),
-              _InfoItem(
-                  'Monthly Income',
-                  data['lender_profiles']?['monthly_income'] != null
-                      ? '₱${data['lender_profiles']['monthly_income']}'
-                      : '—'),
-              _InfoItem('Source of Funds',
-                  data['lender_profiles']?['source_of_funds'] ?? '—'),
-            ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddressInfo(Map<String, dynamic> data) {
-    final parts = [
-      data['street_address'],
-      data['barangay'],
-      data['city'],
-      data['province'],
-      data['zip_code'],
-    ].where((e) => e != null && e.toString().isNotEmpty).toList();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Address'),
-            const SizedBox(height: 12),
-            Text(parts.isEmpty ? '—' : parts.join(', '),
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmergencyContact(Map<String, dynamic> data) {
-    final contacts = (data['emergency_contacts'] as List?) ?? [];
-    if (contacts.isEmpty) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Emergency Contact'),
-            const SizedBox(height: 12),
-            _buildInfoGrid(contacts.map((c) {
-              final m = c as Map<String, dynamic>;
-              return _InfoItem(
-                  '${m['name'] ?? '—'} (${m['relationship'] ?? '—'})',
-                  '${m['phone_number'] ?? '—'}${(m['address'] != null && m['address'].toString().isNotEmpty) ? ' — ${m['address']}' : ''}');
-            }).toList()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContactInfo(Map<String, dynamic> data) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Contact Information'),
-            const SizedBox(height: 12),
-            _buildInfoGrid([
-              _InfoItem('Phone',
-                  data['phone_number'] ?? data['phone'] ?? '—'),
-              _InfoItem('GCash Number',
-                  data['lender_profiles']?['gcash_number'] ?? '—'),
-            ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAccountStatus(Map<String, dynamic> data) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Account Status'),
-            const SizedBox(height: 12),
-            _buildInfoGrid([
-              _InfoItem('Status', data['account_status'] ?? '—'),
-              _InfoItem('Created At',
-                  (data['created_at'] ?? '').toString().substring(0, 10)),
-            ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAccountUpgradeStatus(Map<String, dynamic> data) {
-    final accountUpgradeStatus =
-        data['lender_profiles']?['account_upgrade_status'] ??
-            data['account_upgrade_status'] ??
-            'not_submitted';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Account Upgrade Status'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                StatusBadge(status: accountUpgradeStatus),
-                const SizedBox(width: 12),
-                const Text('Account upgrade verification status',
-                    style: TextStyle(color: AppColors.textSecondary)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(title,
-        style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: AppColors.deepNavy,
-            letterSpacing: 0.5));
-  }
-
-  Widget _buildInfoGrid(List<_InfoItem> items) {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 12,
-      children: items
-          .map((item) => SizedBox(
-                width: 240,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.label,
-                        style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textTertiary,
-                            fontWeight: FontWeight.w500)),
-                    const SizedBox(height: 2),
-                    Text(item.value,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ))
-          .toList(),
     );
   }
 
@@ -302,10 +171,4 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
     showDialog(
         context: context, builder: (_) => EmpEditLenderModal(lenderData: data));
   }
-}
-
-class _InfoItem {
-  final String label;
-  final String value;
-  const _InfoItem(this.label, this.value);
 }

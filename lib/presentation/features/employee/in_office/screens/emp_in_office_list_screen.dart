@@ -98,9 +98,25 @@ class _EmpInOfficeListScreenState extends ConsumerState<EmpInOfficeListScreen>
                         title: 'No walk-in applications',
                         subtitle: 'Start a new in-office application above.',
                       )
-                    : _ApplicationList(items: items),
+                    : _ApplicationList(
+                        items: items,
+                        onContinue: _continueWizard,
+                      ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _continueWizard(String appId) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => InOfficeWizard(
+        applicationId: appId,
+        onComplete: () {
+          ref.read(empInOfficeProvider.notifier).loadList();
+        },
       ),
     );
   }
@@ -108,7 +124,8 @@ class _EmpInOfficeListScreenState extends ConsumerState<EmpInOfficeListScreen>
 
 class _ApplicationList extends StatelessWidget {
   final List items;
-  const _ApplicationList({required this.items});
+  final ValueChanged<String> onContinue;
+  const _ApplicationList({required this.items, required this.onContinue});
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +188,7 @@ class _ApplicationList extends StatelessWidget {
                 ),
                 if (status == 'draft')
                   OutlinedButton(
-                    onPressed: () {},
+                    onPressed: () => onContinue(app['id'] as String),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.deepNavy),
                       padding: const EdgeInsets.symmetric(

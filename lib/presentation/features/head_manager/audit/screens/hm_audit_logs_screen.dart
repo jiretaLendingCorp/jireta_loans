@@ -214,7 +214,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   Widget _buildRow(Map<String, dynamic> log, bool isEven) {
     final action = log['action'] as String? ?? '-';
     final user = log['performed_by_user'] as Map<String, dynamic>? ?? {};
-    final isExpanded = _expandedLog == log;
+    final isExpanded = _expandedLog?['id'] == log['id'];
     return Column(
       key: ValueKey(log['id']),
       children: [
@@ -251,8 +251,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                         backgroundColor:
                             AppColors.deepNavy.withValues(alpha: 0.1),
                         child: Text(
-                          '${user['first_name']?[0] ?? ''}${user['last_name']?[0] ?? ''}'
-                              .toUpperCase(),
+                          _initials(user),
                           style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -416,4 +415,12 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
 
   String _capitalize(String s) =>
       s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+
+  String _initials(Map<String, dynamic> user) {
+    final f = (user['first_name'] as String? ?? '').trim();
+    final l = (user['last_name'] as String? ?? '').trim();
+    final initials =
+        '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}';
+    return initials.isEmpty ? '?' : initials.toUpperCase();
+  }
 }

@@ -92,9 +92,11 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
   }
 
   Future<Map<String, dynamic>?> getSchedulePreview(
-      double principal, String frequency) async {
+      double principal, String frequency,
+      {int? termPeriods}) async {
     try {
-      return await _loanDs.getSchedulePreview(principal, frequency);
+      return await _loanDs.getSchedulePreview(principal, frequency,
+          termPeriods: termPeriods);
     } catch (e) {
       return null;
     }

@@ -74,9 +74,11 @@ class EmpInOfficeNotifier
   Future<Map<String, dynamic>?> getSchedulePreview({
     required double principal,
     required String frequency,
+    int? termPeriods,
   }) async {
     try {
-      return await _loanDs.getSchedulePreview(principal, frequency);
+      return await _loanDs.getSchedulePreview(principal, frequency,
+          termPeriods: termPeriods);
     } catch (_) {
       return null;
     }

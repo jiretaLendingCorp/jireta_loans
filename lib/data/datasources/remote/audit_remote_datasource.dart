@@ -28,8 +28,12 @@ class AuditRemoteDataSource {
       },
     );
     final list = (res.data['data'] as List?) ?? [];
-    final total = (res.data['total'] as num?)?.toInt() ?? list.length;
+    final meta = res.data['meta'] as Map<String, dynamic>? ?? {};
+    final total = (res.data['total'] as num?)?.toInt() ??
+        (meta['total'] as num?)?.toInt() ??
+        list.length;
     final totalPages = (res.data['totalPages'] as num?)?.toInt() ??
+        (meta['total_pages'] as num?)?.toInt() ??
         (limit == 0 ? 1 : (total / limit).ceil());
     return {
       'data': list,
