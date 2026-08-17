@@ -61,7 +61,10 @@ async function handleUpdateProfile(req: Request) {
   const body = await req.json();
   const targetId = body.user_id ?? user.id;
 
-  if (targetId !== user.id && !['head_manager', 'employee'].includes(user.role)) {
+  // Only the Head Manager may edit another user's profile. Employees (and
+  // self-edits by any role) are handled by the rules below — employees may
+  // NOT alter lender/rider data.
+  if (targetId !== user.id && user.role !== 'head_manager') {
     return errorResponse('Access denied', 403, 'FORBIDDEN');
   }
 

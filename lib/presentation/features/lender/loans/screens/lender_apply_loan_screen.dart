@@ -392,8 +392,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           TextField(
             controller: _purposeCtrl,
             maxLines: 3,
+            maxLength: 255,
             decoration: InputDecoration(
               hintText: 'Enter purpose of loan...',
+              counterText: '',
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
@@ -805,6 +807,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
             TextFormField(
               controller: _firstCtrl,
               onChanged: (_) => _emit(),
+              maxLength: 100,
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'First name is required'
                   : null,
@@ -814,6 +817,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
             TextFormField(
               controller: _lastCtrl,
               onChanged: (_) => _emit(),
+              maxLength: 100,
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'Last name is required'
                   : null,
@@ -824,6 +828,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               controller: _phoneCtrl,
               keyboardType: TextInputType.phone,
               onChanged: (_) => _emit(),
+              maxLength: 11,
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
                   return 'Contact number is required';
@@ -854,6 +859,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
             TextFormField(
               controller: _addressCtrl,
               onChanged: (_) => _emit(),
+              maxLength: 100,
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'Address is required'
                   : null,
@@ -894,6 +900,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
   InputDecoration _coFieldDeco(String label) {
     return InputDecoration(
       labelText: label,
+      counterText: '',
       isDense: true,
       filled: true,
       fillColor: Colors.white,

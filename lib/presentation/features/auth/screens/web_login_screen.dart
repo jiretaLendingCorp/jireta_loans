@@ -187,9 +187,11 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
               controller: _emailCtrl,
               keyboardType: TextInputType.emailAddress,
               autofillHints: const [AutofillHints.email],
+              maxLength: 254,
               decoration: const InputDecoration(
                 labelText: 'Email Address',
                 prefixIcon: Icon(Icons.email_outlined),
+                counterText: '',
               ),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Email is required';
@@ -204,9 +206,11 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
               controller: _passCtrl,
               obscureText: _obscure,
               autofillHints: const [AutofillHints.password],
+              maxLength: 128,
               decoration: InputDecoration(
                 labelText: 'Password',
                 prefixIcon: const Icon(Icons.lock_outlined),
+                counterText: '',
                 suffixIcon: IconButton(
                   icon: Icon(
                     _obscure

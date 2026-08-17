@@ -89,9 +89,13 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                     ),
                   Row(
                     children: [
-                      Expanded(child: _f('First Name', _firstCtrl, req: true)),
+                      Expanded(
+                          child: _f('First Name', _firstCtrl,
+                              req: true, maxLength: 100)),
                       const SizedBox(width: 12),
-                      Expanded(child: _f('Last Name', _lastCtrl, req: true)),
+                      Expanded(
+                          child: _f('Last Name', _lastCtrl,
+                              req: true, maxLength: 100)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -100,6 +104,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                     _phoneCtrl,
                     req: true,
                     type: TextInputType.phone,
+                    maxLength: 11,
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -123,19 +128,22 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(child: _f('Vehicle Brand', _brandCtrl)),
+                      Expanded(
+                          child: _f('Vehicle Brand', _brandCtrl,
+                              maxLength: 100)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
-                        child: _f('Plate Number', _plateCtrl, req: true),
+                        child: _f('Plate Number', _plateCtrl,
+                            req: true, maxLength: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child:
-                            _f("Driver's License #", _licenseCtrl, req: true),
+                        child: _f("Driver's License #", _licenseCtrl,
+                            req: true, maxLength: 50),
                       ),
                     ],
                   ),
@@ -178,10 +186,12 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
     TextEditingController ctrl, {
     bool req = false,
     TextInputType? type,
+    int? maxLength,
   }) =>
       TextFormField(
         controller: ctrl,
         keyboardType: type,
+        maxLength: maxLength,
         decoration: _dec(label),
         validator: req
             ? (v) => v == null || v.isEmpty ? '$label is required' : null
@@ -190,6 +200,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
 
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
+        counterText: '',
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

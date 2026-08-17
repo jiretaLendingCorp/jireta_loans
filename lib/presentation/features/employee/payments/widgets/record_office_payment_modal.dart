@@ -154,12 +154,14 @@ class _RecordOfficePaymentModalState
                 hint: '0.00',
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
+                maxLength: 12,
               ),
               const SizedBox(height: 12),
               AppTextField(
                 controller: _notesCtrl,
                 label: 'Notes (optional)',
                 maxLines: 2,
+                maxLength: 255,
               ),
               if (_error != null) ...[
                 const SizedBox(height: 10),

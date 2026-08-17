@@ -16,6 +16,14 @@ import { getAdminClient } from '../_shared/db.ts';
 import { createInvoice } from '../_shared/xendit.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { getSchedulePayment, scheduleStatus } from '../_shared/loan_financials.ts';
+import { guardRateLimit } from '../_shared/rate_limiter.ts';
+
+// Abuse detection: at most 3 payment-link attempts per lender per loan
+// schedule per 15 minutes. Repeated attempts beyond that are treated as
+// suspicious activity and temporarily blocked for review.
+const PAYMENT_ATTEMPT_MAX = 3;
+const PAYMENT_ATTEMPT_WINDOW_MINUTES = 15;
+const PAYMENT_BLOCK_MINUTES = 30;
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'generate';
@@ -49,7 +57,40 @@ async function handleGenerate(req: Request) {
   const { loan_id, loan_schedule_id } = await req.json();
   if (!loan_id || !loan_schedule_id) return errorResponse('loan_id and loan_schedule_id required', 400, 'VALIDATION_ERROR');
   const db = getAdminClient();
-  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+
+  // Abuse detection: 3 payment-link attempts per schedule → temporary block
+  // for review. Prevents a lender (or attacker) from repeatedly generating
+  // invoices on the same installment in a short window.
+  const attemptKey = `payment:${user.id}:${loan_schedule_id}`;
+  const attemptGuard = await guardRateLimit({
+    key: attemptKey,
+    maxAttempts: PAYMENT_ATTEMPT_MAX,
+    windowMinutes: PAYMENT_ATTEMPT_WINDOW_MINUTES,
+    blockMinutes: PAYMENT_BLOCK_MINUTES,
+    blockReason: 'Multiple payment attempts on same installment',
+    eventType: 'payment_attempt_blocked',
+    userId: user.id,
+    ipAddress: ip,
+  });
+  if (!attemptGuard.allowed) {
+    try {
+      await db.from('auth_logs').insert({
+        user_id: user.id,
+        event_type: 'payment_attempt_blocked',
+        ip_address: ip,
+      });
+    } catch (_) {}
+    const waitMinutes = attemptGuard.block?.retryAfterSeconds
+      ? Math.ceil(attemptGuard.block.retryAfterSeconds / 60)
+      : PAYMENT_BLOCK_MINUTES;
+    return errorResponse(
+      `Too many payment attempts for this installment. Try again in ${waitMinutes} minute(s).`,
+      429,
+      'PAYMENT_ATTEMPT_BLOCKED',
+    );
+  }
+
   const { data: loan } = await db.from('loans').select('id, loan_number, lender_id, status').eq('id', loan_id).eq('lender_id', user.id).single();
   if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
   if (loan.status !== 'active') return errorResponse('Loan is not active', 400, 'INVALID_STATUS');

@@ -216,23 +216,28 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
         _field('Phone Number', _phoneCtrl,
-            keyboardType: TextInputType.phone, validator: _phoneValidator),
+            keyboardType: TextInputType.phone,
+            maxLength: 11,
+            validator: _phoneValidator),
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _field('First Name', _firstNameCtrl)),
+            Expanded(child: _field('First Name', _firstNameCtrl, maxLength: 100)),
             const SizedBox(width: 12),
-            Expanded(child: _field('Last Name', _lastNameCtrl)),
+            Expanded(child: _field('Last Name', _lastNameCtrl, maxLength: 100)),
           ],
         ),
         const SizedBox(height: 12),
         _field('Monthly Income', _monthlyIncomeCtrl,
             keyboardType: TextInputType.number,
             prefix: '₱',
+            maxLength: 12,
             validator: _numberValidator),
         const SizedBox(height: 12),
         _field('GCash Number', _gcashCtrl,
-            keyboardType: TextInputType.phone, validator: _phoneValidator),
+            keyboardType: TextInputType.phone,
+            maxLength: 11,
+            validator: _phoneValidator),
       ],
     );
   }
@@ -249,15 +254,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const SizedBox(height: 20),
         _sectionTitle('Home Address'),
         const SizedBox(height: 8),
-        _simpleField('Street / Barangay', controller: _streetCtrl),
+        _simpleField('Street / Barangay',
+            controller: _streetCtrl, maxLength: 100),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-                child: _simpleField('City', controller: _cityCtrl)),
+                child: _simpleField('City',
+                    controller: _cityCtrl, maxLength: 100)),
             const SizedBox(width: 12),
             Expanded(
-                child: _simpleField('Province', controller: _provinceCtrl)),
+                child: _simpleField('Province',
+                    controller: _provinceCtrl, maxLength: 100)),
           ],
         ),
         const SizedBox(height: 20),
@@ -267,16 +275,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           children: [
             Expanded(
                 child: _simpleField('Contact Name',
-                    controller: _emergencyNameCtrl)),
+                    controller: _emergencyNameCtrl, maxLength: 100)),
             const SizedBox(width: 12),
             Expanded(
                 child: _simpleField('Relationship',
-                    controller: _emergencyRelCtrl)),
+                    controller: _emergencyRelCtrl, maxLength: 50)),
           ],
         ),
         const SizedBox(height: 8),
         _simpleField('Phone Number',
-            controller: _emergencyPhoneCtrl, keyboardType: TextInputType.phone),
+            controller: _emergencyPhoneCtrl,
+            keyboardType: TextInputType.phone,
+            maxLength: 11),
       ],
     );
   }
@@ -294,6 +304,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         _field('Loan Amount', _amountCtrl,
             keyboardType: TextInputType.number,
             prefix: '₱',
+            maxLength: 12,
             validator: _numberValidator),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
@@ -312,7 +323,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           onChanged: (v) => setState(() => _frequency = v!),
         ),
         const SizedBox(height: 12),
-        _field('Purpose', _purposeCtrl, maxLines: 2),
+        _field('Purpose', _purposeCtrl, maxLines: 2, maxLength: 255),
         const SizedBox(height: 16),
         if (_amountCtrl.text.isNotEmpty) ...[
           ElevatedButton.icon(
@@ -404,26 +415,28 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         Row(
           children: [
             Expanded(child: _simpleField('Co-Maker First Name',
-                controller: _coFirstCtrl)),
+                controller: _coFirstCtrl, maxLength: 100)),
             const SizedBox(width: 12),
             Expanded(child: _simpleField('Co-Maker Last Name',
-                controller: _coLastCtrl)),
+                controller: _coLastCtrl, maxLength: 100)),
           ],
         ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(child: _simpleField('Relationship',
-                controller: _coRelCtrl)),
+                controller: _coRelCtrl, maxLength: 50)),
             const SizedBox(width: 12),
             Expanded(
                 child: _simpleField('Phone',
                     controller: _coPhoneCtrl,
-                    keyboardType: TextInputType.phone)),
+                    keyboardType: TextInputType.phone,
+                    maxLength: 11)),
           ],
         ),
         const SizedBox(height: 12),
-        _simpleField('Address', controller: _coAddressCtrl),
+        _simpleField('Address',
+            controller: _coAddressCtrl, maxLength: 100),
       ],
     );
   }
@@ -638,14 +651,17 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       {TextInputType? keyboardType,
       int maxLines = 1,
       String? prefix,
+      int? maxLength,
       FormFieldValidator<String>? validator}) {
     return TextFormField(
       controller: ctrl,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      maxLength: maxLength,
       validator: validator ?? _requiredValidator,
       decoration: InputDecoration(
         labelText: label,
+        counterText: '',
         prefixText: prefix,
         errorMaxLines: 2,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -656,13 +672,17 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Widget _simpleField(String label,
-      {TextEditingController? controller, TextInputType? keyboardType}) {
+      {TextEditingController? controller,
+      TextInputType? keyboardType,
+      int? maxLength}) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      maxLength: maxLength,
       validator: _requiredValidator,
       decoration: InputDecoration(
         labelText: label,
+        counterText: '',
         errorMaxLines: 2,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding:

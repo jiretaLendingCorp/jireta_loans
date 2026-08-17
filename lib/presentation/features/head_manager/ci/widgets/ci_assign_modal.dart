@@ -129,6 +129,7 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
                     label: 'Investigation Notes',
                     hint: 'Instructions for the rider...',
                     maxLines: 3,
+                    maxLength: 255,
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),

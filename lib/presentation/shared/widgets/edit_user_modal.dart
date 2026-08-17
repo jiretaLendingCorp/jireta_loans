@@ -190,11 +190,13 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                         Row(
                           children: [
                             Expanded(
-                              child: _f('First Name', _firstCtrl, req: true),
+                              child: _f('First Name', _firstCtrl,
+                                  req: true, maxLength: 100),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _f('Last Name', _lastCtrl, req: true),
+                              child: _f('Last Name', _lastCtrl,
+                                  req: true, maxLength: 100),
                             ),
                           ],
                         ),
@@ -202,16 +204,17 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                         Row(
                           children: [
                             Expanded(
-                              child: _f('Middle Name', _middleCtrl),
+                              child: _f('Middle Name', _middleCtrl,
+                                  maxLength: 100),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _f('Suffix', _suffixCtrl),
+                              child: _f('Suffix', _suffixCtrl, maxLength: 100),
                             ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        _f('Phone Number', _phoneCtrl),
+                        _f('Phone Number', _phoneCtrl, maxLength: 11),
                         const SizedBox(height: 12),
                         TextField(
                           controller: TextEditingController(text: _email),
@@ -304,12 +307,15 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
     }
   }
 
-  Widget _f(String label, TextEditingController c, {bool req = false}) =>
+  Widget _f(String label, TextEditingController c,
+          {bool req = false, int? maxLength}) =>
       TextFormField(
         controller: c,
+        maxLength: maxLength,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
+          counterText: '',
         ),
         validator: req
             ? (v) => (v == null || v.trim().isEmpty)

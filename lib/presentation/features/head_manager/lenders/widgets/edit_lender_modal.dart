@@ -133,24 +133,28 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
                         Expanded(
                             child: AppTextField(
                                 controller: _firstNameCtrl,
-                                label: 'First Name *')),
+                                label: 'First Name *',
+                                maxLength: 100)),
                         const SizedBox(width: 12),
                         Expanded(
                             child: AppTextField(
                                 controller: _lastNameCtrl,
-                                label: 'Last Name *')),
+                                label: 'Last Name *',
+                                maxLength: 100)),
                       ],
                     ),
                     const SizedBox(height: 16),
                     AppTextField(
                         controller: _phoneCtrl,
                         label: 'Phone Number',
-                        keyboardType: TextInputType.phone),
+                        keyboardType: TextInputType.phone,
+                        maxLength: 11),
                     const SizedBox(height: 16),
                     AppTextField(
                         controller: _gcashCtrl,
                         label: 'GCash Number',
-                        keyboardType: TextInputType.phone),
+                        keyboardType: TextInputType.phone,
+                        maxLength: 11),
                     const SizedBox(height: 16),
                     const Text('Employment Type',
                         style: TextStyle(
@@ -181,12 +185,15 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
                     ),
                     const SizedBox(height: 16),
                     AppTextField(
-                        controller: _employerCtrl, label: 'Employer Name'),
+                        controller: _employerCtrl,
+                        label: 'Employer Name',
+                        maxLength: 255),
                     const SizedBox(height: 16),
                     AppTextField(
                         controller: _incomeCtrl,
                         label: 'Monthly Income (₱)',
-                        keyboardType: TextInputType.number),
+                        keyboardType: TextInputType.number,
+                        maxLength: 12),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
                       Container(

@@ -90,12 +90,16 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                   child: Column(
                     children: [
                       Row(children: [
-                        Expanded(child: _field('First Name', _firstNameCtrl)),
+                        Expanded(
+                            child: _field('First Name', _firstNameCtrl,
+                                maxLength: 100)),
                         const SizedBox(width: 12),
-                        Expanded(child: _field('Last Name', _lastNameCtrl)),
+                        Expanded(
+                            child: _field('Last Name', _lastNameCtrl,
+                                maxLength: 100)),
                       ]),
                       const SizedBox(height: 14),
-                      _field('Phone Number', _phoneCtrl),
+                      _field('Phone Number', _phoneCtrl, maxLength: 11),
                       const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
                         initialValue: _vehicleType,
@@ -108,11 +112,12 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                         onChanged: (v) => setState(() => _vehicleType = v!),
                       ),
                       const SizedBox(height: 14),
-                      _field('Plate Number', _plateCtrl),
+                      _field('Plate Number', _plateCtrl, maxLength: 20),
                       const SizedBox(height: 14),
-                      _field('Vehicle Brand', _brandCtrl),
+                      _field('Vehicle Brand', _brandCtrl, maxLength: 255),
                       const SizedBox(height: 14),
-                      _field("Driver's License Number", _licenseCtrl),
+                      _field("Driver's License Number", _licenseCtrl,
+                          maxLength: 50),
                       const SizedBox(height: 14),
                       InkWell(
                         onTap: () async {
@@ -213,9 +218,12 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
         ]),
       );
 
-  Widget _field(String label, TextEditingController ctrl) => TextFormField(
+  Widget _field(String label, TextEditingController ctrl, {int? maxLength}) =>
+      TextFormField(
         controller: ctrl,
-        decoration: InputDecoration(labelText: label),
+        maxLength: maxLength,
+        decoration:
+            InputDecoration(labelText: label, counterText: ''),
         validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
       );
 }

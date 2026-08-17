@@ -240,7 +240,8 @@ class _AssignRiderCollectionModalState
                   AppTextField(
                       controller: _notesCtrl,
                       label: 'Notes (optional)',
-                      maxLines: 2),
+                      maxLines: 2,
+                      maxLength: 255),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Container(

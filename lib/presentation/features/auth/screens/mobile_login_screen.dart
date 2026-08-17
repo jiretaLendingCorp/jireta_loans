@@ -205,6 +205,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                             TextFormField(
                               controller: _phoneCtrl,
                               keyboardType: TextInputType.phone,
+                              maxLength: 13,
                               inputFormatters: [
                                 // MaskTextInputFormatter already filters digits-only
                                 // via filter: {'#': RegExp(r'[0-9]')}.
@@ -215,6 +216,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                               decoration: const InputDecoration(
                                 labelText: 'Mobile Number',
                                 hintText: '09XX XXX XXXX',
+                                counterText: '',
                                 prefixIcon: Icon(Icons.phone_android),
                               ),
                               onChanged: (_) => setState(() {}),

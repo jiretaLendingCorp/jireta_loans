@@ -522,17 +522,20 @@ class _LenderAccountUpgradeSubmitScreenState
           AppTextField(
             label: 'First Name *',
             controller: _firstNameCtrl,
+            maxLength: 100,
             validator: _required('First name'),
           ),
           const SizedBox(height: 12),
           AppTextField(
             label: 'Middle Name (Optional)',
             controller: _middleNameCtrl,
+            maxLength: 100,
           ),
           const SizedBox(height: 12),
           AppTextField(
             label: 'Last Name *',
             controller: _lastNameCtrl,
+            maxLength: 100,
             validator: _required('Last name'),
           ),
           const SizedBox(height: 12),
@@ -540,6 +543,7 @@ class _LenderAccountUpgradeSubmitScreenState
             label: 'Suffix (Optional)',
             hint: 'e.g. Jr., Sr., III',
             controller: _suffixCtrl,
+            maxLength: 20,
           ),
           const SizedBox(height: 12),
           _buildDropdown(
@@ -613,6 +617,7 @@ class _LenderAccountUpgradeSubmitScreenState
           AppTextField(
             label: 'Employer / Business Name *',
             controller: _employerCtrl,
+            maxLength: 255,
             validator: _required('Employer / business name'),
           ),
           const SizedBox(height: 12),
@@ -620,6 +625,7 @@ class _LenderAccountUpgradeSubmitScreenState
             label: 'Monthly Income (₱) *',
             controller: _incomeCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            maxLength: 12,
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
             ],
@@ -657,12 +663,14 @@ class _LenderAccountUpgradeSubmitScreenState
           AppTextField(
             label: 'Street Address *',
             controller: _streetCtrl,
+            maxLength: 100,
             validator: _required('Street address'),
           ),
           const SizedBox(height: 12),
           AppTextField(
             label: 'Barangay *',
             controller: _barangayCtrl,
+            maxLength: 100,
             validator: _required('Barangay'),
           ),
           const SizedBox(height: 12),
@@ -672,6 +680,7 @@ class _LenderAccountUpgradeSubmitScreenState
                 child: AppTextField(
                   label: 'City / Municipality *',
                   controller: _cityCtrl,
+                  maxLength: 100,
                   validator: _required('City / municipality'),
                 ),
               ),
@@ -680,6 +689,7 @@ class _LenderAccountUpgradeSubmitScreenState
                 child: AppTextField(
                   label: 'Province *',
                   controller: _provinceCtrl,
+                  maxLength: 100,
                   validator: _required('Province'),
                 ),
               ),
@@ -728,6 +738,7 @@ class _LenderAccountUpgradeSubmitScreenState
               AppTextField(
                 label: 'Contact Name *',
                 controller: _ecNameCtrl,
+                maxLength: 100,
                 validator: _required('Contact name'),
               ),
               const SizedBox(height: 12),

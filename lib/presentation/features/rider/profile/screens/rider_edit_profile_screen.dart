@@ -140,12 +140,14 @@ class _RiderEditProfileScreenState
                         AppTextField(
                           label: 'First Name',
                           controller: _firstNameCtrl,
+                          maxLength: 100,
                           validator: _requiredValidator('First name'),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Last Name',
                           controller: _lastNameCtrl,
+                          maxLength: 100,
                           validator: _requiredValidator('Last name'),
                         ),
                       ],
@@ -158,12 +160,14 @@ class _RiderEditProfileScreenState
                         AppTextField(
                           label: 'Plate Number',
                           controller: _plateCtrl,
+                          maxLength: 20,
                           validator: _requiredValidator('Plate number'),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: "Driver's License Number",
                           controller: _licenseCtrl,
+                          maxLength: 50,
                           validator:
                               _requiredValidator("Driver's license number"),
                         ),

@@ -64,9 +64,12 @@ class DisbursementModel {
 
   String get loanNumber => loan?['loan_number'] ?? '';
   String get lenderName {
-    final l = loan?['lender'];
-    if (l == null) return '';
-    return '${l['first_name'] ?? ''} ${l['last_name'] ?? ''}'.trim();
+    final flat = loan?['lender_name'] as String?;
+    if (flat != null && flat.trim().isNotEmpty) return flat;
+    final lp = loan?['lender_profiles'] as Map<String, dynamic>?;
+    final u = lp?['users'] as Map<String, dynamic>?;
+    if (u == null) return '';
+    return '${u['first_name'] ?? ''} ${u['last_name'] ?? ''}'.trim();
   }
 
   String get methodLabel {

@@ -338,6 +338,22 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     if (message.contains('Account suspended')) {
       return 'Your account is suspended.';
     }
+    if (message.contains('LOGIN_RATE_LIMITED') ||
+        message.contains('Too many login attempts')) {
+      return 'Too many login attempts. Try again in a few minutes.';
+    }
+    if (message.contains('OTP_RATE_LIMITED') ||
+        message.contains('Too many OTP')) {
+      return 'Too many OTP requests. Please wait before trying again.';
+    }
+    if (message.contains('PASSWORD_RESET_RATE_LIMITED') ||
+        message.contains('Too many reset requests')) {
+      return 'Too many reset requests. Please try again later.';
+    }
+    if (message.contains('PAYMENT_ATTEMPT_BLOCKED') ||
+        message.contains('Too many payment attempts')) {
+      return 'Payment attempt temporarily blocked for review. Please try again later.';
+    }
     if (message.contains('Rate limit') || message.contains('RATE_LIMITED')) {
       return 'Too many attempts. Please wait.';
     }

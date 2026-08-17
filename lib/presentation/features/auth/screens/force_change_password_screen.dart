@@ -145,9 +145,11 @@ class _ForceChangePasswordScreenState
                           TextFormField(
                             controller: _currentCtrl,
                             obscureText: _obscureCurrent,
+                            maxLength: 128,
                             decoration: InputDecoration(
                               labelText: 'Current Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
+                              counterText: '',
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureCurrent
@@ -166,9 +168,11 @@ class _ForceChangePasswordScreenState
                           TextFormField(
                             controller: _newCtrl,
                             obscureText: _obscureNew,
+                            maxLength: 128,
                             decoration: InputDecoration(
                               labelText: 'New Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
+                              counterText: '',
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureNew
@@ -228,9 +232,11 @@ class _ForceChangePasswordScreenState
                           TextFormField(
                             controller: _confirmCtrl,
                             obscureText: _obscureConfirm,
+                            maxLength: 128,
                             decoration: InputDecoration(
                               labelText: 'Confirm New Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
+                              counterText: '',
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirm

@@ -98,9 +98,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               TextFormField(
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
+                maxLength: 254,
                 decoration: const InputDecoration(
                   labelText: 'Email Address',
                   prefixIcon: Icon(Icons.email_outlined),
+                  counterText: '',
                 ),
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Required';

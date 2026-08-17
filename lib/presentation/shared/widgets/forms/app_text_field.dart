@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
 
+// SECURITY: universal field-length cap. Every AppTextField is limited to at
+// most [kDefaultMaxLength] characters even when a caller does not pass a
+// specific maxLength, so no form field can accept unbounded input. Callers
+// that need a tighter bound (phone = 11, ZIP = 4, ...) pass their own
+// maxLength and it overrides this default.
+const int kDefaultMaxLength = 255;
+
 class AppTextField extends StatefulWidget {
   final String label;
   final String? hint;
@@ -54,6 +61,10 @@ class _AppTextFieldState extends State<AppTextField> {
 
   @override
   Widget build(BuildContext context) {
+    // SECURITY: enforce a cap even when the caller omitted maxLength.
+    // counterText: '' hides Flutter's "0/255" helper counter so existing UIs
+    // look unchanged, but input is still hard-limited.
+    final effectiveMaxLength = widget.maxLength ?? kDefaultMaxLength;
     return TextFormField(
       controller: widget.controller,
       initialValue: widget.initialValue,
@@ -62,7 +73,7 @@ class _AppTextFieldState extends State<AppTextField> {
       obscureText: widget.obscureText && _obscure,
       readOnly: widget.readOnly,
       maxLines: widget.obscureText ? 1 : widget.maxLines,
-      maxLength: widget.maxLength,
+      maxLength: effectiveMaxLength,
       inputFormatters: widget.inputFormatters,
       enabled: widget.enabled,
       focusNode: widget.focusNode,
@@ -76,6 +87,7 @@ class _AppTextFieldState extends State<AppTextField> {
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
+        counterText: '',
         hintStyle: const TextStyle(
           fontSize: 13,
           color: AppColors.textTertiary,

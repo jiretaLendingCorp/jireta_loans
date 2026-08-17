@@ -61,17 +61,22 @@ class _RiderCiBorrowerInfoScreenState
 
   Widget _buildContent(dynamic ci) {
     final loan = ci.loan as Map<String, dynamic>?;
-    final lender = loan?['lender'] as Map<String, dynamic>?;
-    final user = lender?['user'] as Map<String, dynamic>?;
-    final fullName = user?['full_name'] as String? ?? '—';
-    final phone = user?['phone'] as String? ?? '—';
+    final lender = loan?['lender_profile'] as Map<String, dynamic>?;
+    final user = lender?['users'] as Map<String, dynamic>?;
+    final composedName =
+        '${user?['first_name'] ?? ''} ${user?['last_name'] ?? ''}'.trim();
+    final fullName = (loan?['lender_name'] as String?) ??
+        (composedName.isEmpty ? '—' : composedName);
+    final phone = user?['phone_number'] as String? ?? '—';
     final dob = lender?['date_of_birth'] as String?;
     final gender = lender?['gender'] as String? ?? '—';
     final civil = lender?['civil_status'] as String? ?? '—';
     final employment = lender?['employment_type'] as String? ?? '—';
     final employer = lender?['employer_name'] as String? ?? '—';
     final income = lender?['monthly_income'] as num?;
-    final addresses = lender?['addresses'] as List? ?? [];
+    final addresses = (lender?['users'] as Map<String, dynamic>?)?['addresses']
+            as List? ??
+        [];
     final emergencyContacts = lender?['emergency_contacts'] as List? ?? [];
 
     return RefreshIndicator(
@@ -473,7 +478,7 @@ class _EmergencyContactsSection extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(contact['full_name'] as String? ?? '—',
+                        Text(contact['name'] as String? ?? '—',
                             style: const TextStyle(
                                 fontWeight: FontWeight.w500, fontSize: 13)),
                         Text(contact['relationship'] as String? ?? '—',
@@ -482,7 +487,7 @@ class _EmergencyContactsSection extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Text(contact['phone'] as String? ?? '—',
+                  Text(contact['phone_number'] as String? ?? '—',
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textSecondary)),
                 ],

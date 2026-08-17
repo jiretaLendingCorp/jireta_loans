@@ -109,6 +109,7 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
             label: 'Loan Amount (₱3,000 – ₱500,000) *',
             keyboardType: TextInputType.number,
             prefixIcon: Icons.attach_money,
+            maxLength: 12,
             onChanged: (_) {
               _update();
               if (_amount >= _minAmount && _amount <= _maxAmount) {
@@ -173,6 +174,7 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
             controller: _purposeCtrl,
             label: 'Purpose of Loan',
             maxLines: 3,
+            maxLength: 255,
             onChanged: (_) => _update(),
           ),
           const SizedBox(height: 24),

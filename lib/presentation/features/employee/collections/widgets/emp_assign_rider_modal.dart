@@ -138,6 +138,7 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
                   controller: _notesCtrl,
                   label: 'Collection Notes (optional)',
                   maxLines: 3,
+                  maxLength: 255,
                 ),
               ],
               const SizedBox(height: 24),

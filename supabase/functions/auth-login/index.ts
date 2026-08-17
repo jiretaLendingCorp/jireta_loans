@@ -14,9 +14,21 @@ import {
   validateEmail,
 } from '../_shared/validators.ts';
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
+import { guardRateLimit, recordSecurityEvent } from '../_shared/rate_limiter.ts';
 
 const MAX_FAILED      = 5;
 const LOCKOUT_MINUTES = 15;
+
+// Abuse detection: 20 login attempts per minute per IP+email → block for 15
+// minutes. The existing per-account lockout (5 fails / 15 min) still applies
+// on top; this catches distributed / IP-scoped brute force earlier.
+const LOGIN_RATE_MAX   = 20;
+const LOGIN_RATE_MINUTE = 1;
+const LOGIN_BLOCK_MINUTES = 15;
+
+function clientIp(req: Request): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+}
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -44,7 +56,46 @@ serve(async (req) => {
     // ── Step 2: create clients ────────────────────────────────────────────
     const db       = getAdminClient();
     const anonAuth = getAnonClient();
-    const ip       = req.headers.get('x-forwarded-for') ?? 'unknown';
+    const ip       = clientIp(req);
+
+    // ── Step 2.5: abuse detection (IP-scoped brute force) ────────────────
+    // 20 attempts/min per IP+email → temporary block. Checked BEFORE any
+    // database work so a flood of bad logins cannot hammer the DB.
+    const rateKey = `login:${ip}:${cleanEmail}`;
+    const rateGuard = await guardRateLimit({
+      key: rateKey,
+      maxAttempts: LOGIN_RATE_MAX,
+      windowMinutes: LOGIN_RATE_MINUTE,
+      blockMinutes: LOGIN_BLOCK_MINUTES,
+      blockReason: 'Too many login attempts',
+      eventType: 'login_rate_limited',
+      ipAddress: ip,
+    });
+    if (!rateGuard.allowed) {
+      const waitMinutes = rateGuard.block?.retryAfterSeconds
+        ? Math.ceil(rateGuard.block.retryAfterSeconds / 60)
+        : LOGIN_BLOCK_MINUTES;
+      // Record for the audit trail if the email maps to a known account.
+      const { data: blockedUser } = await db
+        .from('users')
+        .select('id')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+      if (blockedUser?.id) {
+        try {
+          await db.from('auth_logs').insert({
+            user_id: blockedUser.id,
+            event_type: 'login_rate_limited',
+            ip_address: ip,
+          });
+        } catch (_) {}
+      }
+      return errorResponse(
+        `Too many login attempts. Try again in ${waitMinutes} minute(s).`,
+        429,
+        'LOGIN_RATE_LIMITED',
+      );
+    }
 
     // ── Step 3: look up user in public.users ──────────────────────────────
     // NOTE: This is the custom users table, NOT auth.users.
@@ -164,6 +215,13 @@ serve(async (req) => {
       .delete()
       .eq('user_id', user.id)
       .in('event_type', ['login_fail', 'account_locked']);
+
+    // Clear the sliding-window abuse counter too so an already-authenticated
+    // user is never caught by the 20/min IP+email guard on their next sign-in.
+    await db
+      .from('rate_limit_logs')
+      .delete()
+      .eq('key', rateKey);
 
     await db.from('auth_logs').insert({
       user_id:         user.id,

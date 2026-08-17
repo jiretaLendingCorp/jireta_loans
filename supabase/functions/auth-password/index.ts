@@ -16,7 +16,7 @@ import { isAuthUser, requireAuth } from "../_shared/auth.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient, getAnonClient } from "../_shared/db.ts";
 import { hashPassword, matchesPasswordHistory } from "../_shared/password_hash.ts";
-import { checkRateLimit } from "../_shared/rate_limiter.ts";
+import { checkRateLimit, checkBlock, blockKey, recordSecurityEvent } from "../_shared/rate_limiter.ts";
 import { singleWithObjectEmbeds } from "../_shared/types.ts";
 import {
   sanitizeString,
@@ -26,6 +26,18 @@ import {
 
 // ── [moved from auth-force-change-password] ─────────────────────────────────
 const PASSWORD_HISTORY_LIMIT = 5;
+
+// Abuse detection: repeated password-reset requests for the same email or
+// from the same IP are flagged as suspicious. Beyond the per-email window the
+// account is temporarily blocked and a security event is recorded.
+const FORGOT_WINDOW_MINUTES = 15;
+const FORGOT_MAX_PER_EMAIL = 3;
+const FORGOT_MAX_PER_IP = 10;
+const FORGOT_BLOCK_MINUTES = 60;
+
+function clientIp(req: Request): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+}
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = "forgot-password";
@@ -71,17 +83,75 @@ async function handleForgotPassword(req: Request) {
     return errorResponse("Invalid email format", 400, "VALIDATION_ERROR");
   }
 
-  const ip = req.headers.get("x-forwarded-for") ?? "unknown";
+  const ip = clientIp(req);
+
+  // Abuse detection: block if this email or IP was already flagged.
+  const emailBlock = await checkBlock(`forgot:${cleanEmail}`);
+  if (emailBlock.blocked) {
+    return errorResponse(
+      "Too many reset requests for this account. Try again in an hour.",
+      429,
+      "PASSWORD_RESET_RATE_LIMITED",
+    );
+  }
+  const ipBlock = await checkBlock(`forgot:ip:${ip}`);
+  if (ipBlock.blocked) {
+    return errorResponse(
+      "Too many reset requests from this device. Try again later.",
+      429,
+      "PASSWORD_RESET_RATE_LIMITED",
+    );
+  }
+
+  // Per-email: up to 3 reset requests / 15 min.
   const { allowed } = await checkRateLimit({
     key: `forgot_password:${cleanEmail}`,
-    maxAttempts: 3,
-    windowMinutes: 15,
+    maxAttempts: FORGOT_MAX_PER_EMAIL,
+    windowMinutes: FORGOT_WINDOW_MINUTES,
   });
   if (!allowed) {
+    // Repeated resets on the SAME email → suspicious account activity.
+    await blockKey({
+      key: `forgot:${cleanEmail}`,
+      reason: "Multiple password reset requests",
+      minutes: FORGOT_BLOCK_MINUTES,
+    });
+    await recordSecurityEvent({
+      eventType: "password_reset_suspicious",
+      key: `forgot:${cleanEmail}`,
+      ipAddress: ip,
+      detail: { attempts: FORGOT_MAX_PER_EMAIL, windowMinutes: FORGOT_WINDOW_MINUTES },
+    });
     return errorResponse(
-      "Too many requests. Try again in 15 minutes.",
+      "Too many reset requests for this account. Try again in an hour.",
       429,
-      "RATE_LIMITED",
+      "PASSWORD_RESET_RATE_LIMITED",
+    );
+  }
+
+  // Per-IP: up to 10 reset requests / 15 min (multiple accounts from one IP
+  // is a classic enumeration / spam signature).
+  const ipResult = await checkRateLimit({
+    key: `forgot:ip:${ip}`,
+    maxAttempts: FORGOT_MAX_PER_IP,
+    windowMinutes: FORGOT_WINDOW_MINUTES,
+  });
+  if (!ipResult.allowed) {
+    await blockKey({
+      key: `forgot:ip:${ip}`,
+      reason: "Password reset flooding from single device/IP",
+      minutes: FORGOT_BLOCK_MINUTES,
+    });
+    await recordSecurityEvent({
+      eventType: "password_reset_suspicious",
+      key: `forgot:ip:${ip}`,
+      ipAddress: ip,
+      detail: { attempts: FORGOT_MAX_PER_IP, windowMinutes: FORGOT_WINDOW_MINUTES },
+    });
+    return errorResponse(
+      "Too many reset requests from this device. Try again later.",
+      429,
+      "PASSWORD_RESET_RATE_LIMITED",
     );
   }
 

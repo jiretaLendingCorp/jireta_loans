@@ -231,11 +231,13 @@ class _EmpCiAssignModalState extends ConsumerState<EmpCiAssignModal> {
               TextField(
                 controller: _notesCtrl,
                 maxLines: 3,
+                maxLength: 255,
                 decoration: InputDecoration(
                   hintText: 'Enter notes for the rider...',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  counterText: '',
                 ),
               ),
               const SizedBox(height: 24),

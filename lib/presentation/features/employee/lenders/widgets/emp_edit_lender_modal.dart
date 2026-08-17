@@ -91,19 +91,26 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
                   child: Column(
                     children: [
                       Row(children: [
-                        Expanded(child: _field('First Name', _firstNameCtrl)),
+                        Expanded(
+                            child: _field('First Name', _firstNameCtrl,
+                                maxLength: 100)),
                         const SizedBox(width: 12),
-                        Expanded(child: _field('Last Name', _lastNameCtrl)),
+                        Expanded(
+                            child: _field('Last Name', _lastNameCtrl,
+                                maxLength: 100)),
                       ]),
                       const SizedBox(height: 14),
-                      _field('Phone Number', _phoneCtrl),
+                      _field('Phone Number', _phoneCtrl, maxLength: 11),
                       const SizedBox(height: 14),
-                      _field('GCash Number', _gcashCtrl),
+                      _field('GCash Number', _gcashCtrl, maxLength: 11),
                       const SizedBox(height: 14),
-                      _field('Employer Name', _employerCtrl, required: false),
+                      _field('Employer Name', _employerCtrl,
+                          required: false, maxLength: 255),
                       const SizedBox(height: 14),
                       _field('Monthly Income', _incomeCtrl,
-                          required: false, keyboardType: TextInputType.number),
+                          required: false,
+                          keyboardType: TextInputType.number,
+                          maxLength: 12),
                     ],
                   ),
                 ),
@@ -170,15 +177,18 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
     );
   }
 
-  Widget _field(String label, TextEditingController ctrl,
-      {bool required = true, TextInputType keyboardType = TextInputType.text}) {
-    return TextFormField(
-      controller: ctrl,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label),
-      validator: required
-          ? (v) => v == null || v.trim().isEmpty ? 'Required' : null
-          : null,
-    );
-  }
+Widget _field(String label, TextEditingController ctrl,
+    {bool required = true,
+    TextInputType keyboardType = TextInputType.text,
+    int? maxLength}) {
+  return TextFormField(
+    controller: ctrl,
+    keyboardType: keyboardType,
+    maxLength: maxLength,
+    decoration: InputDecoration(labelText: label, counterText: ''),
+    validator: required
+        ? (v) => v == null || v.trim().isEmpty ? 'Required' : null
+        : null,
+  );
+}
 }

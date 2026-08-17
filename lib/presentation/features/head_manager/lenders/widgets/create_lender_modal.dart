@@ -93,9 +93,13 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                     ),
                   Row(
                     children: [
-                      Expanded(child: _f('First Name', _firstCtrl, req: true)),
+                      Expanded(
+                          child: _f('First Name', _firstCtrl,
+                              req: true, maxLength: 100)),
                       const SizedBox(width: 12),
-                      Expanded(child: _f('Last Name', _lastCtrl, req: true)),
+                      Expanded(
+                          child: _f('Last Name', _lastCtrl,
+                              req: true, maxLength: 100)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -104,6 +108,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                     _phoneCtrl,
                     req: true,
                     type: TextInputType.phone,
+                    maxLength: 11,
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -158,7 +163,8 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _f('GCash Number', _gcashCtrl, type: TextInputType.phone),
+                  _f('GCash Number', _gcashCtrl,
+                      type: TextInputType.phone, maxLength: 11),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -185,12 +191,14 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(child: _f('Employer/Business', _employerCtrl)),
+                      Expanded(
+                          child: _f('Employer/Business', _employerCtrl,
+                              maxLength: 255)),
                     ],
                   ),
                   const SizedBox(height: 12),
                   _f('Monthly Income (₱)', _incomeCtrl,
-                      type: TextInputType.number),
+                      type: TextInputType.number, maxLength: 12),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -230,10 +238,12 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
     TextEditingController ctrl, {
     bool req = false,
     TextInputType? type,
+    int? maxLength,
   }) =>
       TextFormField(
         controller: ctrl,
         keyboardType: type,
+        maxLength: maxLength,
         decoration: _dec(label),
         validator: req
             ? (v) => v == null || v.isEmpty ? '$label is required' : null
@@ -242,6 +252,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
 
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
+        counterText: '',
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

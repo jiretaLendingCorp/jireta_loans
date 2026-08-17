@@ -129,6 +129,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
           AppTextField(
             controller: _homeStreetCtrl,
             label: 'Street Address *',
+            maxLength: 100,
             onChanged: (_) => _update(),
           ),
           const SizedBox(height: 12),
@@ -138,6 +139,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
                 child: AppTextField(
                   controller: _homeCityCtrl,
                   label: 'City / Municipality *',
+                  maxLength: 100,
                   onChanged: (_) => _update(),
                 ),
               ),
@@ -146,6 +148,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
                 child: AppTextField(
                   controller: _homeProvinceCtrl,
                   label: 'Province *',
+                  maxLength: 100,
                   onChanged: (_) => _update(),
                 ),
               ),
@@ -156,6 +159,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
             controller: _homeZipCtrl,
             label: 'ZIP Code',
             keyboardType: TextInputType.number,
+            maxLength: 4,
             onChanged: (_) => _update(),
           ),
           const SizedBox(height: 20),
@@ -188,6 +192,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
             AppTextField(
               controller: _workStreetCtrl,
               label: 'Street Address',
+              maxLength: 100,
               onChanged: (_) => _update(),
             ),
             const SizedBox(height: 12),
@@ -197,6 +202,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
                   child: AppTextField(
                     controller: _workCityCtrl,
                     label: 'City / Municipality',
+                    maxLength: 100,
                     onChanged: (_) => _update(),
                   ),
                 ),
@@ -205,6 +211,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
                   child: AppTextField(
                     controller: _workProvinceCtrl,
                     label: 'Province',
+                    maxLength: 100,
                     onChanged: (_) => _update(),
                   ),
                 ),
@@ -264,6 +271,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
                   AppTextField(
                     controller: c['name']!,
                     label: 'Full Name *',
+                    maxLength: 100,
                     onChanged: (_) => _update(),
                   ),
                   const SizedBox(height: 10),
@@ -274,6 +282,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
                           controller: c['phone']!,
                           label: 'Phone Number *',
                           keyboardType: TextInputType.phone,
+                          maxLength: 11,
                           onChanged: (_) => _update(),
                         ),
                       ),
@@ -282,6 +291,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
                         child: AppTextField(
                           controller: c['relationship']!,
                           label: 'Relationship *',
+                          maxLength: 50,
                           onChanged: (_) => _update(),
                         ),
                       ),

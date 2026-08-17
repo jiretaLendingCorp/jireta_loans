@@ -271,12 +271,14 @@ class _LenderEditProfileScreenState
                         AppTextField(
                           label: 'First Name',
                           controller: _firstNameCtrl,
+                          maxLength: 100,
                           validator: _requiredValidator('First name'),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Middle Name (Optional)',
                           controller: _middleNameCtrl,
+                          maxLength: 100,
                           validator: (v) {
                             if (v == null || v.isEmpty) return null;
                             if (v.trim().length < 2) {
@@ -289,6 +291,7 @@ class _LenderEditProfileScreenState
                         AppTextField(
                           label: 'Last Name',
                           controller: _lastNameCtrl,
+                          maxLength: 100,
                           validator: _requiredValidator('Last name'),
                         ),
                         const SizedBox(height: 12),
@@ -333,6 +336,7 @@ class _LenderEditProfileScreenState
                           label: 'GCash Number',
                           controller: _gcashCtrl,
                           keyboardType: TextInputType.phone,
+                          maxLength: 11,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(11),
@@ -363,6 +367,7 @@ class _LenderEditProfileScreenState
                         AppTextField(
                           label: 'Employer / Business Name',
                           controller: _employerCtrl,
+                          maxLength: 255,
                           validator:
                               _requiredValidator('Employer / business name'),
                         ),
@@ -372,6 +377,7 @@ class _LenderEditProfileScreenState
                           controller: _incomeCtrl,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
+                          maxLength: 12,
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(
                                 RegExp(r'[0-9.]')),
@@ -406,27 +412,32 @@ class _LenderEditProfileScreenState
                         AppTextField(
                           label: 'Street Address',
                           controller: _streetCtrl,
+                          maxLength: 100,
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Barangay',
                           controller: _barangayCtrl,
+                          maxLength: 100,
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'City / Municipality',
                           controller: _cityCtrl,
+                          maxLength: 100,
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'Province',
                           controller: _provinceCtrl,
+                          maxLength: 100,
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           label: 'ZIP Code',
                           controller: _zipCtrl,
                           keyboardType: TextInputType.number,
+                          maxLength: 4,
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(4),

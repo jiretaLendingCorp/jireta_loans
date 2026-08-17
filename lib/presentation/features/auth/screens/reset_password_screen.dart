@@ -119,9 +119,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 TextFormField(
                   controller: _newCtrl,
                   obscureText: _obscureNew,
+                  maxLength: 128,
                   decoration: InputDecoration(
                     labelText: 'New Password',
                     prefixIcon: const Icon(Icons.lock_outlined),
+                    counterText: '',
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureNew
@@ -148,9 +150,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 TextFormField(
                   controller: _confirmCtrl,
                   obscureText: _obscureConfirm,
+                  maxLength: 128,
                   decoration: InputDecoration(
                     labelText: 'Confirm Password',
                     prefixIcon: const Icon(Icons.lock_outlined),
+                    counterText: '',
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureConfirm

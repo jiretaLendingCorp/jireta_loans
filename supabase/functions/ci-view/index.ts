@@ -54,7 +54,7 @@ async function handleCiGetList(req: Request) {
   let query = db.from('credit_investigations')
     .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at,
       loan_id,
-      loans(id, loan_number, lender_id, principal_amount, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number))),
+      loans(id, loan_number, lender_id, principal_amount, lender_profiles!loans_lender_id_fkey(id, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, gcash_number, source_of_funds, account_upgrade_status, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email, addresses:addresses(address_type, street, barangay, city, province, latitude, longitude)), emergency_contacts(id, name, relationship, phone_number, address))),
       rider:rider_profiles(users!rider_profiles_id_fkey(id, first_name, last_name)),
       assigner:users(id, first_name, last_name),
       ci_documents:ci_documents(id, document_type, file_path, file_name, mime_type, notes, uploaded_at)`, { count: 'exact' });

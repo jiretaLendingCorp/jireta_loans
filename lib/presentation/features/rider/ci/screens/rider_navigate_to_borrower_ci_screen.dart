@@ -63,10 +63,15 @@ class _RiderNavigateToBorrowerCiScreenState
 
   Widget _buildContent(dynamic ci) {
     final loan = ci.loan as Map<String, dynamic>?;
-    final lender = loan?['lender'] as Map<String, dynamic>?;
-    final user = lender?['user'] as Map<String, dynamic>?;
-    final borrowerName = user?['full_name'] as String? ?? 'Lender';
-    final addresses = lender?['addresses'] as List? ?? [];
+    final lender = loan?['lender_profile'] as Map<String, dynamic>?;
+    final user = lender?['users'] as Map<String, dynamic>?;
+    final composedName =
+        '${user?['first_name'] ?? ''} ${user?['last_name'] ?? ''}'.trim();
+    final borrowerName = (loan?['lender_name'] as String?) ??
+        (composedName.isEmpty ? 'Lender' : composedName);
+    final addresses = (lender?['users'] as Map<String, dynamic>?)?['addresses']
+            as List? ??
+        [];
 
     return ListView(
       padding: const EdgeInsets.all(16),

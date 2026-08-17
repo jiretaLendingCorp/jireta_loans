@@ -129,6 +129,7 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                             child: AppTextField(
                               controller: _firstNameCtrl,
                               label: 'First Name',
+                              maxLength: 100,
                               validator: AppValidators.required,
                             ),
                           ),
@@ -137,6 +138,7 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                             child: AppTextField(
                               controller: _lastNameCtrl,
                               label: 'Last Name',
+                              maxLength: 100,
                               validator: AppValidators.required,
                             ),
                           ),
@@ -147,6 +149,7 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                         controller: _phoneCtrl,
                         label: 'Phone Number',
                         keyboardType: TextInputType.phone,
+                        maxLength: 11,
                         validator: AppValidators.phone,
                       ),
                       const SizedBox(height: 12),
@@ -166,6 +169,7 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                             child: AppTextField(
                               controller: _vehicleBrandCtrl,
                               label: 'Vehicle Brand',
+                              maxLength: 100,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -173,6 +177,7 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                             child: AppTextField(
                               controller: _plateCtrl,
                               label: 'Plate Number',
+                              maxLength: 20,
                             ),
                           ),
                         ],
@@ -181,6 +186,7 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                       AppTextField(
                         controller: _licenseCtrl,
                         label: "Driver's License Number",
+                        maxLength: 50,
                       ),
                     ],
                   ),

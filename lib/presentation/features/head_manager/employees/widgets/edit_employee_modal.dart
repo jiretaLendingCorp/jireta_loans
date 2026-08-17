@@ -135,6 +135,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                             child: AppTextField(
                               controller: _firstNameCtrl,
                               label: 'First Name',
+                              maxLength: 100,
                               validator: AppValidators.required,
                             ),
                           ),
@@ -143,6 +144,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                             child: AppTextField(
                               controller: _lastNameCtrl,
                               label: 'Last Name',
+                              maxLength: 100,
                               validator: AppValidators.required,
                             ),
                           ),
@@ -152,6 +154,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                       AppTextField(
                         controller: _middleNameCtrl,
                         label: 'Middle Name (Optional)',
+                        maxLength: 100,
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -187,6 +190,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                         controller: _phoneCtrl,
                         label: 'Phone Number',
                         keyboardType: TextInputType.phone,
+                        maxLength: 11,
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -195,6 +199,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                             child: AppTextField(
                               controller: _departmentCtrl,
                               label: 'Department',
+                              maxLength: 100,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -202,6 +207,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                             child: AppTextField(
                               controller: _positionCtrl,
                               label: 'Position',
+                              maxLength: 100,
                             ),
                           ),
                         ],

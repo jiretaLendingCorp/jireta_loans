@@ -15,11 +15,23 @@ import { getAdminClient } from '../_shared/db.ts';
 import { validatePhone, sanitizeString } from '../_shared/validators.ts';
 import { sendSms } from '../_shared/sms.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
+import { guardRateLimit, recordSecurityEvent, blockKey, checkBlock } from '../_shared/rate_limiter.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
-const OTP_RATE_LIMIT = 3;
-const OTP_WINDOW_MINUTES = 5;
+const OTP_RATE_LIMIT = 10;
+const OTP_WINDOW_MINUTES = 10;
 const OTP_EXPIRY_MINUTES = 10;
+
+// Abuse detection: 10 OTP requests per phone per 10 minutes (the stored
+// otp_codes count above) PLUS an IP-scoped guard so one IP cannot spray OTP
+// across many phone numbers (phone-number enumeration / SMS bombing).
+const OTP_IP_RATE_MAX = 20;
+const OTP_IP_WINDOW_MINUTES = 10;
+const OTP_BLOCK_MINUTES = 15;
+
+function clientIp(req: Request): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+}
 
 // ── [moved from auth-verify-otp] ────────────────────────────────────────────
 const MAX_OTP_ATTEMPTS = 5;
@@ -114,10 +126,30 @@ serve(async (req) => {
 async function handleSendOtp(req: Request) {
   const { phone_number } = await req.json();
   const phone = sanitizeString(String(phone_number ?? ''));
+  const ip = clientIp(req);
 
   if (!validatePhone(phone)) return errorResponse('Invalid Philippine phone number (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
+
+  // Abuse detection (IP-scoped): 20 OTP sends per IP per 10 minutes → block.
+  // Checked first so a flood cannot reach the DB / SMS provider.
+  const ipGuard = await guardRateLimit({
+    key: `otp:ip:${ip}`,
+    maxAttempts: OTP_IP_RATE_MAX,
+    windowMinutes: OTP_IP_WINDOW_MINUTES,
+    blockMinutes: OTP_BLOCK_MINUTES,
+    blockReason: 'Too many OTP requests from this device/IP',
+    eventType: 'otp_rate_limited',
+    ipAddress: ip,
+  });
+  if (!ipGuard.allowed) {
+    return errorResponse(
+      'Too many OTP requests from this device. Try again in 15 minutes.',
+      429,
+      'OTP_RATE_LIMITED',
+    );
+  }
 
   // Lenders may self-register via OTP: an unregistered phone is allowed to
   // request an OTP. Riders must be registered by the head manager first, so
@@ -146,8 +178,33 @@ async function handleSendOtp(req: Request) {
     .eq('phone_number', phone)
     .gte('created_at', windowStart);
 
+  // 10 OTP requests per phone per 10 minutes → rate limit + block on breach.
   if ((count ?? 0) >= OTP_RATE_LIMIT) {
-    return errorResponse(`OTP limit reached. Wait ${OTP_WINDOW_MINUTES} minutes.`, 429, 'RATE_LIMITED');
+    await blockKey({
+      key: `otp:phone:${phone}`,
+      reason: 'OTP request limit reached for this number',
+      minutes: OTP_BLOCK_MINUTES,
+    });
+    await recordSecurityEvent({
+      eventType: 'otp_rate_limited',
+      key: `otp:phone:${phone}`,
+      userId,
+      ipAddress: ip,
+    });
+    if (userId) {
+      try {
+        await db.from('auth_logs').insert({
+          user_id: userId,
+          event_type: 'otp_rate_limited',
+          ip_address: ip,
+        });
+      } catch (_) {}
+    }
+    return errorResponse(
+      `OTP request limit reached. Try again in ${OTP_BLOCK_MINUTES} minutes.`,
+      429,
+      'OTP_RATE_LIMITED',
+    );
   }
 
   await db.from('otp_codes').update({ used: true }).eq('phone_number', phone).eq('used', false);
@@ -172,7 +229,7 @@ async function handleSendOtp(req: Request) {
     await db.from('auth_logs').insert({
       user_id: userId,
       event_type: 'otp_sent',
-      ip_address: req.headers.get('x-forwarded-for') ?? 'unknown',
+      ip_address: ip,
     });
   }
 
@@ -184,11 +241,31 @@ async function handleVerifyOtp(req: Request) {
   const { phone_number, code, otp } = await req.json();
   const phone = sanitizeString(String(phone_number ?? ''));
   const otpCode = sanitizeString(String(otp ?? code ?? ''));
+  const ip = clientIp(req);
 
   if (!validatePhone(phone)) return errorResponse('Invalid phone number', 400, 'VALIDATION_ERROR');
   if (!/^\d{6}$/.test(otpCode)) return errorResponse('OTP must be 6 digits', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
+
+  // If the phone or IP was blocked by the send-OTP guard (10/10min breached),
+  // refuse verification attempts too so a blocked key cannot keep probing.
+  const phoneBlock = await checkBlock(`otp:phone:${phone}`);
+  if (phoneBlock.blocked) {
+    return errorResponse(
+      'Too many OTP requests. Try again later.',
+      429,
+      'OTP_RATE_LIMITED',
+    );
+  }
+  const ipBlock = await checkBlock(`otp:ip:${ip}`);
+  if (ipBlock.blocked) {
+    return errorResponse(
+      'Too many OTP requests from this device. Try again later.',
+      429,
+      'OTP_RATE_LIMITED',
+    );
+  }
 
   // Mock OTP (123456) bypasses the stored-OTP checks entirely so ANY phone
   // can sign in for testing without a real SMS delivery — no need to wait for

@@ -154,6 +154,7 @@ class _ReversePaymentModalState extends ConsumerState<ReversePaymentModal> {
                     label: 'Reason for Reversal *',
                     hint: 'Explain why this payment is being reversed...',
                     maxLines: 3,
+                    maxLength: 255,
                   ),
                   const SizedBox(height: 12),
                   Row(

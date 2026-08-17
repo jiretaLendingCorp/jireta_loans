@@ -8,6 +8,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
+import '../../../../shared/widgets/status_badge.dart';
 import '../providers/emp_lender_provider.dart';
 import '../widgets/emp_register_lender_modal.dart';
 
@@ -183,14 +184,25 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
                 ),
               ),
             ),
-            const Expanded(flex: 2, child: Text('—')),
-            const Expanded(
+            Expanded(
               flex: 2,
-              child: _StatusBadge(
-                label: 'Pending',
-                color: AppColors.warning,
-                bgColor: AppColors.warningLight,
+              child: Text(
+                user.gcashNumber ?? '—',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
               ),
+            ),
+            Expanded(
+              flex: 2,
+              child: user.accountUpgradeStatus == null ||
+                      user.accountUpgradeStatus!.isEmpty
+                  ? const Text('—')
+                  : StatusBadge(
+                      status: user.accountUpgradeStatus!,
+                      small: true,
+                    ),
             ),
             Expanded(
               flex: 1,

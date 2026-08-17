@@ -113,20 +113,26 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                         'First Name',
                         _firstNameCtrl,
                         required: true,
+                        maxLength: 100,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(child: _field('Middle Name', _middleNameCtrl)),
+                    Expanded(
+                        child: _field('Middle Name', _middleNameCtrl,
+                            maxLength: 100)),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
-                      child: _field('Last Name', _lastNameCtrl, required: true),
+                      child: _field('Last Name', _lastNameCtrl,
+                          required: true, maxLength: 100),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(child: _field('Suffix (Jr., Sr.)', _suffixCtrl)),
+                    Expanded(
+                        child: _field('Suffix (Jr., Sr.)', _suffixCtrl,
+                            maxLength: 20)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -180,6 +186,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   _emailCtrl,
                   required: true,
                   keyboardType: TextInputType.emailAddress,
+                  maxLength: 254,
                 ),
                 const SizedBox(height: 12),
                 _field(
@@ -187,6 +194,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   _phoneCtrl,
                   required: true,
                   keyboardType: TextInputType.phone,
+                  maxLength: 11,
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -196,6 +204,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                         'Department',
                         _deptCtrl,
                         required: true,
+                        maxLength: 100,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -204,6 +213,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                         'Position',
                         _positionCtrl,
                         required: true,
+                        maxLength: 100,
                       ),
                     ),
                   ],
@@ -248,10 +258,12 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
     TextEditingController ctrl, {
     bool required = false,
     TextInputType? keyboardType,
+    int? maxLength,
   }) =>
       TextFormField(
         controller: ctrl,
         keyboardType: keyboardType,
+        maxLength: maxLength,
         decoration: _dec(label),
         validator: required
             ? (v) => v == null || v.isEmpty ? '$label is required' : null
@@ -260,6 +272,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
 
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
+        counterText: '',
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),

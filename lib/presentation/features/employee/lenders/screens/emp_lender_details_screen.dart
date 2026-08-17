@@ -8,6 +8,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
+import '../../../../shared/providers/auth_state_provider.dart';
 import '../widgets/emp_edit_lender_modal.dart';
 
 final _lenderDetailProvider =
@@ -23,16 +24,20 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(_lenderDetailProvider(lenderId));
+    final authState = ref.watch(authStateProvider);
+    final canEdit = authState.role == 'head_manager';
 
     return WebScaffold(
       title: 'Lender Details',
       actions: [
-        OutlinedButton.icon(
-          onPressed: () => state.whenData((data) => _showEdit(context, data)),
-          icon: const Icon(Icons.edit_outlined, size: 16),
-          label: const Text('Edit'),
-        ),
-        const SizedBox(width: 12),
+        if (canEdit) ...[
+          OutlinedButton.icon(
+            onPressed: () => state.whenData((data) => _showEdit(context, data)),
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit'),
+          ),
+          const SizedBox(width: 12),
+        ],
       ],
       body: state.when(
         loading: () => _buildShimmer(),
@@ -191,7 +196,8 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
             _buildSectionTitle('Contact Information'),
             const SizedBox(height: 12),
             _buildInfoGrid([
-              _InfoItem('Phone', data['phone'] ?? '—'),
+              _InfoItem('Phone',
+                  data['phone_number'] ?? data['phone'] ?? '—'),
               _InfoItem('GCash Number',
                   data['lender_profiles']?['gcash_number'] ?? '—'),
             ]),
@@ -223,7 +229,9 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
 
   Widget _buildAccountUpgradeStatus(Map<String, dynamic> data) {
     final accountUpgradeStatus =
-        data['lender_profiles']?['account_upgrade_status'] ?? 'not_submitted';
+        data['lender_profiles']?['account_upgrade_status'] ??
+            data['account_upgrade_status'] ??
+            'not_submitted';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),

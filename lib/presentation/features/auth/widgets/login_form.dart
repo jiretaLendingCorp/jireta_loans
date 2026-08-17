@@ -75,10 +75,12 @@ class _LoginFormState extends State<LoginForm> {
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
+            maxLength: 254,
             validator: AppValidators.email,
             decoration: const InputDecoration(
               labelText: 'Email Address',
               prefixIcon: Icon(Icons.email_outlined),
+              counterText: '',
             ),
           ),
           const SizedBox(height: 16),
@@ -86,11 +88,13 @@ class _LoginFormState extends State<LoginForm> {
             controller: _passCtrl,
             obscureText: _obscure,
             textInputAction: TextInputAction.done,
+            maxLength: 128,
             onFieldSubmitted: (_) => _submit(),
             validator: AppValidators.required,
             decoration: InputDecoration(
               labelText: 'Password',
               prefixIcon: const Icon(Icons.lock_outline),
+              counterText: '',
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscure ? Icons.visibility_off : Icons.visibility,

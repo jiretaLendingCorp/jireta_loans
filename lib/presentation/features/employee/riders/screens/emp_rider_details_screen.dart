@@ -67,7 +67,7 @@ class EmpRiderDetailsScreen extends ConsumerWidget {
                                     .trim(),
                                 style: const TextStyle(
                                     fontSize: 18, fontWeight: FontWeight.bold)),
-                            Text(data['phone'] ?? '—',
+                            Text(data['phone_number'] ?? data['phone'] ?? '—',
                                 style: const TextStyle(
                                     color: AppColors.textSecondary)),
                           ],

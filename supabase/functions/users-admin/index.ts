@@ -86,7 +86,7 @@ async function handleGetList(req: Request) {
   let query = db.from('users')
     .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url,
       created_at, last_login_at, roles!users_role_id_fkey(name),
-      lender_profiles!lender_profiles_id_fkey(account_upgrade_status, gender),
+      lender_profiles!lender_profiles_id_fkey(account_upgrade_status, gender, gcash_number),
       rider_profiles(vehicle_type, plate_number, is_available),
       employee_profiles(department, position, gender, civil_status)`, { count: 'exact' });
 
@@ -118,6 +118,8 @@ async function handleGetList(req: Request) {
       gender: lenderProfile?.gender ?? employeeProfile?.gender ?? null,
       department: employeeProfile?.department ?? null,
       position: employeeProfile?.position ?? null,
+      account_upgrade_status: lenderProfile?.account_upgrade_status ?? null,
+      gcash_number: lenderProfile?.gcash_number ?? null,
     };
   });
 

@@ -114,6 +114,7 @@ class _EmpRegisterLenderModalState
                             _firstNameCtrl,
                             'First Name',
                             Icons.person_outline,
+                            maxLength: 100,
                             validator: (v) =>
                                 v?.isEmpty == true ? 'Required' : null,
                           )),
@@ -123,6 +124,7 @@ class _EmpRegisterLenderModalState
                             _lastNameCtrl,
                             'Last Name',
                             Icons.person_outline,
+                            maxLength: 100,
                             validator: (v) =>
                                 v?.isEmpty == true ? 'Required' : null,
                           )),
@@ -134,6 +136,7 @@ class _EmpRegisterLenderModalState
                         'Phone Number (09XXXXXXXXX)',
                         Icons.phone_outlined,
                         keyboardType: TextInputType.phone,
+                        maxLength: 11,
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Required';
                           if (!AppValidators.isValidPhone(v)) {
@@ -260,6 +263,7 @@ class _EmpRegisterLenderModalState
                         _employerCtrl,
                         'Employer / Business Name',
                         Icons.business_outlined,
+                        maxLength: 255,
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -270,6 +274,7 @@ class _EmpRegisterLenderModalState
                             'Monthly Income (₱)',
                             Icons.payments_outlined,
                             keyboardType: TextInputType.number,
+                            maxLength: 12,
                           )),
                           const SizedBox(width: 12),
                           Expanded(
@@ -278,6 +283,7 @@ class _EmpRegisterLenderModalState
                             'GCash Number',
                             Icons.account_balance_wallet_outlined,
                             keyboardType: TextInputType.phone,
+                            maxLength: 11,
                           )),
                         ],
                       ),
@@ -367,12 +373,15 @@ class _EmpRegisterLenderModalState
     IconData icon, {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    int? maxLength,
   }) {
     return TextFormField(
       controller: ctrl,
       keyboardType: keyboardType,
+      maxLength: maxLength,
       decoration: InputDecoration(
         labelText: label,
+        counterText: '',
         prefixIcon: Icon(icon, size: 18),
       ),
       validator: validator,
