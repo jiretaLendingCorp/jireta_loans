@@ -10,12 +10,14 @@ class EditUserModal extends ConsumerStatefulWidget {
   final String userId;
   final String initialRole;
   final String initialStatus;
+  final bool showRole;
 
   const EditUserModal({
     super.key,
     required this.userId,
     required this.initialRole,
     required this.initialStatus,
+    this.showRole = true,
   });
 
   @override
@@ -99,7 +101,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         'last_name': _lastCtrl.text.trim(),
         'suffix': _suffixCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
-        'role': _role,
+        if (widget.showRole) 'role': _role,
         'account_status': _status,
       });
       if (!mounted) return;
@@ -168,7 +170,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Edit user details and role. Changes apply immediately.',
+                          'Edit user details. Changes apply immediately.',
                           style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary),
@@ -227,10 +229,12 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                         const SizedBox(height: 20),
                         Row(
                           children: [
-                            Expanded(
-                              child: _roleDropdown(),
-                            ),
-                            const SizedBox(width: 12),
+                            if (widget.showRole) ...[
+                              Expanded(
+                                child: _roleDropdown(),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
                             Expanded(
                               child: _statusDropdown(),
                             ),

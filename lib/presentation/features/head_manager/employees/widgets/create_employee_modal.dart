@@ -21,7 +21,6 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
   final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _deptCtrl = TextEditingController();
   final _positionCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
@@ -36,7 +35,6 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
     _suffixCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
-    _deptCtrl.dispose();
     _positionCtrl.dispose();
     super.dispose();
   }
@@ -197,26 +195,11 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   maxLength: 11,
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _field(
-                        'Department',
-                        _deptCtrl,
-                        required: true,
-                        maxLength: 100,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _field(
-                        'Position',
-                        _positionCtrl,
-                        required: true,
-                        maxLength: 100,
-                      ),
-                    ),
-                  ],
+                _field(
+                  'Position',
+                  _positionCtrl,
+                  required: true,
+                  maxLength: 100,
                 ),
                 const SizedBox(height: 24),
                 Row(
@@ -294,7 +277,6 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
         'phone_number': _phoneCtrl.text.trim(),
         'gender': _gender,
         'civil_status': _civilStatus,
-        'department': _deptCtrl.text.trim(),
         'position': _positionCtrl.text.trim(),
       });
       if (mounted) Navigator.pop(context);

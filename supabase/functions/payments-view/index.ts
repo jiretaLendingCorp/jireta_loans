@@ -52,14 +52,18 @@ async function handleGetList(req: Request) {
   const { page, limit } = validatePagination(url.searchParams.get('page'), url.searchParams.get('limit'));
   const status = url.searchParams.get('status');
   const method = url.searchParams.get('method');
+  const paymentId = url.searchParams.get('payment_id');
   const dateFrom = url.searchParams.get('date_from');
   const dateTo = url.searchParams.get('date_to');
   const offset = (page - 1) * limit;
   const db = getAdminClient();
   let query = db.from('payments')
-    .select(`id, loan_schedule_id, amount, payment_method, status, created_at, paid_at, notes, receipt_path, recorded_by,
-      loan_schedules!inner(id, loan_id, loans!inner(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name))))`, { count: 'exact' });
+    .select(`id, loan_schedule_id, payment_method, amount, status, xendit_payment_id, xendit_reference, idempotency_key, recorded_by, collection_assignment_id, receipt_path, notes, paid_at, created_at,
+      loan_schedules!inner(id, loan_id, loans!inner(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name)))),
+      recorded_by_user:users!payments_recorded_by_fkey(id, first_name, last_name),
+      reversal:payment_reversals(id, reason, reversed_by, reversed_at, reversed_by_user:users!payment_reversals_reversed_by_fkey(id, first_name, last_name))`, { count: 'exact' });
   if (user.role === ROLES.LENDER) query = query.eq('loan_schedules.loans.lender_id', user.id);
+  if (paymentId) query = query.eq('id', paymentId);
   if (status) query = query.eq('status', status);
   if (method) query = query.eq('payment_method', method);
   if (dateFrom) query = query.gte('created_at', dateFrom);
@@ -72,19 +76,49 @@ async function handleGetList(req: Request) {
     const loanEmbed = schedule ? embedAsObject(schedule.loans) : null;
     const lp = loanEmbed ? embedAsObject(loanEmbed.lender_profiles) : null;
     const lender = lp ? embedAsObject(lp.users) : null;
+    const recordedByUser = embedAsObject(p.recorded_by_user);
+    const reversal = Array.isArray(p.reversal)
+      ? (p.reversal[0] ?? null)
+      : (embedAsObject(p.reversal) ?? null);
+    const reversalUser = reversal ? embedAsObject(reversal.reversed_by_user) : null;
     return {
       id: p.id,
       loan_id: schedule?.loan_id ?? null,
       loan_schedule_id: p.loan_schedule_id,
       amount: p.amount,
       method: p.payment_method,
+      payment_method: p.payment_method,
       status: p.status,
       recorded_by: p.recorded_by,
+      recorded_by_user: recordedByUser ?? null,
+      recorded_by_name: recordedByUser
+        ? `${recordedByUser.first_name ?? ''} ${recordedByUser.last_name ?? ''}`.trim()
+        : null,
       notes: p.notes,
       receipt_url: p.receipt_path,
+      xendit_payment_id: p.xendit_payment_id,
+      xendit_reference: p.xendit_reference,
+      reference_number: p.xendit_reference ?? p.xendit_payment_id ?? null,
+      idempotency_key: p.idempotency_key,
+      collection_assignment_id: p.collection_assignment_id,
       created_at: p.created_at,
       paid_at: p.paid_at,
-      loan: loanEmbed ? { ...loanEmbed, lender } : null,
+      loan: loanEmbed
+        ? { ...loanEmbed, lender, loan_number: loanEmbed.loan_number }
+        : null,
+      // Flat convenience fields so every consumer (employee/HM/lender screens)
+      // can render correctly regardless of which nested keys it reads.
+      lender,
+      lender_name: [lender?.first_name, lender?.last_name].filter(Boolean).join(' ') || null,
+      loan_number: loanEmbed?.loan_number ?? null,
+      // Reversal details (from payment_reversals) so the details screens can
+      // show who/when/why a payment was reversed.
+      reversed_at: reversal?.reversed_at ?? null,
+      reversed_by: reversal?.reversed_by ?? null,
+      reversed_by_name: reversalUser
+        ? `${reversalUser.first_name ?? ''} ${reversalUser.last_name ?? ''}`.trim()
+        : null,
+      reversal_reason: reversal?.reason ?? null,
     };
   });
   return jsonResponse({ data: mapped, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });

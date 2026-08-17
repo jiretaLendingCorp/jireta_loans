@@ -154,7 +154,8 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                             ? DateFormat('MMM d, yyyy')
                                 .format(DateTime.parse(schedule['due_date']))
                             : 'N/A'),
-                    _Row('Period', '${schedule['period_number'] ?? 'N/A'}'),
+                    _Row('Period',
+                        '${schedule['period_number'] ?? schedule['installment_number'] ?? 'N/A'}'),
                     _Row('Idempotency Key', col.idempotencyKey ?? 'N/A'),
                   ],
                 ),

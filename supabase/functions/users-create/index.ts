@@ -87,10 +87,10 @@ async function handleCreateEmployee(req: Request) {
   const {
     first_name, middle_name, last_name, suffix,
     gender, civil_status, email, phone_number,
-    department, position, hired_at,
+    position, hired_at,
   } = body;
 
-  if (!first_name || !last_name || !email || !phone_number || !department || !position) {
+  if (!first_name || !last_name || !email || !phone_number || !position) {
     return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
   }
   if (!validateEmail(sanitizeString(email))) {
@@ -137,7 +137,6 @@ async function handleCreateEmployee(req: Request) {
 
   await db.from('employee_profiles').insert({
     id: user.id,
-    department: sanitizeString(department),
     position: sanitizeString(position),
     hired_at: hired_at ?? new Date().toISOString().split('T')[0],
     gender: gender ? sanitizeString(gender) : null,
@@ -154,7 +153,7 @@ async function handleCreateEmployee(req: Request) {
     action: 'user_created',
     tableName: 'users',
     recordId: user.id,
-    newValues: { role: 'employee', email, department, position },
+    newValues: { role: 'employee', email, position },
     ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
   });
 
@@ -234,7 +233,7 @@ async function handleCreateRider(req: Request) {
     password_hash: await hashPassword(newUser.id, riderDefaultPassword),
   });
 
-  await writeAuditLog({ performedBy: user.id, action: 'create_rider', tableName: 'users', recordId: newUser.id, ipAddress: ip });
+  await writeAuditLog({ performedBy: user.id, action: 'create_rider', tableName: 'users', recordId: newUser.id, newValues: { role: 'rider', first_name, last_name, phone_number: phone.trim() }, ipAddress: ip });
   await sendPushNotification({ userId: user.id, title: 'Rider Created', body: `Rider ${first_name} ${last_name} has been created.`, type: 'user_created' });
 
   return jsonResponse({ message: 'Rider created successfully', user_id: newUser.id }, 201);
@@ -322,7 +321,7 @@ async function handleCreateLender(req: Request) {
     password_hash: await hashPassword(newUser.id, lenderDefaultPassword),
   });
 
-  await writeAuditLog({ performedBy: user.id, action: 'create_lender', tableName: 'users', recordId: newUser.id, ipAddress: ip });
+  await writeAuditLog({ performedBy: user.id, action: 'create_lender', tableName: 'users', recordId: newUser.id, newValues: { role: 'lender', first_name, last_name, phone_number: phone.trim() }, ipAddress: ip });
 
   return jsonResponse({ message: 'Lender created successfully', user_id: newUser.id }, 201);
 }

@@ -141,7 +141,6 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
         children: [
           Expanded(flex: 3, child: Text('Name', style: headerStyle)),
           Expanded(flex: 2, child: Text('Email', style: headerStyle)),
-          Expanded(flex: 2, child: Text('Department', style: headerStyle)),
           Expanded(flex: 2, child: Text('Position', style: headerStyle)),
           Expanded(flex: 1, child: Text('Status', style: headerStyle)),
           Expanded(flex: 2, child: Text('Actions', style: headerStyle)),
@@ -189,17 +188,6 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
               flex: 2,
               child: Text(
                 user.email ?? '—',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.department ?? '—',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -331,6 +319,7 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
         userId: user.id,
         initialRole: 'employee',
         initialStatus: user.accountStatus,
+        showRole: false,
       ),
     );
     if (updated == true) {

@@ -55,6 +55,8 @@ class EmpPaymentNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
   Future<Map<String, dynamic>?> getDetail(String paymentId) async {
     try {
       final p = await _ds.getPaymentDetail(paymentId);
+      final xenditId = p.xenditPaymentId?.trim() ?? '';
+      final refNumber = p.referenceNumber?.trim() ?? '';
       return {
         'id': p.id,
         'loan_number': p.loanNumber,
@@ -62,8 +64,9 @@ class EmpPaymentNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>>
         'status': p.status,
         'amount': p.amount,
         'payment_method': p.method,
-        'reference_number': p.referenceNumber ?? '',
-        'xendit_payment_id': p.xenditPaymentId ?? '',
+        'reference_number': refNumber.isEmpty ? null : refNumber,
+        'xendit_payment_id':
+            p.method == 'gcash' && xenditId.isNotEmpty ? xenditId : null,
         'recorded_by_name': p.recordedByName,
         'created_at': p.createdAt.toIso8601String(),
         'notes': p.notes ?? '',

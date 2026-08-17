@@ -53,7 +53,7 @@ async function handleCollectionGetList(req: Request) {
     .select(`id, status, collection_type, rider_id, assigned_by, requested_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
       notes:collection_notes,
       proof_photo, borrower_signature, collection_photo,
-      loan_schedule:loan_schedules(installment_number, period_number, due_date, amount_due, loan:loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, gcash_number, users!lender_profiles_id_fkey(first_name, last_name, phone_number, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary)))),
+      loan_schedule:loan_schedules(installment_number, due_date, amount_due, loan:loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, gcash_number, users!lender_profiles_id_fkey(first_name, last_name, phone_number, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary)))),
       rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name)),
       assigned_by_user:users!collection_assignments_assigned_by_fkey(id, first_name, last_name)`, { count: 'exact' });
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
@@ -61,7 +61,14 @@ async function handleCollectionGetList(req: Request) {
   else if (riderId) query = query.eq('rider_id', riderId);
   if (status) query = query.eq('status', status);
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
-  const { data, error, count } = await query;
+  // The deeply-nested renamed embeds in the select string trip supabase-js's
+  // type-level PostgREST parser (ParserError), so the row type is re-typed
+  // here. Runtime behavior is unchanged — PostgREST parses the query itself.
+  const { data, error, count } = await query as unknown as {
+    data: Array<Record<string, any>> | null;
+    error: { message?: string } | null;
+    count: number | null;
+  };
   if (error) return errorResponse('Failed to fetch collections', 500, 'SERVER_ERROR');
 
   const loanIds = (data ?? []).map((r) => embedAsObject(embedAsObject(r.loan_schedule)?.loan)?.id).filter(Boolean);
@@ -91,7 +98,7 @@ async function handleCollectionGetList(req: Request) {
       lender_addresses: lenderAddresses,
       rider_name: [riderUser?.first_name, riderUser?.last_name].filter(Boolean).join(' ') || null,
       amount_due: schedule?.amount_due ?? null,
-      period_number: schedule?.period_number ?? null,
+      period_number: schedule?.installment_number ?? null,
       due_date: schedule?.due_date ?? null,
     };
   });

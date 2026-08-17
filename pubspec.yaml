@@ -88,6 +88,7 @@ dependencies:
   open_filex: ^4.5.0
   percent_indicator: ^4.2.3
   timeago: ^3.7.0
+  web: ^1.1.1
 
   # PDF
   pdf: ^3.11.1

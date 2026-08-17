@@ -38,6 +38,55 @@ const MAX_OTP_ATTEMPTS = 5;
 const DEFAULT_PASSWORD = '12345678';
 const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 
+// ── Persistent, escalating OTP lockout ─────────────────────────────────────
+// Stored in `otp_lockouts` (keyed by phone) so the lock survives an app close
+// or a fresh OTP request — only a successful verification (or waiting out the
+// lock) clears it.
+//
+// Escalation schedule (product spec):
+//   3 attempts → 3 minutes
+//   4 attempts → 10 minutes
+//   5+ attempts → lockout ×10 per additional attempt (100, 1000, ...)
+const MOCK_OTP_CODE = '123456';
+
+function lockoutMinutes(attempts: number): number {
+  if (attempts <= 2) return 0;
+  if (attempts === 3) return 3;
+  if (attempts === 4) return 10;
+  return 10 * Math.pow(10, attempts - 4); // 5 → 100, 6 → 1000, ...
+}
+
+async function readOtpLockout(db: DbClient, phone: string) {
+  const { data } = await db
+    .from('otp_lockouts')
+    .select('failed_attempts, locked_until')
+    .eq('phone_number', phone)
+    .maybeSingle();
+  return {
+    failedAttempts: data?.failed_attempts ?? 0,
+    lockedUntil: data?.locked_until ? new Date(data.locked_until) : null,
+  };
+}
+
+function lockoutError(lockedUntil: Date, attempts: number): Response {
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((lockedUntil.getTime() - Date.now()) / 1000),
+  );
+  const minutes = Math.round(retryAfterSeconds / 60);
+  const label = minutes > 0 ? `${minutes} minute(s)` : `${retryAfterSeconds} second(s)`;
+  return errorResponse(
+    `Too many wrong OTP attempts. Try again in ${label}.`,
+    429,
+    'OTP_LOCKED',
+    {
+      retry_after_seconds: retryAfterSeconds,
+      locked_until: lockedUntil.toISOString(),
+      failed_attempts: attempts,
+    },
+  );
+}
+
 // ── [moved from auth-verify-otp] ────────────────────────────────────────────
 function toE164(phone: string): string {
   const digits = phone.replace(/\D/g, '');
@@ -132,6 +181,11 @@ async function handleSendOtp(req: Request) {
 
   const db = getAdminClient();
 
+  // NOTE: the persistent lockout is intentionally NOT checked here. Sending a
+  // fresh OTP is always allowed; failed attempts only count (and lock) at the
+  // verify-otp step, per product spec. The lock still blocks verification even
+  // after a new code is requested, so it cannot be bypassed by re-sending.
+
   // Abuse detection (IP-scoped): 20 OTP sends per IP per 10 minutes → block.
   // Checked first so a flood cannot reach the DB / SMS provider.
   const ipGuard = await guardRateLimit({
@@ -209,9 +263,9 @@ async function handleSendOtp(req: Request) {
 
   await db.from('otp_codes').update({ used: true }).eq('phone_number', phone).eq('used', false);
 
-  const code = Deno.env.get('USE_MOCK_SMS') === 'true'
-    ? '123456' // DEV MOCK: fixed OTP so you can test without receiving SMS.
-    : String(Math.floor(100000 + Math.random() * 900000));
+  // DEV MOCK: always issue OTP 123456 so lenders/riders can log in without a
+  // real SMS delivery. Works regardless of USE_MOCK_SMS.
+  const code = MOCK_OTP_CODE;
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
 
   await db.from('otp_codes').insert({
@@ -248,6 +302,14 @@ async function handleVerifyOtp(req: Request) {
 
   const db = getAdminClient();
 
+  // ── Persistent lockout check ────────────────────────────────────────────
+  // Server-side, survives app restarts / fresh OTP requests. On a wrong code
+  // the failed_attempts counter below escalates (3min → 10min → ×10 each).
+  const lock = await readOtpLockout(db, phone);
+  if (lock.lockedUntil && lock.lockedUntil.getTime() > Date.now()) {
+    return lockoutError(lock.lockedUntil, lock.failedAttempts);
+  }
+
   // If the phone or IP was blocked by the send-OTP guard (10/10min breached),
   // refuse verification attempts too so a blocked key cannot keep probing.
   const phoneBlock = await checkBlock(`otp:phone:${phone}`);
@@ -267,15 +329,31 @@ async function handleVerifyOtp(req: Request) {
     );
   }
 
-  // Mock OTP (123456) bypasses the stored-OTP checks entirely so ANY phone
-  // can sign in for testing without a real SMS delivery — no need to wait for
-  // auth-send-otp first or worry about expiry/attempt limits.
-  //
-  // SECURITY: only accepted when USE_MOCK_SMS is explicitly enabled. In
-  // production this env var is unset, so `123456` is treated like any other
-  // wrong code and goes through the real stored-OTP verification (a hardcoded
-  // bypass would let ANYONE sign in as ANY phone number).
-  const isMockOtp = Deno.env.get('USE_MOCK_SMS') === 'true' && otpCode === '123456';
+  // DEV MOCK: 123456 always accepted so ANY phone can sign in for testing,
+  // without waiting on SMS or worrying about stored-OTP expiry/attempts.
+  const isMockOtp = otpCode === MOCK_OTP_CODE;
+
+  // Helper: record a failed attempt (persistent, escalating) and return the
+  // lockout error if the new count crosses a threshold.
+  const recordFailure = async (reason: string) => {
+    const newAttempts = lock.failedAttempts + 1;
+    const minutes = lockoutMinutes(newAttempts);
+    const lockedUntil = minutes > 0
+      ? new Date(Date.now() + minutes * 60000)
+      : null;
+
+    await db.from('otp_lockouts').upsert({
+      phone_number: phone,
+      failed_attempts: newAttempts,
+      locked_until: lockedUntil ? lockedUntil.toISOString() : null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'phone_number' });
+
+    if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
+    return errorResponse(reason, 401, 'INVALID_OTP');
+  };
+
+  let validOtp = false;
 
   if (!isMockOtp) {
     const { data: otpRow } = await db
@@ -288,20 +366,26 @@ async function handleVerifyOtp(req: Request) {
       .limit(1)
       .single();
 
-    if (!otpRow) return errorResponse('OTP expired or not found', 401, 'OTP_EXPIRED');
+    if (!otpRow) return recordFailure('OTP expired or not found');
 
     if (otpRow.attempts >= MAX_OTP_ATTEMPTS) {
       await db.from('otp_codes').update({ used: true }).eq('id', otpRow.id);
-      return errorResponse('Too many attempts. Request a new OTP.', 429, 'RATE_LIMITED');
+      return recordFailure('Too many attempts. Request a new OTP.');
     }
 
     if (otpRow.code !== otpCode) {
       await db.from('otp_codes').update({ attempts: otpRow.attempts + 1 }).eq('id', otpRow.id);
-      return errorResponse('Invalid OTP code', 401, 'INVALID_OTP');
+      return recordFailure('Invalid OTP code');
     }
 
+    validOtp = true;
     await db.from('otp_codes').update({ used: true }).eq('id', otpRow.id);
+  } else {
+    validOtp = true;
   }
+
+  // ── Success: clear the persistent lockout counter ───────────────────────
+  await db.from('otp_lockouts').delete().eq('phone_number', phone);
 
   const { data: userRow } = await db
     .from('users')

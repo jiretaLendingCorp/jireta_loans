@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/services/realtime_service.dart';
 import '../../../../data/datasources/remote/auth_remote_datasource.dart';
@@ -198,6 +199,51 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// Extracts the lockout wait time from a 429 lockout error (OTP_LOCKED or
+  /// ACCOUNT_LOCKED) so the UI can show a live countdown. Prefers the
+  /// server-provided `retry_after_seconds`; falls back to parsing the message
+  /// ("Try again in X minute(s)/second(s).") so the timer still works even when
+  /// the deployed backend does not send the extra field yet.
+  int? extractOtpLockoutSeconds(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errObj = data['error'];
+        if (errObj is Map) {
+          final retry = errObj['retry_after_seconds'];
+          if (retry is num) return retry.toInt();
+          if (retry is String) return int.tryParse(retry);
+        }
+      }
+      final fromMessage = _parseLockoutSecondsFromMessage(error.message ?? '');
+      if (fromMessage != null) return fromMessage;
+      final fromNested = error.error;
+      if (fromNested is AppException) {
+        final nested = _parseLockoutSecondsFromMessage(fromNested.message);
+        if (nested != null) return nested;
+      }
+    }
+    return null;
+  }
+
+  /// "Try again in 3 minute(s)." / "in 15 minutes" / "in 45 seconds." →
+  /// 180 / 900 / 45.
+  int? _parseLockoutSecondsFromMessage(String message) {
+    final minMatch = RegExp(
+      r'in\s+(\d+)\s+minute',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (minMatch != null) {
+      return (int.tryParse(minMatch.group(1)!) ?? 1) * 60;
+    }
+    final secMatch = RegExp(
+      r'in\s+(\d+)\s+second',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (secMatch != null) return int.tryParse(secMatch.group(1)!);
+    return null;
+  }
+
   Future<bool> forceChangePassword({
     required String currentPassword,
     required String newPassword,
@@ -334,6 +380,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
     if (message.contains('Account locked')) {
       return 'Account locked. Try again later.';
+    }
+    if (message.contains('OTP_LOCKED') ||
+        message.contains('Too many wrong OTP attempts')) {
+      return 'Too many wrong attempts. Please wait before trying again.';
     }
     if (message.contains('Account suspended')) {
       return 'Your account is suspended.';

@@ -74,6 +74,14 @@ async function handleUpdateProfile(req: Request) {
   const { data: existing } = await db.from('users').select('*').eq('id', targetId).single();
   if (!existing) return errorResponse('User not found', 404, 'NOT_FOUND');
 
+  // Resolve the current role name so the audit snapshot can show the role
+  // that was in place before the update (users.role_id only stores the FK).
+  const { data: existingRole } = await db
+    .from('roles')
+    .select('name')
+    .eq('id', existing.role_id)
+    .maybeSingle();
+
   const updateFields: Record<string, unknown> = {};
   const allowed = ['first_name', 'middle_name', 'last_name', 'suffix', 'profile_photo_url'];
   for (const f of allowed) {
@@ -257,7 +265,23 @@ async function handleUpdateProfile(req: Request) {
     }).eq('id', targetId);
   }
 
-  await writeAuditLog({ performedBy: user.id, action: 'update_profile', tableName: 'users', recordId: targetId, oldValues: existing, ipAddress: ip });
+  // Build a readable newValues snapshot so the audit trail shows what changed
+  // (role / account_status / profile edits) — not just the "before" state.
+  const newValues: Record<string, unknown> = {
+    first_name: updateFields.first_name ?? existing.first_name,
+    middle_name: updateFields.middle_name ?? existing.middle_name,
+    last_name: updateFields.last_name ?? existing.last_name,
+    suffix: updateFields.suffix ?? existing.suffix,
+    phone_number: updateFields.phone_number ?? existing.phone_number,
+    account_status: updateFields.account_status ?? existing.account_status,
+    role: body.role ?? existingRole?.name ?? undefined,
+  };
+  // Drop undefined keys so the stored JSON stays clean.
+  Object.keys(newValues).forEach((k) => {
+    if (newValues[k] === undefined) delete newValues[k];
+  });
+
+  await writeAuditLog({ performedBy: user.id, action: 'update_profile', tableName: 'users', recordId: targetId, oldValues: existing, newValues, ipAddress: ip });
 
   return jsonResponse({ message: 'Profile updated successfully' });
 }

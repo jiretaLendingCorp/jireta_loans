@@ -1,4 +1,5 @@
 // lib/presentation/features/auth/screens/web_login_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,18 +26,46 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _obscure = true;
+  Timer? _lockTimer;
+  int _lockSecondsLeft = 0;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
+    _lockTimer?.cancel();
     super.dispose();
   }
 
   bool get _isOnline => ref.read(connectivityProvider).valueOrNull ?? true;
 
+  /// Shows the remaining login-lock time as a live countdown in a top-right
+  /// toast while the Login button stays disabled.
+  void _startLockCountdown(int seconds) {
+    _lockTimer?.cancel();
+    setState(() => _lockSecondsLeft = seconds);
+    _lockTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_lockSecondsLeft <= 1) {
+        t.cancel();
+        setState(() => _lockSecondsLeft = 0);
+      } else {
+        setState(() => _lockSecondsLeft--);
+      }
+    });
+    AppToast.showWidget(
+      context,
+      LockoutCountdownToast(
+        seconds: seconds,
+        onExpired: () {
+          if (mounted) setState(() => _lockSecondsLeft = 0);
+        },
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     if (ref.read(authProvider).isLoading) return;
+    if (_lockSecondsLeft > 0) return;
     if (!_isOnline) {
       _showNoInternetToast();
       return;
@@ -49,6 +78,12 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
     );
     if (!ok && mounted) {
       final err = ref.read(authProvider).error;
+      // Login lockout: show a live countdown instead of a one-off snackbar.
+      final lockSecs = notifier.extractOtpLockoutSeconds(err ?? '');
+      if (lockSecs != null && lockSecs > 0) {
+        _startLockCountdown(lockSecs);
+        return;
+      }
       _showError(
         notifier.extractErrorMessage(err ?? 'Error') ?? 'Login failed.',
       );
@@ -188,6 +223,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
               keyboardType: TextInputType.emailAddress,
               autofillHints: const [AutofillHints.email],
               maxLength: 254,
+              readOnly: _lockSecondsLeft > 0,
               decoration: const InputDecoration(
                 labelText: 'Email Address',
                 prefixIcon: Icon(Icons.email_outlined),
@@ -207,6 +243,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
               obscureText: _obscure,
               autofillHints: const [AutofillHints.password],
               maxLength: 128,
+              readOnly: _lockSecondsLeft > 0,
               decoration: InputDecoration(
                 labelText: 'Password',
                 prefixIcon: const Icon(Icons.lock_outlined),
@@ -240,7 +277,9 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: (isLoading || !isOnline) ? null : _submit,
+                onPressed: (isLoading || !isOnline || _lockSecondsLeft > 0)
+                    ? null
+                    : _submit,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(

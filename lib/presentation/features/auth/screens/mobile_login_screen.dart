@@ -1,4 +1,5 @@
 // lib/presentation/features/auth/screens/mobile_login_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../shared/providers/connectivity_provider.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -30,6 +32,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   );
   bool _loading = false;
   bool _googleLoading = false;
+  Timer? _lockTimer;
+  int _lockSecondsLeft = 0;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
 
@@ -51,6 +55,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   void dispose() {
     _phoneCtrl.dispose();
     _fadeController.dispose();
+    _lockTimer?.cancel();
     super.dispose();
   }
 
@@ -61,8 +66,32 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   bool get _isOnline => ref.read(connectivityProvider).valueOrNull ?? true;
 
+  /// Shows the remaining OTP-lock time (returned by the server) as a live
+  /// countdown in a top-right toast while the Send OTP button stays disabled.
+  void _startLockCountdown(int seconds) {
+    _lockTimer?.cancel();
+    setState(() => _lockSecondsLeft = seconds);
+    _lockTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_lockSecondsLeft <= 1) {
+        t.cancel();
+        setState(() => _lockSecondsLeft = 0);
+      } else {
+        setState(() => _lockSecondsLeft--);
+      }
+    });
+    AppToast.showWidget(
+      context,
+      LockoutCountdownToast(
+        seconds: seconds,
+        onExpired: () {
+          if (mounted) setState(() => _lockSecondsLeft = 0);
+        },
+      ),
+    );
+  }
+
   Future<void> _sendOtp() async {
-    if (!_isOnline) return;
+    if (!_isOnline || _lockSecondsLeft > 0) return;
     if (!_isPhoneValid) {
       _showError('Enter a valid Philippine mobile number (09XXXXXXXXX).');
       return;
@@ -75,6 +104,13 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       context.go(RouteConstants.otpVerify, extra: _rawPhone);
     } else {
       final err = ref.read(authProvider).error;
+      // OTP lockout: show a live countdown instead of a one-off snackbar.
+      final lockSecs =
+          ref.read(authProvider.notifier).extractOtpLockoutSeconds(err ?? '');
+      if (lockSecs != null && lockSecs > 0) {
+        _startLockCountdown(lockSecs);
+        return;
+      }
       _showError(
         ref.read(authProvider.notifier).extractErrorMessage(err ?? '') ??
             'Failed to send OTP.',
@@ -228,7 +264,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                 onPressed: (_isPhoneValid &&
                                         !_loading &&
                                         !_googleLoading &&
-                                        _isOnline)
+                                        _isOnline &&
+                                        _lockSecondsLeft == 0)
                                     ? _sendOtp
                                     : null,
                                 style: ElevatedButton.styleFrom(

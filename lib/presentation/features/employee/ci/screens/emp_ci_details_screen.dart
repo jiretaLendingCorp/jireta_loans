@@ -371,33 +371,121 @@ Widget _detailRow(String label, String value,
               itemCount: documents.length,
               itemBuilder: (context, i) {
                 final doc = documents[i];
-                return Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceGray,
+                final url = doc['file_url'] as String? ?? '';
+                final caption = doc['caption'] as String?;
+                return GestureDetector(
+                  onTap: url.isNotEmpty ? () => _showFullImage(context, url, caption) : null,
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.image,
-                          size: 32, color: AppColors.textTertiary),
-                      const SizedBox(height: 4),
-                      Text(
-                        doc['document_type'] as String? ?? 'Photo',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textTertiary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        url.isNotEmpty
+                            ? Image.network(
+                                url,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (ctx, child, progress) {
+                                  if (progress == null) return child;
+                                  return Container(
+                                    color: AppColors.surfaceGray,
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (_, __, ___) => Container(
+                                  color: AppColors.surfaceGray,
+                                  child: const Icon(
+                                      Icons.broken_image_outlined,
+                                      color: AppColors.textTertiary,
+                                      size: 32),
+                                ),
+                              )
+                            : Container(
+                                color: AppColors.surfaceGray,
+                                child: const Icon(Icons.image,
+                                    size: 32,
+                                    color: AppColors.textTertiary),
+                              ),
+                        if (caption != null && caption.isNotEmpty)
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 4),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [Colors.black87, Colors.transparent],
+                                ),
+                              ),
+                              child: Text(
+                                caption,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 10),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 );
               },
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showFullImage(BuildContext context, String url, String? caption) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(Icons.broken_image_outlined,
+                      color: Colors.white54, size: 64),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close, color: Colors.white),
+                style: IconButton.styleFrom(backgroundColor: Colors.black54),
+              ),
+            ),
+            if (caption != null)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.black54,
+                  padding: const EdgeInsets.all(12),
+                  child: Text(caption,
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 13)),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

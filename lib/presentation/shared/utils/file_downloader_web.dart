@@ -1,15 +1,17 @@
 // lib/presentation/shared/utils/file_downloader_web.dart
-import 'dart:html' as html;
+import 'dart:js_interop';
 import 'dart:typed_data';
+import 'package:web/web.dart' as web;
 
 Future<void> saveFile(Uint8List bytes, String filename) async {
-  final blob = html.Blob([bytes]);
-  final url = html.Url.createObjectUrlFromBlob(blob);
-  final anchor = html.AnchorElement(href: url)
+  final blob = web.Blob([bytes.toJS].toJS);
+  final url = web.URL.createObjectURL(blob);
+  final anchor = web.HTMLAnchorElement()
+    ..href = url
     ..download = filename
     ..style.display = 'none';
-  html.document.body?.children.add(anchor);
+  web.document.body?.appendChild(anchor);
   anchor.click();
-  html.document.body?.children.remove(anchor);
-  html.Url.revokeObjectUrl(url);
+  anchor.remove();
+  web.URL.revokeObjectURL(url);
 }

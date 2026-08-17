@@ -31,7 +31,7 @@ class ErrorInterceptor extends Interceptor {
             type: err.type,
           ));
         case 429:
-          if (code == 'ACCOUNT_LOCKED') {
+          if (code == 'ACCOUNT_LOCKED' || code == 'OTP_LOCKED') {
             return handler.reject(DioException(
               requestOptions: err.requestOptions,
               message: message,
@@ -42,7 +42,9 @@ class ErrorInterceptor extends Interceptor {
           }
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
-            message: 'Too many requests. Please try again later.',
+            message: message.isNotEmpty
+                ? message
+                : 'Too many requests. Please try again later.',
             error: const RateLimitException(),
             response: response,
             type: err.type,

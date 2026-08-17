@@ -26,7 +26,6 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
   late final TextEditingController _lastNameCtrl;
   late final TextEditingController _middleNameCtrl;
   late final TextEditingController _phoneCtrl;
-  late final TextEditingController _departmentCtrl;
   late final TextEditingController _positionCtrl;
   String? _gender;
   String? _civilStatus;
@@ -43,8 +42,6 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
     _middleNameCtrl =
         TextEditingController(text: widget.employee.middleName ?? '');
     _phoneCtrl = TextEditingController(text: widget.employee.phone);
-    _departmentCtrl =
-        TextEditingController(text: widget.employee.department ?? '');
     _positionCtrl = TextEditingController(text: widget.employee.position ?? '');
     _gender = widget.employee.gender;
     _civilStatus = widget.employee.civilStatus;
@@ -56,7 +53,6 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
     _lastNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _phoneCtrl.dispose();
-    _departmentCtrl.dispose();
     _positionCtrl.dispose();
     super.dispose();
   }
@@ -71,7 +67,6 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
             lastName: _lastNameCtrl.text.trim(),
             middleName: _middleNameCtrl.text.trim(),
             phone: _phoneCtrl.text.trim(),
-            department: _departmentCtrl.text.trim(),
             position: _positionCtrl.text.trim(),
             gender: _gender,
             civilStatus: _civilStatus,
@@ -193,24 +188,10 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                         maxLength: 11,
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: AppTextField(
-                              controller: _departmentCtrl,
-                              label: 'Department',
-                              maxLength: 100,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: AppTextField(
-                              controller: _positionCtrl,
-                              label: 'Position',
-                              maxLength: 100,
-                            ),
-                          ),
-                        ],
+                      AppTextField(
+                        controller: _positionCtrl,
+                        label: 'Position',
+                        maxLength: 100,
                       ),
                     ],
                   ),

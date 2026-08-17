@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
+import '../../../shared/widgets/app_toast.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class OtpVerifyScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,8 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   Timer? _timer;
   int _secondsLeft = AppConstants.otpResendSeconds;
+  Timer? _lockTimer;
+  int _lockSecondsLeft = 0;
   bool _loading = false;
   String _otp = '';
   String? _error;
@@ -53,9 +56,38 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
     });
   }
 
+  /// Starts a live countdown for an OTP lockout. While running, the OTP
+  /// fields and verify/resend buttons stay disabled, and the remaining time is
+  /// shown as a top-right toast (no icon) that refreshes every second.
+  void _startLockCountdown(int seconds) {
+    _lockTimer?.cancel();
+    setState(() {
+      _lockSecondsLeft = seconds;
+      _error = null;
+    });
+    _lockTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_lockSecondsLeft <= 1) {
+        t.cancel();
+        setState(() => _lockSecondsLeft = 0);
+      } else {
+        setState(() => _lockSecondsLeft--);
+      }
+    });
+    AppToast.showWidget(
+      context,
+      LockoutCountdownToast(
+        seconds: seconds,
+        onExpired: () {
+          if (mounted) setState(() => _lockSecondsLeft = 0);
+        },
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _lockTimer?.cancel();
     for (final c in _controllers) {
       c.dispose();
     }
@@ -151,6 +183,18 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         message =
             ref.read(authProvider.notifier).extractErrorMessage(err) ?? message;
       }
+      // OTP lockout: the server returns retry_after_seconds with the 429. Start
+      // a live countdown banner and keep the form disabled until it expires.
+      final lockSecs =
+          ref.read(authProvider.notifier).extractOtpLockoutSeconds(err ?? '');
+      if (lockSecs != null && lockSecs > 0) {
+        if (!mounted) return;
+        setState(() {
+          _error = message;
+        });
+        _startLockCountdown(lockSecs);
+        return;
+      }
       if (!mounted) return;
       context.showSnackBarAsToast(
         SnackBar(
@@ -163,7 +207,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   }
 
   Future<void> _resend() async {
-    if (_secondsLeft > 0) return;
+    if (_secondsLeft > 0 || _lockSecondsLeft > 0) return;
     final ok =
         await ref.read(authProvider.notifier).sendOtp(phone: widget.phone);
     if (!mounted) return;
@@ -178,6 +222,24 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         const SnackBar(
           content: Text('OTP sent successfully.'),
           backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      final err = ref.read(authProvider).error;
+      final lockSecs =
+          ref.read(authProvider.notifier).extractOtpLockoutSeconds(err ?? '');
+      if (lockSecs != null && lockSecs > 0) {
+        _startLockCountdown(lockSecs);
+        return;
+      }
+      context.showSnackBarAsToast(
+        SnackBar(
+          content: Text(
+            ref.read(authProvider.notifier).extractErrorMessage(err ?? '') ??
+                'Failed to resend OTP.',
+          ),
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -255,7 +317,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: List.generate(6, (i) => _buildOtpBox(i)),
                       ),
-                      if (_error != null) ...[
+                      if (_error != null && _lockSecondsLeft == 0) ...[
                         const SizedBox(height: 12),
                         Text(
                           _error!,
@@ -271,7 +333,9 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _loading ? null : _submit,
+                          onPressed: (_loading || _lockSecondsLeft > 0)
+                              ? null
+                              : _submit,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -308,15 +372,21 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: _secondsLeft == 0 ? _resend : null,
+                            onPressed: (_secondsLeft == 0 &&
+                                    _lockSecondsLeft == 0)
+                                ? _resend
+                                : null,
                             child: Text(
-                              _secondsLeft > 0
-                                  ? 'Resend in ${_secondsLeft}s'
-                                  : 'Resend OTP',
+                              _lockSecondsLeft > 0
+                                  ? 'Locked'
+                                  : _secondsLeft > 0
+                                      ? 'Resend in ${_secondsLeft}s'
+                                      : 'Resend OTP',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: _secondsLeft == 0
+                                color: (_secondsLeft == 0 &&
+                                        _lockSecondsLeft == 0)
                                     ? AppColors.deepNavy
                                     : AppColors.textTertiary,
                               ),
@@ -336,7 +406,8 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
   }
 
   Widget _buildOtpBox(int index) {
-    final hasError = _error != null;
+    final hasError = _error != null && _lockSecondsLeft == 0;
+    final locked = _lockSecondsLeft > 0;
     return SizedBox(
       width: 44,
       height: 52,
@@ -356,6 +427,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         child: TextFormField(
           controller: _controllers[index],
           focusNode: _focusNodes[index],
+          readOnly: locked,
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
           maxLength: 1,

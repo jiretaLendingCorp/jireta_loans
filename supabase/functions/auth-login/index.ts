@@ -14,14 +14,56 @@ import {
   validateEmail,
 } from '../_shared/validators.ts';
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
-import { guardRateLimit, recordSecurityEvent } from '../_shared/rate_limiter.ts';
+import { guardRateLimit } from '../_shared/rate_limiter.ts';
 
-const MAX_FAILED      = 5;
-const LOCKOUT_MINUTES = 15;
+// ── Persistent, escalating login lockout ───────────────────────────────────
+// Stored in `login_lockouts` (keyed by user_id) so the lock survives a browser
+// close / restart — only a successful login (or waiting out the lock) clears
+// it. Same product spec as the OTP lockout:
+//   3 failed attempts  → 3 minutes
+//   4 failed attempts  → 10 minutes
+//   5+ failed attempts → lockout ×10 per additional attempt (100, 1000, ...)
+function lockoutMinutes(attempts: number): number {
+  if (attempts <= 2) return 0;
+  if (attempts === 3) return 3;
+  if (attempts === 4) return 10;
+  return 10 * Math.pow(10, attempts - 4); // 5 → 100, 6 → 1000, ...
+}
+
+async function readLoginLockout(db: ReturnType<typeof getAdminClient>, userId: string) {
+  const { data } = await db
+    .from('login_lockouts')
+    .select('failed_attempts, locked_until')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return {
+    failedAttempts: data?.failed_attempts ?? 0,
+    lockedUntil: data?.locked_until ? new Date(data.locked_until) : null,
+  };
+}
+
+function lockoutError(lockedUntil: Date, attempts: number): Response {
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((lockedUntil.getTime() - Date.now()) / 1000),
+  );
+  const minutes = Math.round(retryAfterSeconds / 60);
+  const label = minutes > 0 ? `${minutes} minute(s)` : `${retryAfterSeconds} second(s)`;
+  return errorResponse(
+    `Account locked. Too many wrong login attempts. Try again in ${label}.`,
+    429,
+    'ACCOUNT_LOCKED',
+    {
+      retry_after_seconds: retryAfterSeconds,
+      locked_until: lockedUntil.toISOString(),
+      failed_attempts: attempts,
+    },
+  );
+}
 
 // Abuse detection: 20 login attempts per minute per IP+email → block for 15
-// minutes. The existing per-account lockout (5 fails / 15 min) still applies
-// on top; this catches distributed / IP-scoped brute force earlier.
+// minutes. The per-account lockout above still applies on top; this catches
+// distributed / IP-scoped brute force earlier.
 const LOGIN_RATE_MAX   = 20;
 const LOGIN_RATE_MINUTE = 1;
 const LOGIN_BLOCK_MINUTES = 15;
@@ -151,27 +193,13 @@ serve(async (req) => {
       return errorResponse('Web login not available for this role', 403, 'FORBIDDEN');
     }
 
-    // ── Step 6: lockout check ─────────────────────────────────────────────
-    const { data: recentLogs } = await db
-      .from('auth_logs')
-      .select('id, is_locked, created_at')
-      .eq('user_id', user.id)
-      .eq('event_type', 'login_fail')
-      .gte(
-        'created_at',
-        new Date(Date.now() - LOCKOUT_MINUTES * 60 * 1000).toISOString(),
-      )
-      .order('created_at', { ascending: false });
-
-    const failCount = recentLogs?.length ?? 0;
-    const isLocked  = recentLogs?.some((l) => l.is_locked) ?? false;
-
-    if (isLocked || failCount >= MAX_FAILED) {
-      return errorResponse(
-        `Account locked. Try again in ${LOCKOUT_MINUTES} minutes.`,
-        429,
-        'ACCOUNT_LOCKED',
-      );
+    // ── Step 6: persistent lockout check ─────────────────────────────────
+    // Server-side per-user counter stored in login_lockouts, survives browser
+    // close / restart / refresh. Read BEFORE attempting the sign-in so a locked
+    // account cannot even probe credentials.
+    const lock = await readLoginLockout(db, user.id);
+    if (lock.lockedUntil && lock.lockedUntil.getTime() > Date.now()) {
+      return lockoutError(lock.lockedUntil, lock.failedAttempts);
     }
 
     // ── Step 7: Supabase Auth sign-in ─────────────────────────────────────
@@ -193,23 +221,39 @@ serve(async (req) => {
         msg:    authErr?.message ?? null,
       });
 
-      const newFails = failCount + 1;
+      const newFails = lock.failedAttempts + 1;
+      const minutes = lockoutMinutes(newFails);
+      const lockedUntil = minutes > 0
+        ? new Date(Date.now() + minutes * 60000)
+        : null;
+
+      await db.from('login_lockouts').upsert({
+        user_id: user.id,
+        failed_attempts: newFails,
+        locked_until: lockedUntil ? lockedUntil.toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+
       await db.from('auth_logs').insert({
         user_id:         user.id,
         event_type:      'login_fail',
         ip_address:      ip,
         failed_attempts: newFails,
-        is_locked:       newFails >= MAX_FAILED,
+        is_locked:       !!lockedUntil,
       });
 
+      if (lockedUntil) return lockoutError(lockedUntil, newFails);
       return errorResponse('Invalid email or password', 401, 'INVALID_CREDENTIALS');
     }
 
     // ── Step 8: success ───────────────────────────────────────────────────
-    // Reset any lockout: a successful login must clear the recently
-    // accumulated login_fail / account_locked rows. Without this, fails from a
-    // few minutes ago (or a stray duplicate request) permanently keep the
-    // account locked even though the user just signed in successfully.
+    // Reset any lockout: a successful login must clear the persistent counter
+    // so the escalation restarts from zero.
+    await db
+      .from('login_lockouts')
+      .delete()
+      .eq('user_id', user.id);
+
     await db
       .from('auth_logs')
       .delete()

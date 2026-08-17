@@ -233,8 +233,8 @@ class _RiderCollectionDetailsScreenState
                   ),
                   const SizedBox(height: 16),
                   _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
-                  _InfoTile(
-                      'Period', 'Period ${schedule?['period_number'] ?? ''}'),
+                  _InfoTile('Period',
+                      'Period ${schedule?['period_number'] ?? schedule?['installment_number'] ?? ''}'),
                   _InfoTile('Status', col.status),
                   if (col.amountCollected != null)
                     _InfoTile('Collected', col.amountCollected!.toCurrency),

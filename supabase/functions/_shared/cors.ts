@@ -64,9 +64,14 @@ export function jsonResponse(data: unknown, status = 200): Response {
 // Both produce the same 200 JSON envelope so they are interchangeable.
 export const successResponse = jsonResponse;
 
-export function errorResponse(message: string, status = 400, code?: string): Response {
+export function errorResponse(
+  message: string,
+  status = 400,
+  code?: string,
+  extra?: Record<string, unknown>,
+): Response {
   return new Response(
-    JSON.stringify({ error: { message, code: code ?? 'BAD_REQUEST' } }),
+    JSON.stringify({ error: { message, code: code ?? 'BAD_REQUEST', ...extra } }),
     { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   );
 }

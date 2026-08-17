@@ -232,8 +232,26 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
                 ),
               ),
             ),
-            const Expanded(flex: 2, child: Text('—')),
-            const Expanded(flex: 2, child: Text('—')),
+            Expanded(
+              flex: 2,
+              child: Text(
+                user.vehicleType ?? '—',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                user.plateNumber ?? '—',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
             Expanded(
               flex: 1,
               child: Container(

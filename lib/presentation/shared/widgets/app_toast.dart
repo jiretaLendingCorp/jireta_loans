@@ -8,7 +8,8 @@
 //   - info     (navy, info icon)
 //
 // Toasts auto-dismiss after [AppToast.duration] and stack downward when more
-// than one is shown at once.
+// than one is shown at once. [AppToast.showWidget] renders a custom, icon-less
+// widget (used for the live lockout countdown, which stays until it expires).
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
@@ -41,6 +42,50 @@ class AppToast {
     );
     _active.add(entry);
 
+    _ensureHost(overlay);
+
+    Timer(entry.remaining!, () => _remove(entry));
+  }
+
+  /// Renders a custom [content] widget in the same top-right toast host, with
+  /// no auto-dismiss (pass [displayDuration] to override) and no icon. Used by
+  /// the lockout countdown, which refreshes itself every second and calls
+  /// [dismissAll] when it expires.
+  static void showWidget(
+    BuildContext context,
+    Widget content, {
+    Duration? displayDuration,
+  }) {
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+
+    final entry = AppToastEntry(
+      message: '',
+      type: AppToastType.info,
+      remaining: displayDuration,
+      content: content,
+    );
+    _active.add(entry);
+
+    _ensureHost(overlay);
+
+    if (displayDuration != null) {
+      Timer(displayDuration, () => _remove(entry));
+    }
+  }
+
+  /// Removes every active toast. Used when a new lockout starts so stale
+  /// countdowns never stack.
+  static void dismissAll() {
+    _active.clear();
+    if (_entry != null) {
+      _entry!.remove();
+      _entry = null;
+      _host = null;
+    }
+  }
+
+  static void _ensureHost(OverlayState overlay) {
     if (_entry == null) {
       _entry = OverlayEntry(
         builder: (_) => _ToastHost(
@@ -52,28 +97,30 @@ class AppToast {
     } else {
       _host?._refresh();
     }
+  }
 
-    Timer(entry.remaining, () {
-      _active.remove(entry);
-      if (_active.isEmpty && _entry != null) {
-        _entry!.remove();
-        _entry = null;
-        _host = null;
-      } else {
-        _host?._refresh();
-      }
-    });
+  static void _remove(AppToastEntry entry) {
+    _active.remove(entry);
+    if (_active.isEmpty && _entry != null) {
+      _entry!.remove();
+      _entry = null;
+      _host = null;
+    } else {
+      _host?._refresh();
+    }
   }
 }
 
 class AppToastEntry {
   final String message;
   final AppToastType type;
-  final Duration remaining;
+  final Duration? remaining;
+  final Widget? content;
   const AppToastEntry({
     required this.message,
     required this.type,
-    required this.remaining,
+    this.remaining,
+    this.content,
   });
 }
 
@@ -122,6 +169,7 @@ class _ToastHostState extends State<_ToastHost> {
               type: toast.type,
               index: i,
               maxWidth: maxWidth,
+              content: toast.content,
             ),
           );
         }),
@@ -140,12 +188,14 @@ class _AnimatedToast extends StatelessWidget {
   final AppToastType type;
   final int index;
   final double maxWidth;
+  final Widget? content;
 
   const _AnimatedToast({
     required this.message,
     required this.type,
     required this.index,
     required this.maxWidth,
+    this.content,
   });
 
   @override
@@ -174,7 +224,7 @@ class _AnimatedToast extends StatelessWidget {
           ),
         );
       },
-      child: Material(
+      child: content ?? Material(
         color: color,
         elevation: 6,
         shadowColor: color.withValues(alpha: 0.4),
@@ -204,6 +254,75 @@ class _AnimatedToast extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Live lockout countdown shown as a top-right toast (no icon). Self-refreshes
+/// every second and dismisses itself when the remaining time hits zero.
+class LockoutCountdownToast extends StatefulWidget {
+  final int seconds;
+  final VoidCallback? onExpired;
+  const LockoutCountdownToast({
+    super.key,
+    required this.seconds,
+    this.onExpired,
+  });
+
+  @override
+  State<LockoutCountdownToast> createState() => _LockoutCountdownToastState();
+}
+
+class _LockoutCountdownToastState extends State<LockoutCountdownToast> {
+  late int _secondsLeft = widget.seconds;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (_secondsLeft <= 1) {
+        t.cancel();
+        setState(() => _secondsLeft = 0);
+        widget.onExpired?.call();
+        AppToast.dismissAll();
+      } else {
+        setState(() => _secondsLeft--);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String get _label {
+    final m = _secondsLeft ~/ 60;
+    final s = _secondsLeft % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.error,
+      elevation: 6,
+      shadowColor: AppColors.error.withValues(alpha: 0.4),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Text(
+          'Too many wrong attempts. Try again in $_label',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            height: 1.3,
           ),
         ),
       ),

@@ -406,7 +406,7 @@ class _HmLoanApplicationDetailsScreenState
                 ),
                 ...schedules.map((s) => TableRow(
                       children: [
-                        _tableCell(s['period_number']?.toString() ?? '-'),
+                        _tableCell(s['period_number']?.toString() ?? s['installment_number']?.toString() ?? '-'),
                         _tableCell(_formatDate(s['due_date'])),
                         _tableCell('₱${fmt.format(s['amount_due'] ?? 0)}'),
                         _tableCell(_capitalize(s['status'] as String? ?? '-')),
