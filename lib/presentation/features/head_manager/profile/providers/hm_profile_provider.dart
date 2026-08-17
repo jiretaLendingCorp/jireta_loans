@@ -58,7 +58,7 @@ class HmProfileNotifier extends StateNotifier<HmProfileState>
 
   Future<void> changePassword(
       {required String currentPassword, required String newPassword}) async {
-    await _authDs.forceChangePassword(
+    await _authDs.changePassword(
         currentPassword: currentPassword, newPassword: newPassword);
   }
 }

@@ -87,7 +87,7 @@ async function handleGetList(req: Request) {
     .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url,
       created_at, last_login_at, roles!users_role_id_fkey(name),
       lender_profiles!lender_profiles_id_fkey(account_upgrade_status, gender, gcash_number),
-      rider_profiles(vehicle_type, plate_number, is_available),
+      rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available),
       employee_profiles(department, position, gender, civil_status)`, { count: 'exact' });
 
   if (roleIds) {
@@ -112,6 +112,7 @@ async function handleGetList(req: Request) {
   const mapped = (data ?? []).map((u) => {
     const lenderProfile = embedAsObject(u.lender_profiles);
     const employeeProfile = embedAsObject(u.employee_profiles);
+    const riderProfile = embedAsObject(u.rider_profiles);
     return {
       ...u,
       phone: u.phone_number,
@@ -120,6 +121,11 @@ async function handleGetList(req: Request) {
       position: employeeProfile?.position ?? null,
       account_upgrade_status: lenderProfile?.account_upgrade_status ?? null,
       gcash_number: lenderProfile?.gcash_number ?? null,
+      vehicle_type: riderProfile?.vehicle_type ?? null,
+      plate_number: riderProfile?.plate_number ?? null,
+      drivers_license_number: riderProfile?.drivers_license_number ?? null,
+      vehicle_brand: riderProfile?.vehicle_brand ?? null,
+      is_available: riderProfile?.is_available ?? null,
     };
   });
 

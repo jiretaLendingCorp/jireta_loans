@@ -47,13 +47,16 @@ const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 //   3 attempts → 3 minutes
 //   4 attempts → 10 minutes
 //   5+ attempts → lockout ×10 per additional attempt (100, 1000, ...)
+// The lockout is capped at 48 hours (2 days) so a phone number can never be
+// effectively locked forever by a single escalating streak.
+const MAX_LOCKOUT_MINUTES = 2 * 24 * 60; // 48 hours = 2880 minutes
 const MOCK_OTP_CODE = '123456';
 
 function lockoutMinutes(attempts: number): number {
   if (attempts <= 2) return 0;
   if (attempts === 3) return 3;
   if (attempts === 4) return 10;
-  return 10 * Math.pow(10, attempts - 4); // 5 → 100, 6 → 1000, ...
+  return Math.min(MAX_LOCKOUT_MINUTES, 10 * Math.pow(10, attempts - 4)); // 5 → 100, 6 → 1000, ... capped at 2880
 }
 
 async function readOtpLockout(db: DbClient, phone: string) {

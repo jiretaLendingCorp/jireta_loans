@@ -9,6 +9,7 @@ import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
+import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_lender_provider.dart';
 import '../widgets/create_lender_modal.dart';
 
@@ -225,17 +226,13 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             ),
             Expanded(
               flex: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.infoLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Text(
-                  '—',
-                  style: TextStyle(fontSize: 11, color: AppColors.info),
-                ),
-              ),
+              child: user.accountUpgradeStatus == null ||
+                      user.accountUpgradeStatus!.isEmpty
+                  ? const Text('—')
+                  : StatusBadge(
+                      status: user.accountUpgradeStatus!,
+                      small: true,
+                    ),
             ),
             Expanded(
               flex: 1,

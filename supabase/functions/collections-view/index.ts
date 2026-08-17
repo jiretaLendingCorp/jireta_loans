@@ -53,7 +53,7 @@ async function handleCollectionGetList(req: Request) {
     .select(`id, status, collection_type, rider_id, assigned_by, requested_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
       notes:collection_notes,
       proof_photo, borrower_signature, collection_photo,
-      loan_schedule:loan_schedules(installment_number, due_date, amount_due, loan:loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, gcash_number, users!lender_profiles_id_fkey(first_name, last_name, phone_number, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary)))),
+      loan_schedule:loan_schedules(installment_number, due_date, amount_due, loan:loans(id, loan_number, lender_profiles!loans_lender_id_fkey(id, gcash_number, users!lender_profiles_id_fkey(first_name, last_name, phone_number, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary))))),
       rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name)),
       assigned_by_user:users!collection_assignments_assigned_by_fkey(id, first_name, last_name)`, { count: 'exact' });
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);

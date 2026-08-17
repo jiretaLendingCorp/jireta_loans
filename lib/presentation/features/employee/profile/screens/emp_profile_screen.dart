@@ -334,12 +334,12 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     }
     setState(() => _isChangingPassword = true);
     try {
-      final ok = await ref.read(authProvider.notifier).forceChangePassword(
+      final err = await ref.read(authProvider.notifier).changePassword(
             currentPassword: _currentPassCtrl.text,
             newPassword: _newPassCtrl.text,
           );
       if (mounted) {
-        if (ok) {
+        if (err == null) {
           _currentPassCtrl.clear();
           _newPassCtrl.clear();
           _confirmPassCtrl.clear();
@@ -351,9 +351,8 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
           );
         } else {
           context.showSnackBarAsToast(
-            const SnackBar(
-              content:
-                  Text('Failed to update password. Check current password.'),
+            SnackBar(
+              content: Text(err),
               backgroundColor: AppColors.error,
             ),
           );

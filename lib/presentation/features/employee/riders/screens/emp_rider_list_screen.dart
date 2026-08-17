@@ -124,6 +124,8 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
       child: const Row(children: [
         Expanded(flex: 3, child: Text('Name', style: style)),
         Expanded(flex: 2, child: Text('Phone', style: style)),
+        Expanded(flex: 2, child: Text('Vehicle', style: style)),
+        Expanded(flex: 2, child: Text('Plate', style: style)),
         Expanded(flex: 2, child: Text('Status', style: style)),
         Expanded(flex: 2, child: Text('Actions', style: style)),
       ]),
@@ -160,6 +162,14 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
             Expanded(
                 flex: 2,
                 child: Text(rider.phoneNumber ?? '—',
+                    style: const TextStyle(fontSize: 13))),
+            Expanded(
+                flex: 2,
+                child: Text(rider.vehicleType ?? '—',
+                    style: const TextStyle(fontSize: 13))),
+            Expanded(
+                flex: 2,
+                child: Text(rider.plateNumber ?? '—',
                     style: const TextStyle(fontSize: 13))),
             Expanded(flex: 2, child: _StatusBadge(isActive: isActive)),
             Expanded(

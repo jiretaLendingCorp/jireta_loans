@@ -6,6 +6,8 @@
 --   3 failed attempts  → 3 minutes
 --   4 failed attempts  → 10 minutes
 --   5+ failed attempts → lockout ×10 per additional attempt (100, 1000, ...)
+--   Lockouts are capped at 48 hours (2 days) — an account can never be locked
+--   for longer, no matter how many consecutive failures occur.
 --
 -- Stored server-side per user, so closing the web app / restarting the browser
 -- can NOT reset the count. Only a successful login (or waiting out the lock)
