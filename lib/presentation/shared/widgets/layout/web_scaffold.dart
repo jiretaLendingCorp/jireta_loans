@@ -321,6 +321,25 @@ class _UserAvatar extends ConsumerWidget {
             context.go(RouteConstants.empProfile);
           }
         } else if (val == 'logout') {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Log Out'),
+              content: const Text('Do you want to logout?'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('No')),
+                ElevatedButton(
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Yes'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true) return;
           await ref.read(authProvider.notifier).logout();
           if (context.mounted) context.go(RouteConstants.webLogin);
         }

@@ -368,11 +368,11 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Log Out?'),
-        content: const Text('Are you sure you want to log out?'),
+        content: const Text('Do you want to logout?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('No'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
@@ -381,7 +381,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
               await ref.read(authProvider.notifier).logout();
               if (mounted) context.go(RouteConstants.webLogin);
             },
-            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
+            child: const Text('Yes', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

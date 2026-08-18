@@ -5,6 +5,7 @@
 //
 //   location-update-rider  →  ?fn=update-rider
 //   location-get-rider     →  ?fn=get-rider
+//   location-list-tracked  →  ?fn=list-tracked
 //
 // The original per-action logic is preserved verbatim below; each handler is
 // only wrapped so it can live in a single `serve()`.
@@ -15,6 +16,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { checkRateLimit } from '../_shared/rate_limiter.ts';
+import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from location-update-rider] ──────────────────────────────────────
 const MAX_COORD_JUMP_KM = 50;
@@ -49,6 +51,10 @@ serve(async (req) => {
       case 'get-rider':
         // ── [moved from functions/location-get-rider/index.ts] ──────────
         return await handleGetRider(req);
+      case 'list-tracked':
+        // ── Live lender tracking: all riders with an ACCEPTED (or in-flight)
+        //    assignment on the lender's loans across collection / CI / delivery.
+        return await handleListTracked(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -192,6 +198,198 @@ async function handleGetRider(req: Request) {
     });
   } catch (err) {
     console.error('location-get-rider error:', err);
+    return errorResponse('Internal server error', 500, 'SERVER_ERROR');
+  }
+}
+
+// ── Live lender tracking: riders currently visible to the lender ────────────
+//
+// Business rule: a rider's live location is only exposed to the lender AFTER
+// the rider accepts the assignment. This action returns one entry per ACTIVE
+// assignment (accepted/in_progress collection or CI, or an in-flight
+// rider-delivery disbursement) on any of the lender's loans, each merged with
+// the rider's latest GPS fix from `rider_locations` (when one exists).
+// `assignment_type` ∈ collection | ci | disbursement.
+const TRACKED_COLLECTION_STATUSES = ['accepted', 'in_progress'];
+const TRACKED_CI_STATUSES = ['accepted', 'in_progress'];
+
+// Deeply-nested renamed embeds in the select strings below trip supabase-js's
+// type-level PostgREST parser (ParserError) — see collections-view/index.ts.
+// Rows are therefore re-typed here; runtime behavior is unchanged.
+type TrackedRow = Record<string, any>;
+
+async function handleListTracked(req: Request) {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  try {
+    const authResult = await requireAuth(req);
+    if (!isAuthUser(authResult)) return authResult;
+    const roleCheck = requireRole(authResult, ROLES.LENDER);
+    if (roleCheck) return roleCheck;
+
+    const db = getAdminClient();
+
+    const riderSelect = 'rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name))';
+
+    // ── Step 1: pull every ACTIVE assignment on the lender's loans ──────────
+    const [collectionRows, ciRows, disbRows] = await Promise.all([
+      (db
+        .from('collection_assignments')
+        .select(
+          `id, status, rider_id, created_at,
+           loan_schedule:loan_schedules(loan:loans(id, loan_number, lender_id)),
+           ${riderSelect}`
+        )
+        .in('status', TRACKED_COLLECTION_STATUSES)
+        .eq('loan_schedule.loan.lender_id', authResult.id)) as unknown as Promise<{
+        data: TrackedRow[] | null;
+        error: { message?: string } | null;
+      }>,
+      (db
+        .from('credit_investigations')
+        .select(
+          `id, status, rider_id, created_at,
+           loan:loans(id, loan_number, lender_id),
+           ${riderSelect}`
+        )
+        .in('status', TRACKED_CI_STATUSES)
+        .eq('loan.lender_id', authResult.id)) as unknown as Promise<{
+        data: TrackedRow[] | null;
+        error: { message?: string } | null;
+      }>,
+      (db
+        .from('disbursements')
+        .select(
+          `id, status, rider_id, created_at,
+           loan:loans(id, loan_number, lender_id),
+           ${riderSelect}`
+        )
+        .eq('method', 'rider_delivery')
+        .eq('status', 'pending')
+        .eq('loan.lender_id', authResult.id)) as unknown as Promise<{
+        data: TrackedRow[] | null;
+        error: { message?: string } | null;
+      }>,
+    ]);
+
+    const assignments: Array<{
+      type: 'collection' | 'ci' | 'disbursement';
+      assignmentId: string;
+      status: string;
+      riderId: string;
+      riderName: string | null;
+      loanId: string;
+      loanNumber: string;
+    }> = [];
+
+    for (const row of (collectionRows.data ?? [])) {
+      const loan = embedAsObject(row.loan_schedule?.loan);
+      const rider = embedAsObject(row.rider);
+      const riderUser = rider ? embedAsObject(rider.users) : null;
+      if (!loan || !rider) continue;
+      assignments.push({
+        type: 'collection',
+        assignmentId: row.id,
+        status: row.status,
+        riderId: rider.id,
+        riderName: [riderUser?.first_name, riderUser?.last_name].filter(Boolean).join(' ') || null,
+        loanId: loan.id,
+        loanNumber: loan.loan_number,
+      });
+    }
+
+    for (const row of (ciRows.data ?? [])) {
+      const loan = embedAsObject(row.loan);
+      const rider = embedAsObject(row.rider);
+      const riderUser = rider ? embedAsObject(rider.users) : null;
+      if (!loan || !rider) continue;
+      assignments.push({
+        type: 'ci',
+        assignmentId: row.id,
+        status: row.status,
+        riderId: rider.id,
+        riderName: [riderUser?.first_name, riderUser?.last_name].filter(Boolean).join(' ') || null,
+        loanId: loan.id,
+        loanNumber: loan.loan_number,
+      });
+    }
+
+    for (const row of (disbRows.data ?? [])) {
+      const loan = embedAsObject(row.loan);
+      const rider = embedAsObject(row.rider);
+      const riderUser = rider ? embedAsObject(rider.users) : null;
+      if (!loan || !rider) continue;
+      assignments.push({
+        type: 'disbursement',
+        assignmentId: row.id,
+        status: row.status,
+        riderId: rider.id,
+        riderName: [riderUser?.first_name, riderUser?.last_name].filter(Boolean).join(' ') || null,
+        loanId: loan.id,
+        loanNumber: loan.loan_number,
+      });
+    }
+
+    if (assignments.length === 0) {
+      return jsonResponse({ riders: [], total: 0 });
+    }
+
+    // ── Step 2: batch-load the latest GPS fix for every tracked rider ───────
+    const riderIds = Array.from(new Set(assignments.map((a) => a.riderId)));
+    const { data: locRows, error: locErr } = await db
+      .from('rider_locations')
+      .select('rider_id, latitude, longitude, accuracy, updated_at')
+      .in('rider_id', riderIds);
+
+    if (locErr) {
+      return errorResponse('Failed to load rider locations', 500, 'DB_ERROR');
+    }
+
+    const locations = new Map<string, {
+      latitude: number;
+      longitude: number;
+      accuracy: number | null;
+      updated_at: string;
+    }>();
+    for (const row of (locRows ?? [])) {
+      locations.set(row.rider_id as string, {
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        accuracy: row.accuracy != null ? Number(row.accuracy) : null,
+        updated_at: row.updated_at as string,
+      });
+    }
+
+    // ── Step 3: merge assignments with locations and return ────────────────
+    const now = Date.now();
+    const riders = assignments.map((a) => {
+      const loc = locations.get(a.riderId);
+      let updatedAt: string | null = null;
+      let isStale = true;
+      if (loc) {
+        updatedAt = loc.updated_at;
+        isStale = (now - new Date(loc.updated_at).getTime()) / 1000 > 120;
+      }
+      return {
+        rider_id: a.riderId,
+        rider_name: a.riderName,
+        assignment_type: a.type,
+        assignment_id: a.assignmentId,
+        assignment_status: a.status,
+        loan_id: a.loanId,
+        loan_number: a.loanNumber,
+        latitude: loc?.latitude ?? null,
+        longitude: loc?.longitude ?? null,
+        accuracy: loc?.accuracy ?? null,
+        location_updated_at: updatedAt,
+        is_stale: isStale,
+      };
+    });
+
+    return jsonResponse({ riders, total: riders.length });
+  } catch (err) {
+    console.error('location-list-tracked error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');
   }
 }

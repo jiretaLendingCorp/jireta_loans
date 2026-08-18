@@ -1515,7 +1515,7 @@ Web Browser Security
 
 Mobile Security
 
-✅ Prevent Screenshots (Sensitive Pages)
+❌ Prevent Screenshots (Sensitive Pages) — disabled to allow screenshots
 
 ✅ Secure Clipboard Usage
 

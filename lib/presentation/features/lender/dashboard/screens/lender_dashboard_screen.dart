@@ -16,6 +16,7 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
+import 'widgets/lender_rider_tracking_card.dart';
 
 class LenderDashboardScreen extends ConsumerStatefulWidget {
   const LenderDashboardScreen({super.key});
@@ -152,6 +153,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         ),
                       ] else
                         _MyLoansOverview(kpi: state.kpi),
+                      const LenderRiderTrackingCard(),
                       const SizedBox(height: 20),
                       if (state.error != null) _ErrorBanner(state.error!),
                     ],

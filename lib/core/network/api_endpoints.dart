@@ -88,6 +88,7 @@ class ApiEndpoints {
   // Location
   static const String locationUpdateRider = 'location-manage?fn=update-rider';
   static const String locationGetRider = 'location-manage?fn=get-rider';
+  static const String locationListTracked = 'location-manage?fn=list-tracked';
 
   // Notifications
   static const String notificationsSend = 'notifications-send?fn=send';

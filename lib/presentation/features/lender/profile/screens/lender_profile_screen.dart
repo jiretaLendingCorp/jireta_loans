@@ -593,6 +593,25 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         label: const Text('Log Out',
             style: TextStyle(fontWeight: FontWeight.w600)),
         onPressed: () async {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Log Out'),
+              content: const Text('Do you want to logout?'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text('No')),
+                ElevatedButton(
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Yes'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true) return;
           await ref.read(authProvider.notifier).logout();
           if (mounted && context.mounted) {
             context.go(RouteConstants.mobileLogin);

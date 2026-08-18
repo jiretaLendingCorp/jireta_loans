@@ -50,15 +50,15 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Log Out'),
-        content: const Text('Are you sure you want to log out?'),
+        content: const Text('Do you want to logout?'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: const Text('No')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log Out'),
+            child: const Text('Yes'),
           ),
         ],
       ),

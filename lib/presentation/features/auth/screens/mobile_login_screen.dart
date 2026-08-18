@@ -5,10 +5,13 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/offline_toast.dart';
@@ -52,6 +55,30 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
     _fadeController.forward();
     _lifecycleListener = AppLifecycleListener(onResume: _onAppResumed);
+    // The splash screen used to gate first-run users through the Terms screen;
+    // mobile now opens directly on this login screen, so check that gate here.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstRun());
+  }
+
+  /// First-run terms gate: after the secure-storage session check settles and
+  /// the user is confirmed logged out, send them to the Terms & Conditions
+  /// screen until they have accepted it once.
+  Future<void> _checkFirstRun() async {
+    var authState = ref.read(authStateProvider);
+    if (authState.isLoading) {
+      for (var i = 0; i < 50 && mounted; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        authState = ref.read(authStateProvider);
+        if (!authState.isLoading) break;
+      }
+    }
+    if (!mounted || authState.isAuthenticated) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final termsAccepted = prefs.getBool(AppConstants.termsAcceptedKey) ?? false;
+    if (mounted && !termsAccepted) {
+      context.go(RouteConstants.terms);
+    }
   }
 
   @override
@@ -332,6 +359,18 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    // While the secure-storage session check is running (or a session is being
+    // restored), show a spinner instead of the login form so an already
+    // signed-in user never flashes the login screen before the router
+    // redirects them to their dashboard.
+    final authState = ref.watch(authStateProvider);
+    if (authState.isLoading || authState.isAuthenticated) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     // Live offline state: when connectivity drops, a persistent banner with a
     // spinner is rendered below the Continue with Google button and stays until
     // the connection is restored. The button gating below also reads this value

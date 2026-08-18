@@ -144,7 +144,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   }
 
   return GoRouter(
-    initialLocation: RouteConstants.splash,
+    // Mobile has no splash screen — open straight on the login screen and let
+    // the redirect below send already-authenticated users to their dashboard.
+    initialLocation: kIsWeb ? RouteConstants.splash : RouteConstants.mobileLogin,
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final isLoading = authState.isLoading;
@@ -152,11 +154,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final path = state.uri.path;
 
-      // While offline (or still probing for connectivity) everyone stays on the
-      // splash screen — the app cannot be opened without internet access.
+      // While offline (or still probing for connectivity) the web app stays on
+      // the splash screen — it cannot be opened without internet access. The
+      // mobile app has no splash: unauthenticated users land on the login
+      // screen (which shows an offline banner and disables actions) while
+      // authenticated users keep their session and get the global offline
+      // overlay instead.
       final isOnline = ref.read(connectivityProvider).valueOrNull ?? false;
       if (!isOnline) {
-        return path == RouteConstants.splash ? null : RouteConstants.splash;
+        if (kIsWeb) {
+          return path == RouteConstants.splash ? null : RouteConstants.splash;
+        }
+        if (authState.isAuthenticated) {
+          return redirectForRole(path, authState.role);
+        }
+        return path == RouteConstants.mobileLogin
+            ? null
+            : RouteConstants.mobileLogin;
       }
 
       final isAuthenticated = authState.isAuthenticated;
