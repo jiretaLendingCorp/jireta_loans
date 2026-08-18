@@ -16,7 +16,6 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
   final _firstCtrl = TextEditingController();
   final _lastCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _gcashCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
   final _dobCtrl = TextEditingController();
@@ -31,7 +30,6 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
     _firstCtrl.dispose();
     _lastCtrl.dispose();
     _phoneCtrl.dispose();
-    _gcashCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
     _dobCtrl.dispose();
@@ -72,11 +70,6 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Default password: 12345678. Lender can login via phone + OTP.',
-                    style:
-                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
                   const SizedBox(height: 20),
                   if (_error != null)
                     Container(
@@ -162,9 +155,6 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  _f('GCash Number', _gcashCtrl,
-                      type: TextInputType.phone, maxLength: 11),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -286,7 +276,6 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
         'gender': _gender,
         'civil_status': _civilStatus,
         'dob': _dobCtrl.text.trim(),
-        'gcash_number': _gcashCtrl.text.trim(),
         'employment_type': _employmentType,
         'employer_name': _employerCtrl.text.trim(),
         'monthly_income': double.tryParse(_incomeCtrl.text) ?? 0,

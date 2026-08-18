@@ -4,6 +4,30 @@ export function sanitizeString(input: unknown): string {
   return input.trim().replace(/[<>'"]/g, '');
 }
 
+// `rider_profiles.vehicle_type` FK-references `vehicle_types(code)`, whose rows
+// are Title-cased ("Motorcycle", "Car", "Tricycle"). The app submits lowercase
+// ("motorcycle", "tricycle", "car") so map/canonicalize to the stored codes.
+export function normalizeVehicleType(value: unknown): string | null {
+  const raw = sanitizeString(value);
+  if (!raw) return null;
+  const lower = raw.toLowerCase().replace(/\s+/g, '');
+  switch (lower) {
+    case 'motorcycle':
+    case 'motorbike':
+      return 'Motorcycle';
+    case 'bicycle':
+    case 'bike':
+      return 'Bicycle';
+    case 'tricycle':
+      return 'Tricycle';
+    case 'car':
+    case 'van':
+      return 'Car';
+    default:
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+}
+
 export function validatePhone(phone: string): boolean {
   return /^09\d{9}$/.test(phone);
 }

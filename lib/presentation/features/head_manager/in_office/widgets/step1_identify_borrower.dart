@@ -33,7 +33,6 @@ class _Step1IdentifyBorrowerState extends ConsumerState<Step1IdentifyBorrower> {
   final _lastNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _gcashCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
@@ -55,7 +54,6 @@ class _Step1IdentifyBorrowerState extends ConsumerState<Step1IdentifyBorrower> {
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
-    _gcashCtrl.dispose();
     _incomeCtrl.dispose();
     super.dispose();
   }
@@ -115,7 +113,6 @@ class _Step1IdentifyBorrowerState extends ConsumerState<Step1IdentifyBorrower> {
       'last_name': _lastNameCtrl.text.trim(),
       'phone': _phoneCtrl.text.trim(),
       'email': _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-      'gcash_number': _gcashCtrl.text.trim(),
       'monthly_income':
           double.tryParse(_incomeCtrl.text.replaceAll(',', '')) ?? 0,
       'gender': _gender,
@@ -273,14 +270,6 @@ class _Step1IdentifyBorrowerState extends ConsumerState<Step1IdentifyBorrower> {
               label: 'Email (Optional)',
               keyboardType: TextInputType.emailAddress,
               maxLength: 254,
-              onChanged: (_) => _updateNewLenderData(),
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              controller: _gcashCtrl,
-              label: 'GCash Number',
-              keyboardType: TextInputType.phone,
-              maxLength: 11,
               onChanged: (_) => _updateNewLenderData(),
             ),
             const SizedBox(height: 12),

@@ -18,10 +18,40 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
   final _phoneCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
   final _licenseCtrl = TextEditingController();
-  final _brandCtrl = TextEditingController();
+  final _otherBrandCtrl = TextEditingController();
   String _vehicleType = 'motorcycle';
+  String? _vehicleBrand;
   bool _loading = false;
   String? _error;
+
+  static const List<String> _brands = [
+    'Honda',
+    'Yamaha',
+    'Suzuki',
+    'Kawasaki',
+    'Kymco',
+    'Mio',
+    'Vespa',
+    'Piaggio',
+    'Bajaj',
+    'TVS',
+    'Benelli',
+    'Rusi',
+    'Royal Enfield',
+    'Toyota',
+    'Mitsubishi',
+    'Nissan',
+    'Hyundai',
+    'Isuzu',
+    'Ford',
+    'Chevrolet',
+  ];
+
+  String get _resolvedBrand {
+    if (_vehicleBrand == null) return '';
+    if (_vehicleBrand == 'other') return _otherBrandCtrl.text.trim();
+    return _vehicleBrand!;
+  }
 
   @override
   void dispose() {
@@ -30,7 +60,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
     _phoneCtrl.dispose();
     _plateCtrl.dispose();
     _licenseCtrl.dispose();
-    _brandCtrl.dispose();
+    _otherBrandCtrl.dispose();
     super.dispose();
   }
 
@@ -68,11 +98,6 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Default password: 12345678. Rider must change on first login.',
-                    style:
-                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                  ),
                   const SizedBox(height: 20),
                   if (_error != null)
                     Container(
@@ -129,10 +154,26 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                          child: _f('Vehicle Brand', _brandCtrl,
-                              maxLength: 100)),
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _vehicleBrand,
+                          decoration: _dec('Vehicle Brand'),
+                          hint: const Text('Select brand'),
+                          items: [
+                            ..._brands.map((b) => DropdownMenuItem(
+                                value: b, child: Text(b))),
+                            const DropdownMenuItem(
+                                value: 'other', child: Text('Other')),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _vehicleBrand = v),
+                        ),
+                      ),
                     ],
                   ),
+                  if (_vehicleBrand == 'other') ...[
+                    const SizedBox(height: 12),
+                    _f('Other Brand', _otherBrandCtrl, maxLength: 100),
+                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -218,7 +259,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
         'last_name': _lastCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
         'vehicle_type': _vehicleType,
-        'vehicle_brand': _brandCtrl.text.trim(),
+        'vehicle_brand': _resolvedBrand,
         'plate_number': _plateCtrl.text.trim(),
         'drivers_license_number': _licenseCtrl.text.trim(),
       });

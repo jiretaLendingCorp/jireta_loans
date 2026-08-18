@@ -10,7 +10,8 @@
     "std/http/server": "https://deno.land/std@0.168.0/http/server.ts"
   },
   "tasks": {
-    "check": "deno check functions/**/index.ts"
+    "check": "deno check functions/**/index.ts",
+    "test": "deno test --allow-read"
   },
   "lint": {
     "include": [

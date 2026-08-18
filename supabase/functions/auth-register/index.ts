@@ -2,10 +2,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Public endpoint for EMPLOYEE self-registration on the website app.
 //
-// Registered employees are stored with account_status = 'pending' and cannot
-// sign in until the head manager approves the account (Edit User → status
-// 'Active'). This keeps the staff portal closed to anyone who has not been
-// vetted, while still allowing prospective staff to submit their details.
+// Self-registered employees are stored with account_status = 'active' so they
+// can sign in immediately after registering (no head manager approval step).
 //
 // The role is hard-coded to 'employee': the web portal is head_manager /
 // employee only, and head managers are bootstrapped via SQL, never via the
@@ -26,6 +24,7 @@ import { guardRateLimit } from '../_shared/rate_limiter.ts';
 const REGISTER_RATE_MAX = 5;
 const REGISTER_RATE_MINUTES = 60;
 const REGISTER_BLOCK_MINUTES = 60;
+const DEFAULT_POSITION = 'Staff';
 
 function clientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -50,7 +49,7 @@ serve(async (req) => {
       position, password, gender, civil_status, hired_at,
     } = body;
 
-    if (!first_name || !last_name || !email || !phone_number || !position || !password) {
+    if (!first_name || !last_name || !email || !phone_number || !password) {
       return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
     }
 
@@ -132,7 +131,7 @@ serve(async (req) => {
 
     const userId = authUser.user.id;
 
-    // ── public.users row (pending approval) ───────────────────────────────
+    // ── public.users row (active so the user can sign in immediately) ─────
     const { error: userErr } = await db.from('users').upsert({
       id: userId,
       role_id: roleRow.id,
@@ -140,7 +139,7 @@ serve(async (req) => {
       phone_number: cleanPhone,
       first_name: sanitizeString(first_name),
       last_name: sanitizeString(last_name),
-      account_status: 'pending',
+      account_status: 'active',
       force_password_change: false,
     }, { onConflict: 'id' });
 
@@ -151,9 +150,11 @@ serve(async (req) => {
     }
 
     // ── employee_profiles row ─────────────────────────────────────────────
+    // `position` is optional on the form; fall back to a default because the
+    // column is NOT NULL in the database.
     const { error: profileErr } = await db.from('employee_profiles').insert({
       id: userId,
-      position: sanitizeString(position),
+      position: position ? sanitizeString(position) : DEFAULT_POSITION,
       hired_at: hired_at ? String(hired_at).substring(0, 10) : new Date().toISOString().split('T')[0],
       gender: gender ? sanitizeString(gender).toLowerCase() : null,
       civil_status: civil_status ? sanitizeString(civil_status).toLowerCase() : null,
@@ -177,12 +178,12 @@ serve(async (req) => {
       action: 'employee_registered',
       tableName: 'users',
       recordId: userId,
-      newValues: { role: 'employee', email: cleanEmail, phone_number: cleanPhone, first_name: sanitizeString(first_name), last_name: sanitizeString(last_name), position: sanitizeString(position) },
+      newValues: { role: 'employee', email: cleanEmail, phone_number: cleanPhone, first_name: sanitizeString(first_name), last_name: sanitizeString(last_name), position: position ? sanitizeString(position) : DEFAULT_POSITION },
       ipAddress: ip,
     });
 
     return jsonResponse({
-      message: 'Registration submitted. Your account is pending approval by the head manager.',
+      message: 'Registration successful. You can now sign in.',
       user_id: userId,
     }, 201);
   } catch (err) {

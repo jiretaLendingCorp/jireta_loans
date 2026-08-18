@@ -18,7 +18,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _gcashCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
   String _employmentType = 'employed';
@@ -39,7 +38,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
     _firstNameCtrl.text = l['first_name'] ?? '';
     _lastNameCtrl.text = l['last_name'] ?? '';
     _phoneCtrl.text = l['phone_number'] ?? '';
-    _gcashCtrl.text = l['lender_profile']?['gcash_number'] ?? '';
     _employerCtrl.text = l['lender_profile']?['employer_name'] ?? '';
     _incomeCtrl.text = l['lender_profile']?['monthly_income']?.toString() ?? '';
     _employmentType = l['lender_profile']?['employment_type'] ?? 'employed';
@@ -50,7 +48,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
-    _gcashCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
     super.dispose();
@@ -73,7 +70,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
           'first_name': _firstNameCtrl.text.trim(),
           'last_name': _lastNameCtrl.text.trim(),
           'phone_number': _phoneCtrl.text.trim(),
-          'gcash_number': _gcashCtrl.text.trim(),
           'employment_type': _employmentType,
           'employer_name': _employerCtrl.text.trim(),
           'monthly_income': double.tryParse(_incomeCtrl.text.trim()) ?? 0,
@@ -147,12 +143,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
                     AppTextField(
                         controller: _phoneCtrl,
                         label: 'Phone Number',
-                        keyboardType: TextInputType.phone,
-                        maxLength: 11),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                        controller: _gcashCtrl,
-                        label: 'GCash Number',
                         keyboardType: TextInputType.phone,
                         maxLength: 11),
                     const SizedBox(height: 16),

@@ -21,7 +21,6 @@ class _EmpRegisterLenderModalState
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _gcashCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
   String _gender = 'male';
@@ -36,7 +35,6 @@ class _EmpRegisterLenderModalState
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
-    _gcashCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
     super.dispose();
@@ -62,7 +60,6 @@ class _EmpRegisterLenderModalState
         'employment_type': _employmentType,
         'employer_name': _employerCtrl.text.trim(),
         'monthly_income': double.tryParse(_incomeCtrl.text) ?? 0,
-        'gcash_number': _gcashCtrl.text.trim(),
         'source_of_funds': _sourceOfFunds,
       });
       if (mounted) {
@@ -276,39 +273,9 @@ class _EmpRegisterLenderModalState
                             keyboardType: TextInputType.number,
                             maxLength: 12,
                           )),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: _buildTextField(
-                            _gcashCtrl,
-                            'GCash Number',
-                            Icons.account_balance_wallet_outlined,
-                            keyboardType: TextInputType.phone,
-                            maxLength: 11,
-                          )),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.infoLight,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.info_outline,
-                                size: 16, color: AppColors.info),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Default password will be set to 12345678. Lender must change on first login.',
-                                style: TextStyle(
-                                    fontSize: 12, color: AppColors.info),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ),

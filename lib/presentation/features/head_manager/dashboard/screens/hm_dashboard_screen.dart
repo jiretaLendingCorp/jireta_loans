@@ -60,8 +60,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildWelcomeHeader(),
-                    const SizedBox(height: 24),
                     _buildQuickActions(context),
                     const SizedBox(height: 24),
                     _buildSectionTitle('User Statistics'),
@@ -115,102 +113,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeHeader() {
-    final now = DateTime.now();
-    final hour = now.hour;
-    final greeting = hour < 12
-        ? 'Good morning'
-        : hour < 18
-            ? 'Good afternoon'
-            : 'Good evening';
-    final showBadge = MediaQuery.of(context).size.width >= 640;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.deepNavy, AppColors.navyLight],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
-            ),
-            child: const Icon(
-              Icons.account_balance,
-              color: AppColors.gold,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$greeting, Head Manager',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    fontFamily: 'PlayfairDisplay',
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Jireta Loans & Credit Corp 1966 — Enterprise Dashboard',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.65),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (showBadge) ...[
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border:
-                    Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.riderGreen,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  const Text(
-                    'Sysstem Online',
-                    style: TextStyle(fontSize: 12, color: AppColors.gold),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );

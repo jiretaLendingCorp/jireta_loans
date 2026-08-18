@@ -15,7 +15,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validateEmail, sanitizeString, validatePhone } from '../_shared/validators.ts';
+import { validateEmail, sanitizeString, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
 import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
@@ -176,6 +176,10 @@ async function handleCreateRider(req: Request) {
   if (!first_name || !last_name || !phone || !vehicle_type || !plate_number || !drivers_license_number) {
     return errorResponse('Missing required fields', 400, 'VALIDATION_ERROR');
   }
+  const canonicalVehicleType = normalizeVehicleType(vehicle_type);
+  if (!canonicalVehicleType) {
+    return errorResponse('Invalid vehicle type', 400, 'VALIDATION_ERROR');
+  }
   if (!validatePhone(sanitizeString(phone))) {
     return errorResponse('Invalid phone number format (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
   }
@@ -218,15 +222,21 @@ async function handleCreateRider(req: Request) {
     return errorResponse('Failed to create user record', 500, 'SERVER_ERROR');
   }
 
-  await db.from('rider_profiles').insert({
+  const { error: riderProfileErr } = await db.from('rider_profiles').insert({
     id: newUser.id,
-    vehicle_type: sanitizeString(vehicle_type),
+    vehicle_type: canonicalVehicleType,
     plate_number: sanitizeString(plate_number).toUpperCase(),
     drivers_license_number: sanitizeString(drivers_license_number),
     drivers_license_expiry: drivers_license_expiry || null,
     vehicle_brand: vehicle_brand ? sanitizeString(vehicle_brand) : null,
     is_available: true,
   });
+  if (riderProfileErr) {
+    await db.auth.admin.deleteUser(authUser.user.id);
+    await db.from('users').delete().eq('id', newUser.id);
+    console.error('[users-create] rider profile insert failed:', riderProfileErr.message);
+    return errorResponse('Failed to save rider profile', 500, 'SERVER_ERROR');
+  }
 
   await db.from('password_history').insert({
     user_id: newUser.id,
@@ -250,7 +260,7 @@ async function handleCreateLender(req: Request) {
 
   const body = await req.json();
   const { first_name, middle_name, last_name, suffix, phone, gender, civil_status,
-    dob, employment_type, employer_name, monthly_income, gcash_number, source_of_funds } = body;
+    dob, employment_type, employer_name, monthly_income, source_of_funds } = body;
 
   if (!first_name || !last_name || !phone || !gender || !civil_status || !dob) {
     return errorResponse('Missing required fields', 400, 'VALIDATION_ERROR');
@@ -305,7 +315,6 @@ async function handleCreateLender(req: Request) {
     employment_type: employment_type ? sanitizeString(employment_type).toLowerCase() : null,
     employer_name: employer_name ? sanitizeString(employer_name) : null,
     monthly_income: monthly_income ? Number(monthly_income) : null,
-    gcash_number: gcash_number ? sanitizeString(gcash_number) : null,
     source_of_funds: source_of_funds ? sanitizeString(source_of_funds).toLowerCase() : null,
     account_upgrade_status: 'not_submitted',
   });

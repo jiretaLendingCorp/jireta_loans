@@ -1,7 +1,7 @@
 // supabase/functions/_shared/audit.ts
 import { getAdminClient } from "./db.ts";
 
-export async function writeAuditLog(params: {
+export interface AuditLogParams {
   performedBy: string | null;
   action: string;
   tableName: string;
@@ -9,9 +9,20 @@ export async function writeAuditLog(params: {
   oldValues?: Record<string, unknown> | null;
   newValues?: Record<string, unknown> | null;
   ipAddress?: string;
-}): Promise<void> {
+}
+
+/**
+ * Insert one row into `audit_logs`. Errors are swallowed by design so a failed
+ * audit write never breaks the primary operation (e.g. a payment webhook).
+ *
+ * The optional second argument is a test seam — callers use the production
+ * admin client automatically.
+ */
+export async function writeAuditLog(
+  params: AuditLogParams,
+  db: Pick<ReturnType<typeof getAdminClient>, "from"> = getAdminClient(),
+): Promise<void> {
   try {
-    const db = getAdminClient();
     await db.from("audit_logs").insert({
       // 'system' is the placeholder used by webhook callbacks (no logged-in
       // user); it maps to NULL now that performed_by is nullable.

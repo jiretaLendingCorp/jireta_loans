@@ -129,12 +129,28 @@ async function handleGetList(req: Request) {
 
     const loanIds = (data ?? []).map((r) => r.id);
     const lenderIds = (data ?? []).map((r) => r.lender_id);
-    const [financials, disbursements, lenderAddresses, disbPrefs] = await Promise.all([
+    const [financials, disbursements, lenderAddresses, disbPrefs, upcomingSchedules] = await Promise.all([
       getLoanFinancialsBatch(db, loanIds),
       getLoanDisbursementsBatch(db, loanIds),
       getLenderAddressBatch(db, lenderIds),
       getLoanDisbursementPrefsBatch(db, loanIds),
+      // Next outstanding (unpaid) schedule due date per loan. The loans table
+      // has no due_date column — it lives on loan_schedules.
+      loanIds.length > 0
+        ? db.from('v_loan_schedules')
+            .select('loan_id, due_date')
+            .in('loan_id', loanIds)
+            .in('status', ['pending', 'partial', 'overdue'])
+            .order('due_date', { ascending: true })
+        : Promise.resolve({ data: null }),
     ]);
+
+    const nextDueByLoan: Record<string, string | null> = {};
+    for (const s of (upcomingSchedules as { data: Array<{ loan_id: string; due_date: string | null }> | null }).data ?? []) {
+      if (s?.loan_id && nextDueByLoan[s.loan_id] === undefined) {
+        nextDueByLoan[s.loan_id] = s.due_date ?? null;
+      }
+    }
 
     const mapped = (data ?? []).map((r) => {
       const lp = embedAsObject(r.lender_profiles);
@@ -169,6 +185,7 @@ async function handleGetList(req: Request) {
         term_periods: r.term_periods,
         installment_amount: r.installment_amount,
         status: r.status,
+        due_date: nextDueByLoan[r.id] ?? null,
         created_at: r.created_at,
         disbursed_at: disb?.disbursed_at ?? null,
         updated_at: r.updated_at,
@@ -207,6 +224,16 @@ async function handleGetDetails(req: Request) {
     if (user.role === ROLES.RIDER) return errorResponse('Access denied', 403, 'FORBIDDEN');
 
     const { data: schedule } = await db.from('v_loan_schedules').select('*').eq('loan_id', loanId).order('installment_number');
+    // Next outstanding (unpaid) schedule due date — the loans table itself has
+    // no due_date column, it lives on loan_schedules.
+    const { data: nextSched } = await db
+      .from('v_loan_schedules')
+      .select('due_date')
+      .eq('loan_id', loanId)
+      .in('status', ['pending', 'partial', 'overdue'])
+      .order('due_date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
     const scheduleIds = (schedule ?? []).map((s) => s.id);
     let payments: Record<string, unknown>[] = [];
     if (scheduleIds.length > 0) {
@@ -237,6 +264,7 @@ async function handleGetDetails(req: Request) {
     const lp = loan?.lender_profiles;
     const loanOut: Record<string, unknown> = {
       ...loan,
+      due_date: nextSched?.due_date ?? null,
       total_payable: financials?.total_payable ?? null,
       outstanding_balance: financials?.outstanding_balance ?? null,
       interest_amount: financials?.interest_amount ?? null,

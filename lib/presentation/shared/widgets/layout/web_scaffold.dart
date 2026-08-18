@@ -302,6 +302,7 @@ class _UserAvatar extends ConsumerWidget {
         name: name,
         color: AppColors.deepNavy,
         radius: 18,
+        borderColor: Colors.black,
         fallback: Text(
           initials,
           style: const TextStyle(
@@ -526,15 +527,13 @@ class _SidebarHeader extends StatelessWidget {
           Container(
             width: 38,
             height: 38,
-            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: Colors.white,
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.gold.withValues(alpha: 0.7)),
             ),
-            child: ClipOval(
-              child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.contain),
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.cover),
           ),
           if (!collapsed) ...[
             const SizedBox(width: 10),

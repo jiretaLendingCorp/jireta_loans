@@ -27,7 +27,6 @@ class _LenderEditProfileScreenState
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _middleNameCtrl = TextEditingController();
-  final _gcashCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
@@ -137,7 +136,6 @@ class _LenderEditProfileScreenState
     _sourceOfFunds =
         _normalizeOption(user.sourceOfFunds, _sourceOfFundsOptions);
     _dob = user.dateOfBirth;
-    _gcashCtrl.text = user.gcashNumber ?? '';
     _employerCtrl.text = user.employerName ?? '';
     _incomeCtrl.text = user.monthlyIncome != null
         ? (user.monthlyIncome! % 1 == 0
@@ -158,7 +156,6 @@ class _LenderEditProfileScreenState
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _middleNameCtrl.dispose();
-    _gcashCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
     _streetCtrl.dispose();
@@ -211,7 +208,6 @@ class _LenderEditProfileScreenState
         'employment_type': _toDbEnum(_employmentType!),
         'employer_name': _employerCtrl.text.trim(),
         'monthly_income': double.tryParse(_incomeCtrl.text.trim()),
-        'gcash_number': _gcashCtrl.text.trim(),
         'source_of_funds': _toDbEnum(_sourceOfFunds ?? 'other'),
         'street_address': _streetCtrl.text.trim(),
         'barangay': _barangayCtrl.text.trim(),
@@ -332,29 +328,6 @@ class _LenderEditProfileScreenState
                       'Financial Information',
                       Icons.account_balance_wallet_outlined,
                       [
-                        AppTextField(
-                          label: 'GCash Number',
-                          controller: _gcashCtrl,
-                          keyboardType: TextInputType.phone,
-                          maxLength: 11,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(11),
-                          ],
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return 'GCash number is required';
-                            }
-                            if (v.length != 11) {
-                              return 'GCash number must be 11 digits';
-                            }
-                            if (!v.startsWith('09')) {
-                              return 'Must start with 09';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
                         _buildDropdownField(
                           label: 'Employment Type',
                           value: _employmentType,

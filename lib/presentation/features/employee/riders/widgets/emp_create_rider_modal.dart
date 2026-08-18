@@ -20,10 +20,40 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   final _phoneCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
   final _licenseCtrl = TextEditingController();
-  final _brandCtrl = TextEditingController();
+  final _otherBrandCtrl = TextEditingController();
   String _vehicleType = 'motorcycle';
+  String? _vehicleBrand;
   DateTime? _licenseExpiry;
   bool _isSaving = false;
+
+  static const List<String> _brands = [
+    'Honda',
+    'Yamaha',
+    'Suzuki',
+    'Kawasaki',
+    'Kymco',
+    'Mio',
+    'Vespa',
+    'Piaggio',
+    'Bajaj',
+    'TVS',
+    'Benelli',
+    'Rusi',
+    'Royal Enfield',
+    'Toyota',
+    'Mitsubishi',
+    'Nissan',
+    'Hyundai',
+    'Isuzu',
+    'Ford',
+    'Chevrolet',
+  ];
+
+  String get _resolvedBrand {
+    if (_vehicleBrand == null) return '';
+    if (_vehicleBrand == 'other') return _otherBrandCtrl.text.trim();
+    return _vehicleBrand!;
+  }
 
   @override
   void dispose() {
@@ -32,7 +62,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
     _phoneCtrl.dispose();
     _plateCtrl.dispose();
     _licenseCtrl.dispose();
-    _brandCtrl.dispose();
+    _otherBrandCtrl.dispose();
     super.dispose();
   }
 
@@ -54,12 +84,12 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
         'drivers_license_number': _licenseCtrl.text.trim(),
         'drivers_license_expiry':
             _licenseExpiry!.toIso8601String().substring(0, 10),
-        'vehicle_brand': _brandCtrl.text.trim(),
+        'vehicle_brand': _resolvedBrand,
       });
       if (mounted) {
         Navigator.of(context).pop();
         context.showSnackBarAsToast(const SnackBar(
-            content: Text('Rider created. Default password: 12345678'),
+            content: Text('Rider created.'),
             backgroundColor: AppColors.success));
       }
     } catch (e) {
@@ -114,7 +144,25 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                       const SizedBox(height: 14),
                       _field('Plate Number', _plateCtrl, maxLength: 20),
                       const SizedBox(height: 14),
-                      _field('Vehicle Brand', _brandCtrl, maxLength: 255),
+                      DropdownButtonFormField<String>(
+                        initialValue: _vehicleBrand,
+                        decoration: const InputDecoration(
+                            labelText: 'Vehicle Brand', counterText: ''),
+                        hint: const Text('Select brand'),
+                        items: [
+                          ..._brands.map((b) => DropdownMenuItem(
+                              value: b, child: Text(b))),
+                          const DropdownMenuItem(
+                              value: 'other', child: Text('Other')),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => _vehicleBrand = v),
+                      ),
+                      if (_vehicleBrand == 'other') ...[
+                        const SizedBox(height: 14),
+                        _field('Other Brand', _otherBrandCtrl,
+                            maxLength: 100),
+                      ],
                       const SizedBox(height: 14),
                       _field("Driver's License Number", _licenseCtrl,
                           maxLength: 50),
@@ -146,22 +194,6 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                            color: AppColors.warningLight,
-                            borderRadius: BorderRadius.circular(8)),
-                        child: const Row(children: [
-                          Icon(Icons.info_outline,
-                              size: 16, color: AppColors.warning),
-                          SizedBox(width: 8),
-                          Expanded(
-                              child: Text(
-                                  'Default password will be set to 12345678. Rider must change on first login.',
-                                  style: TextStyle(
-                                      fontSize: 12, color: AppColors.warning))),
-                        ]),
-                      ),
                     ],
                   ),
                 ),

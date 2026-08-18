@@ -6,12 +6,10 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../../core/di/injection.dart';
-import '../../../../shared/widgets/details/details_actions_card.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../providers/hm_employee_provider.dart';
 
 final _empDetailProvider = FutureProvider.family<UserModel, String>((
   ref,
@@ -85,28 +83,6 @@ class HmEmployeeDetailsScreen extends ConsumerWidget {
                   DetailsItem(
                     'Last Login',
                     user.lastLoginAt?.toString().substring(0, 16) ?? '—',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              DetailsActionsCard(
-                title: 'Actions',
-                icon: Icons.settings_outlined,
-                accentColor: AppColors.deepNavy,
-                actions: [
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      await ref
-                          .read(hmEmployeeProvider.notifier)
-                          .archive(user.id);
-                      if (context.mounted) context.pop();
-                    },
-                    icon: const Icon(Icons.archive_outlined, size: 18),
-                    label: const Text('Archive'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
-                    ),
                   ),
                 ],
               ),

@@ -1,4 +1,6 @@
 // lib/presentation/features/head_manager/audit/screens/hm_audit_logs_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -8,27 +10,38 @@ import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import '../audit_action_catalog.dart';
 
 class _AuditState {
   final List<Map<String, dynamic>> logs;
   final bool isLoading;
   final int currentPage;
   final int totalPages;
+  final String? error;
   const _AuditState(
       {this.logs = const [],
       this.isLoading = false,
       this.currentPage = 1,
-      this.totalPages = 1});
-  _AuditState copyWith(
-          {List<Map<String, dynamic>>? logs,
-          bool? isLoading,
-          int? currentPage,
-          int? totalPages}) =>
+      this.totalPages = 1,
+      this.error});
+
+  // Sentinel so copyWith can distinguish "not provided" from an explicit
+  // `error: null` (which must CLEAR a previous error).
+  static const Object _unsetError = Object();
+
+  _AuditState copyWith({
+    List<Map<String, dynamic>>? logs,
+    bool? isLoading,
+    int? currentPage,
+    int? totalPages,
+    Object? error = _unsetError,
+  }) =>
       _AuditState(
           logs: logs ?? this.logs,
           isLoading: isLoading ?? this.isLoading,
           currentPage: currentPage ?? this.currentPage,
-          totalPages: totalPages ?? this.totalPages);
+          totalPages: totalPages ?? this.totalPages,
+          error: error == _unsetError ? this.error : error as String?);
 }
 
 class _AuditNotifier extends StateNotifier<_AuditState>
@@ -39,9 +52,13 @@ class _AuditNotifier extends StateNotifier<_AuditState>
     fetch();
   }
 
-  Future<void> fetch(
-      {int page = 1, String? action, String? performedBy, bool silent = false}) async {
-    if (!silent) state = state.copyWith(isLoading: true);
+  Future<void> fetch({
+    int page = 1,
+    String? action,
+    String? performedBy,
+    bool silent = false,
+  }) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.getAuditLogs(
           page: page, action: action, performedBy: performedBy);
@@ -52,9 +69,26 @@ class _AuditNotifier extends StateNotifier<_AuditState>
           isLoading: false,
           currentPage: meta['page'] as int? ?? 1,
           totalPages: meta['total_pages'] as int? ?? 1);
-    } catch (_) {
-      if (!silent) state = state.copyWith(isLoading: false);
+    } catch (e) {
+      if (silent && state.logs.isNotEmpty) return;
+      state = state.copyWith(
+          isLoading: false, error: _describeError(e));
     }
+  }
+
+  String _describeError(Object e) {
+    final message = e.toString();
+    if (message.contains('Unable to reach server') ||
+        message.contains('No internet')) {
+      return 'Cannot connect to server. Check your connection and try again.';
+    }
+    if (message.contains('timed out')) {
+      return 'Request timed out. Please try again.';
+    }
+    if (message.contains('UNAUTHORIZED')) {
+      return 'Session expired. Please log in again.';
+    }
+    return 'Failed to load audit logs. Please try again.';
   }
 }
 
@@ -72,24 +106,13 @@ class HmAuditLogsScreen extends ConsumerStatefulWidget {
 
 class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
   String? _selectedAction;
   Map<String, dynamic>? _expandedLog;
 
-  final _actions = [
-    'login',
-    'logout',
-    'loan_created',
-    'loan_approved',
-    'loan_rejected',
-    'payment',
-    'user_created',
-    'password_changed',
-    'settings_changed',
-    'report_export'
-  ];
-
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -112,9 +135,11 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
-                : state.logs.isEmpty
-                    ? _buildEmpty()
-                    : _buildTable(state),
+                : state.error != null
+                    ? _buildError(state.error!)
+                    : state.logs.isEmpty
+                        ? _buildEmpty()
+                        : _buildTable(state),
           ),
           if (state.totalPages > 1) _buildPagination(state),
         ],
@@ -131,16 +156,22 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
               child: TextField(
                 controller: _searchCtrl,
                 decoration: InputDecoration(
-                  hintText: 'Search by user or table...',
+                  hintText: 'Search by user name...',
                   prefixIcon: const Icon(Icons.search, size: 20),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: AppColors.border)),
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
-                onChanged: (v) => ref
-                    .read(_auditProvider.notifier)
-                    .fetch(performedBy: v.isEmpty ? null : v),
+                onChanged: (v) {
+                  _searchDebounce?.cancel();
+                  _searchDebounce = Timer(const Duration(milliseconds: 400),
+                      () {
+                    ref
+                        .read(_auditProvider.notifier)
+                        .fetch(performedBy: v.trim().isEmpty ? null : v.trim());
+                  });
+                },
               ),
             ),
             const SizedBox(width: 12),
@@ -156,9 +187,9 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                   items: [
                     const DropdownMenuItem(
                         value: null, child: Text('All Actions')),
-                    ..._actions.map((a) => DropdownMenuItem(
+                    ...AuditActionCatalog.actions.map((a) => DropdownMenuItem(
                         value: a,
-                        child: Text(_capitalize(a.replaceAll('_', ' '))))),
+                        child: Text(AuditActionCatalog.label(a)))),
                   ],
                   onChanged: (v) {
                     setState(() => _selectedAction = v);
@@ -235,7 +266,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                     decoration: BoxDecoration(
                         color: _actionColor(action).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4)),
-                    child: Text(_capitalize(action.replaceAll('_', ' ')),
+                    child: Text(AuditActionCatalog.label(action),
                         style: TextStyle(
                             fontSize: 12,
                             color: _actionColor(action),
@@ -360,6 +391,30 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
         ),
       );
 
+  Widget _buildError(String message) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline,
+                size: 64, color: AppColors.error),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 15)),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => ref.read(_auditProvider.notifier).fetch(),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+
   Widget _buildPagination(_AuditState state) => Container(
         padding: const EdgeInsets.all(16),
         color: Colors.white,
@@ -412,9 +467,6 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
       return d.toString();
     }
   }
-
-  String _capitalize(String s) =>
-      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
   String _initials(Map<String, dynamic> user) {
     final f = (user['first_name'] as String? ?? '').trim();

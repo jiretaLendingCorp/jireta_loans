@@ -19,7 +19,9 @@ class AuditRemoteDataSource {
       ApiEndpoints.auditGetLogs,
       queryParams: {
         if (action != null) 'action': action,
-        if (performedBy != null) 'performed_by': performedBy,
+        // The UI search box types a human name. The backend resolves it against
+        // users.first_name / users.last_name (ilike), NOT the raw UUID column.
+        if (performedBy != null) 'performed_by_name': performedBy,
         if (tableName != null) 'table_name': tableName,
         if (startDate != null) 'start_date': startDate,
         if (endDate != null) 'end_date': endDate,

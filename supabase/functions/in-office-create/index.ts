@@ -188,7 +188,6 @@ async function saveStep1(applicationId: string, data: Record<string, unknown>) {
     gender: data.gender ?? null,
     civil_status: data.civil_status ?? null,
     date_of_birth: data.date_of_birth ?? null,
-    gcash_number: data.gcash_number ?? null,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'application_id' });
 

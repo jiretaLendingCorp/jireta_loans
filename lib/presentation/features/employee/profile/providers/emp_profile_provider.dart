@@ -16,10 +16,11 @@ class EmpProfileNotifier extends StateNotifier<AsyncValue<UserModel?>>
   EmpProfileNotifier(this._ds) : super(const AsyncData(null)) {
     bindRealtimeRefresh(['users', 'employee_profiles'],
         refresh: () => loadProfile(silent: true));
+    loadProfile();
   }
 
   Future<void> loadProfile({bool silent = false}) async {
-    if (!silent) state = const AsyncLoading();
+    if (!silent && state is! AsyncData) state = const AsyncLoading();
     try {
       final data = await _ds.getProfile();
       state = AsyncData(data);

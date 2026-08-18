@@ -21,7 +21,6 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
   final _lastNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _positionCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
   String _gender = 'male';
@@ -44,7 +43,6 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
     _lastNameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
-    _positionCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
     super.dispose();
@@ -57,7 +55,6 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
           lastName: _lastNameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
           phoneNumber: _phoneCtrl.text.trim(),
-          position: _positionCtrl.text.trim(),
           password: _passwordCtrl.text,
           gender: _gender,
           civilStatus: _civilStatus,
@@ -118,8 +115,7 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Register as an employee. Your account will need approval from the '
-          'head manager before you can sign in.',
+          'Register as an employee. You can sign in right after registering.',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 28),
@@ -190,17 +186,6 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                   }
                   return null;
                 },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _positionCtrl,
-                maxLength: 100,
-                decoration: const InputDecoration(
-                  labelText: 'Position',
-                  prefixIcon: Icon(Icons.badge_outlined),
-                  counterText: '',
-                ),
-                validator: (v) => AppValidators.required(v, 'Position'),
               ),
               const SizedBox(height: 16),
               Row(
@@ -315,9 +300,24 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
               ),
               const SizedBox(height: 12),
               Center(
-                child: TextButton(
-                  onPressed: () => context.go(RouteConstants.webLogin),
-                  child: const Text('Already have an account? Login'),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Already have an account? ',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    TextButton(
+                      onPressed: () => context.go(RouteConstants.webLogin),
+                      child: const Text(
+                        'Login',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -330,22 +330,8 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
   Widget _buildSuccess() {
     return Column(
       children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: const BoxDecoration(
-            color: AppColors.successLight,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.verified_user_outlined,
-            color: AppColors.success,
-            size: 40,
-          ),
-        ),
-        const SizedBox(height: 20),
         const Text(
-          'Registration Submitted!',
+          'Registration Successful!',
           style: TextStyle(
             fontFamily: 'PlayfairDisplay',
             fontSize: 24,
@@ -355,8 +341,8 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Your account is pending approval by the head manager. '
-          'You will be able to sign in once it is approved.',
+          'Your account has been created successfully. '
+          'You can now sign in.',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.6),
           textAlign: TextAlign.center,
         ),

@@ -1,8 +1,8 @@
 // lib/presentation/features/employee/account_upgrade/screens/emp_account_upgrade_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
+import '../../../../shared/widgets/document_viewer.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -44,14 +44,52 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
       } else {
         return;
       }
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (mounted) {
-        context.showSnackBarAsToast(const SnackBar(
-            content: Text('Unable to open document.'),
-            backgroundColor: AppColors.error));
-      }
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.white,
+          clipBehavior: Clip.antiAlias,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.insert_drive_file_outlined,
+                          color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('Document',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 16)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Close',
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: DocumentViewer(url: url, height: 540),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         context.showSnackBarAsToast(SnackBar(
@@ -158,6 +196,7 @@ class _State extends ConsumerState<EmpAccountUpgradeDetailsScreen> {
               name: name == 'N/A' ? '' : name,
               color: AppColors.lenderBlue,
               radius: 32,
+              borderColor: Colors.black,
               fallback: const Icon(Icons.person_outline,
                   size: 28, color: AppColors.lenderBlue),
             ),

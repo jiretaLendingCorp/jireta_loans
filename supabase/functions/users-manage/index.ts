@@ -14,7 +14,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { sanitizeString, validatePhone } from '../_shared/validators.ts';
+import { sanitizeString, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
@@ -183,7 +183,9 @@ async function handleUpdateProfile(req: Request) {
   if (body.rider_profile || body.plate_number || body.drivers_license_number || body.vehicle_type || body.vehicle_brand) {
     const rp = body.rider_profile ?? body;
     await db.from('rider_profiles').update({
-      vehicle_type: rp.vehicle_type ? sanitizeString(rp.vehicle_type) : undefined,
+      vehicle_type: rp.vehicle_type !== undefined && rp.vehicle_type !== null && rp.vehicle_type !== ''
+        ? (normalizeVehicleType(rp.vehicle_type) ?? undefined)
+        : undefined,
       plate_number: rp.plate_number ? sanitizeString(rp.plate_number).toUpperCase() : undefined,
       vehicle_brand: rp.vehicle_brand ? sanitizeString(rp.vehicle_brand) : undefined,
       drivers_license_number: rp.drivers_license_number ? sanitizeString(rp.drivers_license_number) : undefined,
@@ -194,7 +196,7 @@ async function handleUpdateProfile(req: Request) {
   // Lender profile — accept both the flat mobile payload and the nested form.
   const lp = body.lender_profile ?? (body.gender || body.civil_status || body.dob ||
     body.date_of_birth || body.employment_type || body.employer_name ||
-    body.monthly_income || body.gcash_number || body.source_of_funds
+    body.monthly_income || body.source_of_funds
     ? body : null);
 
   if (lp) {
@@ -214,7 +216,6 @@ async function handleUpdateProfile(req: Request) {
       monthly_income: lp.monthly_income !== undefined && lp.monthly_income !== null && lp.monthly_income !== ''
         ? Number(lp.monthly_income)
         : undefined,
-      gcash_number: lp.gcash_number ? sanitizeString(lp.gcash_number) : undefined,
       source_of_funds: lp.source_of_funds ? normalizeEnum(lp.source_of_funds) : undefined,
     }).eq('id', targetId);
   }

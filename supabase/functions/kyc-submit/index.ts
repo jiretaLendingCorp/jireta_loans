@@ -70,12 +70,12 @@ serve(async (req) => {
     }
 
     // The lender fills out their ENTIRE profile here during Account Upgrade — identity,
-    // personal details, employment, income, GCash. The profile screen is a
+    // personal details, employment, income. The profile screen is a
     // read-only view of this data, so nothing may be left blank.
     const p = profile ?? {};
     const REQUIRED_PROFILE = [
       'first_name', 'last_name', 'gender', 'civil_status', 'dob',
-      'employment_type', 'employer_name', 'monthly_income', 'gcash_number',
+      'employment_type', 'employer_name', 'monthly_income',
     ];
     for (const f of REQUIRED_PROFILE) {
       const v = p[f];
@@ -149,7 +149,6 @@ serve(async (req) => {
       employment_type: normalizeEnum(p.employment_type),
       employer_name: sanitizeString(p.employer_name),
       monthly_income: Number(p.monthly_income),
-      gcash_number: sanitizeString(p.gcash_number),
       source_of_funds: source_of_funds ? normalizeEnum(source_of_funds) : undefined,
     }).eq('id', user.id);
     if (profileErr) {

@@ -33,30 +33,6 @@ class _ForceChangePasswordScreenState
     super.dispose();
   }
 
-  double _passwordStrength(String p) {
-    if (p.isEmpty) return 0;
-    double s = 0;
-    if (p.length >= 8) s += 0.25;
-    if (RegExp(r'[A-Z]').hasMatch(p)) s += 0.25;
-    if (RegExp(r'[0-9]').hasMatch(p)) s += 0.25;
-    if (RegExp(r'[!@#\$%^&*(),.?":{}|<>]').hasMatch(p)) s += 0.25;
-    return s;
-  }
-
-  Color _strengthColor(double s) {
-    if (s <= 0.25) return AppColors.error;
-    if (s <= 0.5) return AppColors.warning;
-    if (s <= 0.75) return AppColors.gold;
-    return AppColors.success;
-  }
-
-  String _strengthLabel(double s) {
-    if (s <= 0.25) return 'Weak';
-    if (s <= 0.5) return 'Fair';
-    if (s <= 0.75) return 'Good';
-    return 'Strong';
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final ok = await ref.read(authProvider.notifier).forceChangePassword(
@@ -83,10 +59,9 @@ class _ForceChangePasswordScreenState
   @override
   Widget build(BuildContext context) {
     final isLoading = ref.watch(authProvider).isLoading;
-    final strength = _passwordStrength(_newCtrl.text);
 
     return Scaffold(
-      backgroundColor: AppColors.deepNavy,
+      backgroundColor: AppColors.surfaceWhite,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -95,28 +70,13 @@ class _ForceChangePasswordScreenState
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
                 children: [
-                  Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: AppColors.gold.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.gold),
-                    ),
-                    child: const Icon(
-                      Icons.lock_reset,
-                      color: AppColors.gold,
-                      size: 36,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                   const Text(
                     'Change Your Password',
                     style: TextStyle(
                       fontFamily: 'PlayfairDisplay',
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: AppColors.deepNavy,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -125,7 +85,7 @@ class _ForceChangePasswordScreenState
                     'Your default password must be changed before proceeding.',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white60,
+                      color: AppColors.textSecondary,
                       height: 1.5,
                     ),
                     textAlign: TextAlign.center,
@@ -136,6 +96,14 @@ class _ForceChangePasswordScreenState
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Form(
                       key: _formKey,
@@ -199,35 +167,6 @@ class _ForceChangePasswordScreenState
                               return null;
                             },
                           ),
-                          if (_newCtrl.text.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: strength,
-                                      backgroundColor: AppColors.border,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        _strengthColor(strength),
-                                      ),
-                                      minHeight: 6,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _strengthLabel(strength),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _strengthColor(strength),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
                           const SizedBox(height: 16),
                           TextFormField(
                             controller: _confirmCtrl,
@@ -257,18 +196,20 @@ class _ForceChangePasswordScreenState
                             },
                           ),
                           const SizedBox(height: 8),
-                          _requirementRow(
-                            'At least 8 characters',
-                            _newCtrl.text.length >= 8,
-                          ),
-                          _requirementRow(
-                            'One uppercase letter',
-                            RegExp(r'[A-Z]').hasMatch(_newCtrl.text),
-                          ),
-                          _requirementRow(
-                            'One number',
-                            RegExp(r'[0-9]').hasMatch(_newCtrl.text),
-                          ),
+                          if (_newCtrl.text.isNotEmpty) ...[
+                            _requirementRow(
+                              'At least 8 characters',
+                              _newCtrl.text.length >= 8,
+                            ),
+                            _requirementRow(
+                              'One uppercase letter',
+                              RegExp(r'[A-Z]').hasMatch(_newCtrl.text),
+                            ),
+                            _requirementRow(
+                              'One number',
+                              RegExp(r'[0-9]').hasMatch(_newCtrl.text),
+                            ),
+                          ],
                           const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,

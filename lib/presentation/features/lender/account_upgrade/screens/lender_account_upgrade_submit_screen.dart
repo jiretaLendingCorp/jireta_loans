@@ -85,7 +85,6 @@ class _LenderAccountUpgradeSubmitScreenState
   final _middleNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _suffixCtrl = TextEditingController();
-  final _gcashCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
@@ -140,7 +139,6 @@ class _LenderAccountUpgradeSubmitScreenState
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _suffixCtrl.dispose();
-    _gcashCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
     _streetCtrl.dispose();
@@ -354,7 +352,6 @@ class _LenderAccountUpgradeSubmitScreenState
           'employment_type': _toDbEnum(_employmentType!),
           'employer_name': _employerCtrl.text.trim(),
           'monthly_income': double.tryParse(_incomeCtrl.text.trim()),
-          'gcash_number': _gcashCtrl.text.trim(),
         },
         'address_info': {
           'street_address': _streetCtrl.text.trim(),
@@ -583,28 +580,6 @@ class _LenderAccountUpgradeSubmitScreenState
         'Financial Information',
         Icons.account_balance_wallet_outlined,
         [
-          AppTextField(
-            label: 'GCash Number *',
-            controller: _gcashCtrl,
-            keyboardType: TextInputType.phone,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(11),
-            ],
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) {
-                return 'GCash number is required';
-              }
-              if (v.length != 11) {
-                return 'GCash number must be 11 digits';
-              }
-              if (!v.startsWith('09')) {
-                return 'Must start with 09';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
           _buildDropdown(
             label: 'Employment Type *',
             value: _employmentType,
