@@ -118,6 +118,25 @@ dev_dependencies:
   json_serializable: ^6.8.0   # <-- MOVED here from dependencies
   riverpod_generator: ^2.4.3
   freezed: ^2.5.7
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/peso_loan_app_icon.png"
+  web:
+    generate: true
+    image_path: "assets/images/peso_loan_app_icon.png"
+    background_color: "#FFFFFF"
+    theme_color: "#FFFFFF"
+  windows:
+    generate: true
+    image_path: "assets/images/peso_loan_app_icon.png"
+    icon_size: 256
+  macos:
+    generate: true
+    image_path: "assets/images/peso_loan_app_icon.png"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true

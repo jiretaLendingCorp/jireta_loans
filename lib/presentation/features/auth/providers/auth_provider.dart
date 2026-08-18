@@ -21,6 +21,19 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
 
   AuthNotifier(this._ds, this._authState) : super(const AsyncData(null));
 
+  /// Pending Google OAuth completer, so the UI can cancel the browser flow
+  /// (e.g. the user pressed back) instead of waiting for the full timeout.
+  Completer<Session?>? _googleOAuthCompleter;
+
+  /// Cancels a pending Google OAuth flow. Safe to call when no flow is in
+  /// progress or the flow already completed.
+  void cancelGoogleOAuth() {
+    final completer = _googleOAuthCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(null);
+    }
+  }
+
   Future<bool> login({required String email, required String password}) async {
     state = const AsyncLoading();
     try {
@@ -158,6 +171,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
 
     final completer = Completer<Session?>();
+    _googleOAuthCompleter = completer;
     final sub = client.auth.onAuthStateChange.listen((data) {
       // Only a freshly-completed sign-in counts. `initialSession` replays any
       // persisted session and a stale session's `tokenRefreshed` would hand us
@@ -181,6 +195,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       );
     } catch (e) {
       sub.cancel();
+      _googleOAuthCompleter = null;
       debugPrint('[auth] google OAuth launch error: $e');
       rethrow;
     }
@@ -192,6 +207,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       sub.cancel();
       debugPrint('[auth] google OAuth flow did not complete: $e');
       return null;
+    } finally {
+      sub.cancel();
+      if (identical(_googleOAuthCompleter, completer)) {
+        _googleOAuthCompleter = null;
+      }
     }
   }
 
