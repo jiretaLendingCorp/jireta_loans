@@ -121,6 +121,47 @@ async function handleHeadManager(req: Request) {
   let totalPenalties = 0;
   (penalties ?? []).forEach((p) => { totalPenalties += Number(p.penalty_amount); });
 
+  // ── Monthly trend series (last 6 months, oldest → newest) ──────────────
+  const { data: trendLoans } = await db
+    .from('loans')
+    .select('created_at');
+  const { data: trendDisbursements } = await db
+    .from('disbursements')
+    .select('disbursed_at, amount')
+    .eq('status', 'completed');
+  const { data: trendPayments } = await db
+    .from('payments')
+    .select('paid_at, amount')
+    .eq('status', 'verified');
+
+  const monthlySeries: Array<{
+    month: string;
+    applications: number;
+    released: number;
+    collected: number;
+  }> = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const inRange = (ts: string | null | undefined) => {
+      if (!ts) return false;
+      const t = new Date(ts).getTime();
+      return t >= d.getTime() && t < next.getTime();
+    };
+    monthlySeries.push({
+      month: key,
+      applications: (trendLoans ?? []).filter((l) => inRange(l.created_at)).length,
+      released: (trendDisbursements ?? [])
+        .filter((x) => inRange(x.disbursed_at))
+        .reduce((s, x) => s + Number(x.amount), 0),
+      collected: (trendPayments ?? [])
+        .filter((p) => inRange(p.paid_at))
+        .reduce((s, p) => s + Number(p.amount), 0),
+    });
+  }
+
   return jsonResponse({
     total_employees: totalEmployees ?? 0,
     total_riders: totalRiders ?? 0,
@@ -141,6 +182,7 @@ async function handleHeadManager(req: Request) {
     total_ci_assignments: totalCi ?? 0,
     total_report_exports: totalReports ?? 0,
     total_pending_account_upgrade: totalPendingAccountUpgrade ?? 0,
+    monthly_series: monthlySeries,
   });
 }
 

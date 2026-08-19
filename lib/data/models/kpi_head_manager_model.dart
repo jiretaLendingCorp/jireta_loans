@@ -1,4 +1,27 @@
 // lib/data/models/kpi_head_manager_model.dart
+class MonthlyKpiPoint {
+  final String month;
+  final int applications;
+  final double released;
+  final double collected;
+
+  const MonthlyKpiPoint({
+    required this.month,
+    required this.applications,
+    required this.released,
+    required this.collected,
+  });
+
+  factory MonthlyKpiPoint.fromJson(Map<String, dynamic> json) {
+    return MonthlyKpiPoint(
+      month: json['month']?.toString() ?? '',
+      applications: (json['applications'] as num?)?.toInt() ?? 0,
+      released: (json['released'] as num?)?.toDouble() ?? 0,
+      collected: (json['collected'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
 class KpiHeadManagerModel {
   final int totalEmployees;
   final int totalRiders;
@@ -19,6 +42,7 @@ class KpiHeadManagerModel {
   final int totalCiAssignments;
   final int totalReportExports;
   final int totalPendingAccountUpgrade;
+  final List<MonthlyKpiPoint> monthlySeries;
 
   const KpiHeadManagerModel({
     required this.totalEmployees,
@@ -40,6 +64,7 @@ class KpiHeadManagerModel {
     required this.totalCiAssignments,
     required this.totalReportExports,
     required this.totalPendingAccountUpgrade,
+    this.monthlySeries = const [],
   });
 
   int get totalApproved => totalApprovedLoans;
@@ -84,6 +109,9 @@ class KpiHeadManagerModel {
       totalReportExports: (json['total_report_exports'] as num?)?.toInt() ?? 0,
       totalPendingAccountUpgrade:
           (json['total_pending_account_upgrade'] as num?)?.toInt() ?? 0,
+      monthlySeries: (json['monthly_series'] as List<dynamic>? ?? [])
+          .map((e) => MonthlyKpiPoint.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 

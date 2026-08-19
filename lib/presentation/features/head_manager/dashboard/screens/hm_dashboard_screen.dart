@@ -1,15 +1,18 @@
 // lib/presentation/features/head_manager/dashboard/screens/hm_dashboard_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
+import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/hm_dashboard_provider.dart';
+import '../widgets/hm_analytics_panel.dart';
 
 class HmDashboardScreen extends ConsumerStatefulWidget {
   const HmDashboardScreen({super.key});
@@ -18,25 +21,7 @@ class HmDashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<HmDashboardScreen> createState() => _HmDashboardScreenState();
 }
 
-class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _animController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
+class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final dashState = ref.watch(hmDashboardProvider);
@@ -44,9 +29,17 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
     return WebScaffold(
       title: 'Dashboard',
       actions: [
+        const _LiveIndicator(),
+        const SizedBox(width: 4),
         IconButton(
           onPressed: () => ref.read(hmDashboardProvider.notifier).refresh(),
-          icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
+          icon: dashState.isLoading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh, color: AppColors.textSecondary),
           tooltip: 'Refresh',
         ),
       ],
@@ -60,22 +53,48 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildQuickActions(context),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('User Statistics'),
-                    const SizedBox(height: 12),
-                    _buildUserStatsGrid(dashState.kpi),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('Loan Overview'),
-                    const SizedBox(height: 12),
-                    _buildLoanStatsGrid(dashState.kpi),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('Financial Metrics'),
-                    const SizedBox(height: 12),
+                    _Entrance(
+                      child: HmAnalyticsPanel(kpi: dashState.kpi),
+                    ),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.account_balance_wallet_outlined,
+                      'Financial Metrics',
+                      'Money in, money out and everything in between',
+                    ),
+                    const SizedBox(height: 14),
                     _buildFinancialGrid(dashState.kpi),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('Operational Metrics'),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.bolt_outlined,
+                      'Quick Actions',
+                      'Jump straight to the most used modules',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildQuickActions(context),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.people_outline,
+                      'User Statistics',
+                      'Staff and borrower counts across the branch',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildUserStatsGrid(dashState.kpi),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.description_outlined,
+                      'Loan Overview',
+                      'Loan portfolio at a glance',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildLoanStatsGrid(dashState.kpi),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.assessment_outlined,
+                      'Operational Metrics',
+                      'Internal operations summary',
+                    ),
+                    const SizedBox(height: 14),
                     _buildOperationalGrid(dashState.kpi),
                     const SizedBox(height: 32),
                   ],
@@ -90,6 +109,18 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
+          Row(
+            children: List.generate(
+              2,
+              (i) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(left: i > 0 ? 16 : 0),
+                  child: const ShimmerLoader(height: 260),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: List.generate(
               4,
@@ -118,18 +149,77 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
     );
   }
 
+  Widget _buildSectionTitle(
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.gold, AppColors.goldDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.gold.withValues(alpha: 0.35),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 17, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textTertiary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        const Expanded(
+          child: Divider(color: AppColors.divider, height: 1),
+        ),
+      ],
+    );
+  }
+
   Widget _buildQuickActions(BuildContext context) {
     final actions = [
       _QuickAction(
         Icons.storefront_outlined,
-        'In-Office',
+        'In-Office Application',
         AppColors.deepNavy,
         () => context.go(RouteConstants.hmInOffice),
       ),
       _QuickAction(
         Icons.person_add_outlined,
         'Add Employee',
-        AppColors.deepNavy,
+        AppColors.riderGreen,
         () => context.go(RouteConstants.hmEmployees),
       ),
       _QuickAction(
@@ -141,13 +231,13 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
       _QuickAction(
         Icons.verified_user_outlined,
         'Account Upgrade Review',
-        AppColors.info,
+        AppColors.lenderBlue,
         () => context.go(RouteConstants.hmAccountUpgrade),
       ),
       _QuickAction(
         Icons.assessment_outlined,
         'Generate Report',
-        AppColors.riderGreen,
+        AppColors.goldDark,
         () => context.go(RouteConstants.hmReports),
       ),
     ];
@@ -166,9 +256,14 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
           spacing: spacing,
           runSpacing: spacing,
           children: actions
-              .map((a) => SizedBox(
+              .asMap()
+              .entries
+              .map((e) => SizedBox(
                     width: cardWidth,
-                    child: _QuickActionCard(action: a),
+                    child: _Entrance(
+                      delay: 100 + e.key * 70,
+                      child: _QuickActionCard(action: e.value),
+                    ),
                   ))
               .toList(),
         );
@@ -176,56 +271,32 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 20,
-          decoration: BoxDecoration(
-            color: AppColors.gold,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildUserStatsGrid(KpiHeadManagerModel kpi) {
     return _buildGridRow([
       _KpiCard(
         label: 'Total Employees',
-        value: kpi.totalEmployees.toString(),
+        value: kpi.totalEmployees.toDouble(),
         icon: Icons.people_outline,
         color: AppColors.deepNavy,
         isCurrency: false,
       ),
       _KpiCard(
         label: 'Total Riders',
-        value: kpi.totalRiders.toString(),
+        value: kpi.totalRiders.toDouble(),
         icon: Icons.delivery_dining_outlined,
         color: AppColors.riderGreen,
         isCurrency: false,
       ),
       _KpiCard(
         label: 'Total Lenders',
-        value: kpi.totalLenders.toString(),
+        value: kpi.totalLenders.toDouble(),
         icon: Icons.person_outline,
         color: AppColors.lenderBlue,
         isCurrency: false,
       ),
       _KpiCard(
         label: 'Pending Account Upgrade',
-        value: kpi.totalPendingAccountUpgrade.toString(),
+        value: kpi.totalPendingAccountUpgrade.toDouble(),
         icon: Icons.verified_user_outlined,
         color: AppColors.warning,
         isCurrency: false,
@@ -239,28 +310,28 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
         _buildGridRow([
           _KpiCard(
             label: 'Total Applications',
-            value: kpi.totalLoanApplications.toString(),
+            value: kpi.totalLoanApplications.toDouble(),
             icon: Icons.description_outlined,
             color: AppColors.info,
             isCurrency: false,
           ),
           _KpiCard(
             label: 'Approved Loans',
-            value: kpi.totalApprovedLoans.toString(),
+            value: kpi.totalApprovedLoans.toDouble(),
             icon: Icons.check_circle_outline,
             color: AppColors.riderGreen,
             isCurrency: false,
           ),
           _KpiCard(
             label: 'Active Loans',
-            value: kpi.totalActiveLoans.toString(),
+            value: kpi.totalActiveLoans.toDouble(),
             icon: Icons.account_balance_wallet_outlined,
             color: AppColors.deepNavy,
             isCurrency: false,
           ),
           _KpiCard(
             label: 'Completed Loans',
-            value: kpi.totalCompletedLoans.toString(),
+            value: kpi.totalCompletedLoans.toDouble(),
             icon: Icons.done_all_outlined,
             color: AppColors.info,
             isCurrency: false,
@@ -270,28 +341,28 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
         _buildGridRow([
           _KpiCard(
             label: 'Rejected Loans',
-            value: kpi.totalRejectedLoans.toString(),
+            value: kpi.totalRejectedLoans.toDouble(),
             icon: Icons.cancel_outlined,
             color: AppColors.error,
             isCurrency: false,
           ),
           _KpiCard(
             label: 'Overdue Loans',
-            value: kpi.totalOverdueLoans.toString(),
+            value: kpi.totalOverdueLoans.toDouble(),
             icon: Icons.warning_outlined,
             color: AppColors.statusOverdue,
             isCurrency: false,
           ),
           _KpiCard(
             label: 'CI Assignments',
-            value: kpi.totalCiAssignments.toString(),
+            value: kpi.totalCiAssignments.toDouble(),
             icon: Icons.search_outlined,
             color: AppColors.lenderBlue,
             isCurrency: false,
           ),
           _KpiCard(
             label: 'Collections',
-            value: kpi.totalCollectionTransactions.toString(),
+            value: kpi.totalCollectionTransactions.toDouble(),
             icon: Icons.local_shipping_outlined,
             color: AppColors.riderGreen,
             isCurrency: false,
@@ -307,30 +378,30 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
         _buildGridRow([
           _KpiCard(
             label: 'Amount Released',
-            value: kpi.totalLoanAmountReleased.toCurrencyShort,
+            value: kpi.totalLoanAmountReleased,
             icon: Icons.payments_outlined,
             color: AppColors.deepNavy,
             isCurrency: true,
           ),
           _KpiCard(
             label: 'Amount Collected',
-            value: kpi.totalAmountCollected.toCurrencyShort,
+            value: kpi.totalAmountCollected,
             icon: Icons.savings_outlined,
             color: AppColors.riderGreen,
             isCurrency: true,
           ),
           _KpiCard(
             label: 'Outstanding Balance',
-            value: kpi.totalOutstandingBalance.toCurrencyShort,
+            value: kpi.totalOutstandingBalance,
             icon: Icons.account_balance_outlined,
             color: AppColors.warning,
             isCurrency: true,
           ),
           _KpiCard(
             label: 'Interest Earned',
-            value: kpi.totalInterestEarned.toCurrencyShort,
+            value: kpi.totalInterestEarned,
             icon: Icons.trending_up_outlined,
-            color: AppColors.gold,
+            color: AppColors.goldDark,
             isCurrency: true,
           ),
         ]),
@@ -338,20 +409,18 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
         _buildGridRow([
           _KpiCard(
             label: 'Penalties Collected',
-            value: kpi.totalPenaltiesCollected.toCurrencyShort,
+            value: kpi.totalPenaltiesCollected,
             icon: Icons.gavel_outlined,
             color: AppColors.error,
             isCurrency: true,
           ),
           _KpiCard(
             label: 'Total Revenue',
-            value: kpi.totalRevenue.toCurrencyShort,
+            value: kpi.totalRevenue,
             icon: Icons.monetization_on_outlined,
             color: AppColors.riderGreen,
             isCurrency: true,
           ),
-          const _EmptyCard(),
-          const _EmptyCard(),
         ]),
       ],
     );
@@ -361,14 +430,18 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
     return _buildGridRow([
       _KpiCard(
         label: 'Report Exports',
-        value: kpi.totalReportExports.toString(),
+        value: kpi.totalReportExports.toDouble(),
         icon: Icons.assessment_outlined,
         color: AppColors.info,
         isCurrency: false,
       ),
-      const _EmptyCard(),
-      const _EmptyCard(),
-      const _EmptyCard(),
+      _KpiCard(
+        label: 'CI Assignments',
+        value: kpi.totalCiAssignments.toDouble(),
+        icon: Icons.fact_check_outlined,
+        color: AppColors.deepNavy,
+        isCurrency: false,
+      ),
     ]);
   }
 
@@ -389,11 +462,84 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen>
           spacing: spacing,
           runSpacing: spacing,
           children: cards
-              .where((card) => card is! _EmptyCard)
-              .map((card) => SizedBox(width: cardWidth, child: card))
+              .asMap()
+              .entries
+              .map((e) => SizedBox(
+                    width: cardWidth,
+                    child: _Entrance(
+                      delay: 100 + e.key * 70,
+                      child: e.value,
+                    ),
+                  ))
               .toList(),
         );
       },
+    );
+  }
+}
+
+/// Pulsing green "LIVE" badge shown while the realtime feed is active.
+class _LiveIndicator extends StatefulWidget {
+  const _LiveIndicator();
+
+  @override
+  State<_LiveIndicator> createState() => _LiveIndicatorState();
+}
+
+class _LiveIndicatorState extends State<_LiveIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FadeTransition(
+            opacity: Tween(begin: 0.3, end: 1.0).animate(_ctrl),
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: AppColors.success,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'LIVE',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AppColors.success,
+              letterSpacing: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -419,69 +565,81 @@ class _QuickActionCardState extends State<_QuickActionCard> {
 
   @override
   Widget build(BuildContext context) {
+    final color = widget.action.color;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        child: InkWell(
-          onTap: widget.action.onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              color: _hover
-                  ? widget.action.color.withValues(alpha: 0.08)
-                  : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _hover
-                    ? widget.action.color.withValues(alpha: 0.4)
-                    : AppColors.border,
-              ),
-              boxShadow: _hover
-                  ? [
-                      BoxShadow(
-                        color: widget.action.color.withValues(alpha: 0.15),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : [],
+      child: AnimatedScale(
+        scale: _hover ? 1.03 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: _hover ? color.withValues(alpha: 0.06) : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _hover ? color.withValues(alpha: 0.4) : AppColors.border,
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: widget.action.color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    widget.action.icon,
-                    size: 18,
-                    color: widget.action.color,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    widget.action.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          _hover ? widget.action.color : AppColors.textPrimary,
+            boxShadow: _hover
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.18),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x0D000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+          ),
+          child: InkWell(
+            onTap: widget.action.onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color, color.withValues(alpha: 0.7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(
+                      widget.action.icon,
+                      size: 18,
+                      color: Colors.white,
                     ),
                   ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 12,
-                  color: _hover ? widget.action.color : AppColors.textTertiary,
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.action.label,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: _hover ? color : AppColors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 11,
+                    color: _hover ? color : AppColors.textTertiary,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -490,9 +648,9 @@ class _QuickActionCardState extends State<_QuickActionCard> {
   }
 }
 
-class _KpiCard extends StatefulWidget {
+class _KpiCard extends StatelessWidget {
   final String label;
-  final String value;
+  final double value;
   final IconData icon;
   final Color color;
   final bool isCurrency;
@@ -506,123 +664,233 @@ class _KpiCard extends StatefulWidget {
   });
 
   @override
-  State<_KpiCard> createState() => _KpiCardState();
+  Widget build(BuildContext context) {
+    return _KpiCardBody(
+      label: label,
+      value: value,
+      icon: icon,
+      color: color,
+      isCurrency: isCurrency,
+    );
+  }
 }
 
-class _KpiCardState extends State<_KpiCard>
-    with SingleTickerProviderStateMixin {
+class _KpiCardBody extends StatefulWidget {
+  final String label;
+  final double value;
+  final IconData icon;
+  final Color color;
+  final bool isCurrency;
+
+  const _KpiCardBody({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.isCurrency,
+  });
+
+  @override
+  State<_KpiCardBody> createState() => _KpiCardBodyState();
+}
+
+class _KpiCardBodyState extends State<_KpiCardBody> {
   bool _hover = false;
-  late AnimationController _controller;
-  late Animation<double> _scaleAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..forward();
-    _scaleAnim = Tween<double>(
-      begin: 0.8,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
+    final color = widget.color;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: ScaleTransition(
-        scale: _scaleAnim,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _hover ? widget.color.withValues(alpha: 0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _hover
-                  ? widget.color.withValues(alpha: 0.3)
-                  : AppColors.border,
-            ),
-            boxShadow: _hover
-                ? [
-                    BoxShadow(
-                      color: widget.color.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [
-                    const BoxShadow(
-                      color: Color(0x0D000000),
-                      blurRadius: 4,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _hover ? color.withValues(alpha: 0.35) : AppColors.border,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: widget.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(widget.icon, size: 18, color: widget.color),
+          boxShadow: _hover
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.14),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
                   ),
-                  const Spacer(),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: widget.color.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
+                ]
+              : const [
+                  BoxShadow(
+                    color: Color(0x0D000000),
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
                   ),
                 ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [color, color.withValues(alpha: 0.65)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(widget.icon, size: 19, color: Colors.white),
+                ),
+                const Spacer(),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.6),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: widget.isCurrency
+                  ? CountUpAnimation(
+                      value: widget.value,
+                      prefix: '₱',
+                      decimalPlaces: 2,
+                      style: TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                        letterSpacing: -0.4,
+                      ),
+                    )
+                  : CountUpAnimation(
+                      value: widget.value,
+                      style: TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(height: 12),
-              Text(
-                widget.value,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: widget.color,
-                  letterSpacing: -0.5,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 10),
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+              builder: (context, t, _) => Container(
+                height: 3,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  gradient: LinearGradient(
+                    colors: [
+                      color.withValues(alpha: 0.5),
+                      color.withValues(alpha: 0.15),
+                    ],
+                  ),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: t,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      gradient: LinearGradient(
+                        colors: [color, color.withValues(alpha: 0.5)],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                widget.label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard();
+/// Fade + slide + scale entrance used across dashboard sections.
+class _Entrance extends StatefulWidget {
+  final Widget child;
+  final int delay;
+  const _Entrance({required this.child, this.delay = 0});
 
   @override
-  Widget build(BuildContext context) => const SizedBox();
+  State<_Entrance> createState() => _EntranceState();
+}
+
+class _EntranceState extends State<_Entrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+  late final Animation<double> _scale;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+    final curved =
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _opacity = Tween<double>(begin: 0, end: 1).animate(curved);
+    _offset = Tween<Offset>(
+      begin: const Offset(0, 0.06),
+      end: Offset.zero,
+    ).animate(curved);
+    _scale = Tween<double>(begin: 0.96, end: 1).animate(curved);
+    _timer = Timer(Duration(milliseconds: widget.delay), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(
+        position: _offset,
+        child: ScaleTransition(scale: _scale, child: widget.child),
+      ),
+    );
+  }
 }

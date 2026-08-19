@@ -39,11 +39,15 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
       'loans',
       'loan_schedules',
       'payments',
+      'penalty_logs',
       'collection_assignments',
       'credit_investigations',
       'account_upgrade_documents',
+      'lender_profiles',
       'in_office_applications',
       'disbursements',
+      'reports',
+      'users',
       'notifications',
     ], refresh: () => loadKpis(silent: true));
     loadKpis();
