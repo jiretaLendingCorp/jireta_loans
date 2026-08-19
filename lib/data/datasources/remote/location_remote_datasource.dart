@@ -13,22 +13,18 @@ class LocationRemoteDataSource {
   }) async {
     await _client.post(
       ApiEndpoints.locationUpdateRider,
-      data: {'lat': lat, 'lng': lng},
+      data: {'latitude': lat, 'longitude': lng},
     );
   }
 
   Future<Map<String, dynamic>?> getRiderLocation({
     required String riderId,
   }) async {
-    try {
-      final res = await _client.get(
-        ApiEndpoints.locationGetRider,
-        queryParams: {'rider_id': riderId},
-      );
-      return res.data as Map<String, dynamic>?;
-    } catch (_) {
-      return null;
-    }
+    final res = await _client.get(
+      ApiEndpoints.locationGetRider,
+      queryParams: {'rider_id': riderId},
+    );
+    return res.data as Map<String, dynamic>?;
   }
 
   /// Returns every rider the lender may currently track live (accepted

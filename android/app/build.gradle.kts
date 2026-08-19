@@ -4,6 +4,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Read GOOGLE_MAPS_API_KEY for the Android Maps manifest placeholder. Checks
+// the environment first, then falls back to assets/env/.env (the same file the
+// Dart runtime loads via flutter_dotenv).
+fun googleMapsApiKey(): String {
+    System.getenv("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }?.let { return it }
+    // rootProject is the `android/` dir, so the Flutter project root is one level up.
+    val envFile = rootProject.file("../assets/env/.env")
+    if (!envFile.exists()) return ""
+    return envFile.readLines()
+        .firstOrNull { it.startsWith("GOOGLE_MAPS_API_KEY=") }
+        ?.substringAfter("=")
+        ?.trim()
+        ?: ""
+}
+
 android {
     namespace = "com.example.jireta_loans"
     // ✅ FIX: flutter_plugin_android_lifecycle (via file_picker) requires
@@ -36,6 +51,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        manifestPlaceholders["MAPS_API_KEY"] = googleMapsApiKey()
     }
 
     buildTypes {

@@ -8,6 +8,7 @@ import '../../../../../core/utils/helpers.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import '../../location/providers/rider_location_provider.dart';
 
 class RiderCollectionState {
   final List<CollectionAssignmentModel> collections;
@@ -50,8 +51,10 @@ class RiderCollectionState {
 class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     with RealtimeRefreshMixin {
   final CollectionRemoteDataSource _ds;
+  final Ref _ref;
 
-  RiderCollectionNotifier(this._ds) : super(const RiderCollectionState()) {
+  RiderCollectionNotifier(this._ds, this._ref)
+      : super(const RiderCollectionState()) {
     bindRealtimeRefresh(['collection_assignments', 'payments'],
         refresh: () => load(silent: true));
     load();
@@ -100,6 +103,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     state = state.copyWith(isSubmitting: true);
     try {
       await _ds.acceptCollection(assignmentId: assignmentId);
+      _ref.read(riderLocationProvider.notifier).startTracking();
       state = state.copyWith(isSubmitting: false);
       await load();
       await loadDetails(assignmentId, silent: true);
@@ -115,6 +119,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     state = state.copyWith(isSubmitting: true);
     try {
       await _ds.declineCollection(assignmentId: assignmentId);
+      _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
       await load();
       await loadDetails(assignmentId, silent: true);
@@ -168,6 +173,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         proofs.add({'type': 'signature', 'content_base64': signatureBase64});
       }
       await _ds.uploadProof(assignmentId: assignmentId, proofs: proofs);
+      _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
       await load();
       await loadDetails(assignmentId, silent: true);
@@ -196,5 +202,6 @@ final riderCollectionProvider = AutoDisposeStateNotifierProvider<
     RiderCollectionNotifier, RiderCollectionState>((ref) {
   return RiderCollectionNotifier(
     sl<CollectionRemoteDataSource>(),
+    ref,
   );
 });

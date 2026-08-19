@@ -6,6 +6,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_ci_provider.dart';
+import '../../location/providers/rider_location_provider.dart';
+import '../../location/widgets/rider_trip_map.dart';
 
 class RiderNavigateToBorrowerCiScreen extends ConsumerStatefulWidget {
   final String ciId;
@@ -23,7 +25,14 @@ class _RiderNavigateToBorrowerCiScreenState
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
+      ref.read(riderLocationProvider.notifier).startTracking();
     });
+  }
+
+  @override
+  void dispose() {
+    ref.read(riderLocationProvider.notifier).stopTracking();
+    super.dispose();
   }
 
   Future<void> _openDirections(double lat, double lng) async {
@@ -73,102 +82,194 @@ class _RiderNavigateToBorrowerCiScreenState
             as List? ??
         [];
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _HeaderCard(name: borrowerName),
-        const SizedBox(height: 16),
-        const _InstructionCard(),
-        const SizedBox(height: 16),
-        if (addresses.isEmpty)
-          const Center(
-              child: Text('No addresses available for navigation.',
-                  style: TextStyle(color: AppColors.textSecondary)))
-        else
-          ...addresses.map((addr) {
-            final a = addr as Map<String, dynamic>;
-            final type = (a['address_type'] as String? ?? '').toUpperCase();
-            final full = [a['street'], a['barangay'], a['city'], a['province']]
+    Map<String, dynamic>? firstAddressWithCoords;
+    for (final addr in addresses.whereType<Map<String, dynamic>>()) {
+      final aLat = (addr['latitude'] as num?)?.toDouble();
+      final aLng = (addr['longitude'] as num?)?.toDouble();
+      if (aLat != null && aLng != null) {
+        firstAddressWithCoords = addr;
+        break;
+      }
+    }
+    final mapLat = (firstAddressWithCoords?['latitude'] as num?)?.toDouble();
+    final mapLng = (firstAddressWithCoords?['longitude'] as num?)?.toDouble();
+    final mapLabel = firstAddressWithCoords == null
+        ? 'Lender Location'
+        : [
+            firstAddressWithCoords['street'],
+            firstAddressWithCoords['barangay'],
+            firstAddressWithCoords['city'],
+          ]
                 .where((e) => e != null && (e as String).isNotEmpty)
                 .join(', ');
-            final lat = (a['latitude'] as num?)?.toDouble();
-            final lng = (a['longitude'] as num?)?.toDouble();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+    final firstAddr = addresses.whereType<Map<String, dynamic>>().firstOrNull;
+    final mapAddress = firstAddr == null
+        ? null
+        : [
+            firstAddr['street'],
+            firstAddr['barangay'],
+            firstAddr['city'],
+            firstAddr['province'],
+          ]
+                .where((e) => e != null && (e as String).isNotEmpty)
+                .join(', ')
+                .trim();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: _HeaderCard(name: borrowerName),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: RiderTripMap(
+              destinationLat: mapLat,
+              destinationLng: mapLng,
+              destinationTitle: 'Lender Location',
+              destinationSnippet: mapLabel.isEmpty ? 'Destination' : mapLabel,
+              destinationAddress: (mapAddress == null || mapAddress.isEmpty)
+                  ? null
+                  : mapAddress,
+              height: double.infinity,
+            ),
+          ),
+        ),
+        if (addresses.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Text(
+                'No addresses available for navigation.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.45),
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.border),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2))
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.riderGreen.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _InstructionCard(),
+                      const SizedBox(height: 12),
+                      ...addresses.map((addr) {
+                        final a = addr as Map<String, dynamic>;
+                        final type = (a['address_type'] as String? ?? '')
+                            .toUpperCase();
+                        final full = [
+                          a['street'],
+                          a['barangay'],
+                          a['city'],
+                          a['province'],
+                        ]
+                            .where((e) => e != null && (e as String).isNotEmpty)
+                            .join(', ');
+                        final lat = (a['latitude'] as num?)?.toDouble();
+                        final lng = (a['longitude'] as num?)?.toDouble();
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.riderGreen
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(type,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.riderGreen)),
+                                  ),
+                                  const Spacer(),
+                                  const Icon(Icons.location_on,
+                                      color: AppColors.riderGreen, size: 18),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                full.isEmpty ? '—' : full,
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.textPrimary,
+                                    height: 1.4),
+                              ),
+                              if (lat != null && lng != null) ...[
+                                const SizedBox(height: 6),
+                                Text('$lat, $lng',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textTertiary)),
+                              ],
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.riderGreen,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10)),
+                                    minimumSize:
+                                        const Size(double.infinity, 44),
+                                  ),
+                                  onPressed: lat != null && lng != null
+                                      ? () => _openDirections(lat, lng)
+                                      : full.isNotEmpty
+                                          ? () => _openSearch(full)
+                                          : null,
+                                  icon: const Icon(Icons.navigation, size: 18),
+                                  label: Text(
+                                    lat != null
+                                        ? 'Open Directions'
+                                        : 'Search in Maps',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          child: Text(type,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.riderGreen)),
-                        ),
-                        const Spacer(),
-                        const Icon(Icons.location_on,
-                            color: AppColors.riderGreen, size: 18),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(full.isEmpty ? '—' : full,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textPrimary,
-                            height: 1.4)),
-                    if (lat != null && lng != null) ...[
-                      const SizedBox(height: 6),
-                      Text('$lat, $lng',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.textTertiary)),
+                        );
+                      }),
+                      const Center(child: RiderMapLegend()),
                     ],
-                    const SizedBox(height: 14),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.riderGreen,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        minimumSize: const Size(double.infinity, 44),
-                      ),
-                      onPressed: lat != null && lng != null
-                          ? () => _openDirections(lat, lng)
-                          : full.isNotEmpty
-                              ? () => _openSearch(full)
-                              : null,
-                      icon: const Icon(Icons.navigation, size: 18),
-                      label: Text(
-                        lat != null ? 'Open Directions' : 'Search in Maps',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            );
-          }),
+            ),
+          ),
       ],
     );
   }

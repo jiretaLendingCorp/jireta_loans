@@ -186,7 +186,7 @@ class _CollectionCard extends StatelessWidget {
                   ],
                 ),
               ],
-              if (status == 'accepted' || status == 'pending') ...[
+              if (status == 'accepted' || status == 'in_progress') ...[
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,

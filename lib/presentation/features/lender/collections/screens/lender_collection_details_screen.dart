@@ -90,7 +90,7 @@ class LenderCollectionDetailsScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             _ProofSection(title: 'Your Signature', url: borrowerSignature),
           ],
-          if ((status == 'accepted' || status == 'pending') &&
+          if ((status == 'accepted' || status == 'in_progress') &&
               riderId.isNotEmpty) ...[
             const SizedBox(height: 20),
             SizedBox(

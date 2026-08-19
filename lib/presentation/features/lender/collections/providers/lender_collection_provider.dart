@@ -49,10 +49,6 @@ class LenderCollectionNotifier
   }
 
   Future<Map<String, dynamic>?> getRiderLocation(String riderId) async {
-    try {
-      return await _locationDs.getRiderLocation(riderId: riderId);
-    } catch (e) {
-      return null;
-    }
+    return _locationDs.getRiderLocation(riderId: riderId);
   }
 }

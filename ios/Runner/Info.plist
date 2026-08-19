@@ -54,6 +54,8 @@
 	<string>Microphone access is used when recording video proof of documents.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is used to upload your ID and supporting documents for account verification.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is shared with lenders so they can track you live during collections, credit investigations, and loan deliveries.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

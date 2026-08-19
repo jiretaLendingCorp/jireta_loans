@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
+import '../../../../../core/services/location_service.dart';
 import '../../../../../data/datasources/remote/location_remote_datasource.dart';
 
 class RiderLocationState {
@@ -59,11 +60,15 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
 
   Future<void> _postLocation() async {
     try {
-      await _ds.updateRiderLocation(
-        lat: state.lastLat ?? 0.0,
-        lng: state.lastLng ?? 0.0,
+      final pos = await LocationService.instance.getCurrentPosition();
+      if (pos == null) return;
+      await _ds.updateRiderLocation(lat: pos.latitude, lng: pos.longitude);
+      state = state.copyWith(
+        lastLat: pos.latitude,
+        lastLng: pos.longitude,
+        lastUpdated: DateTime.now(),
+        error: null,
       );
-      state = state.copyWith(lastUpdated: DateTime.now(), error: null);
     } catch (e) {
       if (kDebugMode) debugPrint('Location update failed: $e');
       state = state.copyWith(error: ErrorHandler.handle(e).message);
@@ -82,7 +87,6 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
 }
 
 final riderLocationProvider =
-    AutoDisposeStateNotifierProvider<RiderLocationNotifier, RiderLocationState>(
-        (ref) {
+    StateNotifierProvider<RiderLocationNotifier, RiderLocationState>((ref) {
   return RiderLocationNotifier(sl<LocationRemoteDataSource>());
 });

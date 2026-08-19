@@ -1,0 +1,452 @@
+// lib/presentation/features/rider/location/widgets/rider_trip_map_fullscreen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/config/env_config.dart';
+import '../../../../../core/services/route_service.dart';
+import '../providers/rider_location_provider.dart';
+import 'rider_trip_map.dart';
+
+/// Full-screen version of the trip map: lets the rider inspect the whole
+/// route with pinch-zoom and pan on the entire screen.
+///
+/// When [originLat]/[originLng] are provided (lender tracking), they override
+/// the device GPS from [riderLocationProvider] as the "rider" origin.
+class RiderTripFullscreenMap extends ConsumerStatefulWidget {
+  final double? destinationLat;
+  final double? destinationLng;
+  final String destinationTitle;
+  final String destinationSnippet;
+  final String? destinationAddress;
+  final double? originLat;
+  final double? originLng;
+  final String originTitle;
+  final String originSnippet;
+  final double originHue;
+
+  const RiderTripFullscreenMap({
+    super.key,
+    required this.destinationLat,
+    required this.destinationLng,
+    required this.destinationTitle,
+    required this.destinationSnippet,
+    this.destinationAddress,
+    this.originLat,
+    this.originLng,
+    this.originTitle = 'You (Rider)',
+    this.originSnippet = 'Your current position',
+    this.originHue = BitmapDescriptor.hueAzure,
+  });
+
+  @override
+  ConsumerState<RiderTripFullscreenMap> createState() =>
+      _RiderTripFullscreenMapState();
+}
+
+class _RiderTripFullscreenMapState
+    extends ConsumerState<RiderTripFullscreenMap> {
+  GoogleMapController? _mapController;
+  bool _didInitialFit = false;
+
+  double? _resolvedLat;
+  double? _resolvedLng;
+
+  bool _followRider = true;
+  LatLng? _lastCenteredRider;
+  bool _isAutoMoving = false;
+
+  List<LatLng>? _routePoints;
+  LatLng? _lastRouteOrigin;
+  LatLng? _lastRouteDest;
+  bool _fetchingRoute = false;
+
+  static const _phCenter = LatLng(14.5995, 120.9842);
+
+  double? get _effectiveLat => widget.destinationLat ?? _resolvedLat;
+  double? get _effectiveLng => widget.destinationLng ?? _resolvedLng;
+
+  bool get _hasExternalOrigin =>
+      widget.originLat != null && widget.originLng != null;
+
+  double? get _originLat =>
+      widget.originLat ?? ref.read(riderLocationProvider).lastLat;
+
+  double? get _originLng =>
+      widget.originLng ?? ref.read(riderLocationProvider).lastLng;
+
+  Color get _originLegendColor {
+    final h = widget.originHue;
+    if (h >= 300) return Colors.deepPurple;
+    if (h >= 250) return Colors.purple;
+    if (h >= 210) return Colors.blueAccent;
+    if (h >= 180) return Colors.cyan;
+    if (h >= 120) return Colors.green;
+    if (h >= 60) return Colors.orange;
+    return Colors.redAccent;
+  }
+
+  bool get _hasValidMapsKey {
+    final key = EnvConfig.googleMapsApiKey.trim();
+    if (key.isEmpty) return false;
+    final lower = key.toLowerCase();
+    if (lower.contains('your_google_maps') ||
+        lower.contains('your-google-maps') ||
+        lower.contains('placeholder')) {
+      return false;
+    }
+    return true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeGeocodeDestination();
+  }
+
+  Future<void> _maybeGeocodeDestination() async {
+    if (widget.destinationLat != null && widget.destinationLng != null) {
+      return;
+    }
+    final address = widget.destinationAddress?.trim();
+    if (address == null || address.isEmpty || address == 'Address not available') {
+      return;
+    }
+    try {
+      final locations = await locationFromAddress(address);
+      if (!mounted) return;
+      if (locations.isNotEmpty) {
+        setState(() {
+          _resolvedLat = locations.first.latitude;
+          _resolvedLng = locations.first.longitude;
+        });
+      }
+    } catch (_) {
+      // leave coords null; the rider's live position still shows
+    }
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(RiderTripFullscreenMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_hasExternalOrigin) return;
+    final oLat = widget.originLat!;
+    final oLng = widget.originLng!;
+    final changed =
+        oldWidget.originLat != oLat || oldWidget.originLng != oLng;
+    if (!changed) return;
+    if (_followRider && _didInitialFit) {
+      final controller = _mapController;
+      if (controller != null) {
+        final movedEnough = _lastCenteredRider == null ||
+            (_lastCenteredRider!.latitude - oLat).abs() > 0.0009 ||
+            (_lastCenteredRider!.longitude - oLng).abs() > 0.0009;
+        if (movedEnough) {
+          _lastCenteredRider = LatLng(oLat, oLng);
+          _isAutoMoving = true;
+          controller.animateCamera(
+              CameraUpdate.newLatLngZoom(LatLng(oLat, oLng), 16));
+        }
+      }
+    }
+    _fetchRoute(riderLat: oLat, riderLng: oLng);
+  }
+
+  void _recenterOnRider() {
+    final rLat = _originLat;
+    final rLng = _originLng;
+    final controller = _mapController;
+    if (rLat == null || rLng == null || controller == null) return;
+    _followRider = true;
+    _lastCenteredRider = LatLng(rLat, rLng);
+    _isAutoMoving = true;
+    controller.animateCamera(CameraUpdate.newLatLngZoom(LatLng(rLat, rLng), 16));
+  }
+
+  Set<Marker> _buildMarkers({double? riderLat, double? riderLng}) {
+    final markers = <Marker>{};
+    if (riderLat != null && riderLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('rider'),
+          position: LatLng(riderLat, riderLng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(widget.originHue),
+          infoWindow: InfoWindow(
+            title: widget.originTitle,
+            snippet: widget.originSnippet,
+          ),
+        ),
+      );
+    }
+    final dLat = _effectiveLat;
+    final dLng = _effectiveLng;
+    if (dLat != null && dLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('destination'),
+          position: LatLng(dLat, dLng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          infoWindow: InfoWindow(
+            title: widget.destinationTitle,
+            snippet: widget.destinationSnippet,
+          ),
+        ),
+      );
+    }
+    return markers;
+  }
+
+  Set<Polyline> _buildPolylines({double? riderLat, double? riderLng}) {
+    final dLat = _effectiveLat;
+    final dLng = _effectiveLng;
+    if (riderLat == null || riderLng == null || dLat == null || dLng == null) {
+      return const {};
+    }
+    // The route line MUST come from the Directions API road geometry. No
+    // straight-line fallback between origin and destination.
+    if (_routePoints == null || _routePoints!.isEmpty) return const {};
+    return {
+      Polyline(
+        polylineId: const PolylineId('route'),
+        points: _routePoints!,
+        color: AppColors.riderGreen,
+        width: 5,
+      ),
+    };
+  }
+
+  double _minDistanceToRoute(double lat, double lng) {
+    final route = _routePoints;
+    if (route == null || route.isEmpty) return double.infinity;
+    var min = double.infinity;
+    for (final p in route) {
+      final d = (p.latitude - lat).abs() + (p.longitude - lng).abs();
+      if (d < min) min = d;
+    }
+    return min;
+  }
+
+  Future<void> _fetchRoute({
+    required double riderLat,
+    required double riderLng,
+  }) async {
+    final dLat = _effectiveLat;
+    final dLng = _effectiveLng;
+    if (dLat == null || dLng == null || _fetchingRoute) return;
+
+    final dest = LatLng(dLat, dLng);
+    final lastDest = _lastRouteDest;
+    final destChanged = lastDest != null &&
+        ((lastDest.latitude - dLat).abs() > 0.0001 ||
+            (lastDest.longitude - dLng).abs() > 0.0001);
+    if (destChanged) {
+      _routePoints = null;
+      _lastRouteOrigin = null;
+      _lastRouteDest = null;
+    }
+
+    final origin = LatLng(riderLat, riderLng);
+    final movedEnough = _lastRouteOrigin == null ||
+        (_lastRouteOrigin!.latitude - riderLat).abs() > 0.005 ||
+        (_lastRouteOrigin!.longitude - riderLng).abs() > 0.005 ||
+        _minDistanceToRoute(riderLat, riderLng) > 0.004;
+    if (!movedEnough) return;
+
+    _fetchingRoute = true;
+    final route = await RouteService.fetchDrivingRoute(origin, dest);
+    _fetchingRoute = false;
+    if (!mounted) return;
+    if (route != null && route.isNotEmpty) {
+      setState(() {
+        _routePoints = route;
+        _lastRouteOrigin = origin;
+        _lastRouteDest = dest;
+      });
+    }
+  }
+
+  Future<void> _fitCamera(Iterable<LatLng> points) async {
+    final controller = _mapController;
+    if (controller == null || points.isEmpty) return;
+    final pts = points.toList();
+    if (pts.length == 1) {
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(pts.first, 15));
+      return;
+    }
+    var minLat = pts.first.latitude, maxLat = pts.first.latitude;
+    var minLng = pts.first.longitude, maxLng = pts.first.longitude;
+    for (final p in pts.skip(1)) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+    await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 64));
+  }
+
+  void _fitIfReady(bool hasDestination) {
+    if (_didInitialFit) return;
+    final riderLat = _originLat;
+    final riderLng = _originLng;
+    if (!hasDestination && (riderLat == null || riderLng == null)) return;
+    _didInitialFit = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final points = <LatLng>[
+        if (_effectiveLat != null && _effectiveLng != null)
+          LatLng(_effectiveLat!, _effectiveLng!),
+        if (riderLat != null && riderLng != null) LatLng(riderLat, riderLng),
+      ];
+      if (points.isNotEmpty) _fitCamera(points);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.watch(riderLocationProvider);
+    final hasDestination = _effectiveLat != null && _effectiveLng != null;
+    final originLat = _originLat;
+    final originLng = _originLng;
+    final markers = _buildMarkers(riderLat: originLat, riderLng: originLng);
+    final polylines = _buildPolylines(riderLat: originLat, riderLng: originLng);
+
+    if (_routePoints == null && hasDestination) {
+      if (originLat != null && originLng != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _fetchRoute(riderLat: originLat, riderLng: originLng);
+        });
+      }
+    }
+
+    // Follow the rider: keep the camera centered on their live position so
+    // their movement is always visible. Disabled when the user pans/zooms.
+    ref.listen(riderLocationProvider, (prev, next) {
+      if (_hasExternalOrigin || !mounted || !_followRider || !_didInitialFit) {
+        return;
+      }
+      final rLat = next.lastLat;
+      final rLng = next.lastLng;
+      final controller = _mapController;
+      if (rLat == null || rLng == null || controller == null) return;
+      final movedEnough = _lastCenteredRider == null ||
+          (_lastCenteredRider!.latitude - rLat).abs() > 0.0009 ||
+          (_lastCenteredRider!.longitude - rLng).abs() > 0.0009;
+      if (!movedEnough) return;
+      _lastCenteredRider = LatLng(rLat, rLng);
+      _isAutoMoving = true;
+      controller.animateCamera(
+          CameraUpdate.newLatLngZoom(LatLng(rLat, rLng), 16));
+      if (_effectiveLat != null && _effectiveLng != null) {
+        _fetchRoute(riderLat: rLat, riderLng: rLng);
+      }
+    });
+
+    if (!_didInitialFit && (hasDestination || originLat != null)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _didInitialFit) return;
+        _didInitialFit = true;
+        final points = <LatLng>[
+          if (_effectiveLat != null && _effectiveLng != null)
+            LatLng(_effectiveLat!, _effectiveLng!),
+          if (originLat != null && originLng != null)
+            LatLng(originLat, originLng),
+        ];
+        if (points.isNotEmpty) _fitCamera(points);
+      });
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: markers.isNotEmpty ? markers.first.position : _phCenter,
+              zoom: 15,
+            ),
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _fitIfReady(hasDestination);
+            },
+            onCameraMoveStarted: () {
+              if (!_isAutoMoving) {
+                _followRider = false;
+              }
+            },
+            onCameraIdle: () {
+              _isAutoMoving = false;
+            },
+            markers: markers,
+            polylines: polylines,
+            myLocationEnabled: _hasValidMapsKey,
+            myLocationButtonEnabled: _hasValidMapsKey,
+            zoomControlsEnabled: true,
+            compassEnabled: true,
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.black87),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.my_location, color: AppColors.riderGreen),
+                    onPressed: _recenterOnRider,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: RiderMapLegend(
+                      originLabel: widget.originTitle,
+                      originColor: _originLegendColor,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

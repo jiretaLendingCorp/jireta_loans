@@ -71,12 +71,20 @@ async function handleUpdateRider(req: Request) {
 
   try {
     const authResult = await requireAuth(req);
-    if (!isAuthUser(authResult)) return authResult;
+    if (!isAuthUser(authResult)) {
+      const body = await authResult.clone().text();
+      console.warn('update-rider auth failed:', authResult.status, body);
+      return authResult;
+    }
     const roleCheck = requireRole(authResult, ROLES.RIDER);
-    if (roleCheck) return roleCheck;
+    if (roleCheck) {
+      const body = await roleCheck.clone().text();
+      console.warn('update-rider role check failed:', roleCheck.status, body);
+      return roleCheck;
+    }
 
     const rateLimitKey = `location_update_${authResult.id}`;
-    const limited = await checkRateLimit({ key: rateLimitKey, maxAttempts: 2, windowMinutes: 60 });
+    const limited = await checkRateLimit({ key: rateLimitKey, maxAttempts: 120, windowMinutes: 60 });
     if (limited.allowed === false) return errorResponse('Rate limit exceeded. One update per 30s.', 429, 'RATE_LIMIT');
 
     const body = await req.json();
@@ -149,33 +157,135 @@ async function handleGetRider(req: Request) {
 
     const db = getAdminClient();
 
+    let assignmentType: string | null = null;
+    let assignmentStatus: string | null = null;
+
     if (authResult.role === ROLES.LENDER) {
-      const { data: loanRows } = await db
-        .from('loans')
-        .select('id')
-        .eq('lender_id', authResult.id);
-      const loanIds = (loanRows ?? []).map((r) => r.id);
-      const { data: scheduleRows } = await db
-        .from('loan_schedules')
-        .select('id')
-        .in('loan_id', loanIds);
-      const scheduleIds = (scheduleRows ?? []).map((r) => r.id);
+      // Mirror `list-tracked`: the rider's live location is only exposed to the
+      // lender while there is an ACTIVE assignment (accepted/in_progress
+      // collection or CI, or an in-flight rider-delivery disbursement) on one
+      // of the lender's loans.
+      const [collectionRows, ciRows, disbRows] = await Promise.all([
+        (db
+          .from('collection_assignments')
+          .select('id, status, updated_at, loan_schedule:loan_schedules(loan:loans(lender_id))')
+          .eq('rider_id', riderId)
+          .in('status', TRACKED_COLLECTION_STATUSES)
+          .eq('loan_schedule.loan.lender_id', authResult.id)) as unknown as Promise<{
+          data: TrackedRow[] | null;
+          error: { message?: string } | null;
+        }>,
+        (db
+          .from('credit_investigations')
+          .select('id, status, updated_at, loan:loans(lender_id)')
+          .eq('rider_id', riderId)
+          .in('status', TRACKED_CI_STATUSES)
+          .eq('loan.lender_id', authResult.id)) as unknown as Promise<{
+          data: TrackedRow[] | null;
+          error: { message?: string } | null;
+        }>,
+        (db
+          .from('disbursements')
+          .select('id, status, updated_at, loan:loans(lender_id)')
+          .eq('rider_id', riderId)
+          .eq('method', 'rider_delivery')
+          .eq('status', 'pending')
+          .eq('loan.lender_id', authResult.id)) as unknown as Promise<{
+          data: TrackedRow[] | null;
+          error: { message?: string } | null;
+        }>,
+      ]);
 
-      const { data: assignment } = await db
-        .from('collection_assignments')
-        .select('id, status, rider_id')
-        .eq('rider_id', riderId)
-        .eq('status', 'accepted')
-        .in('loan_schedule_id', scheduleIds)
-        .limit(1)
-        .single();
+      const collectionCount = collectionRows.data?.length ?? 0;
+      const ciCount = ciRows.data?.length ?? 0;
+      const disbCount = disbRows.data?.length ?? 0;
 
-      if (!assignment) {
+      // A query error yields `data: null`, which would otherwise masquerade as
+      // a legitimately-empty result and produce a false "access denied" with
+      // all-zero counts. Surface it instead of guessing.
+      const queryErrors = [collectionRows.error, ciRows.error, disbRows.error].filter(Boolean);
+      if (queryErrors.length > 0) {
+        console.error(
+          `get-rider lookup failed for rider ${riderId} by lender ${authResult.id}:`,
+          queryErrors.map((e) => e?.message).join(' | ')
+        );
+        return errorResponse('Failed to verify assignment access', 500, 'DB_ERROR');
+      }
+
+      if (collectionCount === 0 && ciCount === 0 && disbCount === 0) {
+        console.warn(
+          `get-rider access denied for rider ${riderId} by lender ${authResult.id}: collection=${collectionCount}, ci=${ciCount}, disbursement=${disbCount}`
+        );
         return errorResponse(
-          'Access denied: No active collection assignment links this rider to your loan',
+          `Access denied: No active assignment links this rider (${riderId}) to your account (collection=${collectionCount}, ci=${ciCount}, disbursement=${disbCount})`,
           403,
           'FORBIDDEN'
         );
+      }
+
+      // The rider may hold several active assignments at once (e.g. an old
+      // accepted collection plus a CI they just started). Prefer the CI so the
+      // tracking label matches the loan stage the rider is actually on; within
+      // the same type, an in_progress task beats an accepted one, and the most
+      // recently updated wins as a final tiebreaker.
+      const candidates: Array<{ type: 'collection' | 'ci' | 'disbursement'; row: TrackedRow }> = [
+        ...(collectionRows.data ?? []).map((row) => ({ type: 'collection' as const, row })),
+        ...(ciRows.data ?? []).map((row) => ({ type: 'ci' as const, row })),
+        ...(disbRows.data ?? []).map((row) => ({ type: 'disbursement' as const, row })),
+      ];
+      const TYPE_PRIORITY: Record<string, number> = { ci: 0, collection: 1, disbursement: 2 };
+      candidates.sort((a, b) => {
+        const aType = TYPE_PRIORITY[a.type] ?? 3;
+        const bType = TYPE_PRIORITY[b.type] ?? 3;
+        if (aType !== bType) return aType - bType;
+        const aActive = a.row.status === 'in_progress' ? 1 : 0;
+        const bActive = b.row.status === 'in_progress' ? 1 : 0;
+        if (aActive !== bActive) return bActive - aActive;
+        const aUpdated = a.row.updated_at ? new Date(a.row.updated_at).getTime() : 0;
+        const bUpdated = b.row.updated_at ? new Date(b.row.updated_at).getTime() : 0;
+        return bUpdated - aUpdated;
+      });
+      const chosen = candidates[0];
+      if (chosen) {
+        assignmentType = chosen.type;
+        assignmentStatus = chosen.row.status ?? null;
+      }
+    }
+
+    // For the lender, also return their own primary address (the destination
+    // the rider is navigating to) so the tracking screen can draw the road
+    // route from the rider's live position, matching the rider's navigate UI.
+    let destinationLatitude: number | null = null;
+    let destinationLongitude: number | null = null;
+    let destinationAddress: string | null = null;
+    let destinationLabel: string | null = null;
+    if (authResult.role === ROLES.LENDER) {
+      const { data: lenderUser } = await db
+        .from('users')
+        .select(
+          'first_name, last_name, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary)'
+        )
+        .eq('id', authResult.id)
+        .single();
+
+      const addresses = Array.isArray(lenderUser?.addresses)
+        ? (lenderUser!.addresses as TrackedRow[])
+        : [];
+      const withCoords = addresses.find(
+        (a) => a.latitude != null && a.longitude != null
+      );
+      const dest = withCoords ?? addresses.find((a) => a.is_primary) ?? addresses[0];
+      if (dest) {
+        if (dest.latitude != null && dest.longitude != null) {
+          destinationLatitude = Number(dest.latitude);
+          destinationLongitude = Number(dest.longitude);
+        }
+        const parts = [dest.street, dest.barangay, dest.city, dest.province]
+          .filter((p) => p != null && String(p).trim() !== '');
+        if (parts.length > 0) destinationAddress = parts.join(', ');
+        const labelParts = [dest.street, dest.barangay, dest.city]
+          .filter((p) => p != null && String(p).trim() !== '');
+        if (labelParts.length > 0) destinationLabel = labelParts.join(', ');
       }
     }
 
@@ -185,7 +295,28 @@ async function handleGetRider(req: Request) {
       .eq('rider_id', riderId)
       .single();
 
-    if (error || !data) return errorResponse('Rider location not found', 404, 'NOT_FOUND');
+    if (error || !data) {
+      // For the lender, still return the destination so the tracking map can
+      // show where the rider is heading even before the first GPS fix. Other
+      // roles keep the 404 (no fix yet).
+      if (authResult.role === ROLES.LENDER) {
+        return jsonResponse({
+          rider_id: riderId,
+          latitude: null,
+          longitude: null,
+          accuracy: null,
+          updated_at: null,
+          is_stale: true,
+          assignment_type: assignmentType,
+          assignment_status: assignmentStatus,
+          destination_latitude: destinationLatitude,
+          destination_longitude: destinationLongitude,
+          destination_address: destinationAddress,
+          destination_label: destinationLabel,
+        });
+      }
+      return errorResponse('Rider location not found', 404, 'NOT_FOUND');
+    }
 
     const staleSecs = (Date.now() - new Date(data.updated_at).getTime()) / 1000;
     return jsonResponse({
@@ -195,6 +326,12 @@ async function handleGetRider(req: Request) {
       accuracy: data.accuracy,
       updated_at: data.updated_at,
       is_stale: staleSecs > 120,
+      assignment_type: assignmentType,
+      assignment_status: assignmentStatus,
+      destination_latitude: destinationLatitude,
+      destination_longitude: destinationLongitude,
+      destination_address: destinationAddress,
+      destination_label: destinationLabel,
     });
   } catch (err) {
     console.error('location-get-rider error:', err);

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
@@ -246,7 +247,10 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen>
             const SizedBox(height: 16),
             AppButton(
               label: 'Navigate to Lender',
-              onPressed: () {},
+              onPressed: () => context.push(
+                RouteConstants.riderNavigateToBorrowerCi.replaceFirst(
+                    ':id', widget.ciId),
+              ),
               icon: Icons.map_outlined,
               color: AppColors.info,
             ),

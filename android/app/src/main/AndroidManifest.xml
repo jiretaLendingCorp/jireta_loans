@@ -7,6 +7,12 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- ── Location permissions ─────────────────────────────────────────────
+         Required by geolocator so riders can share their live GPS position
+         with lenders during a collection / CI / delivery trip.
+    ────────────────────────────────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 
     <application
         android:label="jireta_loans"
@@ -58,6 +64,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+        <!-- Google Maps API key (required by google_maps_flutter on Android).
+             Injected at build time via manifestPlaceholders from
+             GOOGLE_MAPS_API_KEY (env) or assets/env/.env. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}"/>
     </application>
 
     <queries>

@@ -7,6 +7,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import '../../location/providers/rider_location_provider.dart';
 
 class RiderCiState {
   final List<CreditInvestigationModel> ciList;
@@ -48,8 +49,9 @@ class RiderCiState {
 class RiderCiNotifier extends StateNotifier<RiderCiState>
     with RealtimeRefreshMixin {
   final CiRemoteDataSource _ds;
+  final Ref _ref;
 
-  RiderCiNotifier(this._ds) : super(const RiderCiState()) {
+  RiderCiNotifier(this._ds, this._ref) : super(const RiderCiState()) {
     bindRealtimeRefresh(['credit_investigations', 'ci_documents'],
         refresh: () => load(silent: true));
     load();
@@ -93,6 +95,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     state = state.copyWith(isSubmitting: true);
     try {
       await _ds.acceptCi(ciId: ciId);
+      _ref.read(riderLocationProvider.notifier).startTracking();
       state = state.copyWith(isSubmitting: false);
       await load();
       return true;
@@ -107,6 +110,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     state = state.copyWith(isSubmitting: true);
     try {
       await _ds.declineCi(ciId: ciId);
+      _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
       await load();
       return true;
@@ -124,6 +128,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     state = state.copyWith(isSubmitting: true);
     try {
       await _ds.submitCiReport(ciId: ciId, reportSummary: reportSummary);
+      _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
       await load();
       return true;
@@ -184,6 +189,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
         });
       }
       await _ds.uploadDocuments(ciId: ciId, docs: docs);
+      _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
       await load();
       return true;
@@ -197,5 +203,5 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
 
 final riderCiProvider =
     AutoDisposeStateNotifierProvider<RiderCiNotifier, RiderCiState>((ref) {
-  return RiderCiNotifier(sl<CiRemoteDataSource>());
+  return RiderCiNotifier(sl<CiRemoteDataSource>(), ref);
 });

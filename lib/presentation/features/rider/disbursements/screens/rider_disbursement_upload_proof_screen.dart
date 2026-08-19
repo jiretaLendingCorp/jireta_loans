@@ -12,6 +12,7 @@ import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../providers/rider_disbursement_provider.dart';
+import '../../location/providers/rider_location_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderDisbursementUploadProofScreen extends ConsumerStatefulWidget {
@@ -30,6 +31,20 @@ class _RiderDisbursementUploadProofScreenState
   XFile? _proofPhoto;
   String? _signatureBase64;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(riderLocationProvider.notifier).startTracking();
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(riderLocationProvider.notifier).stopTracking();
+    super.dispose();
+  }
 
   Future<void> _pickPhoto({bool fromCamera = true}) async {
     final picked = await _picker.pickImage(
