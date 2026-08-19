@@ -43,15 +43,6 @@ class _RiderNavigateToBorrowerCiScreenState
     }
   }
 
-  Future<void> _openSearch(String address) async {
-    final encoded = Uri.encodeComponent(address);
-    final uri =
-        Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(riderCiProvider);
@@ -133,6 +124,7 @@ class _RiderNavigateToBorrowerCiScreenState
                   ? null
                   : mapAddress,
               height: double.infinity,
+              autofitBoth: true,
             ),
           ),
         ),
@@ -228,37 +220,32 @@ class _RiderNavigateToBorrowerCiScreenState
                                     style: const TextStyle(
                                         fontSize: 11,
                                         color: AppColors.textTertiary)),
-                              ],
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.riderGreen,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(10)),
-                                    minimumSize:
-                                        const Size(double.infinity, 44),
-                                  ),
-                                  onPressed: lat != null && lng != null
-                                      ? () => _openDirections(lat, lng)
-                                      : full.isNotEmpty
-                                          ? () => _openSearch(full)
-                                          : null,
-                                  icon: const Icon(Icons.navigation, size: 18),
-                                  label: Text(
-                                    lat != null
-                                        ? 'Open Directions'
-                                        : 'Search in Maps',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.riderGreen,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10)),
+                                      minimumSize:
+                                          const Size(double.infinity, 44),
+                                    ),
+                                    onPressed: () => _openDirections(lat, lng),
+                                    icon: const Icon(Icons.navigation,
+                                        size: 18),
+                                    label: const Text(
+                                      'Open Directions',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w600),
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         );

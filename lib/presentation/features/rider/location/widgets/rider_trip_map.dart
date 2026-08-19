@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/config/env_config.dart';
 import '../../../../../core/services/route_service.dart';
 import '../providers/rider_location_provider.dart';
+import 'map_zoom_gesture.dart';
 import 'rider_trip_map_fullscreen.dart';
 
 /// Embedded trip map for the rider: shows the lender's destination and the
@@ -34,6 +35,12 @@ class RiderTripMap extends ConsumerStatefulWidget {
   final String originTitle;
   final String originSnippet;
   final double originHue;
+  final bool autofitBoth;
+  final double? lenderLat;
+  final double? lenderLng;
+  final String lenderTitle;
+  final String lenderSnippet;
+  final double lenderHue;
 
   const RiderTripMap({
     super.key,
@@ -49,6 +56,12 @@ class RiderTripMap extends ConsumerStatefulWidget {
     this.originTitle = 'You (Rider)',
     this.originSnippet = 'Your current position',
     this.originHue = BitmapDescriptor.hueAzure,
+    this.autofitBoth = false,
+    this.lenderLat,
+    this.lenderLng,
+    this.lenderTitle = 'You (Lender)',
+    this.lenderSnippet = 'Your live location',
+    this.lenderHue = BitmapDescriptor.hueBlue,
   });
 
   @override
@@ -58,6 +71,8 @@ class RiderTripMap extends ConsumerStatefulWidget {
 class _RiderTripMapState extends ConsumerState<RiderTripMap> {
   GoogleMapController? _mapController;
   bool _didInitialFit = false;
+  int _lastFitCount = 0;
+  LatLng? _lastFitDest;
 
   double? _resolvedLat;
   double? _resolvedLng;
@@ -109,6 +124,9 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap> {
   @override
   void initState() {
     super.initState();
+    if (widget.autofitBoth) {
+      _followRider = false;
+    }
     _maybeGeocodeDestination();
   }
 
@@ -194,6 +212,12 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap> {
           originTitle: widget.originTitle,
           originSnippet: widget.originSnippet,
           originHue: widget.originHue,
+          autofitBoth: widget.autofitBoth,
+          lenderLat: widget.lenderLat,
+          lenderLng: widget.lenderLng,
+          lenderTitle: widget.lenderTitle,
+          lenderSnippet: widget.lenderSnippet,
+          lenderHue: widget.lenderHue,
         ),
       ),
     );
@@ -257,6 +281,23 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap> {
           infoWindow: InfoWindow(
             title: widget.destinationTitle,
             snippet: widget.destinationSnippet,
+          ),
+        ),
+      );
+    }
+    // The lender's own live GPS position (their device), shown when the
+    // viewer is the lender tracking an incoming rider.
+    final lLat = widget.lenderLat;
+    final lLng = widget.lenderLng;
+    if (lLat != null && lLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('lender_live'),
+          position: LatLng(lLat, lLng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(widget.lenderHue),
+          infoWindow: InfoWindow(
+            title: widget.lenderTitle,
+            snippet: widget.lenderSnippet,
           ),
         ),
       );
@@ -361,6 +402,53 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap> {
     await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 64));
   }
 
+  /// Fits the camera to keep BOTH the rider and the lender in view, so the
+  /// whole span — from the rider's current location to the lender's — is
+  /// visible without the user having to zoom or search.
+  ///
+  /// Used for CI navigation ([autofitBoth]). It re-fits whenever a point first
+  /// appears (the rider's first GPS fix or a geocoded destination), but not on
+  /// every GPS tick, and it never re-centers on the rider at full zoom (which
+  /// would push the lender off-screen).
+  void _tryFitBoth() {
+    if (!widget.autofitBoth) return;
+    final controller = _mapController;
+    if (controller == null) return;
+    final dLat = _effectiveLat;
+    final dLng = _effectiveLng;
+    final rLat = _originLat;
+    final rLng = _originLng;
+    final dest = (dLat != null && dLng != null) ? LatLng(dLat, dLng) : null;
+    final points = <LatLng>[
+      if (dest != null) dest,
+      if (rLat != null && rLng != null) LatLng(rLat, rLng),
+      if (widget.lenderLat != null && widget.lenderLng != null)
+        LatLng(widget.lenderLat!, widget.lenderLng!),
+    ];
+    if (points.isEmpty) return;
+    final destChanged = dest != _lastFitDest;
+    if (_lastFitCount != 0 && points.length == _lastFitCount && !destChanged) {
+      return;
+    }
+    _lastFitCount = points.length;
+    _lastFitDest = dest;
+    _fitCamera(points);
+  }
+
+  /// Fits the camera once so all markers (rider + lender) are visible.
+  /// Re-fits only when a new point appears (e.g. the lender's live GPS fix
+  /// arriving after the map was first drawn), so an existing fit is never
+  /// disturbed by the rider merely moving. Not used in [autofitBoth] mode.
+  void _tryFitMarkersOnce(Set<Marker> markers) {
+    if (widget.autofitBoth) return;
+    final controller = _mapController;
+    if (controller == null || markers.isEmpty) return;
+    if (_didInitialFit && markers.length <= _lastFitCount) return;
+    _didInitialFit = true;
+    _lastFitCount = markers.length;
+    _fitCamera(markers.map((m) => m.position));
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(riderLocationProvider);
@@ -414,12 +502,17 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap> {
       }
     }
 
-    // Re-fit once the rider's first live fix arrives so both pins are visible.
-    if (!_didInitialFit && markers.isNotEmpty && hasDestination) {
+    // Autofit keeps both the rider and the lender in view; re-fit whenever a
+    // point first appears (rider GPS fix or geocoded destination).
+    if (widget.autofitBoth) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _didInitialFit = true;
-        _fitCamera(markers.map((m) => m.position));
+        _tryFitBoth();
+      });
+    } else if (!_didInitialFit || markers.length > _lastFitCount) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _tryFitMarkersOnce(markers);
       });
     }
 
@@ -429,8 +522,8 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap> {
       statusMessage = 'Locating destination...';
     } else if (!hasCoords) {
       statusMessage = _geocodeFailed
-          ? 'Could not pinpoint the address. Use "Open Directions in Maps".'
-          : 'No saved coordinates for this address yet. Use "Open Directions in Maps".';
+          ? 'Could not pinpoint the address.'
+          : 'No saved coordinates for this address yet.';
     } else {
       statusMessage = null;
     }
@@ -450,32 +543,43 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap> {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: markers.isNotEmpty ? markers.first.position : _phCenter,
-              zoom: 15,
+          MapZoomGestureOverlay(
+            controller: () => _mapController,
+            onInteractionStart: () => _followRider = false,
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: widget.autofitBoth &&
+                        _effectiveLat != null &&
+                        _effectiveLng != null
+                    ? LatLng(_effectiveLat!, _effectiveLng!)
+                    : markers.isNotEmpty
+                        ? markers.first.position
+                        : _phCenter,
+                zoom: 15,
+              ),
+              onMapCreated: (controller) {
+                _mapController = controller;
+                if (widget.autofitBoth) {
+                  _tryFitBoth();
+                } else {
+                  _tryFitMarkersOnce(markers);
+                }
+              },
+              onCameraMoveStarted: () {
+                if (!_isAutoMoving) {
+                  _followRider = false;
+                }
+              },
+              onCameraIdle: () {
+                _isAutoMoving = false;
+              },
+              markers: markers,
+              polylines: polylines,
+              myLocationEnabled: _hasValidMapsKey,
+              myLocationButtonEnabled: _hasValidMapsKey,
+              zoomControlsEnabled: false,
+              compassEnabled: true,
             ),
-            onMapCreated: (controller) {
-              _mapController = controller;
-              if (markers.isNotEmpty && !_didInitialFit) {
-                _didInitialFit = true;
-                _fitCamera(markers.map((m) => m.position));
-              }
-            },
-            onCameraMoveStarted: () {
-              if (!_isAutoMoving) {
-                _followRider = false;
-              }
-            },
-            onCameraIdle: () {
-              _isAutoMoving = false;
-            },
-            markers: markers,
-            polylines: polylines,
-            myLocationEnabled: _hasValidMapsKey,
-            myLocationButtonEnabled: _hasValidMapsKey,
-            zoomControlsEnabled: false,
-            compassEnabled: true,
           ),
           if (locError != null)
             Positioned(
@@ -617,11 +721,15 @@ class RiderMapLegend extends StatelessWidget {
   final String originLabel;
   final String destinationLabel;
   final Color originColor;
+  final String? extraLabel;
+  final Color? extraColor;
   const RiderMapLegend({
     super.key,
     this.originLabel = 'You (Rider)',
     this.destinationLabel = 'Lender',
     this.originColor = Colors.blueAccent,
+    this.extraLabel,
+    this.extraColor,
   });
 
   @override
@@ -632,6 +740,10 @@ class RiderMapLegend extends StatelessWidget {
         _LegendDot(color: originColor, label: originLabel),
         const SizedBox(width: 16),
         _LegendDot(color: Colors.pink, label: destinationLabel),
+        if (extraLabel != null && extraColor != null) ...[
+          const SizedBox(width: 16),
+          _LegendDot(color: extraColor!, label: extraLabel!),
+        ],
         const SizedBox(width: 16),
         const _LegendDot(color: AppColors.riderGreen, label: 'Route'),
       ],

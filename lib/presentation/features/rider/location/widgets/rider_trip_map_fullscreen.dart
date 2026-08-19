@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/config/env_config.dart';
 import '../../../../../core/services/route_service.dart';
 import '../providers/rider_location_provider.dart';
+import 'map_zoom_gesture.dart';
 import 'rider_trip_map.dart';
 
 /// Full-screen version of the trip map: lets the rider inspect the whole
@@ -25,6 +26,12 @@ class RiderTripFullscreenMap extends ConsumerStatefulWidget {
   final String originTitle;
   final String originSnippet;
   final double originHue;
+  final bool autofitBoth;
+  final double? lenderLat;
+  final double? lenderLng;
+  final String lenderTitle;
+  final String lenderSnippet;
+  final double lenderHue;
 
   const RiderTripFullscreenMap({
     super.key,
@@ -38,6 +45,12 @@ class RiderTripFullscreenMap extends ConsumerStatefulWidget {
     this.originTitle = 'You (Rider)',
     this.originSnippet = 'Your current position',
     this.originHue = BitmapDescriptor.hueAzure,
+    this.autofitBoth = false,
+    this.lenderLat,
+    this.lenderLng,
+    this.lenderTitle = 'You (Lender)',
+    this.lenderSnippet = 'Your live location',
+    this.lenderHue = BitmapDescriptor.hueBlue,
   });
 
   @override
@@ -49,6 +62,8 @@ class _RiderTripFullscreenMapState
     extends ConsumerState<RiderTripFullscreenMap> {
   GoogleMapController? _mapController;
   bool _didInitialFit = false;
+  int _lastFitCount = 0;
+  LatLng? _lastFitDest;
 
   double? _resolvedLat;
   double? _resolvedLng;
@@ -102,6 +117,9 @@ class _RiderTripFullscreenMapState
   @override
   void initState() {
     super.initState();
+    if (widget.autofitBoth) {
+      _followRider = false;
+    }
     _maybeGeocodeDestination();
   }
 
@@ -196,6 +214,21 @@ class _RiderTripFullscreenMapState
           infoWindow: InfoWindow(
             title: widget.destinationTitle,
             snippet: widget.destinationSnippet,
+          ),
+        ),
+      );
+    }
+    final lLat = widget.lenderLat;
+    final lLng = widget.lenderLng;
+    if (lLat != null && lLng != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('lender_live'),
+          position: LatLng(lLat, lLng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(widget.lenderHue),
+          infoWindow: InfoWindow(
+            title: widget.lenderTitle,
+            snippet: widget.lenderSnippet,
           ),
         ),
       );
@@ -295,21 +328,59 @@ class _RiderTripFullscreenMapState
     await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 64));
   }
 
+  /// Fits the camera to keep BOTH the rider and the lender in view, so the
+  /// whole span — from the rider's current location to the lender's — is
+  /// visible without the user having to zoom or search.
+  ///
+  /// Used for CI navigation ([autofitBoth]). It re-fits whenever a point first
+  /// appears (the rider's first GPS fix or a geocoded destination), but not on
+  /// every GPS tick, and it never re-centers on the rider at full zoom.
+  void _tryFitBoth() {
+    if (!widget.autofitBoth) return;
+    final controller = _mapController;
+    if (controller == null) return;
+    final dLat = _effectiveLat;
+    final dLng = _effectiveLng;
+    final rLat = _originLat;
+    final rLng = _originLng;
+    final dest = (dLat != null && dLng != null) ? LatLng(dLat, dLng) : null;
+    final points = <LatLng>[
+      if (dest != null) dest,
+      if (rLat != null && rLng != null) LatLng(rLat, rLng),
+      if (widget.lenderLat != null && widget.lenderLng != null)
+        LatLng(widget.lenderLat!, widget.lenderLng!),
+    ];
+    if (points.isEmpty) return;
+    final destChanged = dest != _lastFitDest;
+    if (_lastFitCount != 0 && points.length == _lastFitCount && !destChanged) {
+      return;
+    }
+    _lastFitCount = points.length;
+    _lastFitDest = dest;
+    _fitCamera(points);
+  }
+
   void _fitIfReady(bool hasDestination) {
-    if (_didInitialFit) return;
+    if (widget.autofitBoth) {
+      _tryFitBoth();
+      return;
+    }
+    final controller = _mapController;
+    if (controller == null) return;
     final riderLat = _originLat;
     final riderLng = _originLng;
-    if (!hasDestination && (riderLat == null || riderLng == null)) return;
+    final points = <LatLng>[
+      if (_effectiveLat != null && _effectiveLng != null)
+        LatLng(_effectiveLat!, _effectiveLng!),
+      if (riderLat != null && riderLng != null) LatLng(riderLat, riderLng),
+      if (widget.lenderLat != null && widget.lenderLng != null)
+        LatLng(widget.lenderLat!, widget.lenderLng!),
+    ];
+    if (points.isEmpty) return;
+    if (_didInitialFit && points.length <= _lastFitCount) return;
     _didInitialFit = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final points = <LatLng>[
-        if (_effectiveLat != null && _effectiveLng != null)
-          LatLng(_effectiveLat!, _effectiveLng!),
-        if (riderLat != null && riderLng != null) LatLng(riderLat, riderLng),
-      ];
-      if (points.isNotEmpty) _fitCamera(points);
-    });
+    _lastFitCount = points.length;
+    _fitCamera(points);
   }
 
   @override
@@ -328,7 +399,6 @@ class _RiderTripFullscreenMapState
         });
       }
     }
-
     // Follow the rider: keep the camera centered on their live position so
     // their movement is always visible. Disabled when the user pans/zooms.
     ref.listen(riderLocationProvider, (prev, next) {
@@ -352,17 +422,11 @@ class _RiderTripFullscreenMapState
       }
     });
 
-    if (!_didInitialFit && (hasDestination || originLat != null)) {
+    if (_didInitialFit && markers.length > _lastFitCount ||
+        !_didInitialFit && (hasDestination || originLat != null)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _didInitialFit) return;
-        _didInitialFit = true;
-        final points = <LatLng>[
-          if (_effectiveLat != null && _effectiveLng != null)
-            LatLng(_effectiveLat!, _effectiveLng!),
-          if (originLat != null && originLng != null)
-            LatLng(originLat, originLng),
-        ];
-        if (points.isNotEmpty) _fitCamera(points);
+        if (!mounted) return;
+        _fitIfReady(hasDestination);
       });
     }
 
@@ -370,29 +434,39 @@ class _RiderTripFullscreenMapState
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: markers.isNotEmpty ? markers.first.position : _phCenter,
-              zoom: 15,
+          MapZoomGestureOverlay(
+            controller: () => _mapController,
+            onInteractionStart: () => _followRider = false,
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: widget.autofitBoth &&
+                        _effectiveLat != null &&
+                        _effectiveLng != null
+                    ? LatLng(_effectiveLat!, _effectiveLng!)
+                    : markers.isNotEmpty
+                        ? markers.first.position
+                        : _phCenter,
+                zoom: 15,
+              ),
+              onMapCreated: (controller) {
+                _mapController = controller;
+                _fitIfReady(hasDestination);
+              },
+              onCameraMoveStarted: () {
+                if (!_isAutoMoving) {
+                  _followRider = false;
+                }
+              },
+              onCameraIdle: () {
+                _isAutoMoving = false;
+              },
+              markers: markers,
+              polylines: polylines,
+              myLocationEnabled: _hasValidMapsKey,
+              myLocationButtonEnabled: _hasValidMapsKey,
+              zoomControlsEnabled: true,
+              compassEnabled: true,
             ),
-            onMapCreated: (controller) {
-              _mapController = controller;
-              _fitIfReady(hasDestination);
-            },
-            onCameraMoveStarted: () {
-              if (!_isAutoMoving) {
-                _followRider = false;
-              }
-            },
-            onCameraIdle: () {
-              _isAutoMoving = false;
-            },
-            markers: markers,
-            polylines: polylines,
-            myLocationEnabled: _hasValidMapsKey,
-            myLocationButtonEnabled: _hasValidMapsKey,
-            zoomControlsEnabled: true,
-            compassEnabled: true,
           ),
           SafeArea(
             child: Padding(

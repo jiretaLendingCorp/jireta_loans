@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/errors/failure.dart';
+import '../../../../../core/services/location_service.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../rider/location/widgets/rider_trip_map.dart';
 import '../providers/lender_collection_provider.dart';
@@ -39,6 +40,7 @@ class LenderTrackRiderScreen extends ConsumerStatefulWidget {
 
 class _State extends ConsumerState<LenderTrackRiderScreen> {
   Timer? _pollTimer;
+  Timer? _lenderGpsTimer;
   bool _isLoading = true;
   String? _error;
 
@@ -50,18 +52,24 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
   String? _destLabel;
   String? _assignmentType;
   DateTime? _lastUpdated;
+  double? _lenderLat;
+  double? _lenderLng;
 
   @override
   void initState() {
     super.initState();
     _fetchLocation();
+    _fetchLenderLocation();
     _pollTimer =
         Timer.periodic(const Duration(seconds: 30), (_) => _fetchLocation());
+    _lenderGpsTimer = Timer.periodic(
+        const Duration(seconds: 15), (_) => _fetchLenderLocation());
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _lenderGpsTimer?.cancel();
     super.dispose();
   }
 
@@ -71,6 +79,17 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
         'disbursement' => 'Loan Delivery',
         _ => null,
       };
+
+  /// Reads this device's GPS (the lender's own live position) so the map can
+  /// show where the lender is right now, next to the incoming rider's pin.
+  Future<void> _fetchLenderLocation() async {
+    final pos = await LocationService.instance.getCurrentPosition();
+    if (!mounted || pos == null) return;
+    setState(() {
+      _lenderLat = pos.latitude;
+      _lenderLng = pos.longitude;
+    });
+  }
 
   Future<void> _fetchLocation() async {
     try {
@@ -201,6 +220,11 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
         destinationTitle: 'Your Location',
         destinationSnippet: destSnippet,
         destinationAddress: _destAddress,
+        lenderLat: _lenderLat,
+        lenderLng: _lenderLng,
+        lenderTitle: 'You (Lender)',
+        lenderSnippet: 'Your live GPS',
+        lenderHue: BitmapDescriptor.hueBlue,
         height: double.infinity,
       ),
     );
@@ -258,6 +282,8 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
                 originLabel: 'Rider',
                 destinationLabel: 'Your Location',
                 originColor: Colors.purple,
+                extraLabel: 'Your live GPS',
+                extraColor: Colors.blueAccent,
               ),
             ),
           if (_error == null && !_isLoading)

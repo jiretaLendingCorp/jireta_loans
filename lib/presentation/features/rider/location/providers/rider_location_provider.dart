@@ -2,8 +2,10 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
+import '../../../../../core/security/secure_storage.dart';
 import '../../../../../core/services/location_service.dart';
 import '../../../../../data/datasources/remote/location_remote_datasource.dart';
 
@@ -59,6 +61,21 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
   }
 
   Future<void> _postLocation() async {
+    // The backend rejects `update-rider` with a 403 unless the caller is a
+    // rider. Guard against the tracking timer firing after logout / a role
+    // switch on the same device (the provider outlives the session), so a
+    // lender/employee session never POSTs a rider location.
+    try {
+      final role = await SecureStorage.getUserRole();
+      if (role != AppConstants.roleRider) {
+        stopTracking();
+        return;
+      }
+    } catch (_) {
+      stopTracking();
+      return;
+    }
+
     try {
       final pos = await LocationService.instance.getCurrentPosition();
       if (pos == null) return;
