@@ -3,6 +3,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { sanitizeIpAddress } from '../_shared/audit.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -22,7 +23,7 @@ serve(async (req) => {
     await db.from('auth_logs').insert({
       user_id: user.id,
       event_type: 'logout',
-      ip_address: req.headers.get('x-forwarded-for') ?? 'unknown',
+      ip_address: sanitizeIpAddress(req.headers.get('x-forwarded-for')),
       failed_attempts: 0,
       is_locked: false,
     });

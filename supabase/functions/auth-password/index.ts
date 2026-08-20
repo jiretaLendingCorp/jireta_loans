@@ -11,7 +11,7 @@
 // only wrapped so it can live in a single `serve()`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { writeAuditLog } from "../_shared/audit.ts";
+import { writeAuditLog, sanitizeIpAddress } from "../_shared/audit.ts";
 import { isAuthUser, requireAuth } from "../_shared/auth.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient, getAnonClient } from "../_shared/db.ts";
@@ -363,7 +363,7 @@ async function handleForceChangePassword(req: Request) {
   await db.from("auth_logs").insert({
     user_id: authResult.id,
     event_type: "force_password_changed",
-    ip_address: req.headers.get("x-forwarded-for") ?? "unknown",
+    ip_address: sanitizeIpAddress(req.headers.get("x-forwarded-for")),
   });
 
   await writeAuditLog({
@@ -473,7 +473,7 @@ async function handleChangePassword(req: Request) {
   await db.from("auth_logs").insert({
     user_id: authResult.id,
     event_type: "password_changed",
-    ip_address: req.headers.get("x-forwarded-for") ?? "unknown",
+    ip_address: sanitizeIpAddress(req.headers.get("x-forwarded-for")),
   });
 
   await writeAuditLog({

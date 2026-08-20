@@ -16,6 +16,7 @@ import { validatePhone, sanitizeString } from '../_shared/validators.ts';
 import { sendSms } from '../_shared/sms.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 import { guardRateLimit, recordSecurityEvent, blockKey, checkBlock } from '../_shared/rate_limiter.ts';
+import { sanitizeIpAddress } from '../_shared/audit.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 10;
@@ -495,7 +496,7 @@ async function handleVerifyOtp(req: Request) {
   await db.from('auth_logs').insert({
     user_id: user.id,
     event_type: 'login_success',
-    ip_address: req.headers.get('x-forwarded-for') ?? 'unknown',
+    ip_address: sanitizeIpAddress(req.headers.get('x-forwarded-for')),
   });
   await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
 

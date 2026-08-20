@@ -9,7 +9,7 @@
 
 import { assertEquals, assert } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import { join, fromFileUrl } from "https://deno.land/std@0.168.0/path/mod.ts";
-import { writeAuditLog, type AuditLogParams } from "./audit.ts";
+import { writeAuditLog, sanitizeIpAddress, type AuditLogParams } from "./audit.ts";
 
 const HERE = fromFileUrl(new URL(".", import.meta.url)); // .../supabase/functions/_shared/
 const REPO_ROOT = join(HERE, "../../../"); // .../ (repo root)
@@ -122,6 +122,58 @@ Deno.test("a failed audit write is swallowed (never throws)", async () => {
   }
   assertEquals(threw, false);
   assertEquals(db.rows.length, 0);
+});
+
+// ── IP sanitization ─────────────────────────────────────────────────────────
+
+Deno.test("sanitizeIpAddress keeps a plain IPv4 literal", () => {
+  assertEquals(sanitizeIpAddress("203.0.113.7"), "203.0.113.7");
+});
+
+Deno.test("sanitizeIpAddress keeps an IPv6 literal", () => {
+  assertEquals(sanitizeIpAddress("::1"), "::1");
+  assertEquals(sanitizeIpAddress("::ffff:203.0.113.7"), "::ffff:203.0.113.7");
+});
+
+Deno.test("sanitizeIpAddress takes the first hop of a proxy chain", () => {
+  assertEquals(
+    sanitizeIpAddress("203.0.113.7, 70.41.3.18, 150.172.238.178"),
+    "203.0.113.7",
+  );
+});
+
+Deno.test("sanitizeIpAddress rejects the 'unknown' fallback used by callers", () => {
+  assertEquals(sanitizeIpAddress("unknown"), null);
+  assertEquals(sanitizeIpAddress("Unknown"), null);
+});
+
+Deno.test("sanitizeIpAddress rejects missing / garbage input", () => {
+  assertEquals(sanitizeIpAddress(null), null);
+  assertEquals(sanitizeIpAddress(undefined), null);
+  assertEquals(sanitizeIpAddress(""), null);
+  assertEquals(sanitizeIpAddress("not-an-ip"), null);
+  assertEquals(sanitizeIpAddress("999.1.1.1"), null);
+});
+
+Deno.test("writeAuditLog stores a sanitized ip_address instead of 'unknown'", async () => {
+  const db = fakeDb();
+  const row = await write(db, {
+    performedBy: "u-1",
+    action: "create_rider",
+    tableName: "users",
+    recordId: "r-5",
+    ipAddress: "unknown",
+  });
+  assertEquals(row.ip_address, null);
+
+  const row2 = await write(db, {
+    performedBy: "u-1",
+    action: "create_lender",
+    tableName: "users",
+    recordId: "r-6",
+    ipAddress: "203.0.113.7, 70.41.3.18",
+  });
+  assertEquals(row2.ip_address, "203.0.113.7");
 });
 
 // ── Cross-file consistency: backend actions ↔ Flutter catalog ─────────────

@@ -244,7 +244,13 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
 
   Widget _buildRow(Map<String, dynamic> log, bool isEven) {
     final action = log['action'] as String? ?? '-';
-    final user = log['performed_by_user'] as Map<String, dynamic>? ?? {};
+    final rawUser = log['performed_by_user'];
+    final user = rawUser is Map<String, dynamic> ? rawUser : null;
+    // Webhook/system entries (performed_by NULL) and broken joins must not
+    // render as a blank performer — label them explicitly.
+    final performerName = user == null
+        ? 'System'
+        : '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
     final isExpanded = _expandedLog?['id'] == log['id'];
     return Column(
       key: ValueKey(log['id']),
@@ -290,9 +296,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                          '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'
-                              .trim(),
+                      Text(performerName,
                           style: const TextStyle(fontSize: 13)),
                     ],
                   ),
@@ -468,7 +472,8 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
     }
   }
 
-  String _initials(Map<String, dynamic> user) {
+  String _initials(Map<String, dynamic>? user) {
+    if (user == null) return 'S';
     final f = (user['first_name'] as String? ?? '').trim();
     final l = (user['last_name'] as String? ?? '').trim();
     final initials =
