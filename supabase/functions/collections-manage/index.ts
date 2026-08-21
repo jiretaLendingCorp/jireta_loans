@@ -147,7 +147,7 @@ async function handleCollectionRequest(req: Request) {
 
   const { data: active } = await db
     .from('collection_assignments')
-    .select('id, status, requested_by')
+    .select('id, status, requested_by, created_at')
     .eq('loan_schedule_id', loan_schedule_id)
     .in('status', ['requested', 'assigned', 'accepted', 'in_progress'])
     .maybeSingle();
@@ -156,9 +156,19 @@ async function handleCollectionRequest(req: Request) {
     // not fail — it would otherwise poison the schedule with an unanswerable
     // 409 since there is no cancel flow yet.
     if (active.status === 'requested' && active.requested_by === user.id) {
-      return jsonResponse({ message: 'Collection request already pending', assignment_id: active.id }, 200);
+      // Stale-request expiry: a request nobody acted on for 48h must not block
+      // the schedule forever. Expire it and fall through to a fresh request.
+      const ageHours = (Date.now() - new Date(active.created_at).getTime()) / 3_600_000;
+      if (ageHours < 48) {
+        return jsonResponse({ message: 'Collection request already pending', assignment_id: active.id }, 200);
+      }
+      await db.from('collection_assignments')
+        .update({ status: 'failed', collection_notes: 'expired: no action within 48h' })
+        .eq('id', active.id)
+        .eq('status', 'requested');
+    } else {
+      return errorResponse('A collection is already in progress for this schedule', 409, 'ALREADY_IN_PROGRESS');
     }
-    return errorResponse('A collection is already in progress for this schedule', 409, 'ALREADY_IN_PROGRESS');
   }
 
   const { data: assignment, error: insErr } = await db.from('collection_assignments').insert({
