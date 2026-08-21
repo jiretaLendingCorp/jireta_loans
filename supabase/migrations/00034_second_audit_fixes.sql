@@ -50,10 +50,13 @@ SET search_path = public, extensions;
 DROP POLICY IF EXISTS lender_profiles_no_direct_write ON lender_profiles;
 
 -- ─────────────────────────────────────────────────────────────────────
--- 2) Missing read policies (SELECT-only; writes stay service_role)
+-- 2) Missing read policies (SELECT-only; writes stay service_role).
+--    DROP IF EXISTS first so the migration is re-runnable against a
+--    remote that may already carry hand-applied versions.
 -- ─────────────────────────────────────────────────────────────────────
 
 -- Loan documents: lender sees docs of own loans; HM/Employee all.
+DROP POLICY IF EXISTS loan_documents_read ON loan_documents;
 CREATE POLICY loan_documents_read ON loan_documents
   FOR SELECT TO authenticated
   USING (
@@ -63,6 +66,7 @@ CREATE POLICY loan_documents_read ON loan_documents
 
 -- Co-maker documents: lender sees docs of co-makers on own loans;
 -- HM/Employee all. Mirrors co_makers_read.
+DROP POLICY IF EXISTS co_maker_documents_read ON co_maker_documents;
 CREATE POLICY co_maker_documents_read ON co_maker_documents
   FOR SELECT TO authenticated
   USING (
@@ -76,6 +80,7 @@ CREATE POLICY co_maker_documents_read ON co_maker_documents
 
 -- Payment reversals: HM/Employee all; lender sees reversals of payments
 -- on own loans (same resolution shape as payments_read).
+DROP POLICY IF EXISTS payment_reversals_read ON payment_reversals;
 CREATE POLICY payment_reversals_read ON payment_reversals
   FOR SELECT TO authenticated
   USING (
@@ -100,6 +105,7 @@ CREATE POLICY payment_reversals_read ON payment_reversals
   );
 
 -- Terms consent logs: users read their own consent history; HM all.
+DROP POLICY IF EXISTS terms_consent_logs_read ON terms_consent_logs;
 CREATE POLICY terms_consent_logs_read ON terms_consent_logs
   FOR SELECT TO authenticated
   USING (

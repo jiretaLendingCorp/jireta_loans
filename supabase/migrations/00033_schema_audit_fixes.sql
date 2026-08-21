@@ -111,50 +111,83 @@ WHERE status = 'completed'
   AND completed_at IS NULL;
 
 -- ─────────────────────────────────────────────────────────────────────
--- 3) Conditional integrity constraints (NOT VALID; validated below)
+-- 3) Conditional integrity constraints (NOT VALID; validated below).
+--    Idempotent: some of these may already exist on the remote (the
+--    project has a history of hand-applying fixes in the SQL editor),
+--    so each add is guarded by a pg_constraint existence check.
 -- ─────────────────────────────────────────────────────────────────────
 
-ALTER TABLE loans ADD CONSTRAINT loans_approved_requires_approver
-  CHECK (status NOT IN ('approved','active','completed','overdue')
-         OR approved_by IS NOT NULL) NOT VALID;
+CREATE OR REPLACE FUNCTION _add_check_if_missing(
+  p_table TEXT, p_constraint TEXT, p_definition TEXT
+) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = p_constraint
+      AND conrelid = format('%I.%I', 'public', p_table)::regclass
+  ) THEN
+    EXECUTE format(
+      'ALTER TABLE %I ADD CONSTRAINT %I CHECK (%s) NOT VALID',
+      p_table, p_constraint, p_definition
+    );
+  END IF;
+END;
+$$;
 
-ALTER TABLE loans ADD CONSTRAINT loans_rejected_requires_rejector
-  CHECK (status <> 'rejected'
-         OR (rejected_by IS NOT NULL AND rejection_reason IS NOT NULL)) NOT VALID;
+SELECT _add_check_if_missing(
+  'loans', 'loans_approved_requires_approver',
+  'status NOT IN (''approved'',''active'',''completed'',''overdue'') OR approved_by IS NOT NULL'
+);
 
-ALTER TABLE loans ADD CONSTRAINT loans_post_approval_requires_term_data
-  CHECK (status NOT IN ('approved','active','completed','overdue')
-         OR (term_periods IS NOT NULL AND installment_amount IS NOT NULL)) NOT VALID;
+SELECT _add_check_if_missing(
+  'loans', 'loans_rejected_requires_rejector',
+  'status <> ''rejected'' OR (rejected_by IS NOT NULL AND rejection_reason IS NOT NULL)'
+);
 
-ALTER TABLE disbursements ADD CONSTRAINT disbursements_completed_requires_disbursed_at
-  CHECK (status <> 'completed' OR disbursed_at IS NOT NULL) NOT VALID;
+SELECT _add_check_if_missing(
+  'loans', 'loans_post_approval_requires_term_data',
+  'status NOT IN (''approved'',''active'',''completed'',''overdue'') OR (term_periods IS NOT NULL AND installment_amount IS NOT NULL)'
+);
 
-ALTER TABLE collection_assignments
-  ADD CONSTRAINT collection_assignments_completed_requires_completed_at
-  CHECK (status <> 'completed' OR completed_at IS NOT NULL) NOT VALID;
+SELECT _add_check_if_missing(
+  'disbursements', 'disbursements_completed_requires_disbursed_at',
+  'status <> ''completed'' OR disbursed_at IS NOT NULL'
+);
 
-ALTER TABLE credit_investigations ADD CONSTRAINT ci_completed_requires_completed_at
-  CHECK (status <> 'completed' OR completed_at IS NOT NULL) NOT VALID;
+SELECT _add_check_if_missing(
+  'collection_assignments', 'collection_assignments_completed_requires_completed_at',
+  'status <> ''completed'' OR completed_at IS NOT NULL'
+);
+
+SELECT _add_check_if_missing(
+  'credit_investigations', 'ci_completed_requires_completed_at',
+  'status <> ''completed'' OR completed_at IS NOT NULL'
+);
 
 -- Rider-less rows are only legitimate while a lender request has not been
 -- picked up ('requested') or was turned down before assignment ('declined').
-ALTER TABLE collection_assignments
-  ADD CONSTRAINT collection_assignments_rider_required_unless_unassigned_request
-  CHECK (status IN ('requested','declined')
-         OR (rider_id IS NOT NULL AND assigned_by IS NOT NULL)) NOT VALID;
+SELECT _add_check_if_missing(
+  'collection_assignments', 'collection_assignments_rider_required_unless_unassigned_request',
+  'status IN (''requested'',''declined'') OR (rider_id IS NOT NULL AND assigned_by IS NOT NULL)'
+);
 
-ALTER TABLE collection_assignments
-  ADD CONSTRAINT collection_assignments_request_requires_requester
-  CHECK (status <> 'requested' OR requested_by IS NOT NULL) NOT VALID;
+SELECT _add_check_if_missing(
+  'collection_assignments', 'collection_assignments_request_requires_requester',
+  'status <> ''requested'' OR requested_by IS NOT NULL'
+);
 
-ALTER TABLE otp_codes ADD CONSTRAINT otp_codes_attempts_check
-  CHECK (attempts >= 0);
+SELECT _add_check_if_missing('otp_codes', 'otp_codes_attempts_check', 'attempts >= 0');
 
-ALTER TABLE login_lockouts ADD CONSTRAINT login_lockouts_failed_attempts_check
-  CHECK (failed_attempts >= 0);
+SELECT _add_check_if_missing(
+  'login_lockouts', 'login_lockouts_failed_attempts_check', 'failed_attempts >= 0'
+);
 
-ALTER TABLE collection_assignments ADD CONSTRAINT collection_assignments_collection_type_check
-  CHECK (collection_type IN ('rider','office'));
+SELECT _add_check_if_missing(
+  'collection_assignments', 'collection_assignments_collection_type_check',
+  'collection_type IN (''rider'',''office'')'
+);
+
+DROP FUNCTION _add_check_if_missing(TEXT, TEXT, TEXT);
 
 -- ─────────────────────────────────────────────────────────────────────
 -- 4) Best-effort VALIDATE — legacy violations warn instead of aborting
