@@ -46,7 +46,11 @@ serve(async (req) => {
 
     await db
       .from('disbursements')
-      .update({ xendit_status: xenditStatus, status: isCompleted ? 'completed' : isFailed ? 'failed' : 'processing' })
+      .update({
+        xendit_status: xenditStatus,
+        status: isCompleted ? 'completed' : isFailed ? 'failed' : 'processing',
+        ...(isCompleted ? { disbursed_at: new Date().toISOString() } : {}),
+      })
       .eq('id', disbursement.id);
 
     await db.from('xendit_logs').insert({
