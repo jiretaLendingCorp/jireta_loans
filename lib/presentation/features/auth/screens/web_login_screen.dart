@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/offline_toast.dart';
@@ -76,6 +78,13 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
       email: _emailCtrl.text.trim(),
       password: _passCtrl.text,
     );
+    if (ok && mounted) {
+      // Navigate explicitly — don't rely on the router redirect firing.
+      // (If force_password_change is set, the global redirect bounces this
+      // to the force-change-password screen automatically.)
+      _goToRoleHome();
+      return;
+    }
     if (!ok && mounted) {
       final err = ref.read(authProvider).error;
       // Login lockout: show a live countdown instead of a one-off snackbar.
@@ -87,6 +96,22 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen> {
       _showError(
         notifier.extractErrorMessage(err ?? 'Error') ?? 'Login failed.',
       );
+    }
+  }
+
+  void _goToRoleHome() {
+    final role = ref.read(authStateProvider).role;
+    switch (role) {
+      case AppConstants.roleHeadManager:
+        context.go(RouteConstants.hmDashboard);
+      case AppConstants.roleEmployee:
+        context.go(RouteConstants.empDashboard);
+      case AppConstants.roleRider:
+        context.go(RouteConstants.riderDashboard);
+      case AppConstants.roleLender:
+        context.go(RouteConstants.lenderDashboard);
+      default:
+        context.go(RouteConstants.webLogin);
     }
   }
 

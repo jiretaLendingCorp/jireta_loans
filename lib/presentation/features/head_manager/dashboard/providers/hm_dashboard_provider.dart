@@ -1,4 +1,6 @@
 // lib/presentation/features/head_manager/dashboard/providers/hm_dashboard_provider.dart
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
@@ -32,6 +34,7 @@ class HmDashboardState {
 class HmDashboardNotifier extends StateNotifier<HmDashboardState>
     with RealtimeRefreshMixin {
   final KpiRemoteDataSource _ds;
+  Timer? _pollTimer;
 
   HmDashboardNotifier(this._ds)
       : super(HmDashboardState(kpi: KpiHeadManagerModel.empty())) {
@@ -51,6 +54,18 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
       'notifications',
     ], refresh: () => loadKpis(silent: true));
     loadKpis();
+    // Safety net for the realtime push: browsers throttle background tabs and
+    // websockets can silently drop, so poll quietly as well. Missed events
+    // self-heal within 30s and the analytics charts stay live either way.
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      loadKpis(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> loadKpis({bool silent = false}) async {

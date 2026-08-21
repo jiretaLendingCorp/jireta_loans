@@ -271,8 +271,10 @@ async function handleSubmit(req: Request) {
       await db.from('loan_documents').insert(docRows);
     }
 
+    // NOTE: in_office_applications.loan_id was dropped (00099). The link lives
+    // on loans.in_office_application_id, already set at insert above.
     await db.from('in_office_applications')
-      .update({ status: 'converted', loan_id: loan.id, wizard_step: 5, updated_at: new Date().toISOString() })
+      .update({ status: 'converted', wizard_step: 5, updated_at: new Date().toISOString() })
       .eq('id', application_id);
 
     await writeAuditLog({
@@ -319,18 +321,21 @@ async function handleGetList(req: Request) {
   const dateTo = url.searchParams.get('date_to');
   const offset = (page - 1) * limit;
 
+  // NOTE: in_office_applications.loan_id was dropped (00099); loans is now the
+  // owning side via loans.in_office_application_id (fk_loans_in_office), so the
+  // embed is one-to-many and returns an array. We unwrap it to a single object
+  // and re-expose loan_id so the API shape stays compatible with the app.
   let query = db
     .from('in_office_applications')
     .select(
       `id, status, wizard_step, created_at, submitted_at, updated_at,
-       loan_id,
        personal_info:application_personal_info!application_personal_info_application_id_fkey(
          first_name, last_name, phone_number
        ),
        created_by_user:users!in_office_applications_created_by_fkey(
          id, first_name, last_name, roles(name)
        ),
-       loan:loans!in_office_applications_loan_id_fkey(id, loan_number, principal_amount, status)`,
+       loans:loans!fk_loans_in_office(id, loan_number, principal_amount, status)`,
       { count: 'exact' }
     )
     .order('created_at', { ascending: false })
@@ -348,8 +353,14 @@ async function handleGetList(req: Request) {
 
   const rows = (data ?? []).map((row) => {
     const pi = embedAsObject(row.personal_info);
+    const loan = embedAsObject(
+      (row as { loans?: unknown[] | null }).loans ?? null,
+    ) as { id: string; loan_number: string; principal_amount: number; status: string } | null;
+    const { loans: _loans, ...rest } = row as Record<string, unknown>;
     return {
-      ...row,
+      ...rest,
+      loan_id: loan?.id ?? null,
+      loan,
       lender_name: pi ? `${pi.first_name ?? ''} ${pi.last_name ?? ''}`.trim() : null,
     };
   });

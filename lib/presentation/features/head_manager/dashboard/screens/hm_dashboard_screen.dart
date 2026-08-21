@@ -29,8 +29,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
     return WebScaffold(
       title: 'Dashboard',
       actions: [
-        const _LiveIndicator(),
-        const SizedBox(width: 4),
         IconButton(
           onPressed: () => ref.read(hmDashboardProvider.notifier).refresh(),
           icon: dashState.isLoading
@@ -105,7 +103,10 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
   }
 
   Widget _buildShimmer() {
-    return Padding(
+    // Scrollable so short viewports never get a bottom-overflow error while
+    // the (fixed-height) skeleton rows are showing.
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
@@ -474,72 +475,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
               .toList(),
         );
       },
-    );
-  }
-}
-
-/// Pulsing green "LIVE" badge shown while the realtime feed is active.
-class _LiveIndicator extends StatefulWidget {
-  const _LiveIndicator();
-
-  @override
-  State<_LiveIndicator> createState() => _LiveIndicatorState();
-}
-
-class _LiveIndicatorState extends State<_LiveIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FadeTransition(
-            opacity: Tween(begin: 0.3, end: 1.0).animate(_ctrl),
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppColors.success,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          const Text(
-            'LIVE',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: AppColors.success,
-              letterSpacing: 1,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

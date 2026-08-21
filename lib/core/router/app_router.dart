@@ -111,7 +111,11 @@ import '../constants/app_constants.dart';
 import '../constants/route_constants.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  // NOTE: The GoRouter instance is created ONCE and kept stable. Auth state is
+  // read LIVE inside `redirect` (never captured — a captured value goes stale
+  // after login/logout), and `ref.listen` below re-runs redirects whenever the
+  // auth state changes. Recreating the whole router on every auth change used
+  // to leave users stranded on the login screen.
 
   // Platform-aware login route (local variable — getters are class-only in Dart)
   const loginRoute =
@@ -143,12 +147,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     return RouteConstants.webLogin;
   }
 
-  return GoRouter(
+  final router = GoRouter(
     // Mobile has no splash screen — open straight on the login screen and let
     // the redirect below send already-authenticated users to their dashboard.
     initialLocation: kIsWeb ? RouteConstants.splash : RouteConstants.mobileLogin,
     debugLogDiagnostics: false,
     redirect: (context, state) {
+      // Always evaluate against the LATEST auth state.
+      final authState = ref.read(authStateProvider);
       final isLoading = authState.isLoading;
       if (isLoading) return null;
 
@@ -577,6 +583,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     errorBuilder: (ctx, s) =>
         Scaffold(body: Center(child: Text('Page not found: ${s.uri.path}'))),
   );
+
+  // Re-evaluate redirects whenever auth state changes (login success, logout,
+  // session expiry, force-password-change flag flips). Without this the router
+  // would keep showing the login screen after a successful login.
+  ref.listen(authStateProvider, (_, __) => router.refresh());
+  ref.onDispose(router.dispose);
+
+  return router;
 });
 
 /// Exposes the current go_router path so widgets rendered ABOVE the router

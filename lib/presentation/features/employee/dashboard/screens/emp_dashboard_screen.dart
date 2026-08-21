@@ -72,7 +72,10 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
   }
 
   Widget _buildShimmer() {
-    return Padding(
+    // Scrollable so short viewports never get a bottom-overflow error while
+    // the (fixed-height) skeleton rows are showing.
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [

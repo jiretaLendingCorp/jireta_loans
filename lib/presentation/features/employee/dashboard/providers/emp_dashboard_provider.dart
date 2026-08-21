@@ -1,4 +1,6 @@
 // lib/presentation/features/employee/dashboard/providers/emp_dashboard_provider.dart
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
@@ -32,6 +34,7 @@ class EmpDashboardState {
 class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
     with RealtimeRefreshMixin {
   final KpiRemoteDataSource _ds;
+  Timer? _pollTimer;
 
   EmpDashboardNotifier(this._ds)
       : super(EmpDashboardState(kpi: KpiEmployeeModel.empty())) {
@@ -45,6 +48,18 @@ class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
       'notifications',
     ], refresh: () => loadKpis(silent: true));
     loadKpis();
+    // Safety net for the realtime push: browsers throttle background tabs and
+    // websockets can silently drop, so poll quietly as well. Missed events
+    // self-heal within 30s and the KPI cards stay live either way.
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      loadKpis(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> loadKpis({bool silent = false}) async {

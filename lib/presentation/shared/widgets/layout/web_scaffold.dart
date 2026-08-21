@@ -16,6 +16,12 @@ import '../profile_avatar.dart';
 
 final _sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 
+/// Remembers the sidebar's scroll offset across route changes. Every page
+/// builds its own sidebar (flat routes), so without this the list snaps back
+/// to the top whenever you navigate — making it look like the nav "resets"
+/// after tapping an item near the bottom.
+final _sidebarScrollOffsetProvider = StateProvider<double>((ref) => 0);
+
 const double _desktopBreakpoint = 900;
 
 class WebScaffold extends ConsumerWidget {
@@ -393,7 +399,7 @@ class _UserAvatar extends ConsumerWidget {
   }
 }
 
-class _Sidebar extends StatelessWidget {
+class _Sidebar extends ConsumerStatefulWidget {
   final bool collapsed;
   final String role;
   final bool inDrawer;
@@ -405,7 +411,41 @@ class _Sidebar extends StatelessWidget {
   });
 
   @override
+  ConsumerState<_Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends ConsumerState<_Sidebar> {
+  late final ScrollController _scrollCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start where the user left off on the previous page's sidebar.
+    _scrollCtrl = ScrollController(
+      initialScrollOffset: ref.read(_sidebarScrollOffsetProvider),
+    );
+    _scrollCtrl.addListener(_saveOffset);
+  }
+
+  void _saveOffset() {
+    if (_scrollCtrl.hasClients) {
+      ref.read(_sidebarScrollOffsetProvider.notifier).state =
+          _scrollCtrl.offset;
+    }
+  }
+
+  @override
+  void dispose() {
+    _saveOffset();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final collapsed = widget.collapsed;
+    final role = widget.role;
+    final inDrawer = widget.inDrawer;
     final items = role == AppConstants.roleHeadManager
         ? _hmItems(context)
         : _empItems(context);
@@ -426,6 +466,7 @@ class _Sidebar extends StatelessWidget {
           _SidebarHeader(collapsed: inDrawer ? false : collapsed),
           Expanded(
             child: ListView(
+              controller: _scrollCtrl,
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: items
                   .map((item) => _SidebarItem(
