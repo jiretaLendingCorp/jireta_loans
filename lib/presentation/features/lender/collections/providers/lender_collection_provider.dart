@@ -42,10 +42,14 @@ class LenderCollectionNotifier
   }
 
   Future<Map<String, dynamic>> getDetail(String assignmentId) async {
+    // The old path appended '/$id' to a query-string endpoint, producing
+    // fn=get-list/<id> → 404 every time. Use the dedicated get action.
     final res = await _client.get(
-      '${ApiEndpoints.collectionsGetList}/$assignmentId',
+      ApiEndpoints.collectionsGet,
+      queryParams: {'id': assignmentId},
     );
-    return res.data as Map<String, dynamic>;
+    return (res.data['data'] as Map<String, dynamic>?) ??
+        <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>?> getRiderLocation(String riderId) async {

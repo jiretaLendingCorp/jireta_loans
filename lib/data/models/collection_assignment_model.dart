@@ -100,8 +100,13 @@ class CollectionAssignmentModel {
 
   String get riderName {
     if (flatRiderName != null && flatRiderName!.isNotEmpty) return flatRiderName!;
-    if (rider == null) return '';
-    return '${rider!['first_name'] ?? ''} ${rider!['last_name'] ?? ''}'.trim();
+    // The embed shape is rider: {id, users: {first_name, last_name}} — the
+    // names live under users, not at the root of the rider object.
+    final users = rider?['users'];
+    if (users is Map) {
+      return '${users['first_name'] ?? ''} ${users['last_name'] ?? ''}'.trim();
+    }
+    return '';
   }
 
   String get assignedByName {

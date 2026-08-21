@@ -62,6 +62,7 @@ class ApiEndpoints {
   static const String collectionsUploadProof =
       'collections-manage?fn=upload-proof';
   static const String collectionsGetList = 'collections-view?fn=get-list';
+  static const String collectionsGet = 'collections-view?fn=get';
 
   // Payments
   static const String paymentsRecordOffice = 'payments-manage?fn=record-office';

@@ -156,7 +156,6 @@ class _CollectionCardState extends State<_CollectionCard> {
   Widget build(BuildContext context) {
     final col = widget.collection;
     final schedule = col.loanSchedule as Map<String, dynamic>? ?? {};
-    final rider = col.rider as Map<String, dynamic>? ?? {};
     final isOffice = col.collectionType == 'office';
     final amount = col.amountCollected ??
         (schedule['amount_due'] as num?)?.toDouble() ??
@@ -236,8 +235,8 @@ class _CollectionCardState extends State<_CollectionCard> {
                           child: Text(
                             isOffice
                                 ? 'Office visit payment'
-                                : rider.isNotEmpty
-                                    ? '${rider['first_name']} ${rider['last_name']}'
+                                : col.riderName.isNotEmpty
+                                    ? col.riderName
                                     : 'Unassigned',
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textSecondary),

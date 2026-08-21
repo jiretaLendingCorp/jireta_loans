@@ -60,8 +60,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
   Widget _buildContent(BuildContext context, WidgetRef ref,
       CollectionAssignmentModel col, NumberFormat fmt, DateFormat dateFmt) {
     final schedule = col.loanSchedule ?? {};
-    final rider = col.rider ?? {};
-    final assignedBy = col.assignedByUser ?? {};
     final isOffice = col.collectionType == 'office';
 
     return SingleChildScrollView(
@@ -101,17 +99,22 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                         isOffice
                             ? 'Pay at the Office'
                             : 'Rider Collection'),
+                    // Lender identity — who requested/pays this collection.
+                    _Row('Lender',
+                        col.lenderName.isNotEmpty ? col.lenderName : 'N/A'),
+                    if (col.lenderPhone.isNotEmpty)
+                      _Row('Lender Phone', col.lenderPhone),
                     _Row(
                         isOffice ? 'Payment Location' : 'Assigned Rider',
                         isOffice
                             ? 'Office'
-                            : rider.isNotEmpty
-                                ? '${rider['first_name']} ${rider['last_name']}'
+                            : col.riderName.isNotEmpty
+                                ? col.riderName
                                 : 'N/A'),
                     _Row(
                         'Assigned By',
-                        assignedBy.isNotEmpty
-                            ? '${assignedBy['first_name']} ${assignedBy['last_name']}'
+                        col.assignedByName.isNotEmpty
+                            ? col.assignedByName
                             : 'N/A'),
                     _Row(
                         'Schedule',
@@ -229,17 +232,18 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isOffice
-                        ? 'Office Payment Request'
-                        : 'Collection Assignment',
+                    col.lenderName.isNotEmpty
+                        ? col.lenderName
+                        : isOffice
+                            ? 'Office Payment Request'
+                            : 'Collection Assignment',
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    col.amountCollected != null
-                        ? '₱${fmt.format(col.amountCollected!)} Collected'
-                        : 'Pending Collection',
+                    '${col.loanNumber.isNotEmpty ? col.loanNumber : ''}'
+                    '${col.amountCollected != null ? '  ·  ₱${fmt.format(col.amountCollected!)} collected' : '  ·  Pending collection'}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 14),
                   ),
