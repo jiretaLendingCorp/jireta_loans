@@ -134,7 +134,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         ),
       );
     } else {
-      _showInfo('Failed to submit your request. Please try again.');
+      _showInfo(
+        ref.read(lenderPaymentProvider).error ??
+            'Failed to submit your request. Please try again.',
+      );
     }
   }
 

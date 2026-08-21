@@ -138,6 +138,51 @@ export async function getSchedulePayment(db: DbClient, scheduleId: string): Prom
   return { amount_paid: amountPaid, paid_at: paidAt };
 }
 
+// Allocate a payment across a loan's unpaid schedules in installment order
+// (oldest first): each schedule is filled up to its remaining due, then the
+// excess rolls forward to later installments. This is what makes advance
+// payments land on the right installments instead of overpaying one schedule.
+// The caller must already cap `amount` at the loan's outstanding balance.
+export interface AllocatedPayment {
+  loan_schedule_id: string;
+  amount: number;
+}
+
+export async function allocatePayment(
+  db: DbClient,
+  loanId: string,
+  amount: number,
+): Promise<AllocatedPayment[]> {
+  const { data: schedules } = await db
+    .from('v_loan_schedules')
+    .select('id, amount_due, amount_paid')
+    .eq('loan_id', loanId)
+    .order('installment_number', { ascending: true });
+
+  const allocations: AllocatedPayment[] = [];
+  let left = round2(amount);
+  for (const s of schedules ?? []) {
+    if (left <= 0) break;
+    const remaining = round2(Number(s.amount_due) - Number(s.amount_paid ?? 0));
+    if (remaining <= 0) continue;
+    const applied = Math.min(remaining, left);
+    allocations.push({ loan_schedule_id: s.id, amount: applied });
+    left = round2(left - applied);
+  }
+  if (left > 0 && allocations.length > 0) {
+    // Caller caps at outstanding balance, so this is centavos-level rounding
+    // dust — fold it into the last allocation rather than losing it.
+    const last = allocations[allocations.length - 1];
+    last.amount = round2(last.amount + left);
+  } else if (left > 0 && (schedules ?? []).length > 0) {
+    // Defensive fallback (everything unexpectedly paid): keep the money on the
+    // last schedule instead of silently dropping it.
+    const lastSchedule = (schedules ?? [])[(schedules ?? []).length - 1];
+    allocations.push({ loan_schedule_id: lastSchedule.id, amount: left });
+  }
+  return allocations;
+}
+
 export function scheduleStatus(amountPaid: number, amountDue: number, dueDate?: string): string {
   if (amountPaid >= amountDue) return 'paid';
   if (amountPaid > 0) return 'partial';

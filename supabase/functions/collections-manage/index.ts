@@ -24,6 +24,7 @@ import {
   getSchedulePayment,
   scheduleStatus,
   getLoanFinancials,
+  allocatePayment,
 } from '../_shared/loan_financials.ts';
 
 // ── [moved from collections-upload-proof] ───────────────────────────────────
@@ -132,11 +133,19 @@ async function handleCollectionRequest(req: Request) {
 
   const { data: active } = await db
     .from('collection_assignments')
-    .select('id, status')
+    .select('id, status, requested_by')
     .eq('loan_schedule_id', loan_schedule_id)
     .in('status', ['requested', 'assigned', 'accepted', 'in_progress'])
     .maybeSingle();
-  if (active) return errorResponse('A collection is already in progress for this schedule', 409, 'INVALID_STATUS');
+  if (active) {
+    // Idempotent replay: a double-tap or client retry from the same lender must
+    // not fail — it would otherwise poison the schedule with an unanswerable
+    // 409 since there is no cancel flow yet.
+    if (active.status === 'requested' && active.requested_by === user.id) {
+      return jsonResponse({ message: 'Collection request already pending', assignment_id: active.id }, 200);
+    }
+    return errorResponse('A collection is already in progress for this schedule', 409, 'ALREADY_IN_PROGRESS');
+  }
 
   const { data: assignment, error: insErr } = await db.from('collection_assignments').insert({
     loan_schedule_id,
@@ -144,7 +153,20 @@ async function handleCollectionRequest(req: Request) {
     collection_type: type,
     status: 'requested',
   }).select('id').single();
-  if (insErr) return errorResponse('Failed to create collection request', 500, 'SERVER_ERROR');
+  if (insErr) {
+    // Lost a race against a concurrent identical request (unique partial index
+    // uq_collection_assignments_requested_schedule) → treat as idempotent success.
+    if ((insErr as { code?: string }).code === '23505') {
+      const { data: existing } = await db.from('collection_assignments')
+        .select('id')
+        .eq('loan_schedule_id', loan_schedule_id)
+        .eq('status', 'requested')
+        .maybeSingle();
+      if (existing) return jsonResponse({ message: 'Collection request already pending', assignment_id: existing.id }, 200);
+    }
+    console.error('collection request insert failed:', insErr);
+    return errorResponse('Failed to create collection request', 500, 'SERVER_ERROR');
+  }
 
   await writeAuditLog({
     performedBy: user.id,
@@ -323,25 +345,42 @@ async function handleCollectionRecord(req: Request) {
 
   const newBalance = Math.round((financials.outstanding_balance - amount_collected) * 100) / 100;
 
-  const { data: payment, error: payErr } = await db.from('payments').insert({
-    loan_schedule_id: assignment.loan_schedule_id,
-    amount: amount_collected,
+  // Allocate the collected amount across unpaid installments (oldest first).
+  // Amounts beyond the current installment roll forward to the next ones so a
+  // lender can advance-pay upcoming installments in a single collection.
+  const allocations = await allocatePayment(db, loanId, amount_collected);
+  if (allocations.length === 0) return errorResponse('No unpaid installments to apply the payment to', 409, 'INVALID_STATUS');
+
+  const paymentRows = allocations.map((a, i) => ({
+    loan_schedule_id: a.loan_schedule_id,
+    amount: a.amount,
     payment_method: 'rider_collection',
     status: 'verified',
     recorded_by: user.id,
     collection_assignment_id: assignment_id,
     notes: notes ?? null,
-    idempotency_key: idempotencyKey,
-  }).select('id').single();
-  if (payErr) return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
+    paid_at: new Date().toISOString(),
+    idempotency_key: allocations.length > 1 ? `${idempotencyKey}-${i + 1}` : idempotencyKey,
+  }));
 
-  await db.from('loans').update({ ...(newBalance <= 0 ? { status: 'completed' } : {}) }).eq('id', loanId);
+  const { data: payments, error: payErr } = await db
+    .from('payments')
+    .insert(paymentRows)
+    .select('id');
+  if (payErr || !payments || payments.length === 0) {
+    console.error('payment insert failed:', payErr);
+    return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
+  }
+
+  if (newBalance <= 0) {
+    await db.from('loans').update({ status: 'completed' }).eq('id', loanId);
+  }
   await db.from('collection_assignments').update({ status: 'in_progress', completed_at: new Date().toISOString(), amount_collected }).eq('id', assignment_id);
 
-  await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payment.id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });
-  await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Collected', body: `Payment of ₱${amount_collected.toLocaleString()} has been collected. Remaining: ₱${newBalance.toLocaleString()}`, type: 'payment_collected', referenceId: payment.id });
+  await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payments[0].id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });
+  await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Collected', body: `Payment of ₱${amount_collected.toLocaleString()} has been collected. Remaining: ₱${newBalance.toLocaleString()}`, type: 'payment_collected', referenceId: payments[0].id });
 
-  return jsonResponse({ message: 'Payment recorded', payment_id: payment.id, new_balance: newBalance }, 201);
+  return jsonResponse({ message: 'Payment recorded', payment_id: payments[0].id, new_balance: newBalance }, 201);
 }
 
 // ── [moved from functions/collections-upload-proof/index.ts] ────────────────
@@ -372,6 +411,25 @@ async function handleCollectionUploadProof(req: Request) {
   if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
   if (!['accepted', 'in_progress'].includes(assignment.status)) {
     return errorResponse('Invalid assignment status', 400, 'INVALID_STATUS');
+  }
+
+  // The collected cash must be recorded as a verified payment BEFORE the
+  // collection can be completed. Without this guard a rider can skip the
+  // "Record Collection" step: the assignment completes and the office receives
+  // the cash, but no payment row exists so the loan balance never decreases.
+  const { data: recordedPayment } = await db
+    .from('payments')
+    .select('id')
+    .eq('collection_assignment_id', assignment_id)
+    .eq('status', 'verified')
+    .limit(1)
+    .maybeSingle();
+  if (!recordedPayment) {
+    return errorResponse(
+      'Record the collected amount first before uploading proof',
+      409,
+      'PAYMENT_NOT_RECORDED',
+    );
   }
 
   const updates: Record<string, string> = {};

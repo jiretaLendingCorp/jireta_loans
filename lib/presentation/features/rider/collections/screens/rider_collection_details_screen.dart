@@ -461,30 +461,60 @@ class _RiderCollectionDetailsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Upload Proof',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          const Text(
-              'Upload payment proof and scene photo to complete the collection.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 20),
-          _PhotoPicker(
-            label: 'Payment Proof *',
-            photo: _proofPhoto,
-            onPick: () => _pickImage(true),
-          ),
-          const SizedBox(height: 16),
-          _PhotoPicker(
-            label: 'Scene Photo (optional)',
-            photo: _scenePhoto,
-            onPick: () => _pickImage(false),
-          ),
-          const SizedBox(height: 24),
-          AppButton(
-            label: _isSubmitting ? 'Uploading...' : 'Upload & Complete',
-            onPressed: _isSubmitting ? null : _uploadProof,
-            color: AppColors.riderGreen,
-          ),
+          // A collection can only be completed once the collected cash has
+          // been recorded — otherwise no payment exists and the lender's loan
+          // balance never decreases.
+          if (col.status == 'accepted')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.3))),
+              child: const Row(
+                children: [
+                  Icon(Icons.lock_outline,
+                      color: AppColors.warning, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                      child: Text(
+                          'Record the collected amount in the Collect tab '
+                          'first before uploading proof.',
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.warning,
+                              fontWeight: FontWeight.w600))),
+                ],
+              ),
+            ),
+          if (col.status != 'accepted') ...[
+            const Text('Upload Proof',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            const Text(
+                'Upload payment proof and scene photo to complete the collection.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 20),
+            _PhotoPicker(
+              label: 'Payment Proof *',
+              photo: _proofPhoto,
+              onPick: () => _pickImage(true),
+            ),
+            const SizedBox(height: 16),
+            _PhotoPicker(
+              label: 'Scene Photo (optional)',
+              photo: _scenePhoto,
+              onPick: () => _pickImage(false),
+            ),
+            const SizedBox(height: 24),
+            AppButton(
+              label: _isSubmitting ? 'Uploading...' : 'Upload & Complete',
+              onPressed: _isSubmitting ? null : _uploadProof,
+              color: AppColors.riderGreen,
+            ),
+          ],
         ],
       ),
     );

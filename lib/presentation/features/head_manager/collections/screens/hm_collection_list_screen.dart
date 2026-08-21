@@ -55,7 +55,9 @@ class HmCollectionListScreen extends ConsumerWidget {
             child: state.isLoading
                 ? const ShimmerLoader()
                 : state.items.isEmpty
-                    ? _buildEmpty()
+                    ? (state.error != null
+                        ? _buildError(context, ref, state.error!)
+                        : _buildEmpty())
                     : _buildList(context, state),
           ),
           if (state.totalPages > 1)
@@ -88,6 +90,35 @@ class HmCollectionListScreen extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildError(BuildContext context, WidgetRef ref, String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined,
+                size: 56, color: AppColors.textTertiary),
+            const SizedBox(height: 12),
+            const Text('Failed to load collections',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(message,
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => ref.read(hmCollectionProvider.notifier).fetch(),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

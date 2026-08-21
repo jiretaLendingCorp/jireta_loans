@@ -17,7 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
-import { getPaymentLoanId, getLoanFinancials, getSchedulePayment } from '../_shared/loan_financials.ts';
+import { getPaymentLoanId, getLoanFinancials, allocatePayment } from '../_shared/loan_financials.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'record-office';
@@ -92,24 +92,43 @@ async function handleRecordOffice(req: Request) {
     .from('loan_schedules')
     .select('id, amount_due, due_date')
     .eq('id', loan_schedule_id)
+    .eq('loan_id', loan_id)
     .single();
 
   if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
-  const schedulePayment = await getSchedulePayment(db, loan_schedule_id);
-  if (schedulePayment.amount_paid >= Number(schedule.amount_due)) return errorResponse('Installment already paid', 409, 'PAYMENT_ALREADY_MADE');
 
-  const { data: payment, error: payErr } = await db.from('payments').insert({
-    loan_schedule_id,
-    amount: Number(amount),
+  // The recorded cash is allocated across unpaid installments in due order:
+  // the chosen installment is settled first, then any excess rolls forward to
+  // later installments. This lets staff take advance payments (one payment
+  // covering several upcoming installments) in a single transaction, and makes
+  // double-recording on an already-paid installment impossible — excess can
+  // only ever land on still-unpaid installments.
+  const allocations = await allocatePayment(db, loan_id, Number(amount));
+  if (allocations.length === 0) {
+    return errorResponse('No unpaid installments remaining', 409, 'PAYMENT_ALREADY_MADE');
+  }
+
+  const paymentRows = allocations.map((a, i) => ({
+    loan_schedule_id: a.loan_schedule_id,
+    amount: a.amount,
     payment_method: 'office_cash',
     status: 'verified',
     recorded_by: authResult.id,
-    idempotency_key: idempotencyKey,
+    idempotency_key: allocations.length > 1 ? `${idempotencyKey}-${i + 1}` : idempotencyKey,
     notes: notes ?? null,
     paid_at: new Date().toISOString(),
-  }).select().single();
+  }));
 
-  if (payErr || !payment) return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
+  const { data: insertedPayments, error: payErr } = await db
+    .from('payments')
+    .insert(paymentRows)
+    .select();
+
+  if (payErr || !insertedPayments || insertedPayments.length === 0) {
+    console.error('payment insert failed:', payErr);
+    return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
+  }
+  const payment = insertedPayments[0];
 
   // If this payment settles a lender-initiated office visit request, complete it.
   if (assignment_id) {

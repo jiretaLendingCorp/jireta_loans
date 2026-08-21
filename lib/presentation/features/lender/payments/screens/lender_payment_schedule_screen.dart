@@ -227,7 +227,10 @@ class _ScheduleTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isPaid = schedule.status == 'paid';
     final isOverdue = schedule.status == 'overdue';
-    final isPending = schedule.status == 'pending';
+    // Payable in any state that still has an unpaid remainder: pending,
+    // partially paid (top-up), overdue, or a future installment (advance
+    // payment). Only fully-paid installments are excluded.
+    final canPay = !isPaid && collectionStatus == null;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -295,13 +298,15 @@ class _ScheduleTile extends ConsumerWidget {
                 _CollectionChip(
                     status: collectionStatus!,
                     type: collectionType ?? 'rider')
-              else if (isPending)
+              else if (canPay)
                 GestureDetector(
                   onTap: () =>
                       context.push(RouteConstants.lenderPaymentMethod, extra: {
                     'loan_id': activeLoanId,
                     'schedule_id': schedule.id,
-                    'amount': schedule.amountDue,
+                    'amount': schedule.remainingAmount > 0
+                        ? schedule.remainingAmount
+                        : schedule.amountDue,
                     'due_date': schedule.dueDate.toDateString(),
                   }),
                   child: Container(

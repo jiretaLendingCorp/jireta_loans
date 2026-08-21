@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -112,21 +113,24 @@ class _EmpCollectionListScreenState
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
-                : items.isEmpty
-                    ? const EmptyStateWidget(
-                        icon: Icons.local_shipping_outlined,
-                        title: 'No collections found',
-                        subtitle: 'Assign a rider to begin collection.',
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) => _CollectionCard(
-                          key: ValueKey(items[i]['id']),
-                          collection: items[i],
-                        ),
-                      ),
+                : state.hasError
+                    ? _buildError(context)
+                    : items.isEmpty
+                        ? const EmptyStateWidget(
+                            icon: Icons.local_shipping_outlined,
+                            title: 'No collections found',
+                            subtitle: 'Assign a rider to begin collection.',
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: items.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (ctx, i) => _CollectionCard(
+                              key: ValueKey(items[i]['id']),
+                              collection: items[i],
+                            ),
+                          ),
           ),
           if (totalPages > 1)
             TablePagination(
@@ -143,6 +147,46 @@ class _EmpCollectionListScreenState
               },
             ),
         ],
+      ),
+    );
+  }
+  Widget _buildError(BuildContext context) {
+    final state = ref.watch(empCollectionListProvider);
+    final message =
+        ErrorHandler.handle(state.error).message;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined,
+                size: 56, color: AppColors.textTertiary),
+            const SizedBox(height: 12),
+            const Text(
+              'Failed to load collections',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => ref
+                  .read(empCollectionListProvider.notifier)
+                  .loadList(
+                      status: _tabs[_tabCtrl.index].$1 == 'all'
+                          ? null
+                          : _tabs[_tabCtrl.index].$1),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
