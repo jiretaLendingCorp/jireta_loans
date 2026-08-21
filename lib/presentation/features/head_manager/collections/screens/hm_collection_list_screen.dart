@@ -208,12 +208,21 @@ class _CollectionCardState extends State<_CollectionCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Lender identity is the primary info staff need to
+                    // dispatch a rider — who requested, for which loan.
                     Text(
-                      '₱${widget.fmt.format(amount)}',
+                      col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender',
                       style: const TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      col.loanNumber.isNotEmpty ? col.loanNumber : '—',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 3),
                     Row(
@@ -251,6 +260,17 @@ class _CollectionCardState extends State<_CollectionCard> {
                     ),
                   ],
                 ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('₱${widget.fmt.format(amount)}',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: 6),
+                ],
               ),
               StatusBadge(status: col.status),
               const SizedBox(width: 8),

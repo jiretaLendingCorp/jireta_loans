@@ -226,6 +226,22 @@ class _CollectionCard extends ConsumerWidget {
         (collection['loan_schedule']?['amount_due'] as num?)?.toDouble() ??
         0.0;
     final schedule = collection['collection_schedule'] as String?;
+    final lenderPhone = collection['lender_phone'] as String?;
+    final addresses =
+        (collection['lender_addresses'] as List?) ?? const [];
+    final primaryAddr = addresses.isEmpty
+        ? null
+        : addresses.firstWhere(
+            (a) => a is Map && a['is_primary'] == true,
+            orElse: () => addresses.first,
+          ) as Map?;
+    final addrText = primaryAddr == null
+        ? null
+        : [
+            primaryAddr['street'],
+            primaryAddr['barangay'],
+            primaryAddr['city'],
+          ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
 
     return Card(
       elevation: 1,
@@ -270,7 +286,22 @@ class _CollectionCard extends ConsumerWidget {
                     const SizedBox(height: 2),
                     Text(lenderName,
                         style: const TextStyle(
-                            fontSize: 13, color: AppColors.textSecondary)),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary)),
+                    if (lenderPhone != null &&
+                        lenderPhone.toString().isNotEmpty)
+                      Text('Phone: $lenderPhone',
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary)),
+                    if (addrText != null && addrText.isNotEmpty)
+                      Text(addrText,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary)),
                     Text(isOffice ? 'Office visit payment' : 'Rider: $riderName',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textTertiary)),

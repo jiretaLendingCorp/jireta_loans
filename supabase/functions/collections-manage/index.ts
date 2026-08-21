@@ -30,6 +30,16 @@ import {
 // ── [moved from collections-upload-proof] ───────────────────────────────────
 const BUCKET = 'collection-proofs';
 
+// The proof bucket may not exist in a fresh project. Without this guard every
+// upload fails, the old data-URI fallback overflows the VARCHAR(255) proof
+// columns, and the completion UPDATE silently no-ops — leaving assignments
+// stuck in 'in_progress' while the rider sees "success".
+async function ensureProofBucket(db: ReturnType<typeof getAdminClient>): Promise<void> {
+  const { data: buckets } = await db.storage.listBuckets();
+  if (buckets?.some((b) => b.name === BUCKET)) return;
+  await db.storage.createBucket(BUCKET, { public: false, fileSizeLimit: '10MB' });
+}
+
 // ── [moved from collections-upload-proof] ───────────────────────────────────
 const COLUMN_BY_TYPE: Record<string, string> = {
   proof_photo: 'proof_photo',
@@ -437,6 +447,9 @@ async function handleCollectionUploadProof(req: Request) {
   }
 
   const updates: Record<string, string> = {};
+  const failed: string[] = [];
+  await ensureProofBucket(db);
+
   for (const proof of proofs) {
     const type = proof?.type as string;
     const column = COLUMN_BY_TYPE[type];
@@ -451,33 +464,48 @@ async function handleCollectionUploadProof(req: Request) {
       .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true });
 
     if (uploadError) {
-      console.warn('storage upload failed, falling back to data uri:', uploadError.message);
-      const mime = proof.mime_type ?? 'image/jpeg';
-      updates[column] = `data:${mime};base64,${proof.content_base64}`;
-    } else {
-      const { data: signedUrl } = await db.storage.from(BUCKET).createSignedUrl(path, 3600 * 24 * 7);
-      updates[column] = signedUrl?.signedUrl ?? path;
+      // Never fall back to inline data URIs: the proof columns are
+      // VARCHAR(255) and a base64 image can never fit — the overflow made the
+      // completion UPDATE fail silently while the rider was told "success".
+      console.error(`storage upload failed for ${type}:`, uploadError.message);
+      failed.push(type);
+      continue;
     }
+    const { data: signedUrl } = await db.storage.from(BUCKET).createSignedUrl(path, 3600 * 24 * 7);
+    updates[column] = signedUrl?.signedUrl ?? path;
   }
 
   if (Object.keys(updates).length === 0) {
-    return errorResponse('No valid proofs provided', 400, 'VALIDATION_ERROR');
+    return errorResponse(
+      `Proof storage failed (${failed.join(', ') || 'no valid proofs'}). Please try again.`,
+      502,
+      'PROOF_UPLOAD_FAILED',
+    );
   }
 
-  await db.from('collection_assignments').update({
+  const { error: updErr } = await db.from('collection_assignments').update({
     ...updates,
     status: 'completed',
     completed_at: new Date().toISOString(),
   }).eq('id', assignment_id);
+  if (updErr) {
+    console.error('assignment completion update failed:', updErr);
+    return errorResponse('Failed to mark collection completed', 500, 'SERVER_ERROR');
+  }
 
   await writeAuditLog({
     performedBy: user.id,
     action: 'collection_upload_proof',
     tableName: 'collection_assignments',
     recordId: assignment_id,
-    newValues: { status: 'completed' },
+    newValues: { status: 'completed', failed_proofs: failed },
     ipAddress: ip,
   });
 
-  return jsonResponse({ message: 'Proof uploaded, assignment completed' });
+  return jsonResponse({
+    message: failed.length > 0
+      ? 'Collection completed, but some proofs failed to upload'
+      : 'Proof uploaded, assignment completed',
+    failed_proofs: failed,
+  });
 }
