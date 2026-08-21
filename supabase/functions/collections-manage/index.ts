@@ -124,7 +124,11 @@ async function handleCollectionRequest(req: Request) {
 
   const loan = embedAsObject(schedule.loans);
   if (!loan || loan.lender_id !== user.id) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
-  if (loan.status !== 'active') return errorResponse('Loan is not active', 400, 'INVALID_STATUS');
+  // 'overdue' loans stay collectable — that is exactly when a lender needs a
+  // rider/office collection. Only terminal states are rejected.
+  if (!['active', 'overdue'].includes(loan.status)) {
+    return errorResponse('Loan is not in a payable status', 400, 'INVALID_STATUS');
+  }
 
   const payment = await getSchedulePayment(db, loan_schedule_id);
   if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') {
@@ -225,7 +229,7 @@ async function handleCollectionAssign(req: Request) {
       .select('id, loan_id, amount_due, due_date, loans(status)')
       .eq('id', existing.loan_schedule_id).single();
     if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
-    if (embedAsObject(schedule?.loans)?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');
+    if (!['active', 'overdue'].includes((embedAsObject(schedule?.loans)?.status) ?? '')) return errorResponse('Loan is not in a payable status', 400, 'INVALID_STATUS');
     const payment = await getSchedulePayment(db, existing.loan_schedule_id);
     if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') {
       return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
@@ -250,7 +254,7 @@ async function handleCollectionAssign(req: Request) {
 
   const { data: schedule } = await db.from('loan_schedules').select('id, loan_id, amount_due, due_date, loans(status)').eq('id', loan_schedule_id).single();
   if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
-  if (embedAsObject(schedule?.loans)?.status !== 'active') return errorResponse('Loan must be active', 400, 'INVALID_STATUS');
+  if (!['active', 'overdue'].includes((embedAsObject(schedule?.loans)?.status) ?? '')) return errorResponse('Loan is not in a payable status', 400, 'INVALID_STATUS');
   const payment = await getSchedulePayment(db, loan_schedule_id);
   if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
   const { data: rider } = await db.from('rider_profiles').select('is_available').eq('id', rider_id).single();

@@ -186,6 +186,11 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'apikey': EnvConfig.supabaseAnonKey,
+          // The gateway verifies the bearer before the function runs; without
+          // a valid JWT the refresh is rejected at the edge and the session
+          // can never recover. The anon key always passes; auth-session then
+          // validates the refresh_token itself via the admin client.
+          'Authorization': 'Bearer ${EnvConfig.supabaseAnonKey}',
         },
       ));
       final response = await dio.post(

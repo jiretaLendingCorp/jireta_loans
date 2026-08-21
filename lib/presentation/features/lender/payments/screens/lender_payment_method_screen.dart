@@ -104,9 +104,14 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _requesting = true);
-    final ok = await ref
-        .read(lenderPaymentProvider.notifier)
-        .requestRiderCollection(loanScheduleId: _scheduleId);
+    bool ok = false;
+    try {
+      ok = await ref
+          .read(lenderPaymentProvider.notifier)
+          .requestRiderCollection(loanScheduleId: _scheduleId);
+    } catch (_) {
+      ok = false;
+    }
     if (!mounted) return;
     setState(() => _requesting = false);
 
@@ -134,9 +139,22 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         ),
       );
     } else {
-      _showInfo(
-        ref.read(lenderPaymentProvider).error ??
-            'Failed to submit your request. Please try again.',
+      // Dialog instead of a toast: it can never be missed, and it carries the
+      // server's actual reason (e.g. already-in-progress, loan not payable).
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Request Not Sent'),
+          content: Text(
+            ref.read(lenderPaymentProvider).error ??
+                'Failed to submit your request. Please try again.',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK')),
+          ],
+        ),
       );
     }
   }

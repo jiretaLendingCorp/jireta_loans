@@ -16,6 +16,9 @@ const _noRefreshPaths = {
   'auth-password?fn=reset-password',
   'auth-logout?fn=logout',
   'auth-google?fn=exchange',
+  // Refreshing must never recurse: if the refresh call itself 401s, surface
+  // the error instead of trying to refresh the refresher.
+  AppConstants.authRefreshPath,
 };
 
 class AuthInterceptor extends Interceptor {
@@ -50,6 +53,14 @@ class AuthInterceptor extends Interceptor {
       // Supabase gateway still requires a valid Bearer token to let the
       // request reach the Edge Function. Fall back to the anon key so
       // the gateway passes the request through.
+      options.headers['Authorization'] = 'Bearer ${EnvConfig.supabaseAnonKey}';
+    }
+    // The refresh call MUST carry a always-valid Bearer JWT. The Supabase
+    // gateway verifies the bearer BEFORE invoking the function, so attaching
+    // the possibly-expired user token here gets the refresh itself rejected
+    // with a gateway 401 — an unrecoverable death spiral. The anon key is a
+    // valid non-expiring JWT; auth-session validates the refresh_token itself.
+    if (options.path == AppConstants.authRefreshPath) {
       options.headers['Authorization'] = 'Bearer ${EnvConfig.supabaseAnonKey}';
     }
     handler.next(options);
