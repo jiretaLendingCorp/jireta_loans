@@ -472,7 +472,10 @@ async function handleCollectionUploadProof(req: Request) {
       continue;
     }
     const { data: signedUrl } = await db.storage.from(BUCKET).createSignedUrl(path, 3600 * 24 * 7);
-    updates[column] = signedUrl?.signedUrl ?? path;
+    // Store the STORAGE PATH, not the signed URL: signed URLs embed a JWT and
+    // exceed VARCHAR(255) (now TEXT), which historically made every completion
+    // UPDATE fail. Views sign URLs on read so they are always fresh.
+    updates[column] = path;
   }
 
   if (Object.keys(updates).length === 0) {

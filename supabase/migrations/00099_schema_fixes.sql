@@ -1,6 +1,7 @@
 -- ============================================================
 -- Migration: 00099_schema_fixes.sql
 -- Fixes all remaining schema issues identified in v3 review
+-- IDEMPOTENT: safe to re-run against remote state.
 -- ============================================================
 
 -- ============================================================
@@ -16,30 +17,51 @@ ALTER TABLE public.in_office_applications
 -- FIX #2: PAYMENTS — Enforce at least one FK must be set
 -- Prevents orphaned payment records with no loan linkage.
 -- ============================================================
-ALTER TABLE public.payments
-  ADD CONSTRAINT payments_must_have_link
-  CHECK (
-    loan_schedule_id IS NOT NULL
-    OR collection_assignment_id IS NOT NULL
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'payments_must_have_link'
+  ) THEN
+    ALTER TABLE public.payments
+      ADD CONSTRAINT payments_must_have_link
+      CHECK (
+        loan_schedule_id IS NOT NULL
+        OR collection_assignment_id IS NOT NULL
+      );
+  END IF;
+END $$;
 
 
 -- ============================================================
 -- FIX #3: UNIQUE constraint — role_permissions
 -- Prevents the same permission being granted to a role twice.
 -- ============================================================
-ALTER TABLE public.role_permissions
-  ADD CONSTRAINT uq_role_permission
-  UNIQUE (role_id, permission_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_role_permission'
+  ) THEN
+    ALTER TABLE public.role_permissions
+      ADD CONSTRAINT uq_role_permission
+      UNIQUE (role_id, permission_id);
+  END IF;
+END $$;
 
 
 -- ============================================================
 -- FIX #4: UNIQUE constraint — loan_co_makers
 -- Prevents the same co-maker being linked to a loan twice.
 -- ============================================================
-ALTER TABLE public.loan_co_makers
-  ADD CONSTRAINT uq_loan_co_maker
-  UNIQUE (loan_id, co_maker_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_loan_co_maker'
+  ) THEN
+    ALTER TABLE public.loan_co_makers
+      ADD CONSTRAINT uq_loan_co_maker
+      UNIQUE (loan_id, co_maker_id);
+  END IF;
+END $$;
 
 
 -- ============================================================
@@ -48,6 +70,7 @@ ALTER TABLE public.loan_co_makers
 -- their own notifications. Restrict updatable columns via
 -- the Edge Function; this policy gates the row-level access.
 -- ============================================================
+DROP POLICY IF EXISTS notifications_update_own ON public.notifications;
 CREATE POLICY notifications_update_own
   ON public.notifications
   FOR UPDATE
@@ -60,6 +83,13 @@ CREATE POLICY notifications_update_own
 -- FIX #6: WIZARD STEP — Range check constraint
 -- Adjust upper bound (7) to match your actual wizard steps.
 -- ============================================================
-ALTER TABLE public.in_office_applications
-  ADD CONSTRAINT chk_wizard_step
-  CHECK (wizard_step BETWEEN 1 AND 7);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'chk_wizard_step'
+  ) THEN
+    ALTER TABLE public.in_office_applications
+      ADD CONSTRAINT chk_wizard_step
+      CHECK (wizard_step BETWEEN 1 AND 7);
+  END IF;
+END $$;

@@ -71,9 +71,20 @@ async function handleCollectionGetList(req: Request) {
   };
   if (error) return errorResponse('Failed to fetch collections', 500, 'SERVER_ERROR');
 
+  // Proof columns hold STORAGE PATHS (short, permanent). Convert them to
+  // fresh signed URLs here so every consumer (HM/employee/rider/lender
+  // screens) always receives a viewable link and old rows keep working.
+  const PROOF_FIELDS = ['proof_photo', 'borrower_signature', 'collection_photo'] as const;
+  async function signProof(value: unknown): Promise<unknown> {
+    if (typeof value !== 'string' || value.length === 0) return value;
+    if (value.startsWith('http') || value.startsWith('data:')) return value;
+    const { data: signed } = await db.storage.from('collection-proofs').createSignedUrl(value, 3600 * 24 * 7);
+    return signed?.signedUrl ?? value;
+  }
+
   const loanIds = (data ?? []).map((r) => embedAsObject(embedAsObject(r.loan_schedule)?.loan)?.id).filter(Boolean);
   const financials = await getLoanFinancialsBatch(db, loanIds);
-  const mapped = (data ?? []).map((r) => {
+  const mapped = await Promise.all((data ?? []).map(async (r) => {
     const schedule = embedAsObject(r.loan_schedule);
     const loanEmbed = schedule ? embedAsObject(schedule.loan) : null;
     const lenderProf = loanEmbed ? embedAsObject(loanEmbed.lender_profiles) : null;
@@ -86,8 +97,13 @@ async function handleCollectionGetList(req: Request) {
     const loan = loanEmbed
       ? { ...loanEmbed, outstanding_balance: financials[loanEmbed.id]?.outstanding_balance ?? null }
       : null;
+    const proofs: Record<string, unknown> = {};
+    for (const field of PROOF_FIELDS) {
+      proofs[field] = await signProof(r[field]);
+    }
     return {
       ...r,
+      ...proofs,
       loans: loan,
       // Flat convenience fields so every consumer (employee/HM/rider screens)
       // can render correctly regardless of which nested keys it reads.
@@ -101,6 +117,6 @@ async function handleCollectionGetList(req: Request) {
       period_number: schedule?.installment_number ?? null,
       due_date: schedule?.due_date ?? null,
     };
-  });
+  }));
   return jsonResponse({ data: mapped, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
 }
