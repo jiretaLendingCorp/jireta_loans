@@ -53,6 +53,14 @@ const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 const MAX_LOCKOUT_MINUTES = 2 * 24 * 60; // 48 hours = 2880 minutes
 const MOCK_OTP_CODE = '123456';
 
+async function hashOtpCode(code: string, phone: string): Promise<string> {
+  const data = new TextEncoder().encode(`${code}:${phone}`);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function lockoutMinutes(attempts: number): number {
   if (attempts <= 2) return 0;
   if (attempts === 3) return 3;
@@ -270,11 +278,12 @@ async function handleSendOtp(req: Request) {
   // DEV MOCK: always issue OTP 123456 so lenders/riders can log in without a
   // real SMS delivery. Works regardless of USE_MOCK_SMS.
   const code = MOCK_OTP_CODE;
+  const codeHash = await hashOtpCode(code, phone);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
 
   await db.from('otp_codes').insert({
     phone_number: phone,
-    code,
+    code: codeHash,
     expires_at: expiresAt,
     attempts: 0,
     used: false,
@@ -377,7 +386,8 @@ async function handleVerifyOtp(req: Request) {
       return recordFailure('Too many attempts. Request a new OTP.');
     }
 
-    if (otpRow.code !== otpCode) {
+    const submittedHash = await hashOtpCode(otpCode, phone);
+    if (otpRow.code !== submittedHash) {
       await db.from('otp_codes').update({ attempts: otpRow.attempts + 1 }).eq('id', otpRow.id);
       return recordFailure('Invalid OTP code');
     }

@@ -13,35 +13,63 @@ BEGIN;
 SET search_path = public, extensions;
 
 -- ─────────────────────────────────────────────────────────────────────
--- 1) Rename tables
+-- 1) Rename tables (guarded: the consolidated schema (00001) already uses
+--    the account_upgrade_* names, so these renames are only needed when
+--    replaying on a database created from the ORIGINAL kyc_* migrations).
 -- ─────────────────────────────────────────────────────────────────────
-ALTER TABLE kyc_statuses  RENAME TO account_upgrade_statuses;
-ALTER TABLE kyc_documents RENAME TO account_upgrade_documents;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'kyc_statuses')
+     AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'account_upgrade_statuses') THEN
+    ALTER TABLE kyc_statuses RENAME TO account_upgrade_statuses;
+  END IF;
 
--- ─────────────────────────────────────────────────────────────────────
--- 2) Rename columns / indexes on lender_profiles
--- ─────────────────────────────────────────────────────────────────────
-ALTER TABLE lender_profiles RENAME COLUMN kyc_status TO account_upgrade_status;
-ALTER TABLE lender_profiles RENAME COLUMN kyc_rejection_notes TO account_upgrade_rejection_notes;
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'kyc_documents')
+     AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'account_upgrade_documents') THEN
+    ALTER TABLE kyc_documents RENAME TO account_upgrade_documents;
+  END IF;
 
-ALTER INDEX idx_lender_kyc_status RENAME TO idx_lender_account_upgrade_status;
+  -- lender_profiles: kyc_status / kyc_rejection_notes → account_upgrade_*
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'lender_profiles' AND column_name = 'kyc_status') THEN
+    ALTER TABLE lender_profiles RENAME COLUMN kyc_status TO account_upgrade_status;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'lender_profiles' AND column_name = 'kyc_rejection_notes') THEN
+    ALTER TABLE lender_profiles RENAME COLUMN kyc_rejection_notes TO account_upgrade_rejection_notes;
+  END IF;
 
--- ─────────────────────────────────────────────────────────────────────
--- 3) Rename indexes on the renamed kyc_documents → account_upgrade_documents
--- ─────────────────────────────────────────────────────────────────────
-ALTER INDEX idx_kyc_docs_lender_id RENAME TO idx_account_upgrade_docs_lender_id;
-ALTER INDEX idx_kyc_docs_status    RENAME TO idx_account_upgrade_docs_status;
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_lender_kyc_status') THEN
+    ALTER INDEX idx_lender_kyc_status RENAME TO idx_lender_account_upgrade_status;
+  END IF;
 
--- ─────────────────────────────────────────────────────────────────────
--- 4) RLS policy rename (now on the renamed table)
--- ─────────────────────────────────────────────────────────────────────
-ALTER POLICY kyc_documents_read ON account_upgrade_documents
-  RENAME TO account_upgrade_documents_read;
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_kyc_docs_lender_id') THEN
+    ALTER INDEX idx_kyc_docs_lender_id RENAME TO idx_account_upgrade_docs_lender_id;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'idx_kyc_docs_status') THEN
+    ALTER INDEX idx_kyc_docs_status RENAME TO idx_account_upgrade_docs_status;
+  END IF;
+
+  -- RLS policy rename (on the renamed table)
+  IF EXISTS (SELECT 1 FROM pg_policies
+             WHERE schemaname = 'public' AND tablename = 'account_upgrade_documents'
+               AND policyname = 'kyc_documents_read') THEN
+    ALTER POLICY kyc_documents_read ON account_upgrade_documents
+      RENAME TO account_upgrade_documents_read;
+  END IF;
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────
 -- 5) Realtime publication: remove old table, add renamed one
+--    (guarded so replaying on the consolidated schema is a no-op)
 -- ─────────────────────────────────────────────────────────────────────
-ALTER PUBLICATION supabase_realtime DROP TABLE public.account_upgrade_documents;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication_tables
+             WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'account_upgrade_documents') THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE public.account_upgrade_documents;
+  END IF;
+END $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.account_upgrade_documents;
 
 -- ─────────────────────────────────────────────────────────────────────
