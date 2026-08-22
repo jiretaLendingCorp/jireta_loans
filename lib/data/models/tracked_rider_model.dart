@@ -2,9 +2,10 @@
 /// A rider the lender can currently track live on the home screen.
 ///
 /// Only exists for assignments the rider has ACCEPTED (or is actively
-/// working on): accepted/in_progress collection or credit-investigation, or an
-/// in-flight rider-delivery disbursement. Mirrors the payload of
-/// `location-manage?fn=list-tracked`.
+/// working on): an accepted collection (tracking ends once it is recorded —
+/// the cash handover with the lender is done at that point), an
+/// accepted/in_progress credit-investigation, or an in-flight rider-delivery
+/// disbursement. Mirrors the payload of `location-manage?fn=list-tracked`.
 class TrackedRiderModel {
   final String riderId;
   final String riderName;

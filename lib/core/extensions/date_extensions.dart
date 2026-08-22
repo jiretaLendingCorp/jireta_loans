@@ -11,6 +11,7 @@ extension DateExtensions on DateTime {
   String toDisplay() => AppFormatters.date(this);
   String toDateString() => AppFormatters.date(this);
   String toPhilippineDate() => AppFormatters.date(this);
+  String toDateTimeString() => AppFormatters.dateTime(this);
 
   String get toDisplayDate => AppFormatters.date(this);
   String get toShortDate => AppFormatters.date(this);

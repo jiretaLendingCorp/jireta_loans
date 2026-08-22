@@ -71,8 +71,6 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                     const SizedBox(height: 14),
                     _buildCiTasksCard(context, state),
                     const SizedBox(height: 20),
-                    _buildQuickActions(context),
-                    const SizedBox(height: 20),
                     _buildSectionLabel(
                       context,
                       label: 'Collections',
@@ -310,39 +308,6 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.payments,
-            label: 'Collections',
-            colors: const [AppColors.riderGreen, AppColors.riderGreenDark],
-            onTap: () => context.push(RouteConstants.riderCollections),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.delivery_dining,
-            label: 'Deliveries',
-            colors: const [AppColors.gold, Color(0xFFE9A23B)],
-            onTap: () => context.push(RouteConstants.riderDisbursements),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.fact_check_outlined,
-            label: 'CI Tasks',
-            colors: const [AppColors.info, Color(0xFF2E7CF6)],
-            onTap: () => context.push(RouteConstants.riderCi),
-          ),
-        ),
-      ],
     );
   }
 
@@ -679,59 +644,5 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       default:
         return AppColors.textSecondary;
     }
-  }
-}
-
-class _QuickAction extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final List<Color> colors;
-  final VoidCallback onTap;
-
-  const _QuickAction({
-    required this.label,
-    required this.icon,
-    required this.colors,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: colors,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: colors.first.withValues(alpha: 0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

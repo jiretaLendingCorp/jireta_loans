@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/details/collection_proof_viewer.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
@@ -120,6 +121,19 @@ class _EmpCollectionDetailsScreenState
     final isOfficeRequest = isRequested && isOffice;
     final canReassign =
         ['assigned', 'declined'].contains(status) && !isOffice;
+    final proofItems = <CollectionProofItem>[
+      if (_detail!['proof_photo'] != null)
+        CollectionProofItem(
+            label: 'Payment Proof', url: _detail!['proof_photo'] as String),
+      if (_detail!['borrower_signature'] != null)
+        CollectionProofItem(
+            label: 'Lender Signature',
+            url: _detail!['borrower_signature'] as String),
+      if (_detail!['collection_photo'] != null)
+        CollectionProofItem(
+            label: 'Scene Photo', url: _detail!['collection_photo'] as String),
+    ];
+    final hasProofs = proofItems.isNotEmpty;
 
     return WebScaffold(
       title: 'Collection Details',
@@ -200,34 +214,26 @@ class _EmpCollectionDetailsScreenState
                     _InfoRow('Collection Notes',
                         _detail!['collection_notes'] ?? '-'),
                     _InfoRow('Completed At', _detail!['completed_at'] ?? '-'),
-                  ],
-                ),
-              ),
-            ],
-            if (_detail!['proof_photo'] != null ||
-                _detail!['borrower_signature'] != null) ...[
-              const SizedBox(height: 16),
-              _SectionCard(
-                title: 'Proof of Collection',
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    if (_detail!['proof_photo'] != null)
-                      _ProofImage(
-                        label: 'Payment Proof',
-                        url: _detail!['proof_photo'],
+                    // Proofs open on demand via the View button below.
+                    if (hasProofs) ...[
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: ElevatedButton.icon(
+                          onPressed: () => showCollectionProofDialog(
+                              context, proofItems),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.deepNavy,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 18, vertical: 12),
+                          ),
+                          icon: const Icon(Icons.visibility_outlined,
+                              size: 18),
+                          label: const Text('View Collection Proof'),
+                        ),
                       ),
-                    if (_detail!['borrower_signature'] != null)
-                      _ProofImage(
-                        label: 'Lender Signature',
-                        url: _detail!['borrower_signature'],
-                      ),
-                    if (_detail!['collection_photo'] != null)
-                      _ProofImage(
-                        label: 'Scene Photo',
-                        url: _detail!['collection_photo'],
-                      ),
+                    ],
                   ],
                 ),
               ),
@@ -308,41 +314,6 @@ class _InfoRow extends StatelessWidget {
                 ),
         ],
       ),
-    );
-  }
-}
-
-class _ProofImage extends StatelessWidget {
-  final String label;
-  final String url;
-  const _ProofImage({required this.label, required this.url});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style:
-                const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            url,
-            width: 160,
-            height: 120,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              width: 160,
-              height: 120,
-              color: AppColors.surfaceVariant,
-              child: const Icon(Icons.broken_image_outlined,
-                  color: AppColors.textTertiary),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../core/config/app_config.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/extensions/string_extensions.dart';
@@ -39,7 +40,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         route: RouteConstants.lenderProfile),
   ];
 
-  int _expandedSection = 0;
+  int _expandedSection = -1;
 
   @override
   void initState() {
@@ -77,87 +78,111 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         (userModel?.accountUpgradeStatus ?? 'not_submitted').toLowerCase();
     final isVerified = accountUpgradeStatus == 'verified';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(children: [
-        _buildHeader(fullName, firstName, phone,
-            user.profilePhotoUrl as String?, accountStatus),
-        if (isVerified) ...[
-          const SizedBox(height: 16),
-          _buildEditProfileButton(),
-        ],
-        const SizedBox(height: 22),
-        _sectionTitle('Verification'),
-        const SizedBox(height: 10),
-        _buildAccountUpgradeCard(userModel?.accountUpgradeStatus),
-        if (isVerified) ...[
-          const SizedBox(height: 16),
-          _CollapsibleSection(
-            icon: Icons.person_outline,
-            title: 'Personal Details',
-            isExpanded: _expandedSection == 0,
-            onToggle: () => setState(() => _expandedSection = 0),
-            children: [
-              _infoRow(Icons.person, 'Full Name', fullName),
-              _infoRow(Icons.phone, 'Phone', phone.maskPhone()),
-              _infoRow(Icons.wc, 'Gender', _formatLabel(user.gender)),
-              _infoRow(Icons.favorite_border, 'Civil Status',
-                  _formatLabel(user.civilStatus)),
-              _infoRow(
-                  Icons.cake_outlined,
-                  'Date of Birth',
-                  userModel?.dateOfBirth != null
-                      ? _formatDate(userModel!.dateOfBirth!)
-                      : '—'),
-              _infoRow(Icons.location_on_outlined, 'Address',
-                  _buildAddress(userModel)),
-            ],
+    return LayoutBuilder(builder: (context, constraints) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: ConstrainedBox(
+          constraints:
+              BoxConstraints(minHeight: constraints.maxHeight - 16),
+          child: IntrinsicHeight(
+            child: Column(children: [
+              _buildHeader(fullName, firstName, phone,
+                  user.profilePhotoUrl as String?, accountStatus),
+              if (isVerified) ...[
+                const SizedBox(height: 16),
+                _buildEditProfileButton(),
+              ],
+              const SizedBox(height: 22),
+              _sectionTitle('Verification'),
+              const SizedBox(height: 10),
+              _buildAccountUpgradeCard(userModel?.accountUpgradeStatus),
+              if (isVerified) ...[
+                const SizedBox(height: 16),
+                _CollapsibleSection(
+                  icon: Icons.person_outline,
+                  title: 'Personal Details',
+                  isExpanded: _expandedSection == 0,
+                  onToggle: () => setState(
+                      () => _expandedSection = _expandedSection == 0 ? -1 : 0),
+                  children: [
+                    _infoRow(Icons.person, 'Full Name', fullName),
+                    _infoRow(Icons.phone, 'Phone', phone.maskPhone()),
+                    _infoRow(
+                        Icons.wc, 'Gender', _formatLabel(user.gender)),
+                    _infoRow(Icons.favorite_border, 'Civil Status',
+                        _formatLabel(user.civilStatus)),
+                    _infoRow(
+                        Icons.cake_outlined,
+                        'Date of Birth',
+                        userModel?.dateOfBirth != null
+                            ? _formatDate(userModel!.dateOfBirth!)
+                            : '—'),
+                    _infoRow(Icons.location_on_outlined, 'Address',
+                        _buildAddress(userModel)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _CollapsibleSection(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Financial Details',
+                  isExpanded: _expandedSection == 1,
+                  onToggle: () => setState(
+                      () => _expandedSection = _expandedSection == 1 ? -1 : 1),
+                  children: [
+                    _infoRow(
+                        Icons.account_balance_wallet,
+                        'GCash',
+                        user.gcashNumber != null
+                            ? (user.gcashNumber as String).maskPhone()
+                            : '—'),
+                    _infoRow(Icons.work_outline, 'Employment',
+                        _formatLabel(user.employmentType)),
+                    _infoRow(Icons.business, 'Employer',
+                        user.employerName?.toString() ?? '—'),
+                    _infoRow(
+                        Icons.payments,
+                        'Monthly Income',
+                        user.monthlyIncome != null
+                            ? (user.monthlyIncome as num)
+                                .toDouble()
+                                .toCurrency
+                            : '—'),
+                    _infoRow(Icons.savings_outlined, 'Source of Funds',
+                        _formatLabel(user.sourceOfFunds)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _CollapsibleSection(
+                  icon: Icons.emergency_outlined,
+                  title: 'Emergency Contact',
+                  isExpanded: _expandedSection == 2,
+                  onToggle: () => setState(
+                      () => _expandedSection = _expandedSection == 2 ? -1 : 2),
+                  children: _buildEmergencyRows(userModel?.emergencyContacts),
+                ),
+              ],
+              const SizedBox(height: 22),
+              _sectionTitle('Legal'),
+              const SizedBox(height: 10),
+              _buildLegalCard(context),
+              const SizedBox(height: 22),
+              _sectionTitle('Support'),
+              const SizedBox(height: 10),
+              _buildSupportCard(context),
+              const Spacer(),
+              const SizedBox(height: 22),
+              const Text(
+                'Version ${AppConfig.appVersion}',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+              ),
+              const SizedBox(height: 12),
+              _buildLogoutButton(),
+            ]),
           ),
-          const SizedBox(height: 12),
-          _CollapsibleSection(
-            icon: Icons.account_balance_wallet_outlined,
-            title: 'Financial Details',
-            isExpanded: _expandedSection == 1,
-            onToggle: () => setState(() => _expandedSection = 1),
-            children: [
-              _infoRow(
-                  Icons.account_balance_wallet,
-                  'GCash',
-                  user.gcashNumber != null
-                      ? (user.gcashNumber as String).maskPhone()
-                      : '—'),
-              _infoRow(Icons.work_outline, 'Employment',
-                  _formatLabel(user.employmentType)),
-              _infoRow(Icons.business, 'Employer',
-                  user.employerName?.toString() ?? '—'),
-              _infoRow(
-                  Icons.payments,
-                  'Monthly Income',
-                  user.monthlyIncome != null
-                      ? (user.monthlyIncome as num).toDouble().toCurrency
-                      : '—'),
-              _infoRow(Icons.savings_outlined, 'Source of Funds',
-                  _formatLabel(user.sourceOfFunds)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _CollapsibleSection(
-            icon: Icons.emergency_outlined,
-            title: 'Emergency Contact',
-            isExpanded: _expandedSection == 2,
-            onToggle: () => setState(() => _expandedSection = 2),
-            children: _buildEmergencyRows(userModel?.emergencyContacts),
-          ),
-        ],
-        const SizedBox(height: 22),
-        _sectionTitle('Legal'),
-        const SizedBox(height: 10),
-        _buildLegalCard(context),
-        const SizedBox(height: 22),
-        _buildLogoutButton(),
-        const SizedBox(height: 24),
-      ]),
-    );
+        ),
+      );
+    });
   }
 
   String _buildFullName(dynamic user) {
@@ -518,6 +543,142 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                   title: 'Your Rights',
                   body:
                       'You have the right to access, correct, and request deletion of your data in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildSupportCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(children: [
+        ListTile(
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+                color: AppColors.lenderBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.support_agent,
+                color: AppColors.lenderBlue, size: 22),
+          ),
+          title: const Text('Help Center',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepNavy)),
+          subtitle: const Text('Frequently asked questions and support',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          trailing:
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => const LegalInfoSheet(
+              title: 'Help Center',
+              sections: [
+                LegalSection(
+                  title: 'How do I log in to the app?',
+                  body:
+                      'Enter your registered mobile number and tap Send OTP. You will receive a one-time password (OTP) to verify your account.',
+                ),
+                LegalSection(
+                  title: 'What if I do not receive my OTP?',
+                  body:
+                      'Wait at least 60 seconds before requesting a new OTP. Make sure your mobile number is correct and you have a stable connection.',
+                ),
+                LegalSection(
+                  title: 'How do I apply for a loan?',
+                  body:
+                      'After logging in, go to the Loans section and tap Apply. Fill out the required details and submit your application for review.',
+                ),
+                LegalSection(
+                  title: 'What are the loan requirements?',
+                  body:
+                      'You need a valid government-issued ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.',
+                ),
+                LegalSection(
+                  title: 'How do I pay for my loan?',
+                  body:
+                      'Payments can be made through GCash (via Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.',
+                ),
+                LegalSection(
+                  title: 'Is my personal data safe?',
+                  body:
+                      'Yes. We protect your personal information in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).',
+                ),
+                LegalSection(
+                  title: 'Who can I contact for support?',
+                  body:
+                      'Visit our office during business hours or reach out to our authorized personnel. Never share your OTP or account credentials with anyone.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          leading: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+                color: AppColors.lenderBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12)),
+            child: const Icon(Icons.info_outline,
+                color: AppColors.lenderBlue, size: 22),
+          ),
+          title: const Text('About Jireta',
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepNavy)),
+          subtitle: const Text('Learn more about our company',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          trailing:
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => const LegalInfoSheet(
+              title: 'About Jireta',
+              sections: [
+                LegalSection(
+                  title: 'Company',
+                  body:
+                      'Jireta Loans & Credit Corp 1966 is a lending company offering financial assistance to Filipinos.',
+                ),
+                LegalSection(
+                  title: 'Our Services',
+                  body:
+                      'We provide loans ranging from \u20B13,000 to \u20B1500,000 with clear terms and transparent interest rates.',
+                ),
+                LegalSection(
+                  title: 'Our History',
+                  body:
+                      'Founded in 1966, we have served our clients for decades with reliable and accessible lending services.',
+                ),
+                LegalSection(
+                  title: 'Our Commitment',
+                  body:
+                      'We are committed to providing fast, secure, and convenient loan processing through the mobile app.',
                 ),
               ],
             ),

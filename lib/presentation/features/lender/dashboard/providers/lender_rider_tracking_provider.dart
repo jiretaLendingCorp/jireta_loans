@@ -31,8 +31,10 @@ class LenderRiderTrackingState {
 }
 
 /// Loads the list of riders a lender may currently track (only assignments the
-/// rider has ACCEPTED: collection / CI, or an in-flight rider-delivery
-/// disbursement) and keeps it live via realtime.
+/// rider has ACCEPTED: an unrecorded collection, a CI, or an in-flight
+/// rider-delivery disbursement — collections drop out once recorded, i.e. the
+/// moment the rider has taken the amount from the lender) and keeps it live
+/// via realtime.
 ///
 /// Realtime sources:
 ///  - `rider_locations`      → rider moved (GPS push every ~30s)

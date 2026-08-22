@@ -14,7 +14,7 @@ import 'package:jireta_loans/presentation/features/head_manager/profile/provider
 
 import '../../../helpers/audit_test_helpers.dart';
 
-KpiHeadManagerModel buildKpi() => KpiHeadManagerModel(
+KpiHeadManagerModel buildKpi() => const KpiHeadManagerModel(
       totalEmployees: 12,
       totalRiders: 8,
       totalLenders: 340,
@@ -34,7 +34,7 @@ KpiHeadManagerModel buildKpi() => KpiHeadManagerModel(
       totalCiAssignments: 9,
       totalReportExports: 22,
       totalPendingAccountUpgrade: 3,
-      monthlySeries: const [
+      monthlySeries: [
         MonthlyKpiPoint(month: '2026-03', applications: 12, released: 300000, collected: 240000),
         MonthlyKpiPoint(month: '2026-04', applications: 18, released: 450000, collected: 380000),
         MonthlyKpiPoint(month: '2026-05', applications: 9, released: 220000, collected: 190000),

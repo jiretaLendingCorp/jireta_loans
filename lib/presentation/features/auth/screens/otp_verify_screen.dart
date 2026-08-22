@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -253,14 +252,20 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
         : widget.phone;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: AppTheme.navyOverlay,
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
       child: Scaffold(
-        backgroundColor: AppColors.deepNavy,
+        backgroundColor: Colors.white,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
+          backgroundColor: Colors.white,
           elevation: 0,
+          scrolledUnderElevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(Icons.arrow_back, color: AppColors.deepNavy),
             onPressed: () => context.go(RouteConstants.mobileLogin),
           ),
         ),
@@ -291,7 +296,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                     fontFamily: 'PlayfairDisplay',
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: AppColors.deepNavy,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -299,7 +304,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                   'Enter the 6-digit code sent to\n$maskedPhone',
                   style: const TextStyle(
                     fontSize: 14,
-                    color: Colors.white60,
+                    color: AppColors.textSecondary,
                     height: 1.5,
                   ),
                   textAlign: TextAlign.center,
@@ -310,6 +315,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.deepNavy.withValues(alpha: 0.06),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
                   child: Column(
                     children: [

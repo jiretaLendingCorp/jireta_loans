@@ -147,12 +147,15 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                           child: _MyLoanCard(loan: activeLoan),
                         ),
                         const SizedBox(height: 6),
-                        _LoanHistorySection(
-                          loans: loanState.loans,
-                          activeLoanId: activeLoan.id,
-                        ),
                       ] else
                         _MyLoansOverview(kpi: state.kpi),
+                      // Loan History renders with or without an active loan —
+                      // a lender whose only loan is already completed must
+                      // still see it here.
+                      _LoanHistorySection(
+                        loans: loanState.loans,
+                        activeLoanId: activeLoan?.id ?? '',
+                      ),
                       const LenderRiderTrackingCard(),
                       const SizedBox(height: 20),
                       if (state.error != null) _ErrorBanner(state.error!),

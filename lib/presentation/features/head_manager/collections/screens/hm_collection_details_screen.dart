@@ -9,6 +9,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/details/collection_proof_viewer.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../widgets/assign_rider_collection_modal.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -160,17 +161,39 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                     _Row('Period',
                         '${schedule['period_number'] ?? schedule['installment_number'] ?? 'N/A'}'),
                     _Row('Idempotency Key', col.idempotencyKey ?? 'N/A'),
+                    // Proofs open on demand via the View button below.
+                    if (col.proofPhoto != null ||
+                        col.borrowerSignature != null ||
+                        col.collectionPhoto != null) ...[
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: () => showCollectionProofDialog(context, [
+                          if (col.proofPhoto != null)
+                            CollectionProofItem(
+                                label: 'Payment Proof', url: col.proofPhoto!),
+                          if (col.borrowerSignature != null)
+                            CollectionProofItem(
+                                label: 'Borrower Signature',
+                                url: col.borrowerSignature!),
+                          if (col.collectionPhoto != null)
+                            CollectionProofItem(
+                                label: 'Scene Photo',
+                                url: col.collectionPhoto!),
+                        ]),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.deepNavy,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 12),
+                        ),
+                        icon: const Icon(Icons.visibility_outlined, size: 18),
+                        label: const Text('View Collection Proof'),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
-          if (col.proofPhoto != null ||
-              col.borrowerSignature != null ||
-              col.collectionPhoto != null) ...[
-            const SizedBox(height: 20),
-            _buildProofSection(col),
-          ],
           if (col.locationLat != null) ...[
             const SizedBox(height: 20),
             _buildLocationCard(col),
@@ -257,45 +280,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildProofSection(CollectionAssignmentModel col) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.photo_library_outlined,
-                    color: AppColors.deepNavy, size: 18),
-                SizedBox(width: 8),
-                Text('Collection Proof',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              ],
-            ),
-            const Divider(height: 20),
-            Row(
-              children: [
-                if (col.proofPhoto != null)
-                  _ProofImage(url: col.proofPhoto!, label: 'Payment Proof'),
-                if (col.borrowerSignature != null)
-                  _ProofImage(url: col.borrowerSignature!, label: 'Signature'),
-                if (col.collectionPhoto != null)
-                  _ProofImage(url: col.collectionPhoto!, label: 'Scene Photo'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildLocationCard(CollectionAssignmentModel col) {
     return Card(
       elevation: 0,
@@ -331,47 +315,10 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
   }
 }
 
-class _ProofImage extends StatelessWidget {
-  final String url;
-  final String label;
-  const _ProofImage({required this.url, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            height: 140,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
-              color: AppColors.surfaceVariant,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(
-                      Icons.broken_image_outlined,
-                      color: AppColors.textTertiary)),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-}
-
 class _InfoCard extends StatelessWidget {
   final String title;
   final IconData icon;
-  final List<_Row> rows;
+  final List<Widget> rows;
   const _InfoCard(
       {required this.title, required this.icon, required this.rows});
 
@@ -398,24 +345,7 @@ class _InfoCard extends StatelessWidget {
               ],
             ),
             const Divider(height: 20),
-            ...rows.map((r) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                          width: 130,
-                          child: Text(r.label,
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary))),
-                      Expanded(
-                          child: Text(r.value,
-                              style: const TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w500))),
-                    ],
-                  ),
-                )),
+            ...rows,
           ],
         ),
       ),
@@ -423,8 +353,29 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _Row {
+class _Row extends StatelessWidget {
   final String label;
   final String value;
   const _Row(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+              width: 130,
+              child: Text(label,
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary))),
+          Expanded(
+              child: Text(value,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
 }

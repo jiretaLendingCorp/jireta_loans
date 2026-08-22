@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_collection_provider.dart';
@@ -84,10 +85,9 @@ class _RiderNavigateToBorrowerScreenState
     );
   }
 
-  Widget _buildContent(dynamic col) {
-    final addresses = col.lenderAddresses as List? ?? [];
-    final borrowerName =
-        (col.lenderName as String).isEmpty ? 'Lender' : col.lenderName;
+  Widget _buildContent(CollectionAssignmentModel col) {
+    final addresses = col.lenderAddresses;
+    final borrowerName = col.lenderName.isEmpty ? 'Lender' : col.lenderName;
 
     final homeAddr = addresses.firstWhere(
       (a) => (a as Map)['address_type'] == 'home',

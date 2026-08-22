@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/string_extensions.dart';
+import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../providers/rider_collection_provider.dart';
@@ -61,11 +62,11 @@ class _RiderBorrowerInfoScreenState
     );
   }
 
-  Widget _buildContent(dynamic col) {
-    final fullName = (col.lenderName as String).isEmpty ? '—' : col.lenderName;
-    final phone = (col.lenderPhone as String).isEmpty ? '—' : col.lenderPhone;
-    final gcash = (col.lenderGcash as String).isEmpty ? '—' : col.lenderGcash;
-    final addresses = col.lenderAddresses as List? ?? [];
+  Widget _buildContent(CollectionAssignmentModel col) {
+    final fullName = col.lenderName.isEmpty ? '—' : col.lenderName;
+    final phone = col.lenderPhone.isEmpty ? '—' : col.lenderPhone;
+    final gcash = col.lenderGcash.isEmpty ? '—' : col.lenderGcash;
+    final addresses = col.lenderAddresses;
 
     return RefreshIndicator(
       color: AppColors.riderGreen,

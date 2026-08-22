@@ -162,9 +162,9 @@ async function handleGetRider(req: Request) {
 
     if (authResult.role === ROLES.LENDER) {
       // Mirror `list-tracked`: the rider's live location is only exposed to the
-      // lender while there is an ACTIVE assignment (accepted/in_progress
-      // collection or CI, or an in-flight rider-delivery disbursement) on one
-      // of the lender's loans.
+      // lender while there is an ACTIVE assignment (accepted collection,
+      // accepted/in_progress CI, or an in-flight rider-delivery disbursement)
+      // on one of the lender's loans.
       const [collectionRows, ciRows, disbRows] = await Promise.all([
         (db
           .from('collection_assignments')
@@ -343,11 +343,20 @@ async function handleGetRider(req: Request) {
 //
 // Business rule: a rider's live location is only exposed to the lender AFTER
 // the rider accepts the assignment. This action returns one entry per ACTIVE
-// assignment (accepted/in_progress collection or CI, or an in-flight
-// rider-delivery disbursement) on any of the lender's loans, each merged with
-// the rider's latest GPS fix from `rider_locations` (when one exists).
+// assignment on any of the lender's loans, each merged with the rider's latest
+// GPS fix from `rider_locations` (when one exists).
 // `assignment_type` ∈ collection | ci | disbursement.
-const TRACKED_COLLECTION_STATUSES = ['accepted', 'in_progress'];
+//
+// Collections drop out of tracking as soon as they are recorded
+// (`in_progress`): recording happens face-to-face with the lender and already
+// writes a verified payment + completed_at + amount_collected, so the cash
+// handover is done at that point — there is nothing left to track. Keeping
+// `in_progress` rows visible made riders linger on the live map forever
+// whenever the proof-upload step was skipped ("Skip & Complete Later") or its
+// storage upload failed, since no other transition ever leaves that state.
+// CIs stay tracked through in_progress because an investigation genuinely
+// runs in the field over time.
+const TRACKED_COLLECTION_STATUSES = ['accepted'];
 const TRACKED_CI_STATUSES = ['accepted', 'in_progress'];
 
 // Deeply-nested renamed embeds in the select strings below trip supabase-js's

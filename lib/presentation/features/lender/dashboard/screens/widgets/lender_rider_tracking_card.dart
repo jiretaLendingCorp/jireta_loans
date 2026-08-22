@@ -13,9 +13,10 @@ import '../../providers/lender_rider_tracking_provider.dart';
 ///
 /// Renders only while the lender has riders with ACCEPTED (or in-flight)
 /// assignments on their loans (collection / delivery / credit investigation).
-/// The embedded map + per-rider status list stay live via realtime
-/// (`rider_locations` pushes every ~30s; assignment accept/completion appears
-/// and disappears automatically).
+/// A collection disappears as soon as the rider records it (amount taken from
+/// the lender); the embedded map + per-rider status list stay live via
+/// realtime (`rider_locations` pushes every ~30s; assignment accept/completion
+/// appears and disappears automatically).
 class LenderRiderTrackingCard extends ConsumerStatefulWidget {
   const LenderRiderTrackingCard({super.key});
 

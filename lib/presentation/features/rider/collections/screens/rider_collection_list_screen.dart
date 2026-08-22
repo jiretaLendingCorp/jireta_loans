@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -141,14 +142,16 @@ class _RiderCollectionListScreenState
     );
   }
 
-  Widget _buildCard(BuildContext context, dynamic c) {
-    final loanSchedule = c.loanSchedule as Map<String, dynamic>?;
-    final lenderName = (c.lenderName as String).isEmpty ? 'Lender' : c.lenderName;
+  Widget _buildCard(BuildContext context, CollectionAssignmentModel c) {
+    final loanSchedule = c.loanSchedule;
+    final lenderName = c.lenderName.isEmpty ? 'Lender' : c.lenderName;
     final amountDue = (c.amountDue == 0)
         ? (loanSchedule?['installment_amount']?.toString() ?? '0.00')
         : c.amountDue.toStringAsFixed(2);
     final dueDate = loanSchedule?['due_date'] != null
-        ? DateTime.tryParse(loanSchedule!['due_date'])?.toDateString() ?? ''
+        ? DateTime.tryParse(loanSchedule!['due_date'].toString())
+                ?.toDateString() ??
+            ''
         : '';
 
     return GestureDetector(

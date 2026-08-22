@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
@@ -132,10 +133,10 @@ class _RiderRecordCollectionScreenState
     );
   }
 
-  Widget _buildForm(dynamic col) {
+  Widget _buildForm(CollectionAssignmentModel col) {
     final amountDue = col.amountDue;
-    final borrowerName = (col.lenderName as String).isEmpty ? '—' : col.lenderName;
-    final loanNumber = (col.loanNumber as String).isEmpty ? '—' : col.loanNumber;
+    final borrowerName = col.lenderName.isEmpty ? '—' : col.lenderName;
+    final loanNumber = col.loanNumber.isEmpty ? '—' : col.loanNumber;
 
     return Form(
       key: _formKey,
