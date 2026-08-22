@@ -83,7 +83,17 @@ class MobileScaffold extends ConsumerWidget {
           actions: [
             if (showNotificationsBell) ...[
               IconButton(
-                onPressed: () => context.go(notificationsRoute),
+                onPressed: () {
+                  // Clear badge instantly when bell is tapped — no need to tap each item.
+                  if (unreadCount > 0) {
+                    if (isLender) {
+                      ref.read(lenderNotificationProvider.notifier).markAllRead();
+                    } else {
+                      ref.read(riderNotificationProvider.notifier).markAllRead();
+                    }
+                  }
+                  context.go(notificationsRoute);
+                },
                 icon: NotificationBadge(
                   count: unreadCount,
                   child: const Icon(

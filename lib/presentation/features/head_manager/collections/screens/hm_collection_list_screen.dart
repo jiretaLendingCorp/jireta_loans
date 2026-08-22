@@ -11,6 +11,8 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_collection_provider.dart';
+import '../widgets/assign_rider_collection_modal.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmCollectionListScreen extends ConsumerWidget {
   const HmCollectionListScreen({super.key});
@@ -138,7 +140,7 @@ class HmCollectionListScreen extends ConsumerWidget {
   }
 }
 
-class _CollectionCard extends StatefulWidget {
+class _CollectionCard extends ConsumerStatefulWidget {
   final dynamic collection;
   final NumberFormat fmt;
   final VoidCallback onTap;
@@ -146,11 +148,39 @@ class _CollectionCard extends StatefulWidget {
       {super.key, required this.collection, required this.fmt, required this.onTap});
 
   @override
-  State<_CollectionCard> createState() => _CollectionCardState();
+  ConsumerState<_CollectionCard> createState() => _CollectionCardState();
 }
 
-class _CollectionCardState extends State<_CollectionCard> {
+class _CollectionCardState extends ConsumerState<_CollectionCard> {
   bool _hover = false;
+
+  bool get _canAssign {
+    final col = widget.collection;
+    final isOffice = col.collectionType == 'office';
+    return col.status == 'requested' && !isOffice;
+  }
+
+  Future<void> _assignRider() async {
+    final col = widget.collection;
+    final loanScheduleId = col.loanScheduleId as String? ?? '';
+    final loanId =
+        (col.loanSchedule?['loan']?['id'] as String?) ??
+            (col.loanSchedule?['loan_id'] as String?) ??
+            '';
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AssignRiderCollectionModal(
+        loanScheduleId: loanScheduleId,
+        loanId: loanId,
+        assignmentId: col.id as String? ?? '',
+      ),
+    );
+    if (result == true && mounted) {
+      context.showSnackBarAsToast(
+        const SnackBar(content: Text('Rider assigned successfully')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -273,6 +303,26 @@ class _CollectionCardState extends State<_CollectionCard> {
               ),
               StatusBadge(status: col.status),
               const SizedBox(width: 8),
+              if (_canAssign) ...[
+                // Outer action: Assign Rider directly from list, not inside details.
+                FilledButton.icon(
+                  onPressed: () {
+                    // Prevent card onTap navigation when pressing button.
+                    _assignRider();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.riderGreen,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: const Icon(Icons.local_shipping_outlined, size: 14),
+                  label: const Text('Assign Rider',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+              ],
               const Icon(Icons.chevron_right,
                   size: 18, color: AppColors.textTertiary),
             ],

@@ -11,12 +11,14 @@ class HmNotificationState {
   final List<Map<String, dynamic>> smsLogs;
   final bool isLoading;
   final String? error;
+  final int unreadCount;
 
   const HmNotificationState({
     this.notifications = const [],
     this.smsLogs = const [],
     this.isLoading = false,
     this.error,
+    this.unreadCount = 0,
   });
 
   HmNotificationState copyWith({
@@ -24,12 +26,14 @@ class HmNotificationState {
     List<Map<String, dynamic>>? smsLogs,
     bool? isLoading,
     String? error,
+    int? unreadCount,
   }) =>
       HmNotificationState(
         notifications: notifications ?? this.notifications,
         smsLogs: smsLogs ?? this.smsLogs,
         isLoading: isLoading ?? this.isLoading,
         error: error,
+        unreadCount: unreadCount ?? this.unreadCount,
       );
 }
 
@@ -38,15 +42,21 @@ class HmNotificationNotifier extends StateNotifier<HmNotificationState>
   final NotificationRemoteDataSource _ds;
 
   HmNotificationNotifier(this._ds) : super(const HmNotificationState()) {
-    bindRealtimeRefresh(['notifications'], refresh: () => loadNotifications(silent: true));
+    bindRealtimeRefresh(['notifications'],
+        refresh: () => loadNotifications(silent: true));
     loadNotifications();
   }
 
   Future<void> loadNotifications({bool silent = false}) async {
-    if (!silent) state = state.copyWith(isLoading: true);
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      final list = await _ds.getList(page: 1);
-      state = state.copyWith(notifications: list, isLoading: false);
+      final result = await _ds.getListWithUnread(page: 1);
+      state = state.copyWith(
+        notifications: result.items,
+        unreadCount: result.unreadCount,
+        isLoading: false,
+        error: null,
+      );
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
@@ -56,24 +66,40 @@ class HmNotificationNotifier extends StateNotifier<HmNotificationState>
 
   Future<void> markRead(String id) async {
     try {
-      await _ds.markRead(notificationId: id);
+      final isUnread =
+          state.notifications.any((n) => n.id == id && !n.isRead);
+      final prevUnread = state.unreadCount;
       final updated = state.notifications.map((n) {
         if (n.id == id) return n.copyWith(isRead: true);
         return n;
       }).toList();
-      state = state.copyWith(notifications: updated);
-    } catch (_) {}
+      // Optimistic update so badge disappears instantly on tap.
+      state = state.copyWith(
+        notifications: updated,
+        unreadCount:
+            isUnread ? (prevUnread - 1).clamp(0, prevUnread) : prevUnread,
+      );
+      await _ds.markRead(notificationId: id);
+    } catch (_) {
+      await loadNotifications(silent: true);
+    }
   }
 
   Future<void> markAllRead() async {
     try {
+      state = state.copyWith(
+        notifications:
+            state.notifications.map((n) => n.copyWith(isRead: true)).toList(),
+        unreadCount: 0,
+      );
       await _ds.markRead();
-      final updated =
-          state.notifications.map((n) => n.copyWith(isRead: true)).toList();
-      state = state.copyWith(notifications: updated);
-    } catch (_) {}
+    } catch (_) {
+      await loadNotifications(silent: true);
+    }
   }
 
+  // Kept for backward compatibility but no longer exposed in UI.
+  // Head Manager / Employee notifications are now read-only and system-driven.
   Future<void> sendNotification({
     required String userId,
     required String title,

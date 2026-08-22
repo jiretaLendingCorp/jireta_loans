@@ -160,14 +160,14 @@ async function handleCollectionRequest(req: Request) {
       // the schedule forever. Expire it and fall through to a fresh request.
       const ageHours = (Date.now() - new Date(active.created_at).getTime()) / 3_600_000;
       if (ageHours < 48) {
-        return jsonResponse({ message: 'Collection request already pending', assignment_id: active.id }, 200);
+        return jsonResponse({ message: 'You have already pending payment', assignment_id: active.id }, 200);
       }
       await db.from('collection_assignments')
         .update({ status: 'failed', collection_notes: 'expired: no action within 48h' })
         .eq('id', active.id)
         .eq('status', 'requested');
     } else {
-      return errorResponse('A collection is already in progress for this schedule', 409, 'ALREADY_IN_PROGRESS');
+      return errorResponse('You have already pending payment', 409, 'ALREADY_IN_PROGRESS');
     }
   }
 
@@ -186,37 +186,45 @@ async function handleCollectionRequest(req: Request) {
         .eq('loan_schedule_id', loan_schedule_id)
         .eq('status', 'requested')
         .maybeSingle();
-      if (existing) return jsonResponse({ message: 'Collection request already pending', assignment_id: existing.id }, 200);
+      if (existing) return jsonResponse({ message: 'You have already pending payment', assignment_id: existing.id }, 200);
     }
     console.error('collection request insert failed:', insErr);
     return errorResponse('Failed to create collection request', 500, 'SERVER_ERROR');
   }
 
-  await writeAuditLog({
-    performedBy: user.id,
-    action: 'collection_request',
-    tableName: 'collection_assignments',
-    recordId: assignment.id,
-    newValues: { loan_schedule_id, collection_type: type, status: 'requested' },
-    ipAddress: ip,
-  });
+  try {
+    await writeAuditLog({
+      performedBy: user.id,
+      action: 'collection_request',
+      tableName: 'collection_assignments',
+      recordId: assignment.id,
+      newValues: { loan_schedule_id, collection_type: type, status: 'requested' },
+      ipAddress: ip,
+    });
+  } catch (e) {
+    console.error('writeAuditLog failed (non-fatal):', e);
+  }
 
-  if (type === 'office') {
-    await notifyStaff({
-      title: 'Office Payment Request',
-      body: 'A lender will visit the office to pay an installment. Please prepare to record the payment.',
-      type: 'office_payment_requested',
-      referenceId: assignment.id,
-      sentBy: user.id,
-    });
-  } else {
-    await notifyStaff({
-      title: 'New Collection Request',
-      body: 'A lender has requested a rider to collect a payment. Please assign a rider.',
-      type: 'collection_requested',
-      referenceId: assignment.id,
-      sentBy: user.id,
-    });
+  try {
+    if (type === 'office') {
+      await notifyStaff({
+        title: 'Office Payment Request',
+        body: 'A lender will visit the office to pay an installment. Please prepare to record the payment.',
+        type: 'office_payment_requested',
+        referenceId: assignment.id,
+        sentBy: user.id,
+      });
+    } else {
+      await notifyStaff({
+        title: 'New Collection Request',
+        body: 'A lender has requested a rider to collect a payment. Please assign a rider.',
+        type: 'collection_requested',
+        referenceId: assignment.id,
+        sentBy: user.id,
+      });
+    }
+  } catch (e) {
+    console.error('notifyStaff failed (non-fatal):', e);
   }
 
   return jsonResponse({ message: 'Collection request created', assignment_id: assignment.id }, 201);

@@ -98,14 +98,20 @@ class CollectionRemoteDataSource {
 
   /// Lender requests a rider to collect their installment at home, or an
   /// office visit to pay at the office (`type` = 'rider' | 'office').
-  Future<void> requestRiderCollection({
+  /// Returns server response body so callers can detect idempotent
+  /// "already pending" (200 with message) vs. real success (201).
+  Future<Map<String, dynamic>> requestRiderCollection({
     required String loanScheduleId,
     String type = 'rider',
   }) async {
-    await _client.post(
+    final res = await _client.post(
       ApiEndpoints.collectionsRequest,
       data: {'loan_schedule_id': loanScheduleId, 'type': type},
     );
+    final data = res.data;
+    if (data is Map<String, dynamic>) return data;
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return {};
   }
 
   Future<void> acceptCollection({required String assignmentId}) async {

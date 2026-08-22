@@ -97,8 +97,8 @@ class _HmPaymentListScreenState extends ConsumerState<HmPaymentListScreen>
   final _tabs = [
     ('all', 'All'),
     ('gcash', 'GCash'),
-    ('cash', 'Cash'),
-    ('rider_collection', 'Collections')
+    ('office_cash', 'Office'),
+    ('rider_collection', 'Rider Collection')
   ];
 
   @override
@@ -283,18 +283,38 @@ class _HmPaymentListScreenState extends ConsumerState<HmPaymentListScreen>
       case 'gcash':
         c = AppColors.lenderBlue;
         break;
+      case 'office_cash':
       case 'cash':
+        c = AppColors.success;
+        break;
+      case 'rider_collection':
         c = AppColors.riderGreen;
         break;
       default:
         c = AppColors.info;
+    }
+    String label;
+    switch (method) {
+      case 'gcash':
+      case 'gcash_xendit':
+        label = 'GCash';
+        break;
+      case 'office_cash':
+      case 'cash':
+        label = 'Office';
+        break;
+      case 'rider_collection':
+        label = 'Rider Collection';
+        break;
+      default:
+        label = _capitalize(method.replaceAll('_', ' '));
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
           color: c.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(4)),
-      child: Text(_capitalize(method.replaceAll('_', ' ')),
+      child: Text(label,
           style:
               TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w500)),
     );

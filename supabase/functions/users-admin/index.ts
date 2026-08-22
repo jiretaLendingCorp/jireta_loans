@@ -144,7 +144,7 @@ async function handleArchive(req: Request) {
   if (!isAuthUser(authResult)) return authResult;
   const user = authResult;
 
-  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
 
   const { user_id } = await req.json();
@@ -153,9 +153,16 @@ async function handleArchive(req: Request) {
   const db = getAdminClient();
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
-  const { data: target } = await db.from('users').select('id, account_status, roles(name)').eq('id', user_id).single();
+  const { data: target } = await db.from('users').select('id, account_status, roles!users_role_id_fkey(name)').eq('id', user_id).single();
   if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
-  if (embedAsObject(target?.roles)?.name === 'head_manager') return errorResponse('Cannot archive a Head Manager', 400, 'FORBIDDEN');
+  const targetRole = embedAsObject((target as Record<string, unknown>)['roles'])?.name as string | undefined;
+  if (targetRole === 'head_manager') return errorResponse('Cannot archive a Head Manager', 400, 'FORBIDDEN');
+  if (user.role === ROLES.EMPLOYEE && targetRole === 'employee') {
+    return errorResponse('Employees cannot archive other employees', 403, 'FORBIDDEN');
+  }
+  if (user.role === ROLES.EMPLOYEE && targetRole && !['rider', 'lender'].includes(targetRole)) {
+    return errorResponse('Employees can only archive riders and lenders', 403, 'FORBIDDEN');
+  }
   if (target.account_status === 'archived') return errorResponse('User already archived', 400, 'INVALID_STATUS');
 
   const { count: activeLoans } = await db.from('loans').select('*', { count: 'exact', head: true })

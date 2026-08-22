@@ -84,6 +84,11 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
     await _ds.createRider(data);
     await load();
   }
+
+  Future<void> archive(String userId) async {
+    await _ds.archive(userId);
+    await load();
+  }
 }
 
 final empRiderProvider =

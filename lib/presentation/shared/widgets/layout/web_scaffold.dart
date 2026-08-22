@@ -11,7 +11,10 @@ import '../../../../data/models/user_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/employee/profile/providers/emp_profile_provider.dart';
 import '../../../features/head_manager/profile/providers/hm_profile_provider.dart';
+import '../../../features/head_manager/notifications/providers/hm_notification_provider.dart';
+import '../../../features/employee/notifications/providers/emp_notification_provider.dart';
 import '../../providers/auth_state_provider.dart';
+import '../notification_badge.dart';
 import '../profile_avatar.dart';
 
 final _sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
@@ -153,20 +156,35 @@ class _MobileActions extends ConsumerWidget {
     final role = authState.role ?? '';
     void onNotificationTap() {
       if (role == AppConstants.roleHeadManager) {
+        if (ref.read(hmNotificationProvider).unreadCount > 0) {
+          ref.read(hmNotificationProvider.notifier).markAllRead();
+        }
         context.go(RouteConstants.hmNotifications);
       } else if (role == AppConstants.roleEmployee) {
+        if (ref.read(empNotificationProvider).unreadCount > 0) {
+          ref.read(empNotificationProvider.notifier).markAllRead();
+        }
         context.go(RouteConstants.empNotifications);
       }
     }
+
+    final unread = role == AppConstants.roleHeadManager
+        ? ref.watch(hmNotificationProvider).unreadCount
+        : role == AppConstants.roleEmployee
+            ? ref.watch(empNotificationProvider).unreadCount
+            : 0;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
           onPressed: onNotificationTap,
-          icon: const Icon(
-            Icons.notifications_outlined,
-            color: AppColors.textSecondary,
+          icon: NotificationBadge(
+            count: unread,
+            child: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.textSecondary,
+            ),
           ),
         ),
         _UserAvatar(authState: authState),
@@ -218,49 +236,35 @@ class _TopBar extends StatelessWidget {
           const SizedBox(width: 8),
           Consumer(
             builder: (context, ref, _) {
-              const unread = 0;
               final role = authState.role ?? '';
+              final unread = role == AppConstants.roleHeadManager
+                  ? ref.watch(hmNotificationProvider).unreadCount
+                  : role == AppConstants.roleEmployee
+                      ? ref.watch(empNotificationProvider).unreadCount
+                      : 0;
               void onNotificationTap() {
                 if (role == AppConstants.roleHeadManager) {
+                  if (ref.read(hmNotificationProvider).unreadCount > 0) {
+                    ref.read(hmNotificationProvider.notifier).markAllRead();
+                  }
                   context.go(RouteConstants.hmNotifications);
                 } else if (role == AppConstants.roleEmployee) {
+                  if (ref.read(empNotificationProvider).unreadCount > 0) {
+                    ref.read(empNotificationProvider.notifier).markAllRead();
+                  }
                   context.go(RouteConstants.empNotifications);
                 }
               }
 
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IconButton(
-                    onPressed: onNotificationTap,
-                    icon: const Icon(
-                      Icons.notifications_outlined,
-                      color: AppColors.textSecondary,
-                    ),
+              return IconButton(
+                onPressed: onNotificationTap,
+                icon: NotificationBadge(
+                  count: unread,
+                  child: const Icon(
+                    Icons.notifications_outlined,
+                    color: AppColors.textSecondary,
                   ),
-                  if (unread > 0)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: const BoxDecoration(
-                          color: AppColors.error,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Text(
-                          '$unread',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               );
             },
           ),
@@ -484,6 +488,8 @@ class _SidebarState extends ConsumerState<_Sidebar> {
   List<_NavItem> _hmItems(BuildContext ctx) => [
         const _NavItem(
             Icons.dashboard_outlined, 'Dashboard', RouteConstants.hmDashboard),
+        const _NavItem(
+            Icons.group_outlined, 'All Users', RouteConstants.hmAllUsers),
         const _NavItem(
             Icons.people_outline, 'Employees', RouteConstants.hmEmployees),
         const _NavItem(

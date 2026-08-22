@@ -87,6 +87,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Status')),
               DropdownMenuItem(value: 'active', child: Text('Active')),
+              DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
             ],
             onChanged: (v) => ref.read(empRiderProvider.notifier).setStatus(v!),
           ),
@@ -133,7 +134,6 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
   }
 
   Widget _buildRow(UserModel rider, bool isEven) {
-    final isActive = rider.accountStatus == 'active';
     return InkWell(
       key: ValueKey(rider.id),
       onTap: () => context
@@ -171,20 +171,24 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
                 flex: 2,
                 child: Text(rider.plateNumber ?? '—',
                     style: const TextStyle(fontSize: 13))),
-            Expanded(flex: 2, child: _StatusBadge(isActive: isActive)),
+            Expanded(flex: 2, child: _StatusBadge(status: rider.accountStatus)),
             Expanded(
                 flex: 2,
-                child: ElevatedButton(
-                  onPressed: () => context.go(RouteConstants.empRiderDetails
-                      .replaceFirst(':id', rider.id)),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.deepNavy,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      textStyle: const TextStyle(fontSize: 12),
-                      minimumSize: Size.zero),
-                  child: const Text('View'),
+                child: Row(
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => context.go(RouteConstants.empRiderDetails
+                          .replaceFirst(':id', rider.id)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.deepNavy,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          textStyle: const TextStyle(fontSize: 12),
+                          minimumSize: Size.zero),
+                      child: const Text('View'),
+                    ),
+                  ],
                 )),
           ],
         ),
@@ -211,8 +215,20 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
 }
 
 class _StatusBadge extends StatelessWidget {
-  final bool isActive;
-  const _StatusBadge({required this.isActive});
+  final String status;
+  const _StatusBadge({required this.status});
+  bool get isActive => status == 'active';
+  String get label {
+    switch (status) {
+      case 'inactive':
+        return 'Inactive';
+      case 'archived':
+        return 'Archived';
+      default:
+        return status.isEmpty ? 'Inactive' : status;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -221,7 +237,7 @@ class _StatusBadge extends StatelessWidget {
         color: isActive ? AppColors.successLight : AppColors.statusRejectedBg,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(isActive ? 'Active' : 'Inactive',
+      child: Text(label,
           style: TextStyle(
               color: isActive ? AppColors.success : AppColors.error,
               fontSize: 11,

@@ -37,6 +37,7 @@ import '../../presentation/features/employee/payments/screens/emp_payment_list_s
 import '../../presentation/features/employee/profile/screens/emp_profile_screen.dart';
 import '../../presentation/features/employee/riders/screens/emp_rider_details_screen.dart';
 import '../../presentation/features/employee/riders/screens/emp_rider_list_screen.dart';
+import '../../presentation/features/head_manager/all_users/screens/hm_all_users_screen.dart';
 import '../../presentation/features/head_manager/audit/screens/hm_audit_logs_screen.dart';
 import '../../presentation/features/head_manager/ci/screens/hm_ci_details_screen.dart';
 import '../../presentation/features/head_manager/ci/screens/hm_ci_list_screen.dart';
@@ -273,6 +274,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmDashboard,
           builder: (ctx, s) => const HmDashboardScreen()),
+      GoRoute(
+          path: RouteConstants.hmAllUsers,
+          builder: (ctx, s) => const HmAllUsersScreen()),
       GoRoute(
           path: RouteConstants.hmEmployees,
           builder: (ctx, s) => const HmEmployeeListScreen()),

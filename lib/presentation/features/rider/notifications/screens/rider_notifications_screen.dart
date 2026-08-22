@@ -39,6 +39,12 @@ class RiderNotificationsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(riderNotificationProvider);
+    // Fallback: if user lands directly on this route (deep-link/refresh),
+    // still clear the badge without requiring per-item taps.
+    if (state.unreadCount > 0) {
+      Future.microtask(
+          () => ref.read(riderNotificationProvider.notifier).markAllRead());
+    }
 
     return MobileScaffold(
       title: 'Notifications',

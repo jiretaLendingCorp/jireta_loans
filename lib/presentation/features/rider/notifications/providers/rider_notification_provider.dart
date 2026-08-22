@@ -81,11 +81,16 @@ class RiderNotificationNotifier extends StateNotifier<RiderNotificationState>
 
   Future<void> markAllRead() async {
     try {
+      // Optimistic update — badge disappears instantly when bell icon is tapped.
+      final prevNotifications = state.notifications;
+      state = state.copyWith(
+        notifications: prevNotifications.map((n) => n.copyWith(isRead: true)).toList(),
+        unreadCount: 0,
+      );
       await _ds.markRead();
-      final updated =
-          state.notifications.map((n) => n.copyWith(isRead: true)).toList();
-      state = state.copyWith(notifications: updated, unreadCount: 0);
-    } catch (_) {}
+    } catch (_) {
+      await load(silent: true);
+    }
   }
 
   Future<void> refresh() => load();

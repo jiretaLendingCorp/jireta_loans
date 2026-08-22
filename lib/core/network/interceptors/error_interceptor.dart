@@ -18,7 +18,7 @@ class ErrorInterceptor extends Interceptor {
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: message,
-            error: UnauthorizedException(message),
+            error: UnauthorizedException(message, code ?? 'UNAUTHORIZED'),
             response: response,
             type: err.type,
           ));
@@ -26,7 +26,7 @@ class ErrorInterceptor extends Interceptor {
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: message,
-            error: ForbiddenException(message),
+            error: ForbiddenException(message, code ?? 'FORBIDDEN'),
             response: response,
             type: err.type,
           ));
@@ -54,7 +54,31 @@ class ErrorInterceptor extends Interceptor {
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: message,
-            error: ValidationException(message),
+            error: ValidationException(message, code ?? 'VALIDATION_ERROR'),
+            response: response,
+            type: err.type,
+          ));
+        case 404:
+          return handler.reject(DioException(
+            requestOptions: err.requestOptions,
+            message: message.isNotEmpty ? message : 'Not found.',
+            error: NotFoundException(
+                message.isNotEmpty ? message : 'Not found.',
+                code ?? 'NOT_FOUND'),
+            response: response,
+            type: err.type,
+          ));
+        case 409:
+          // Collection request conflict e.g. Already pending payment.
+          // Preserve server code ALREADY_IN_PROGRESS so the provider can
+          // distinguish it from generic conflicts.
+          return handler.reject(DioException(
+            requestOptions: err.requestOptions,
+            message: message.isNotEmpty ? message : 'Conflict.',
+            error: AppException(
+                message.isNotEmpty ? message : 'Conflict.',
+                code: code ?? 'CONFLICT',
+                statusCode: 409),
             response: response,
             type: err.type,
           ));
@@ -64,7 +88,9 @@ class ErrorInterceptor extends Interceptor {
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: message.isNotEmpty ? message : 'Internal server error.',
-            error: ServerException(message),
+            error: ServerException(
+                message.isNotEmpty ? message : 'Internal server error.',
+                code ?? 'SERVER_ERROR'),
             response: response,
             type: err.type,
           ));
@@ -76,7 +102,10 @@ class ErrorInterceptor extends Interceptor {
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
             message: message.isNotEmpty ? message : 'An error occurred.',
-            error: ServerException(message),
+            error: AppException(
+                message.isNotEmpty ? message : 'An error occurred.',
+                code: code ?? 'BAD_REQUEST',
+                statusCode: response.statusCode),
             response: response,
             type: err.type,
           ));

@@ -90,6 +90,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Status')),
               DropdownMenuItem(value: 'active', child: Text('Active')),
+              DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
             ],
             onChanged: (v) =>
                 ref.read(empLenderProvider.notifier).setStatus(v!),
@@ -109,10 +110,10 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
             const Divider(height: 1),
             ...lenders.asMap().entries.map(
                   (e) => _buildTableRow(e.value, e.key.isEven),
-                ),
-          ],
-        ),
-      ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -227,8 +228,8 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
                       ),
                     ),
                   ),
-                ],
-              ),
+                 ],
+               ),
             ),
           ],
         ),

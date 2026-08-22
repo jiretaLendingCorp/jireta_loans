@@ -50,9 +50,9 @@ class ErrorHandler {
 
   static Failure _fromAppException(AppException e) {
     if (e is UnauthorizedException) return AuthFailure(e.message, code: e.code);
-    if (e is ForbiddenException) return ForbiddenFailure(e.message);
-    if (e is ValidationException) return ValidationFailure(e.message);
-    if (e is NotFoundException) return NotFoundFailure(e.message);
+    if (e is ForbiddenException) return ForbiddenFailure(e.message, code: e.code);
+    if (e is ValidationException) return ValidationFailure(e.message, code: e.code);
+    if (e is NotFoundException) return NotFoundFailure(e.message, code: e.code);
     if (e is NetworkException) return NetworkFailure(e.message);
     if (e is TimeoutException) return NetworkFailure(e.message);
     if (e is AccountLockedException) {
@@ -74,15 +74,18 @@ class ErrorHandler {
     final code = _extractCode(data);
     switch (response.statusCode) {
       case 400:
-        return ValidationFailure(message);
+        return ValidationFailure(message, code: code);
       case 401:
         return AuthFailure(message, code: code ?? 'UNAUTHORIZED');
       case 403:
-        return ForbiddenFailure(message);
+        return ForbiddenFailure(message, code: code);
       case 404:
-        return NotFoundFailure(message);
+        return NotFoundFailure(message, code: code);
+      case 409:
+        // Collection request conflict — preserve ALREADY_IN_PROGRESS etc.
+        return ServerFailure(message, code: code ?? 'CONFLICT');
       case 422:
-        return ValidationFailure(message);
+        return ValidationFailure(message, code: code);
       case 429:
         return const AuthFailure(
           'Too many requests. Please try again.',

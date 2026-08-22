@@ -37,21 +37,15 @@ class _HmNotificationCenterScreenState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(hmNotificationProvider);
+    if (state.unreadCount > 0) {
+      Future.microtask(
+          () => ref.read(hmNotificationProvider.notifier).markAllRead());
+    }
 
     return WebScaffold(
       title: 'Notification Center',
       actions: [
-        ElevatedButton.icon(
-          onPressed: () => _showSendModal(context),
-          icon: const Icon(Icons.send, size: 18),
-          label: const Text('Send Notification'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.gold,
-            foregroundColor: Colors.black87,
-          ),
-        ),
-        const SizedBox(width: 12),
-        if (state.notifications.any((n) => !n.isRead))
+        if (state.unreadCount > 0)
           TextButton(
             onPressed: () =>
                 ref.read(hmNotificationProvider.notifier).markAllRead(),
@@ -59,6 +53,13 @@ class _HmNotificationCenterScreenState
                 style: TextStyle(color: AppColors.deepNavy)),
           ),
         const SizedBox(width: 8),
+        IconButton(
+          onPressed: () =>
+              ref.read(hmNotificationProvider.notifier).loadNotifications(),
+          icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
+          tooltip: 'Refresh',
+        ),
+        const SizedBox(width: 4),
       ],
       body: Column(
         children: [
@@ -120,9 +121,13 @@ class _HmNotificationCenterScreenState
         itemBuilder: (_, i) => _NotifCard(
           key: ValueKey(state.notifications[i].id),
           notif: state.notifications[i],
-          onMarkRead: () => ref
-              .read(hmNotificationProvider.notifier)
-              .markRead(state.notifications[i].id),
+          onTap: () {
+            if (!state.notifications[i].isRead) {
+              ref
+                  .read(hmNotificationProvider.notifier)
+                  .markRead(state.notifications[i].id);
+            }
+          },
         ),
       ),
     );
@@ -166,206 +171,86 @@ class _HmNotificationCenterScreenState
       },
     );
   }
-
-  void _showSendModal(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _SendNotifDialog(
-        onSend: (userId, title, body, type) async {
-          await ref.read(hmNotificationProvider.notifier).sendNotification(
-                userId: userId,
-                title: title,
-                body: body,
-                type: type,
-              );
-        },
-      ),
-    );
-  }
 }
 
 class _NotifCard extends StatelessWidget {
   final NotificationModel notif;
-  final VoidCallback onMarkRead;
+  final VoidCallback onTap;
 
-  const _NotifCard({super.key, required this.notif, required this.onMarkRead});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: notif.isRead ? Colors.white : AppColors.infoLight,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-            color: notif.isRead
-                ? AppColors.border
-                : AppColors.info.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.deepNavy.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.notifications,
-                size: 18, color: AppColors.deepNavy),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(notif.title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(notif.body,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Text(
-                  DateFormat('MMM d, y h:mm a').format(notif.createdAt),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary),
-                ),
-              ],
-            ),
-          ),
-          if (!notif.isRead)
-            TextButton(
-              onPressed: onMarkRead,
-              style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
-              child: const Text('Mark Read',
-                  style: TextStyle(fontSize: 11, color: AppColors.info)),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SendNotifDialog extends StatefulWidget {
-  final Future<void> Function(
-      String userId, String title, String body, String type) onSend;
-
-  const _SendNotifDialog({required this.onSend});
-
-  @override
-  State<_SendNotifDialog> createState() => _SendNotifDialogState();
-}
-
-class _SendNotifDialogState extends State<_SendNotifDialog> {
-  final _userIdCtrl = TextEditingController();
-  final _titleCtrl = TextEditingController();
-  final _bodyCtrl = TextEditingController();
-  String _type = 'general';
-  bool _loading = false;
-
-  @override
-  void dispose() {
-    _userIdCtrl.dispose();
-    _titleCtrl.dispose();
-    _bodyCtrl.dispose();
-    super.dispose();
-  }
+  const _NotifCard({super.key, required this.notif, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Send Notification',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-      content: SizedBox(
-        width: 440,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: notif.isRead ? Colors.white : AppColors.infoLight,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: notif.isRead
+                  ? AppColors.border
+                  : AppColors.info.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _field('Recipient User ID', _userIdCtrl, hint: 'Enter user ID'),
-            const SizedBox(height: 12),
-            _field('Title', _titleCtrl, hint: 'Notification title'),
-            const SizedBox(height: 12),
-            _field('Message', _bodyCtrl,
-                hint: 'Notification body', maxLines: 3),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _type,
-              decoration: InputDecoration(
-                labelText: 'Type',
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.deepNavy.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
               ),
-              items: const [
-                DropdownMenuItem(value: 'general', child: Text('General')),
-                DropdownMenuItem(value: 'loan', child: Text('Loan')),
-                DropdownMenuItem(value: 'payment', child: Text('Payment')),
-                DropdownMenuItem(
-                    value: 'collection', child: Text('Collection')),
-              ],
-              onChanged: (v) => setState(() => _type = v!),
+              child: const Icon(Icons.notifications,
+                  size: 18, color: AppColors.deepNavy),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(notif.title,
+                            style: TextStyle(
+                                fontWeight: notif.isRead
+                                    ? FontWeight.w500
+                                    : FontWeight.w600,
+                                fontSize: 13)),
+                      ),
+                      if (!notif.isRead)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.info,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(notif.body,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('MMM d, y h:mm a').format(notif.createdAt),
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textTertiary),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-        ElevatedButton(
-          onPressed: _loading ? null : _send,
-          style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.deepNavy,
-              foregroundColor: Colors.white),
-          child: _loading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
-              : const Text('Send'),
-        ),
-      ],
     );
-  }
-
-  Widget _field(String label, TextEditingController ctrl,
-      {String? hint, int maxLines = 1}) {
-    return TextField(
-      controller: ctrl,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
-    );
-  }
-
-  Future<void> _send() async {
-    if (_userIdCtrl.text.isEmpty ||
-        _titleCtrl.text.isEmpty ||
-        _bodyCtrl.text.isEmpty) {
-      return;
-    }
-    setState(() => _loading = true);
-    try {
-      await widget.onSend(_userIdCtrl.text.trim(), _titleCtrl.text.trim(),
-          _bodyCtrl.text.trim(), _type);
-      if (mounted) Navigator.pop(context);
-    } catch (_) {
-      setState(() => _loading = false);
-    }
   }
 }

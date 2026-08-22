@@ -1,12 +1,15 @@
 // lib/presentation/features/lender/payments/screens/lender_payment_method_screen.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/logger.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../loans/providers/lender_loan_provider.dart';
+import '../../collections/providers/lender_collection_provider.dart';
 import '../providers/lender_payment_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -78,9 +81,79 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     }
   }
 
+  bool _hasPendingLocally() {
+    final colState = ref.read(lenderCollectionProvider);
+    final raw = colState.valueOrNull;
+    final items = (raw?['items'] as List?) ?? (raw?['data'] as List?) ?? [];
+    for (final item in items) {
+      if (item is! Map) continue;
+      final sid = (item['loan_schedule_id'] as String?) ??
+          (item['loan_schedule'] is Map
+              ? (item['loan_schedule'] as Map)['id'] as String?
+              : null) ??
+          '';
+      final status = item['status'] as String? ?? '';
+      if (sid == _scheduleId &&
+          ['requested', 'assigned', 'accepted', 'in_progress']
+              .contains(status)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _showPendingDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Already Pending'),
+        content: const Text('You have already pending payment'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  String _titleForError(String err) {
+    final low = err.toLowerCase();
+    if (low.contains('already pending')) return 'Already Pending';
+    if (low.contains('not yet ready') || low.contains('not in a payable')) {
+      return 'Loan Not Ready';
+    }
+    if (low.contains('already fully paid') || low.contains('already paid')) {
+      return 'Already Paid';
+    }
+    if (low.contains('session') && low.contains('expired') ||
+        low.contains('log in again')) {
+      return 'Session Expired';
+    }
+    if (low.contains('no internet') || low.contains('unable to reach')) {
+      return 'Connection Error';
+    }
+    if (low.contains('not found') || low.contains('installment not found')) {
+      return 'Not Found';
+    }
+    if (low.contains('access denied') || low.contains('permission')) {
+      return 'Access Denied';
+    }
+    return 'Request Not Sent';
+  }
+
   Future<void> _requestCashCollection() async {
     if (_scheduleId.isEmpty) {
-      _showInfo('Missing installment information. Please try again.');
+      AppLogger.w('[PaymentMethod] _requestCashCollection called with empty schedule_id extra=${widget.extra}');
+      _showInfo('Missing installment information. Please return to Payment Schedule and tap Pay again.');
+      return;
+    }
+    // Client-side guard: if we already know this schedule has a pending
+    // collection, show the pending message immediately without a round-trip.
+    // The server is still the source of truth (see the 200/409 handlers below),
+    // but this avoids the spinner when we can answer locally.
+    if (_hasPendingLocally()) {
+      AppLogger.d('[PaymentMethod] _hasPendingLocally true for $_scheduleId — skipping server call');
+      await _showPendingDialog();
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -103,19 +176,25 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    AppLogger.d('[PaymentMethod] User confirmed rider collection schedule=$_scheduleId loan=${widget.extra['loan_id']}');
     setState(() => _requesting = true);
     bool ok = false;
     try {
       ok = await ref
           .read(lenderPaymentProvider.notifier)
           .requestRiderCollection(loanScheduleId: _scheduleId);
-    } catch (_) {
+    } catch (e, st) {
+      AppLogger.e('[PaymentMethod] requestRiderCollection threw', e, st);
+      if (kDebugMode) debugPrint('[PaymentMethod] exception: $e');
       ok = false;
     }
     if (!mounted) return;
     setState(() => _requesting = false);
+    // Keep the schedule screen's pending chip in sync even before realtime.
+    if (ok) ref.read(lenderCollectionProvider.notifier).loadList();
 
     if (ok) {
+      AppLogger.i('[PaymentMethod] rider request OK schedule=$_scheduleId');
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
@@ -139,16 +218,24 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         ),
       );
     } else {
+      final err = ref.read(lenderPaymentProvider).error ??
+          'Failed to submit your request. Please try again.';
+      AppLogger.w('[PaymentMethod] rider request FAILED schedule=$_scheduleId error=$err');
+      if (kDebugMode) debugPrint('[PaymentMethod] failure dialog error: $err');
+      final title = _titleForError(err);
+      final isPending = title == 'Already Pending';
       // Dialog instead of a toast: it can never be missed, and it carries the
       // server's actual reason (e.g. already-in-progress, loan not payable).
+      // The provider now maps backend codes to friendly sentences so this always
+      // shows the "proper error" (e.g. Loan Not Ready, Already Paid) instead of
+      // a generic "Request Not Sent".
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Request Not Sent'),
-          content: Text(
-            ref.read(lenderPaymentProvider).error ??
-                'Failed to submit your request. Please try again.',
-          ),
+          title: Text(title),
+          content: Text(isPending
+              ? 'You have already pending payment'
+              : err),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -237,13 +324,18 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
             subtitle:
                 'Visit our office to pay in cash. Payment will be recorded on-site and a receipt will be issued.',
             badge: null,
-            onTap: () => context.push(RouteConstants.lenderOfficePayment,
-                extra: {
-                  'loan_id': widget.extra['loan_id'],
-                  'schedule_id': _scheduleId,
-                  'amount': _amount,
-                  'due_date': _dueDate,
-                }),
+            onTap: () {
+              if (_hasPendingLocally()) {
+                _showPendingDialog();
+                return;
+              }
+              context.push(RouteConstants.lenderOfficePayment, extra: {
+                'loan_id': widget.extra['loan_id'],
+                'schedule_id': _scheduleId,
+                'amount': _amount,
+                'due_date': _dueDate,
+              });
+            },
           ),
           const SizedBox(height: 12),
           _MethodCard(

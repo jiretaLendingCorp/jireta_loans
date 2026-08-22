@@ -80,12 +80,23 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
         .toList();
 
     final collAsync = ref.watch(lenderCollectionProvider);
-    final collItems = collAsync.valueOrNull?['items'] as List? ?? [];
+    final raw = collAsync.valueOrNull;
+    // Provider now normalizes to both 'items' and 'data', but be defensive
+    // against old cached shapes or direct server shape.
+    final collItems = (raw?['items'] as List?) ??
+        (raw?['data'] as List?) ??
+        const [];
     final collectionBySchedule = <String, String>{};
     final collectionTypeBySchedule = <String, String>{};
     for (final item in collItems) {
       if (item is! Map) continue;
-      final schedId = item['loan_schedule_id'] as String? ?? '';
+      // Prefer the flat foreign key added to COLLECTION_SELECT; fall back to
+      // the embedded loan_schedule.id for rows from older deployments.
+      final schedId = (item['loan_schedule_id'] as String?) ??
+          (item['loan_schedule'] is Map
+              ? (item['loan_schedule'] as Map)['id'] as String?
+              : null) ??
+          '';
       final status = item['status'] as String? ?? '';
       if (schedId.isNotEmpty &&
           ['requested', 'assigned', 'accepted', 'in_progress']
@@ -150,6 +161,7 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                                 schedule: schedules[i],
                                 index: i,
                                 activeLoanId: loan.id,
+                                loanStatus: loan.status,
                                 collectionStatus: collectionBySchedule[
                                     schedules[i].id],
                                 collectionType: collectionTypeBySchedule[
@@ -214,23 +226,65 @@ class _ScheduleTile extends ConsumerWidget {
   final LoanScheduleModel schedule;
   final int index;
   final String activeLoanId;
+  final String? loanStatus;
   final String? collectionStatus;
   final String? collectionType;
   const _ScheduleTile(
       {required this.schedule,
       required this.index,
       required this.activeLoanId,
+      this.loanStatus,
       this.collectionStatus,
       this.collectionType});
+
+  void _showPendingDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Already Pending'),
+        content: const Text('You have already pending payment'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  void _showLoanNotReadyDialog(BuildContext context) {
+    final status = loanStatus ?? 'unknown';
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Loan Not Ready'),
+        content: Text(
+          'Your loan status is "$status". Only Active or Overdue loans can be collected. '
+          'If your loan was just approved, please wait for fund release/disbursement. '
+          'Contact the office if you think this is an error.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK')),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isPaid = schedule.status == 'paid';
     final isOverdue = schedule.status == 'overdue';
+    final isLoanPayable = loanStatus == 'active' || loanStatus == 'overdue';
     // Payable in any state that still has an unpaid remainder: pending,
     // partially paid (top-up), overdue, or a future installment (advance
     // payment). Only fully-paid installments are excluded.
-    final canPay = !isPaid && collectionStatus == null;
+    // Additionally the parent LOAN must be active/overdue — approved/under_review
+    // loans are not yet disbursed so the backend correctly rejects with
+    // "Loan is not in a payable status". We surface that upfront.
+    final canPay = !isPaid && collectionStatus == null && isLoanPayable;
+    final canPayButLoanNotReady = !isPaid && collectionStatus == null && !isLoanPayable;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -295,20 +349,55 @@ class _ScheduleTile extends ConsumerWidget {
               StatusBadge(status: schedule.status),
               const SizedBox(height: 6),
               if (collectionStatus != null)
-                _CollectionChip(
-                    status: collectionStatus!,
-                    type: collectionType ?? 'rider')
+                GestureDetector(
+                  onTap: () => _showPendingDialog(context),
+                  child: _CollectionChip(
+                      status: collectionStatus!,
+                      type: collectionType ?? 'rider'),
+                )
+              else if (canPayButLoanNotReady)
+                GestureDetector(
+                  onTap: () => _showLoanNotReadyDialog(context),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.textTertiary.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text('Pay',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                )
               else if (canPay)
                 GestureDetector(
-                  onTap: () =>
-                      context.push(RouteConstants.lenderPaymentMethod, extra: {
-                    'loan_id': activeLoanId,
-                    'schedule_id': schedule.id,
-                    'amount': schedule.remainingAmount > 0
-                        ? schedule.remainingAmount
-                        : schedule.amountDue,
-                    'due_date': schedule.dueDate.toDateString(),
-                  }),
+                  onTap: () {
+                    // Defensive: if the collection list just finished loading
+                    // and this tile flipped to pending between build and tap,
+                    // show the pending dialog instead of navigating.
+                    if (collectionStatus != null) {
+                      _showPendingDialog(context);
+                      return;
+                    }
+                    // Loan must be active/overdue per backend handleCollectionRequest.
+                    // Approved/under_review loans are not yet disbursed and will
+                    // be rejected with "Loan is not in a payable status".
+                    if (!isLoanPayable) {
+                      _showLoanNotReadyDialog(context);
+                      return;
+                    }
+                    context.push(RouteConstants.lenderPaymentMethod, extra: {
+                      'loan_id': activeLoanId,
+                      'schedule_id': schedule.id,
+                      'amount': schedule.remainingAmount > 0
+                          ? schedule.remainingAmount
+                          : schedule.amountDue,
+                      'due_date': schedule.dueDate.toDateString(),
+                    });
+                  },
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

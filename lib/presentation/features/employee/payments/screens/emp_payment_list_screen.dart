@@ -12,8 +12,6 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/emp_payment_provider.dart';
-import '../widgets/record_office_payment_modal.dart';
-import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpPaymentListScreen extends ConsumerStatefulWidget {
   const EmpPaymentListScreen({super.key});
@@ -53,16 +51,6 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen> {
     return WebScaffold(
       title: 'Payments',
       actions: [
-        ElevatedButton.icon(
-          onPressed: () => _showRecordModal(context),
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('Record Office Payment'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.gold,
-            foregroundColor: Colors.black87,
-          ),
-        ),
-        const SizedBox(width: 8),
         IconButton(
           onPressed: () => ref.read(empPaymentListProvider.notifier).loadList(
               method: _methodFilter, status: _statusFilter, page: _currentPage),
@@ -120,20 +108,6 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen> {
               },
             ),
         ],
-      ),
-    );
-  }
-
-  void _showRecordModal(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => RecordOfficePaymentModal(
-        onRecorded: () {
-          ref.read(empPaymentListProvider.notifier).loadList(
-              method: _methodFilter, status: _statusFilter, page: _currentPage);
-          context.showSnackBarAsToast(
-              const SnackBar(content: Text('Payment recorded successfully.')));
-        },
       ),
     );
   }
@@ -233,7 +207,8 @@ class _PaymentListView extends StatelessWidget {
       case 'gcash':
         return 'GCash';
       case 'office_cash':
-        return 'Office Cash';
+      case 'cash':
+        return 'Office';
       case 'rider_collection':
         return 'Rider Collection';
       default:

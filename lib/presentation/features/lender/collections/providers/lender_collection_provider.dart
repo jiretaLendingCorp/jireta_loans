@@ -34,7 +34,16 @@ class LenderCollectionNotifier
           'limit': 20,
         },
       );
-      state = AsyncData(res.data as Map<String, dynamic>);
+      final raw = res.data as Map<String, dynamic>;
+      // Server returns {data: [...], total: ...} but legacy screens expect
+      // {items: [...]}. Normalize to both keys so neither shape breaks.
+      final list = (raw['data'] as List?) ?? (raw['items'] as List?) ?? [];
+      state = AsyncData({
+        ...raw,
+        'data': list,
+        'items': list,
+        'total': raw['total'] ?? list.length,
+      });
     } catch (e, s) {
       if (silent && state is AsyncData) return;
       state = AsyncError(e, s);

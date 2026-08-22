@@ -19,17 +19,21 @@ class AuthFailure extends Failure {
 }
 
 class ValidationFailure extends Failure {
-  const ValidationFailure(super.message) : super(code: 'VALIDATION_ERROR');
+  const ValidationFailure(super.message, {String? code})
+      : super(code: code ?? 'VALIDATION_ERROR');
 }
 
 class NotFoundFailure extends Failure {
-  const NotFoundFailure(super.message) : super(code: 'NOT_FOUND');
+  const NotFoundFailure(super.message, {String? code})
+      : super(code: code ?? 'NOT_FOUND');
 }
 
 class ForbiddenFailure extends Failure {
-  const ForbiddenFailure(super.message) : super(code: 'FORBIDDEN');
+  const ForbiddenFailure(super.message, {String? code})
+      : super(code: code ?? 'FORBIDDEN');
 }
 
 class UnknownFailure extends Failure {
-  const UnknownFailure([super.message = 'An unexpected error occurred']);
+  const UnknownFailure([super.message = 'An unexpected error occurred', String? code])
+      : super(code: code);
 }

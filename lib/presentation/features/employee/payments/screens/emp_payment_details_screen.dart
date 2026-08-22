@@ -168,11 +168,14 @@ class _EmpPaymentDetailsScreenState
   String _methodLabel(String m) {
     switch (m) {
       case 'gcash':
-        return 'GCash (Xendit)';
+        return 'GCash';
       case 'office_cash':
-        return 'Office Cash';
+      case 'cash':
+        return 'Office';
       case 'rider_collection':
         return 'Rider Collection';
+      case 'gcash_xendit':
+        return 'GCash';
       default:
         return m;
     }

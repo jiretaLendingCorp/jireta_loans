@@ -254,7 +254,8 @@ class _HmPaymentDetailsScreenState
       case 'gcash':
         return 'GCash';
       case 'office_cash':
-        return 'Office Cash';
+      case 'cash':
+        return 'Office';
       case 'rider_collection':
         return 'Rider Collection';
       default:

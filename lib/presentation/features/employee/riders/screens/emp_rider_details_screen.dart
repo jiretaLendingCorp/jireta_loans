@@ -1,9 +1,11 @@
 // lib/presentation/features/employee/riders/screens/emp_rider_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../../../shared/widgets/details/details_actions_card.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -24,20 +26,30 @@ class EmpRiderDetailsScreen extends ConsumerWidget {
 
     return WebScaffold(
       title: 'Rider Details',
+      actions: [
+        TextButton.icon(
+          onPressed: () => context.pop(),
+          icon: const Icon(Icons.arrow_back, size: 18),
+          label: const Text('Back'),
+        ),
+        const SizedBox(width: 8),
+      ],
       body: state.when(
         loading: () => _buildShimmer(),
         error: (e, _) => Center(
             child: Text('Error: $e',
                 style: const TextStyle(color: AppColors.error))),
-        data: (data) => _buildContent(data),
+        data: (data) => _buildContent(context, ref, data),
       ),
     );
   }
 
-  Widget _buildContent(Map<String, dynamic> data) {
+  Widget _buildContent(
+      BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
     final profile = data['rider_profiles'] as Map<String, dynamic>?;
     final name =
         '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
+    final displayName = name.isEmpty ? 'Rider' : name;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -45,7 +57,7 @@ class EmpRiderDetailsScreen extends ConsumerWidget {
         children: [
           UserProfileHeaderCard(
             photoUrl: data['profile_photo_url'] as String?,
-            name: name.isEmpty ? 'Rider' : name,
+            name: displayName,
             subtitle: data['phone_number'] ?? data['phone'] ?? '—',
             subtitleIcon: Icons.phone_outlined,
             roleLabel: 'Rider',
@@ -85,6 +97,13 @@ class EmpRiderDetailsScreen extends ConsumerWidget {
                 (data['created_at'] ?? '').toString().substring(0, 10),
               ),
             ],
+          ),
+          const SizedBox(height: 20),
+          const DetailsActionsCard(
+            title: 'Actions',
+            icon: Icons.settings_outlined,
+            accentColor: AppColors.riderGreen,
+            actions: [],
           ),
         ],
       ),

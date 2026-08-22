@@ -442,6 +442,21 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
     );
   }
 
+  String _paymentMethodLabel(String m) {
+    switch (m) {
+      case 'gcash':
+      case 'gcash_xendit':
+        return 'GCash';
+      case 'office_cash':
+      case 'cash':
+        return 'Office';
+      case 'rider_collection':
+        return 'Rider Collection';
+      default:
+        return m.replaceAll('_', ' ');
+    }
+  }
+
   Widget _buildPaymentTile(Map<String, dynamic> p, NumberFormat fmt) {
     final method = p['payment_method'] as String? ?? '-';
     final status = p['status'] as String? ?? '-';
@@ -468,7 +483,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                 Text('₱${fmt.format(p['amount'] ?? 0)}',
                     style: const TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 14)),
-                Text('${_capitalize(method)} • ${_formatDate(p['created_at'])}',
+                Text('${_paymentMethodLabel(method)} • ${_formatDate(p['created_at'])}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12)),
               ],

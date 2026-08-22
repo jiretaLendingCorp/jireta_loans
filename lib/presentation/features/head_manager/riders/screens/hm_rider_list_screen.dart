@@ -91,6 +91,8 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All Status')),
                 DropdownMenuItem(value: 'active', child: Text('Active')),
+                DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+                DropdownMenuItem(value: 'archived', child: Text('Archived')),
               ],
               onChanged: (v) =>
                   ref.read(hmRiderProvider.notifier).setStatus(v!),
@@ -292,6 +294,13 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
                     AppColors.primary,
                     () => _openEdit(user),
                   ),
+                  if (user.accountStatus != 'archived')
+                    _btn(
+                      Icons.archive_outlined,
+                      'Archive',
+                      AppColors.error,
+                      () => _confirmArchive(user),
+                    ),
                 ],
               ),
             ),
@@ -313,6 +322,45 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
     if (updated == true) {
       ref.read(hmRiderProvider.notifier).load();
     }
+  }
+
+  void _confirmArchive(UserModel user) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Archive Rider?'),
+        content: Text(
+          'This will archive ${user.firstName} ${user.lastName}. This action cannot be undone easily.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await ref.read(hmRiderProvider.notifier).archive(user.id);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Rider archived successfully')),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to archive: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _statusLabel(String status) {

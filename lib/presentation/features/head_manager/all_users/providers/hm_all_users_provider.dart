@@ -1,55 +1,51 @@
-// lib/presentation/features/employee/lenders/providers/emp_lender_provider.dart
+// lib/presentation/features/head_manager/all_users/providers/hm_all_users_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-class EmpLenderState {
-  final List<UserModel> lenders;
+class HmAllUsersState {
+  final List<UserModel> users;
   final bool isLoading;
   final String? error;
-  final int total;
-  final int page;
   final String search;
   final String statusFilter;
+  final String roleFilter;
 
-  const EmpLenderState({
-    this.lenders = const [],
+  const HmAllUsersState({
+    this.users = const [],
     this.isLoading = false,
     this.error,
-    this.total = 0,
-    this.page = 1,
     this.search = '',
     this.statusFilter = 'all',
+    this.roleFilter = 'all',
   });
 
-  EmpLenderState copyWith({
-    List<UserModel>? lenders,
+  HmAllUsersState copyWith({
+    List<UserModel>? users,
     bool? isLoading,
     String? error,
-    int? total,
-    int? page,
     String? search,
     String? statusFilter,
+    String? roleFilter,
   }) =>
-      EmpLenderState(
-        lenders: lenders ?? this.lenders,
+      HmAllUsersState(
+        users: users ?? this.users,
         isLoading: isLoading ?? this.isLoading,
         error: error,
-        total: total ?? this.total,
-        page: page ?? this.page,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
+        roleFilter: roleFilter ?? this.roleFilter,
       );
 }
 
-class EmpLenderNotifier extends StateNotifier<EmpLenderState>
+class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
-  EmpLenderNotifier(this._ds) : super(const EmpLenderState()) {
-    bindRealtimeRefresh(['users', 'lender_profiles'],
+  HmAllUsersNotifier(this._ds) : super(const HmAllUsersState()) {
+    bindRealtimeRefresh(['users', 'rider_profiles', 'lender_profiles', 'employee_profiles'],
         refresh: () => load(silent: true));
     load();
   }
@@ -58,12 +54,11 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
     if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getUsers(
-        role: 'lender',
+        role: state.roleFilter == 'all' ? null : state.roleFilter,
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
-        page: state.page,
       );
-      state = state.copyWith(lenders: list, isLoading: false);
+      state = state.copyWith(users: list, isLoading: false);
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
@@ -72,23 +67,18 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
   }
 
   void setSearch(String v) {
-    state = state.copyWith(search: v, page: 1);
+    state = state.copyWith(search: v);
     load();
   }
 
   void setStatus(String v) {
-    state = state.copyWith(statusFilter: v, page: 1);
+    state = state.copyWith(statusFilter: v);
     load();
   }
 
-  Future<void> createLender(Map<String, dynamic> data) async {
-    await _ds.createLender(data);
-    await load();
-  }
-
-  Future<void> updateProfile(Map<String, dynamic> data) async {
-    await _ds.updateProfile(data);
-    await load();
+  void setRole(String v) {
+    state = state.copyWith(roleFilter: v);
+    load();
   }
 
   Future<void> archive(String userId) async {
@@ -97,7 +87,7 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
   }
 }
 
-final empLenderProvider =
-    AutoDisposeStateNotifierProvider<EmpLenderNotifier, EmpLenderState>(
-  (ref) => EmpLenderNotifier(sl<UserRemoteDataSource>()),
+final hmAllUsersProvider =
+    AutoDisposeStateNotifierProvider<HmAllUsersNotifier, HmAllUsersState>(
+  (ref) => HmAllUsersNotifier(sl<UserRemoteDataSource>()),
 );

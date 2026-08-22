@@ -1,26 +1,23 @@
-// lib/presentation/features/head_manager/lenders/screens/hm_lender_list_screen.dart
+// lib/presentation/features/head_manager/all_users/screens/hm_all_users_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
-import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
-import '../../../../shared/widgets/status_badge.dart';
-import '../providers/hm_lender_provider.dart';
-import '../widgets/create_lender_modal.dart';
+import '../providers/hm_all_users_provider.dart';
 
-class HmLenderListScreen extends ConsumerStatefulWidget {
-  const HmLenderListScreen({super.key});
+class HmAllUsersScreen extends ConsumerStatefulWidget {
+  const HmAllUsersScreen({super.key});
 
   @override
-  ConsumerState<HmLenderListScreen> createState() => _HmLenderListScreenState();
+  ConsumerState<HmAllUsersScreen> createState() => _HmAllUsersScreenState();
 }
 
-class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
+class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
   final _searchCtrl = TextEditingController();
 
   @override
@@ -31,40 +28,25 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(hmLenderProvider);
+    final state = ref.watch(hmAllUsersProvider);
     return WebScaffold(
-      title: 'Lenders',
-      actions: [
-        ElevatedButton.icon(
-          onPressed: () => showDialog(
-            context: context,
-            builder: (_) => const CreateLenderModal(),
-          ),
-          icon: const Icon(Icons.person_add, size: 18),
-          label: const Text('Register Lender'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.lenderBlue,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        const SizedBox(width: 12),
-      ],
+      title: 'All Users',
       body: Column(
         children: [
           _filters(state),
           Expanded(
             child: state.isLoading
                 ? _shimmer()
-                : state.lenders.isEmpty
+                : state.users.isEmpty
                     ? _empty()
-                    : _table(state.lenders),
+                    : _table(state.users),
           ),
         ],
       ),
     );
   }
 
-  Widget _filters(HmLenderState state) => Container(
+  Widget _filters(HmAllUsersState state) => Container(
         color: Colors.white,
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -73,7 +55,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
               child: TextField(
                 controller: _searchCtrl,
                 decoration: InputDecoration(
-                  hintText: 'Search lenders...',
+                  hintText: 'Search by name, email or phone...',
                   prefixIcon: const Icon(Icons.search, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -82,36 +64,46 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 onChanged: (v) =>
-                    ref.read(hmLenderProvider.notifier).setSearch(v),
+                    ref.read(hmAllUsersProvider.notifier).setSearch(v),
               ),
+            ),
+            const SizedBox(width: 12),
+            DropdownButton<String>(
+              value: state.roleFilter,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All Roles')),
+                DropdownMenuItem(value: 'head_manager', child: Text('Head Manager')),
+                DropdownMenuItem(value: 'employee', child: Text('Employee')),
+                DropdownMenuItem(value: 'rider', child: Text('Rider')),
+                DropdownMenuItem(value: 'lender', child: Text('Lender')),
+              ],
+              onChanged: (v) =>
+                  ref.read(hmAllUsersProvider.notifier).setRole(v!),
             ),
             const SizedBox(width: 12),
             DropdownButton<String>(
               value: state.statusFilter,
               items: const [
-                DropdownMenuItem(value: 'all', child: Text('All')),
+                DropdownMenuItem(value: 'all', child: Text('All Status')),
                 DropdownMenuItem(value: 'active', child: Text('Active')),
                 DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
                 DropdownMenuItem(value: 'archived', child: Text('Archived')),
               ],
               onChanged: (v) =>
-                  ref.read(hmLenderProvider.notifier).setStatus(v!),
+                  ref.read(hmAllUsersProvider.notifier).setStatus(v!),
             ),
           ],
         ),
       );
 
-  Widget _table(List<UserModel> lenders) => SingleChildScrollView(
+  Widget _table(List<UserModel> users) => SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Card(
           child: Column(
             children: [
               _header(),
               const Divider(height: 1),
-              ...lenders
-                  .asMap()
-                  .entries
-                  .map((e) => _row(e.value, e.key.isEven)),
+              ...users.asMap().entries.map((e) => _row(e.value, e.key.isEven)),
             ],
           ),
         ),
@@ -122,72 +114,28 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
         color: AppColors.surfaceVariant,
         child: const Row(
           children: [
-            Expanded(
-              flex: 3,
-              child: Text(
-                'Name',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                'Phone',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                'Account Upgrade Status',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                'Status',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                'Actions',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
+            Expanded(flex: 3, child: Text('Name', style: _hdrStyle)),
+            Expanded(flex: 2, child: Text('Role', style: _hdrStyle)),
+            Expanded(flex: 2, child: Text('Phone', style: _hdrStyle)),
+            Expanded(flex: 2, child: Text('Email', style: _hdrStyle)),
+            Expanded(flex: 1, child: Text('Status', style: _hdrStyle)),
+            Expanded(flex: 2, child: Text('Actions', style: _hdrStyle)),
           ],
         ),
       );
 
+  static const _hdrStyle = TextStyle(
+    fontWeight: FontWeight.w600,
+    fontSize: 13,
+    color: AppColors.textSecondary,
+  );
+
   Widget _row(UserModel user, bool isEven) {
     final isActive = user.accountStatus == 'active';
+    final isArchived = user.accountStatus == 'archived';
     return InkWell(
       key: ValueKey(user.id),
-      onTap: () => context.go(
-        RouteConstants.hmLenderDetails.replaceFirst(':id', user.id),
-      ),
+      onTap: () => _goToDetails(user),
       child: Container(
         color: isEven
             ? Colors.white
@@ -202,7 +150,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                   ProfileAvatar(
                     photoUrl: user.profilePhotoUrl,
                     name: user.firstName,
-                    color: AppColors.lenderBlue,
+                    color: _roleColor(user.role),
                     radius: 18,
                   ),
                   const SizedBox(width: 10),
@@ -218,31 +166,48 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             ),
             Expanded(
               flex: 2,
-              child: Text(
-                user.phoneNumber ?? '—',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _roleColor(user.role).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _roleLabel(user.role),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _roleColor(user.role),
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ),
             Expanded(
               flex: 2,
-              child: user.accountUpgradeStatus == null ||
-                      user.accountUpgradeStatus!.isEmpty
-                  ? const Text('—')
-                  : StatusBadge(
-                      status: user.accountUpgradeStatus!,
-                      small: true,
-                    ),
+              child: Text(
+                user.phoneNumber ?? '—',
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                user.email ?? '—',
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             Expanded(
               flex: 1,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color:
-                      isActive ? AppColors.successLight : AppColors.errorLight,
+                  color: isActive
+                      ? AppColors.successLight
+                      : AppColors.errorLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -263,20 +228,9 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                     Icons.visibility_outlined,
                     'View',
                     AppColors.textSecondary,
-                    () => context.go(
-                      RouteConstants.hmLenderDetails.replaceFirst(
-                        ':id',
-                        user.id,
-                      ),
-                    ),
+                    () => _goToDetails(user),
                   ),
-                  _btn(
-                    Icons.edit_outlined,
-                    'Edit',
-                    AppColors.primary,
-                    () => _openEdit(user),
-                  ),
-                  if (user.accountStatus != 'archived')
+                  if (!isArchived && user.role != 'head_manager')
                     _btn(
                       Icons.archive_outlined,
                       'Archive',
@@ -292,17 +246,19 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
     );
   }
 
-  Future<void> _openEdit(UserModel user) async {
-    final updated = await showDialog<bool>(
-      context: context,
-      builder: (_) => EditUserModal(
-        userId: user.id,
-        initialRole: 'lender',
-        initialStatus: user.accountStatus,
-      ),
-    );
-    if (updated == true) {
-      ref.read(hmLenderProvider.notifier).load();
+  void _goToDetails(UserModel user) {
+    switch (user.role) {
+      case 'employee':
+        context.go(RouteConstants.hmEmployeeDetails.replaceFirst(':id', user.id));
+        break;
+      case 'rider':
+        context.go(RouteConstants.hmRiderDetails.replaceFirst(':id', user.id));
+        break;
+      case 'lender':
+        context.go(RouteConstants.hmLenderDetails.replaceFirst(':id', user.id));
+        break;
+      default:
+        break;
     }
   }
 
@@ -310,7 +266,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Archive Lender?'),
+        title: Text('Archive ${_roleLabel(user.role)}?'),
         content: Text(
           'This will archive ${user.firstName} ${user.lastName}. This action cannot be undone easily.',
         ),
@@ -324,10 +280,11 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await ref.read(hmLenderProvider.notifier).archive(user.id);
+                await ref.read(hmAllUsersProvider.notifier).archive(user.id);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Lender archived successfully')),
+                    SnackBar(
+                        content: Text('${_roleLabel(user.role)} archived successfully')),
                   );
                 }
               } catch (e) {
@@ -343,6 +300,36 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
         ],
       ),
     );
+  }
+
+  Color _roleColor(String role) {
+    switch (role) {
+      case 'employee':
+        return AppColors.deepNavy;
+      case 'rider':
+        return AppColors.riderGreen;
+      case 'lender':
+        return AppColors.lenderBlue;
+      case 'head_manager':
+        return AppColors.gold;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  String _roleLabel(String role) {
+    switch (role) {
+      case 'head_manager':
+        return 'Head Manager';
+      case 'employee':
+        return 'Employee';
+      case 'rider':
+        return 'Rider';
+      case 'lender':
+        return 'Lender';
+      default:
+        return role;
+    }
   }
 
   String _statusLabel(String status) {
@@ -373,12 +360,11 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 64, color: AppColors.textTertiary),
+            Icon(Icons.group_outlined,
+                size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
-            Text(
-              'No lenders found',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
-            ),
+            Text('No users found',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
           ],
         ),
       );

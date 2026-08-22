@@ -1,9 +1,11 @@
 // lib/presentation/features/employee/lenders/screens/emp_lender_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../core/di/injection.dart';
+import '../../../../shared/widgets/details/details_actions_card.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -31,6 +33,12 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
     return WebScaffold(
       title: 'Lender Details',
       actions: [
+        TextButton.icon(
+          onPressed: () => context.pop(),
+          icon: const Icon(Icons.arrow_back, size: 18),
+          label: const Text('Back'),
+        ),
+        const SizedBox(width: 8),
         if (canEdit) ...[
           OutlinedButton.icon(
             onPressed: () => state.whenData((data) => _showEdit(context, data)),
@@ -45,12 +53,13 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
         error: (e, _) => Center(
             child: Text('Error: $e',
                 style: const TextStyle(color: AppColors.error))),
-        data: (data) => _buildContent(data),
+        data: (data) => _buildContent(context, ref, data),
       ),
     );
   }
 
-  Widget _buildContent(Map<String, dynamic> data) {
+  Widget _buildContent(
+      BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
     final name =
         '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}'.trim();
     final lp = data['lender_profiles'] as Map<String, dynamic>?;
@@ -79,7 +88,9 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
               DetailsItem('Civil Status', lp?['civil_status'] ?? '—'),
               DetailsItem(
                 'Date of Birth',
-                (lp?['date_of_birth'] ?? '').toString().substring(0, 10),
+                (lp?['date_of_birth'] ?? '').toString().length >= 10
+                    ? (lp?['date_of_birth'] ?? '').toString().substring(0, 10)
+                    : (lp?['date_of_birth'] ?? '—').toString(),
               ),
               DetailsItem('Employment', lp?['employment_type'] ?? '—'),
               DetailsItem('Employer', lp?['employer_name'] ?? '—'),
@@ -141,7 +152,9 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
               DetailsItem('Account Status', data['account_status'] ?? '—'),
               DetailsItem(
                 'Created At',
-                (data['created_at'] ?? '').toString().substring(0, 10),
+                (data['created_at'] ?? '').toString().length >= 10
+                    ? (data['created_at'] ?? '').toString().substring(0, 10)
+                    : (data['created_at'] ?? '—').toString(),
               ),
               DetailsItem(
                 'Account Upgrade',
@@ -154,6 +167,13 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 20),
+          const DetailsActionsCard(
+            title: 'Actions',
+            icon: Icons.settings_outlined,
+            accentColor: AppColors.lenderBlue,
+            actions: [],
           ),
         ],
       ),

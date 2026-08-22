@@ -225,11 +225,13 @@ class _ReceiptCard extends StatelessWidget {
                 const Divider(height: 16),
                 _Row(
                     'Payment Method',
-                    method == 'gcash'
+                    method == 'gcash' || method == 'gcash_xendit'
                         ? 'GCash'
-                        : method == 'office_cash'
-                            ? 'Office Cash'
-                            : 'Cash Collection'),
+                        : method == 'office_cash' || method == 'cash'
+                            ? 'Office'
+                            : method == 'rider_collection'
+                                ? 'Rider Collection'
+                                : method.replaceAll('_', ' ')),
                 const Divider(height: 16),
                 if (refNum.isNotEmpty) ...[
                   _Row('Reference No.', refNum),

@@ -180,17 +180,22 @@ class _FilterDropdown extends StatelessWidget {
           style: const TextStyle(
               fontSize: 13, color: AppColors.textPrimary, fontFamily: 'Inter'),
           onChanged: (v) => data.onChanged(v ?? 'all'),
-          items: data.options
-              .map((o) => DropdownMenuItem(
-                    value: o,
-                    child: Text(
-                      o == 'all'
-                          ? '${data.label}: All'
-                          : o.replaceAll('_', ' ').toUpperCase(),
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ))
-              .toList(),
+          items: data.options.map((o) {
+            final String display;
+            if (o == 'all') {
+              display = '${data.label}: All';
+            } else if (data.label == 'Method' && o == 'office_cash') {
+              display = 'OFFICE';
+            } else if (data.label == 'Method' && o == 'rider_collection') {
+              display = 'RIDER COLLECTION';
+            } else {
+              display = o.replaceAll('_', ' ').toUpperCase();
+            }
+            return DropdownMenuItem(
+              value: o,
+              child: Text(display, style: const TextStyle(fontSize: 13)),
+            );
+          }).toList(),
         ),
       ),
     );

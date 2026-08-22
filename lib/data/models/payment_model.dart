@@ -41,7 +41,7 @@ class PaymentModel {
         loanId: json['loan_id'] ?? '',
         loanScheduleId: json['loan_schedule_id'],
         amount: (json['amount'] as num?)?.toDouble() ?? 0,
-        method: json['method'] ?? 'cash',
+        method: json['payment_method'] ?? json['method'] ?? 'office_cash',
         status: json['status'] ?? 'pending',
         referenceNumber: json['reference_number'],
         xenditPaymentId: json['xendit_payment_id'],
@@ -74,12 +74,15 @@ class PaymentModel {
     switch (method) {
       case 'gcash':
         return 'GCash';
-      case 'cash':
-        return 'Cash';
       case 'office_cash':
-        return 'Office Cash';
+      case 'cash':
+        return 'Office';
+      case 'rider_collection':
+        return 'Rider Collection';
+      case 'gcash_xendit':
+        return 'GCash';
       default:
-        return method;
+        return method.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
     }
   }
 

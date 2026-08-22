@@ -45,6 +45,10 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderNotificationProvider);
+    if (state.unreadCount > 0) {
+      Future.microtask(
+          () => ref.read(lenderNotificationProvider.notifier).markAllRead());
+    }
 
     return MobileScaffold(
       title: 'Notifications',

@@ -1,12 +1,15 @@
 // lib/presentation/features/lender/payments/screens/lender_office_payment_screen.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/logger.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../loans/providers/lender_loan_provider.dart';
+import '../../collections/providers/lender_collection_provider.dart';
 import '../providers/lender_payment_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -77,9 +80,75 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     }
   }
 
+  bool _hasPendingLocally() {
+    final colState = ref.read(lenderCollectionProvider);
+    final raw = colState.valueOrNull;
+    final items = (raw?['items'] as List?) ?? (raw?['data'] as List?) ?? [];
+    for (final item in items) {
+      if (item is! Map) continue;
+      final sid = (item['loan_schedule_id'] as String?) ??
+          (item['loan_schedule'] is Map
+              ? (item['loan_schedule'] as Map)['id'] as String?
+              : null) ??
+          '';
+      final status = item['status'] as String? ?? '';
+      if (sid == _scheduleId &&
+          ['requested', 'assigned', 'accepted', 'in_progress']
+              .contains(status)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _showPendingDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Already Pending'),
+        content: const Text('You have already pending payment'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  String _titleForError(String err) {
+    final low = err.toLowerCase();
+    if (low.contains('already pending')) return 'Already Pending';
+    if (low.contains('not yet ready') || low.contains('not in a payable')) {
+      return 'Loan Not Ready';
+    }
+    if (low.contains('already fully paid') || low.contains('already paid')) {
+      return 'Already Paid';
+    }
+    if (low.contains('session') && low.contains('expired') ||
+        low.contains('log in again')) {
+      return 'Session Expired';
+    }
+    if (low.contains('no internet') || low.contains('unable to reach')) {
+      return 'Connection Error';
+    }
+    if (low.contains('not found') || low.contains('installment not found')) {
+      return 'Not Found';
+    }
+    if (low.contains('access denied') || low.contains('permission')) {
+      return 'Access Denied';
+    }
+    return 'Request Not Sent';
+  }
+
   Future<void> _requestOfficeVisit() async {
     if (_scheduleId.isEmpty) {
-      _showInfo('Missing installment information. Please try again.');
+      AppLogger.w('[OfficePayment] _requestOfficeVisit empty schedule_id extra=${widget.extra}');
+      _showInfo('Missing installment information. Please return to Payment Schedule and tap Pay again.');
+      return;
+    }
+    if (_hasPendingLocally()) {
+      AppLogger.d('[OfficePayment] _hasPendingLocally true for $_scheduleId — skipping server call');
+      await _showPendingDialog();
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -102,13 +171,16 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    AppLogger.d('[OfficePayment] User confirmed office visit schedule=$_scheduleId loan=${widget.extra['loan_id']}');
     setState(() => _requesting = true);
     bool ok = false;
     try {
       ok = await ref
           .read(lenderPaymentProvider.notifier)
           .requestOfficePayment(loanScheduleId: _scheduleId);
-    } catch (_) {
+    } catch (e, st) {
+      AppLogger.e('[OfficePayment] requestOfficePayment threw', e, st);
+      if (kDebugMode) debugPrint('[OfficePayment] exception: $e');
       ok = false;
     }
     if (!mounted) return;
@@ -116,8 +188,10 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
       _requesting = false;
       if (ok) _requested = true;
     });
+    if (ok) ref.read(lenderCollectionProvider.notifier).loadList();
 
     if (ok) {
+      AppLogger.i('[OfficePayment] office request OK schedule=$_scheduleId');
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
@@ -141,14 +215,19 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
         ),
       );
     } else {
+      final err = ref.read(lenderPaymentProvider).error ??
+          'Failed to submit your request. Please try again.';
+      AppLogger.w('[OfficePayment] office request FAILED schedule=$_scheduleId error=$err');
+      if (kDebugMode) debugPrint('[OfficePayment] failure dialog error: $err');
+      final title = _titleForError(err);
+      final isPending = title == 'Already Pending';
       await showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text('Request Not Sent'),
-          content: Text(
-            ref.read(lenderPaymentProvider).error ??
-                'Failed to submit your request. Please try again.',
-          ),
+          title: Text(title),
+          content: Text(isPending
+              ? 'You have already pending payment'
+              : err),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),

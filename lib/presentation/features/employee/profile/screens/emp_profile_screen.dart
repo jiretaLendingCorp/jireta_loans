@@ -1,8 +1,6 @@
 // lib/presentation/features/employee/profile/screens/emp_profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -80,8 +78,6 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                 user?.position),
             const SizedBox(height: 24),
             _buildChangePasswordCard(),
-            const SizedBox(height: 24),
-            _buildLogoutCard(),
           ],
         ),
       ),
@@ -269,50 +265,6 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     );
   }
 
-  Widget _buildLogoutCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Row(
-          children: [
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Log Out',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.error,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Log out from your account on this device.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _confirmLogout(),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
-              ),
-              icon: const Icon(Icons.logout, size: 18),
-              label: const Text('Log Out'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _changePassword() async {
     if (_newPassCtrl.text != _confirmPassCtrl.text) {
       context.showSnackBarAsToast(
@@ -361,30 +313,5 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     } finally {
       if (mounted) setState(() => _isChangingPassword = false);
     }
-  }
-
-  void _confirmLogout() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Log Out?'),
-        content: const Text('Do you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('No'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () async {
-              Navigator.pop(context);
-              await ref.read(authProvider.notifier).logout();
-              if (mounted) context.go(RouteConstants.webLogin);
-            },
-            child: const Text('Yes', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 }
