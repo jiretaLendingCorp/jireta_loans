@@ -2,10 +2,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_in_office_provider.dart';
 import '../widgets/in_office_wizard.dart';
@@ -23,7 +24,6 @@ class _HmInOfficeListScreenState extends ConsumerState<HmInOfficeListScreen>
   late TabController _tabCtrl;
   final _tabs = [
     ('all', 'All'),
-    ('draft', 'Draft'),
     ('submitted', 'Submitted'),
     ('converted', 'Converted'),
   ];
@@ -133,20 +133,8 @@ class _HmInOfficeListScreenState extends ConsumerState<HmInOfficeListScreen>
                     ],
                   ),
                 ),
-                StatusBadge(status: app['status'] ?? 'draft'),
+                StatusBadge(status: app['status'] ?? 'submitted'),
                 const SizedBox(width: 12),
-                if (app['status'] == 'draft')
-                  ElevatedButton(
-                    onPressed: () => _continueWizard(context, app['id']),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.deepNavy,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
-                    child: const Text('Continue'),
-                  ),
               ],
             ),
           );
@@ -175,17 +163,6 @@ class _HmInOfficeListScreenState extends ConsumerState<HmInOfficeListScreen>
       barrierDismissible: false,
       builder: (_) => InOfficeWizard(
         applicationId: null,
-        onComplete: () => ref.read(hmInOfficeProvider.notifier).load(),
-      ),
-    );
-  }
-
-  void _continueWizard(BuildContext context, String appId) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => InOfficeWizard(
-        applicationId: appId,
         onComplete: () => ref.read(hmInOfficeProvider.notifier).load(),
       ),
     );

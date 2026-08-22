@@ -83,8 +83,12 @@ async function handleSubmit(req: Request) {
   if (req.method !== 'POST') return errorResponse('Method not allowed', 405);
 
   try {
-    const { application_id } = await req.json();
-    if (!application_id) return errorResponse('application_id is required', 400, 'VALIDATION_ERROR');
+    const body = await req.json().catch(() => null);
+    const application_id = body?.application_id ?? body?.applicationId;
+    if (!application_id) {
+      console.error('in-office-view submit: missing application_id', { body, url: req.url });
+      return errorResponse('application_id is required', 400, 'VALIDATION_ERROR');
+    }
 
     const db = getAdminClient();
 
@@ -119,26 +123,54 @@ async function handleSubmit(req: Request) {
     const s4 = coMakerRows.data ?? [];
     const s5 = { documents: documents.data ?? [] };
 
-    if (!s1 || !s3) {
-      return errorResponse('Application data is incomplete', 400, 'INCOMPLETE_WIZARD');
+    // Granular wizard completeness checks so 400 logs are actionable.
+    if (!s1) {
+      console.error('in-office-view submit: missing personal_info', { application_id });
+      return errorResponse('Step 1 is incomplete: personal info missing', 400, 'INCOMPLETE_WIZARD');
     }
-    if (Object.keys(s1).length === 0 || !s3.principal_amount) {
-      return errorResponse('Step data is incomplete', 400, 'INCOMPLETE_WIZARD');
+    if (!s3) {
+      console.error('in-office-view submit: missing loan_details', { application_id });
+      return errorResponse('Step 3 is incomplete: loan details missing', 400, 'INCOMPLETE_WIZARD');
     }
+    // s1 may have row but all user-visible fields null; require at least first_name/last_name/phone.
+    const hasIdentity = !!(s1.first_name || s1.last_name || s1.phone_number);
+    if (Object.keys(s1).length === 0 || !hasIdentity) {
+      console.error('in-office-view submit: personal_info empty', { application_id, s1 });
+      return errorResponse('Step 1 is incomplete: name/phone missing', 400, 'INCOMPLETE_WIZARD');
+    }
+    // principal_amount may arrive as "10,000" string; sanitize before truthiness check.
+    const rawPrincipal = s3.principal_amount;
+    const sanitizedPrincipal = rawPrincipal != null ? Number(String(rawPrincipal).replace(/,/g, '')) : NaN;
+    if (!rawPrincipal || Number.isNaN(sanitizedPrincipal) || sanitizedPrincipal < 3000) {
+      console.error('in-office-view submit: invalid principal_amount', { application_id, rawPrincipal, sanitizedPrincipal });
+      return errorResponse('Step 3 is incomplete: valid principal_amount required (3000-500000)', 400, 'INCOMPLETE_WIZARD');
+    }
+    // Normalize s3 principal for later use.
+    s3.principal_amount = sanitizedPrincipal;
 
     let lenderId = app.lender_id ?? null;
 
     if (!lenderId) {
       const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
-      const digits = String(s1.phone_number ?? '').replace(/\D/g, '');
+      const rawPhone = String(s1.phone_number ?? '').trim();
+      if (!rawPhone) {
+        console.error('in-office-view submit: missing phone_number for lender creation', { application_id, s1 });
+        return errorResponse('Step 1 phone_number is required', 400, 'VALIDATION_ERROR');
+      }
+      const digits = rawPhone.replace(/\D/g, '');
+      if (digits.length < 10) {
+        console.error('in-office-view submit: invalid phone_number', { application_id, rawPhone, digits });
+        return errorResponse('Invalid phone_number', 400, 'VALIDATION_ERROR');
+      }
       const e164Phone = digits.startsWith('63') ? `+${digits}` : (digits.startsWith('0') ? `+63${digits.slice(1)}` : `+63${digits}`);
-      const { data: authUser } = await db.auth.admin.createUser({
+      const { data: authUser, error: authErr } = await db.auth.admin.createUser({
         phone: e164Phone,
         password: '12345678',
         phone_confirm: true,
         app_metadata: { role: 'lender' },
       });
-      if (!authUser?.user) return errorResponse('Failed to create lender auth account', 500);
+      if (authErr) console.error('in-office-view submit: createUser failed', { application_id, e164Phone, authErr });
+      if (!authUser?.user) return errorResponse(`Failed to create lender auth account: ${authErr?.message ?? 'unknown'}`, 500);
 
       const { data: newUser, error: userErr } = await db.from('users').upsert({
         id: authUser.user.id,
@@ -194,11 +226,16 @@ async function handleSubmit(req: Request) {
       await db.from('emergency_contacts').insert(ecRows);
     }
 
-    const principalAmount = s3.principal_amount;
-    const frequency = s3.payment_frequency ?? 'monthly';
-    const periodsOverride =
-      s3.term_periods != null ? Number(s3.term_periods) : undefined;
-    const sched = computeSchedule(Number(principalAmount), frequency, new Date(), periodsOverride);
+    const principalAmount = Number(String(s3.principal_amount).replace(/,/g, ''));
+    const rawFreq = String(s3.payment_frequency ?? 'monthly').toLowerCase();
+    const frequency = ['daily','weekly','monthly'].includes(rawFreq) ? rawFreq : 'monthly';
+    // term_periods may be string "6" or already number; sanitize commas/spaces.
+    let periodsOverride: number | undefined;
+    if (s3.term_periods != null && String(s3.term_periods).trim() !== '') {
+      const parsed = Number(String(s3.term_periods).replace(/,/g, '').trim());
+      periodsOverride = Number.isNaN(parsed) ? undefined : parsed;
+    }
+    const sched = computeSchedule(principalAmount, frequency, new Date(), periodsOverride);
     const termDays = sched.termDays;
     const dueDates = sched.dueDates;
     const amounts = sched.amounts;

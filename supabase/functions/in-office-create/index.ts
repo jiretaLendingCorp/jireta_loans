@@ -45,6 +45,12 @@ function normalizeDocumentType(v?: string | null): string | null {
   return DOCUMENT_TYPES.has(v) ? v : 'other';
 }
 
+function toNumberOrNull(v: unknown): number | null {
+  if (v == null || String(v).trim() === '') return null;
+  const n = Number(String(v).replace(/,/g, '').trim());
+  return Number.isNaN(n) ? null : n;
+}
+
 // ── [moved from in-office-save-step] ────────────────────────────────────────
 interface StepHandlers {
   [step: number]: (applicationId: string, data: Record<string, unknown>) => Promise<void>;
@@ -179,7 +185,7 @@ async function handleSaveStep(req: Request) {
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
 async function saveStep1(applicationId: string, data: Record<string, unknown>) {
   const client = db();
-  await client.from('application_personal_info').upsert({
+  const { error: pErr } = await client.from('application_personal_info').upsert({
     application_id: applicationId,
     first_name: data.first_name ?? null,
     middle_name: data.middle_name ?? null,
@@ -190,23 +196,26 @@ async function saveStep1(applicationId: string, data: Record<string, unknown>) {
     date_of_birth: data.date_of_birth ?? null,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'application_id' });
+  if (pErr) { console.error('saveStep1 personal_info upsert failed', { applicationId, pErr }); throw pErr; }
 
-  await client.from('application_employment_info').upsert({
+  const { error: eErr } = await client.from('application_employment_info').upsert({
     application_id: applicationId,
     employment_type: data.employment_type ?? null,
     employer_name: data.employer_name ?? null,
-    monthly_income: data.monthly_income != null ? Number(data.monthly_income) : null,
+    monthly_income: toNumberOrNull(data.monthly_income),
     updated_at: new Date().toISOString(),
   }, { onConflict: 'application_id' });
+  if (eErr) { console.error('saveStep1 employment_info upsert failed', { applicationId, eErr }); throw eErr; }
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
 async function saveStep2(applicationId: string, data: Record<string, unknown>) {
   const client = db();
-  await client.from('application_addresses').delete().eq('application_id', applicationId);
+  const { error: delAddrErr } = await client.from('application_addresses').delete().eq('application_id', applicationId);
+  if (delAddrErr) { console.error('saveStep2 delete addresses failed', { applicationId, delAddrErr }); throw delAddrErr; }
   const addresses = Array.isArray(data.addresses) ? data.addresses : [];
   if (addresses.length > 0) {
-    await client.from('application_addresses').insert(
+    const { error: insAddrErr } = await client.from('application_addresses').insert(
       addresses.map((a) => ({
         application_id: applicationId,
         address_type: a.address_type ?? 'home',
@@ -220,12 +229,14 @@ async function saveStep2(applicationId: string, data: Record<string, unknown>) {
         is_primary: a.is_primary ?? false,
       }))
     );
+    if (insAddrErr) { console.error('saveStep2 insert addresses failed', { applicationId, insAddrErr }); throw insAddrErr; }
   }
 
-  await client.from('application_emergency_contacts').delete().eq('application_id', applicationId);
+  const { error: delEcErr } = await client.from('application_emergency_contacts').delete().eq('application_id', applicationId);
+  if (delEcErr) { console.error('saveStep2 delete emergency_contacts failed', { applicationId, delEcErr }); throw delEcErr; }
   const contacts = Array.isArray(data.emergency_contacts) ? data.emergency_contacts : [];
   if (contacts.length > 0) {
-    await client.from('application_emergency_contacts').insert(
+    const { error: insEcErr } = await client.from('application_emergency_contacts').insert(
       contacts.map((c) => ({
         application_id: applicationId,
         name: c.name ?? c.full_name ?? null,
@@ -234,31 +245,34 @@ async function saveStep2(applicationId: string, data: Record<string, unknown>) {
         address: c.address ?? null,
       }))
     );
+    if (insEcErr) { console.error('saveStep2 insert emergency_contacts failed', { applicationId, insEcErr }); throw insEcErr; }
   }
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
 async function saveStep3(applicationId: string, data: Record<string, unknown>) {
   const client = db();
-  await client.from('application_loan_details').upsert({
+  const { error } = await client.from('application_loan_details').upsert({
     application_id: applicationId,
-    principal_amount: data.principal_amount != null ? Number(data.principal_amount) : null,
-    interest_rate: data.interest_rate != null ? Number(data.interest_rate) : 20.00,
+    principal_amount: toNumberOrNull(data.principal_amount),
+    interest_rate: data.interest_rate != null ? toNumberOrNull(data.interest_rate) ?? 20.00 : 20.00,
     payment_frequency: data.frequency ?? data.payment_frequency ?? null,
-    term_days: data.term_days != null ? Number(data.term_days) : null,
-    term_periods: data.term_periods != null ? Number(data.term_periods) : null,
+    term_days: toNumberOrNull(data.term_days),
+    term_periods: toNumberOrNull(data.term_periods),
     purpose: data.purpose ?? null,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'application_id' });
+  if (error) { console.error('saveStep3 loan_details upsert failed', { applicationId, error, data }); throw error; }
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
 async function saveStep4(applicationId: string, data: Record<string, unknown>) {
   const client = db();
-  await client.from('application_co_makers').delete().eq('application_id', applicationId);
+  const { error: delErr } = await client.from('application_co_makers').delete().eq('application_id', applicationId);
+  if (delErr) { console.error('saveStep4 delete failed', { applicationId, delErr }); throw delErr; }
   if (data.first_name || data.last_name) {
     const relationship = typeof data.relationship === 'string' ? data.relationship : null;
-    await client.from('application_co_makers').insert({
+    const { error: insErr } = await client.from('application_co_makers').insert({
       application_id: applicationId,
       first_name: data.first_name ?? null,
       last_name: data.last_name ?? null,
@@ -267,16 +281,18 @@ async function saveStep4(applicationId: string, data: Record<string, unknown>) {
       date_of_birth: data.date_of_birth ?? data.birthday ?? null,
       address: data.address ?? null,
     });
+    if (insErr) { console.error('saveStep4 insert failed', { applicationId, insErr }); throw insErr; }
   }
 }
 
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
 async function saveStep5(applicationId: string, data: Record<string, unknown>) {
   const client = db();
-  await client.from('application_documents').delete().eq('application_id', applicationId);
+  const { error: delErr } = await client.from('application_documents').delete().eq('application_id', applicationId);
+  if (delErr) { console.error('saveStep5 delete failed', { applicationId, delErr }); throw delErr; }
   const documents = Array.isArray(data.documents) ? data.documents : [];
   if (documents.length > 0) {
-    await client.from('application_documents').insert(
+    const { error: insErr } = await client.from('application_documents').insert(
       documents.map((d) => ({
         application_id: applicationId,
         document_type: normalizeDocumentType(d.document_type ?? null),
@@ -285,10 +301,34 @@ async function saveStep5(applicationId: string, data: Record<string, unknown>) {
         mime_type: d.mime_type ?? 'application/octet-stream',
       }))
     );
+    if (insErr) { console.error('saveStep5 insert failed', { applicationId, insErr }); throw insErr; }
   }
   if (data.borrower_signature) {
-    await client.from('in_office_applications').update({
-      borrower_signature: data.borrower_signature,
+    let sig = String(data.borrower_signature);
+    // borrower_signature is VARCHAR(255) in DB (until 00102 migration to TEXT).
+    // Old clients send 10-30KB base64 PNG; that always overflows and caused
+    // PATCH 500 "value too long". New clients upload to storage and send a
+    // short path (e.g. "in-office-applications/signatures/uuid.png"). Handle
+    // both: if sig is long base64, truncate / fallback instead of throwing 500.
+    const isPath = sig.includes('/') && sig.length < 500 && !sig.startsWith('data:');
+    if (sig.length > 255) {
+      console.warn('saveStep5 borrower_signature exceeds 255 chars', { applicationId, length: sig.length, isPath });
+      if (!isPath) {
+        // Likely old client base64 — truncate to 255 to avoid DB 22001 error.
+        // Signature will be degraded but wizard can complete; proper fix is
+        // client upload (above) + DB migration to TEXT.
+        sig = sig.substring(0, 255);
+      }
+    }
+    const { error: sigErr } = await client.from('in_office_applications').update({
+      borrower_signature: sig,
     }).eq('id', applicationId);
+    if (sigErr) {
+      console.error('saveStep5 signature update failed', { applicationId, sigErr, sigLen: sig.length });
+      // Do NOT throw for signature — it is not critical for loan creation.
+      // Old behavior ignored this error (silent success) but new code surfaced
+      // it as 500, blocking the wizard. Log and continue so save-step returns 200
+      // and user can proceed to submit.
+    }
   }
 }

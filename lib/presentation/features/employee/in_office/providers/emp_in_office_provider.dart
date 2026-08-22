@@ -1,6 +1,8 @@
 // lib/presentation/features/employee/in_office/providers/emp_in_office_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../../core/di/injection.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../data/datasources/remote/in_office_remote_datasource.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
@@ -43,7 +45,9 @@ class EmpInOfficeNotifier
     try {
       final data = await _ds.createDraft();
       return data['application_id'] as String?;
-    } catch (_) {
+    } catch (e) {
+      // ignore: avoid_print
+      print('[EmpInOffice] createDraft failed: ${ErrorHandler.handle(e).message}');
       return null;
     }
   }
@@ -56,7 +60,9 @@ class EmpInOfficeNotifier
     try {
       await _ds.saveStep(applicationId: applicationId, step: step, data: data);
       return true;
-    } catch (_) {
+    } catch (e) {
+      // ignore: avoid_print
+      print('[EmpInOffice] saveStep $step failed: ${ErrorHandler.handle(e).message}');
       return false;
     }
   }
@@ -66,7 +72,9 @@ class EmpInOfficeNotifier
       await _ds.submit(applicationId: applicationId);
       await loadList();
       return true;
-    } catch (_) {
+    } catch (e) {
+      // ignore: avoid_print
+      print('[EmpInOffice] submit failed: ${ErrorHandler.handle(e).message}');
       return false;
     }
   }

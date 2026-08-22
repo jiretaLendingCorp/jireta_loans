@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -20,7 +21,6 @@ import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_account_upgrade_provider.dart';
 import 'valid_id_scanner_screen.dart';
-import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class LenderAccountUpgradeSubmitScreen extends ConsumerStatefulWidget {
   const LenderAccountUpgradeSubmitScreen({super.key});
@@ -50,7 +50,12 @@ class _LenderAccountUpgradeSubmitScreenState
         route: RouteConstants.lenderProfile),
   ];
 
-  static const _steps = ['Personal Info', 'Financial Info', 'Residence', 'Docs & Submit'];
+  static const _steps = [
+    'Personal Info',
+    'Financial Info',
+    'Residence',
+    'Docs & Submit'
+  ];
 
   final Map<String, PlatformFile?> _selectedFiles = {
     'valid_id': null,
@@ -85,6 +90,7 @@ class _LenderAccountUpgradeSubmitScreenState
   final _middleNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _suffixCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
@@ -139,6 +145,7 @@ class _LenderAccountUpgradeSubmitScreenState
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _suffixCtrl.dispose();
+    _emailCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
     _streetCtrl.dispose();
@@ -273,8 +280,7 @@ class _LenderAccountUpgradeSubmitScreenState
         setState(() => _dobError =
             'You must be at least 18 years old to submit account upgrade.');
         context.showSnackBarAsToast(const SnackBar(
-          content:
-              Text('You must be at least 18 years old to continue.'),
+          content: Text('You must be at least 18 years old to continue.'),
           backgroundColor: AppColors.error,
         ));
         return;
@@ -346,6 +352,7 @@ class _LenderAccountUpgradeSubmitScreenState
           'last_name': _lastNameCtrl.text.trim(),
           if (_suffixCtrl.text.trim().isNotEmpty)
             'suffix': _suffixCtrl.text.trim(),
+          'email': _emailCtrl.text.trim(),
           'gender': _toDbEnum(_gender!),
           'civil_status': _toDbEnum(_civilStatus!),
           'dob': DateFormat('yyyy-MM-dd').format(_dob!),
@@ -407,9 +414,7 @@ class _LenderAccountUpgradeSubmitScreenState
       accentColor: AppColors.lenderBlue,
       navItems: _navItems,
       showBackButton: true,
-      body: state.isLoading
-          ? const ShimmerLoader()
-          : _buildFlow(state),
+      body: state.isLoading ? const ShimmerLoader() : _buildFlow(state),
     );
   }
 
@@ -449,9 +454,8 @@ class _LenderAccountUpgradeSubmitScreenState
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: isVerified
-                  ? AppColors.successLight
-                  : AppColors.warningLight,
+              color:
+                  isVerified ? AppColors.successLight : AppColors.warningLight,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: (isVerified ? AppColors.success : AppColors.warning)
@@ -543,6 +547,22 @@ class _LenderAccountUpgradeSubmitScreenState
             maxLength: 20,
           ),
           const SizedBox(height: 12),
+          AppTextField(
+            label: 'Email Address *',
+            controller: _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            maxLength: 255,
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) {
+                return 'Email address is required';
+              }
+              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v.trim())) {
+                return 'Enter a valid email address';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
           _buildDropdown(
             label: 'Gender *',
             value: _gender,
@@ -584,8 +604,7 @@ class _LenderAccountUpgradeSubmitScreenState
             label: 'Employment Type *',
             value: _employmentType,
             items: _employmentOptions,
-            validator: (v) =>
-                v == null ? 'Employment type is required' : null,
+            validator: (v) => v == null ? 'Employment type is required' : null,
             onChanged: (v) => setState(() => _employmentType = v),
           ),
           const SizedBox(height: 12),
@@ -706,8 +725,7 @@ class _LenderAccountUpgradeSubmitScreenState
             [
               const Text(
                 'In case we need to reach someone related to you.',
-                style:
-                    TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
               AppTextField(
@@ -880,7 +898,8 @@ class _LenderAccountUpgradeSubmitScreenState
       initialValue: value,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        labelStyle:
+            const TextStyle(fontSize: 14, color: AppColors.textSecondary),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.border),
@@ -945,7 +964,8 @@ class _LenderAccountUpgradeSubmitScreenState
                       color: _dob != null
                           ? AppColors.textPrimary
                           : AppColors.textTertiary,
-                      fontWeight: _dob != null ? FontWeight.w500 : FontWeight.w400,
+                      fontWeight:
+                          _dob != null ? FontWeight.w500 : FontWeight.w400,
                     ),
                   ),
                 ],
@@ -1033,8 +1053,7 @@ class _StepIndicator extends StatelessWidget {
                 child: Container(
                   height: 2,
                   margin: const EdgeInsets.only(bottom: 16),
-                  color:
-                      i <= current ? AppColors.lenderBlue : AppColors.border,
+                  color: i <= current ? AppColors.lenderBlue : AppColors.border,
                 ),
               ),
             _StepDot(

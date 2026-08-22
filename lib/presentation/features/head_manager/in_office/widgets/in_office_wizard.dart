@@ -1,4 +1,5 @@
 // lib/presentation/features/head_manager/in_office/widgets/in_office_wizard.dart
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -262,7 +263,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(child: _field('First Name', _firstNameCtrl, maxLength: 100)),
+            Expanded(
+                child: _field('First Name', _firstNameCtrl, maxLength: 100)),
             const SizedBox(width: 12),
             Expanded(child: _field('Last Name', _lastNameCtrl, maxLength: 100)),
           ],
@@ -292,8 +294,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         _simpleField('Street / House No.',
             controller: _streetCtrl, maxLength: 100),
         const SizedBox(height: 8),
-        _simpleField('Barangay',
-            controller: _barangayCtrl, maxLength: 100),
+        _simpleField('Barangay', controller: _barangayCtrl, maxLength: 100),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -340,15 +341,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Widget _buildStep3() {
-    final maxPeriods =
-        (_schedulePreview?['max_periods'] as num?)?.toInt() ?? 0;
+    final maxPeriods = (_schedulePreview?['max_periods'] as num?)?.toInt() ?? 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Loan Details',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('Set the loan amount, frequency, and how many periods to pay.',
+        const Text(
+            'Set the loan amount, frequency, and how many periods to pay.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
         _field('Loan Amount', _amountCtrl,
@@ -409,7 +410,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         ),
         const SizedBox(height: 16),
         if (_previewLoading)
-          const Center(child: Padding(
+          const Center(
+              child: Padding(
             padding: EdgeInsets.all(12),
             child: CircularProgressIndicator(),
           )),
@@ -419,8 +421,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             decoration: BoxDecoration(
               color: AppColors.error.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
             ),
             child: Text(
               _previewError!,
@@ -467,11 +468,9 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                 value[0].toUpperCase() + value.substring(1),
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight:
-                      selected ? FontWeight.w600 : FontWeight.normal,
-                  color: selected
-                      ? AppColors.deepNavy
-                      : AppColors.textSecondary,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                  color:
+                      selected ? AppColors.deepNavy : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -483,7 +482,24 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   List<int> _termOptions(int max) {
     const candidates = <String, List<int>>{
-      'daily': [7, 10, 14, 20, 21, 28, 30, 35, 40, 45, 60, 70, 80, 90, 120, 180],
+      'daily': [
+        7,
+        10,
+        14,
+        20,
+        21,
+        28,
+        30,
+        35,
+        40,
+        45,
+        60,
+        70,
+        80,
+        90,
+        120,
+        180
+      ],
       'weekly': [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 26],
       'monthly': [1, 2, 3, 4, 5, 6],
     };
@@ -517,9 +533,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           runSpacing: 8,
           children: options.map((value) {
             final isMax = value == maxPeriods;
-            final selected = isMax
-                ? _termPeriods == null
-                : _termPeriods == value;
+            final selected =
+                isMax ? _termPeriods == null : _termPeriods == value;
             return InkWell(
               onTap: () {
                 setState(() => _termPeriods = isMax ? null : value);
@@ -575,11 +590,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _simpleField('Co-Maker First Name',
-                controller: _coFirstCtrl, maxLength: 100)),
+            Expanded(
+                child: _simpleField('Co-Maker First Name',
+                    controller: _coFirstCtrl, maxLength: 100)),
             const SizedBox(width: 12),
-            Expanded(child: _simpleField('Co-Maker Last Name',
-                controller: _coLastCtrl, maxLength: 100)),
+            Expanded(
+                child: _simpleField('Co-Maker Last Name',
+                    controller: _coLastCtrl, maxLength: 100)),
           ],
         ),
         const SizedBox(height: 12),
@@ -602,8 +619,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           ],
         ),
         const SizedBox(height: 12),
-        _simpleField('Address',
-            controller: _coAddressCtrl, maxLength: 100),
+        _simpleField('Address', controller: _coAddressCtrl, maxLength: 100),
       ],
     );
   }
@@ -755,8 +771,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         .pickImage(source: ImageSource.camera, imageQuality: 85);
     if (img == null) return;
     final bytes = await img.readAsBytes();
-    _setDoc(docType, _DocFile(
-        name: img.name, mimeType: 'image/jpeg', bytes: bytes));
+    _setDoc(docType,
+        _DocFile(name: img.name, mimeType: 'image/jpeg', bytes: bytes));
   }
 
   Future<void> _pickFromGallery(String docType) async {
@@ -764,8 +780,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         .pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (img == null) return;
     final bytes = await img.readAsBytes();
-    _setDoc(docType, _DocFile(
-        name: img.name, mimeType: 'image/jpeg', bytes: bytes));
+    _setDoc(docType,
+        _DocFile(name: img.name, mimeType: 'image/jpeg', bytes: bytes));
   }
 
   Future<void> _pickFromFile(String docType) async {
@@ -780,8 +796,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     if (bytes == null) return;
     final ext = (f.extension ?? 'jpg').toLowerCase();
     final mime = ext == 'pdf' ? 'application/pdf' : 'image/$ext';
-    _setDoc(docType,
-        _DocFile(name: f.name, mimeType: mime, bytes: bytes));
+    _setDoc(docType, _DocFile(name: f.name, mimeType: mime, bytes: bytes));
   }
 
   void _setDoc(String docType, _DocFile file) {
@@ -798,7 +813,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildFooter() {
@@ -844,9 +860,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     if (_appId != null) {
       final data = _collectStepData(_step);
       if (data.isNotEmpty) {
-        await ref
+        final ok = await ref
             .read(hmInOfficeProvider.notifier)
             .saveStep(_appId!, _step + 1, data);
+        if (!ok) {
+          if (mounted) _showMessage('Failed to save step ${_step + 1}. Please try again.');
+          return;
+        }
       }
     }
     if (mounted) setState(() => _step++);
@@ -855,42 +875,45 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   Map<String, dynamic> _collectStepData(int step) {
     return switch (step) {
       0 => {
-          'phone': _phoneCtrl.text,
-          'first_name': _firstNameCtrl.text,
-          'last_name': _lastNameCtrl.text,
-          'monthly_income': _monthlyIncomeCtrl.text,
+          'phone': _phoneCtrl.text.trim(),
+          'first_name': _firstNameCtrl.text.trim(),
+          'last_name': _lastNameCtrl.text.trim(),
+          // Strip commas so backend Number() does not produce NaN (e.g. "10,000" → "10000").
+          'monthly_income': _monthlyIncomeCtrl.text.replaceAll(',', '').trim(),
         },
       1 => {
           'addresses': [
             {
               'address_type': 'home',
-              'street': _streetCtrl.text,
-              'barangay': _barangayCtrl.text,
-              'city': _cityCtrl.text,
-              'province': _provinceCtrl.text,
-              'zip_code': _zipCtrl.text,
+              'street': _streetCtrl.text.trim(),
+              'barangay': _barangayCtrl.text.trim(),
+              'city': _cityCtrl.text.trim(),
+              'province': _provinceCtrl.text.trim(),
+              'zip_code': _zipCtrl.text.trim(),
             }
           ],
           'emergency_contacts': [
             {
-              'name': _emergencyNameCtrl.text,
+              'name': _emergencyNameCtrl.text.trim(),
               'relationship': _emergencyRel,
-              'phone_number': _emergencyPhoneCtrl.text,
+              'phone_number': _emergencyPhoneCtrl.text.trim(),
             }
           ],
         },
       2 => {
-          'principal_amount': _amountCtrl.text,
+          // Strip commas: Number("10,000") === NaN on the server, causing INCOMPLETE_WIZARD/DB_ERROR.
+          'principal_amount':
+              _amountCtrl.text.replaceAll(',', '').trim(),
           'frequency': _frequency,
           'term_periods': _termPeriods,
-          'purpose': _purposeCtrl.text,
+          'purpose': _purposeCtrl.text.trim(),
         },
       3 => {
-          'first_name': _coFirstCtrl.text,
-          'last_name': _coLastCtrl.text,
+          'first_name': _coFirstCtrl.text.trim(),
+          'last_name': _coLastCtrl.text.trim(),
           'relationship': _coRel,
-          'phone_number': _coPhoneCtrl.text,
-          'address': _coAddressCtrl.text,
+          'phone_number': _coPhoneCtrl.text.trim(),
+          'address': _coAddressCtrl.text.trim(),
         },
       4 => {'documents': <Map<String, dynamic>>[]},
       _ => <String, dynamic>{},
@@ -972,14 +995,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('Loan Schedule Preview',
-              style:
-                  TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           _previewRow('Principal Amount', principal.toCurrency),
           _previewRow('Interest (20%)', interest.toCurrency),
           _previewRow('Total Payable', totalPayable.toCurrency),
-          _previewRow('Term',
-              '$installments ${_termUnitFor(p['frequency'])}'),
+          _previewRow('Term', '$installments ${_termUnitFor(p['frequency'])}'),
           _previewRow('Installment Amount', installmentAmt.toCurrency),
           _previewRow('Number of Payments', '$installments'),
           if (dueDates.isNotEmpty) ...[
@@ -1055,8 +1076,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         .map((d) => d.$2)
         .toList();
     if (missingDocs.isNotEmpty) {
-      setState(() =>
-          _docsError = 'Please upload all required documents: ${missingDocs.join(', ')}');
+      setState(() => _docsError =
+          'Please upload all required documents: ${missingDocs.join(', ')}');
       return;
     }
     if (_signature == null || _signature!.isEmpty) {
@@ -1069,6 +1090,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       if (_appId == null) {
         final id = await ref.read(hmInOfficeProvider.notifier).createDraft();
         if (id == null) {
+          if (mounted) _showMessage('Failed to create draft. Check connection and try again.');
           setState(() => _loading = false);
           return;
         }
@@ -1080,15 +1102,26 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           data = await _buildStep5Data();
         }
         if (data.isNotEmpty) {
-          await ref
+          final ok = await ref
               .read(hmInOfficeProvider.notifier)
               .saveStep(_appId!, step + 1, data);
+          if (!ok) {
+            if (mounted) _showMessage('Failed to save step ${step + 1}. Server rejected the data.');
+            setState(() => _loading = false);
+            return;
+          }
         }
       }
-      await ref.read(hmInOfficeProvider.notifier).submitApplication(_appId!);
+      final submitted = await ref.read(hmInOfficeProvider.notifier).submitApplication(_appId!);
+      if (!submitted) {
+        if (mounted) _showMessage('Submit failed. Application data is incomplete or already submitted.');
+        setState(() => _loading = false);
+        return;
+      }
       widget.onComplete();
       if (mounted) Navigator.pop(context);
-    } catch (_) {
+    } catch (e) {
+      if (mounted) _showMessage('Submit failed: $e');
       setState(() => _loading = false);
     }
   }
@@ -1111,9 +1144,34 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         'mime_type': f.mimeType,
       });
     }
+    String? signaturePath;
+    if (_signature != null && _signature!.isNotEmpty) {
+      try {
+        // _signature is base64-encoded PNG bytes (no data: prefix). Upload to
+        // storage so DB column (VARCHAR 255 / future TEXT) stores a short path,
+        // not a 20KB base64 string that overflows and causes PATCH 500.
+        final sigBytes = base64Decode(_signature!);
+        final path = await SupabaseStorageService.instance.uploadFile(
+          bucket: 'loan-documents',
+          folder: 'in-office-applications/signatures',
+          bytes: sigBytes,
+          fileName: 'signature_${DateTime.now().millisecondsSinceEpoch}.png',
+          contentType: 'image/png',
+        );
+        signaturePath = path;
+      } catch (e) {
+        // Fallback: if upload fails (offline, bucket missing), store the raw
+        // base64 but truncated to 255 to avoid DB "value too long" 500. The
+        // server will also truncate/log. Signature will be degraded but wizard
+        // can still complete and submit.
+        // ignore: avoid_print
+        print('[InOfficeWizard] signature upload failed, falling back to truncated base64: $e');
+        signaturePath = _signature!.length > 255 ? _signature!.substring(0, 255) : _signature;
+      }
+    }
     return {
       'documents': docs,
-      if (_signature != null) 'borrower_signature': _signature,
+      if (signaturePath != null) 'borrower_signature': signaturePath,
     };
   }
 

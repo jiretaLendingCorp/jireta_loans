@@ -1,13 +1,14 @@
 // lib/presentation/features/employee/in_office/screens/emp_in_office_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../presentation/features/head_manager/in_office/widgets/in_office_wizard.dart';
+import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/emp_in_office_provider.dart';
-import '../../../../../presentation/features/head_manager/in_office/widgets/in_office_wizard.dart';
 
 class EmpInOfficeListScreen extends ConsumerStatefulWidget {
   const EmpInOfficeListScreen({super.key});
@@ -22,7 +23,6 @@ class _EmpInOfficeListScreenState extends ConsumerState<EmpInOfficeListScreen>
   late TabController _tabCtrl;
   final _tabs = [
     ('all', 'All'),
-    ('draft', 'Draft'),
     ('submitted', 'Submitted'),
     ('converted', 'Converted'),
   ];
@@ -136,7 +136,7 @@ class _ApplicationList extends StatelessWidget {
       itemBuilder: (ctx, i) {
         final app = items[i] as Map<String, dynamic>;
         final lenderName = app['lender_name'] as String? ?? 'New Applicant';
-        final status = app['status'] as String? ?? 'draft';
+        final status = app['status'] as String? ?? 'submitted';
         final step = app['wizard_step'] as int? ?? 1;
         final createdAt = app['created_at'] as String?;
 
@@ -172,11 +172,9 @@ class _ApplicationList extends StatelessWidget {
                         children: [
                           StatusBadge(status: status),
                           const SizedBox(width: 8),
-                          if (status == 'draft')
-                            Text('Step $step/5',
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.textTertiary)),
+                          Text('Step $step/5',
+                              style: const TextStyle(
+                                  fontSize: 11, color: AppColors.textTertiary)),
                         ],
                       ),
                       if (createdAt != null)
@@ -186,18 +184,6 @@ class _ApplicationList extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (status == 'draft')
-                  OutlinedButton(
-                    onPressed: () => onContinue(app['id'] as String),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.deepNavy),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                    ),
-                    child: const Text('Continue',
-                        style:
-                            TextStyle(fontSize: 12, color: AppColors.deepNavy)),
-                  ),
               ],
             ),
           ),
