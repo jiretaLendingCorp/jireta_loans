@@ -6,6 +6,14 @@
 // origin. In dev (CORS_ALLOWED_ORIGINS unset) `*` is kept so local Flutter
 // web/testing keeps working; in production set CORS_ALLOWED_ORIGINS to the real
 // web origin so no other site can read responses to authenticated requests.
+//
+// Aug 2026 — jireta.vercel.app migration:
+// Set CORS_ALLOWED_ORIGINS to include the NEW origin, e.g.:
+//   supabase secrets set CORS_ALLOWED_ORIGINS=https://jireta.vercel.app,https://lending-jet-five.vercel.app,https://app.jiretaloanscorp.com
+// If you forget, the browser blocks every API response with ACAO:null → Dio
+// reports DioExceptionType.unknown and the app previously showed "No Internet
+// Connection" even though the network was fine (fixed in connectivity_service.dart
+// web fast-path). API calls will still fail until CORS is corrected.
 
 const DEV_ALLOWED_ORIGIN = '*';
 

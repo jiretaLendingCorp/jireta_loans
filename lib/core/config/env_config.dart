@@ -44,6 +44,15 @@ class EnvConfig {
     return v.endsWith('/') ? v.substring(0, v.length - 1) : v;
   }
 
+  /// True when the bundled .env still contains the vercel-build.sh placeholder
+  /// (Vercel env vars were missing at build time). Used by
+  /// [ConnectivityService] to avoid marking the app "offline" due to DNS
+  /// failure for your-project.supabase.co.
+  static bool get isPlaceholderEnv =>
+      (dotenv.env['SUPABASE_URL'] ?? '').contains('your-project.supabase.co') ||
+      (dotenv.env['EDGE_FUNCTIONS_URL'] ?? '')
+          .contains('your-project.supabase.co');
+
   static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   static String get xenditPublicKey => dotenv.env['XENDIT_PUBLIC_KEY'] ?? '';

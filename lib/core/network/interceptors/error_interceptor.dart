@@ -141,9 +141,15 @@ class ErrorInterceptor extends Interceptor {
         default:
           // Covers CORS failures on web, DNS errors, and any other
           // transport-level failure where Dio has no HTTP response.
-          // The most common real-world cause: the Supabase Edge Functions
-          // have not been deployed yet (`supabase functions deploy --all`),
-          // or the host in EDGE_FUNCTIONS_URL is unreachable.
+          // The most common real-world causes:
+          // - Supabase Edge Functions have not been deployed yet
+          //   (`supabase functions deploy --all`), or host unreachable.
+          // - NEW Aug 2026: origin https://jireta.vercel.app not in
+          //   CORS_ALLOWED_ORIGINS → browser blocks response → Dio unknown →
+          //   previously surfaced as "No internet connection" via the probe.
+          //   With the connectivity_service refactor the offline toast no longer
+          //   fires for this, but API calls still fail here — surface a CORS
+          //   hint so the mis-config is obvious in logs/UI.
           final msg = _describeUnknownError(err);
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
@@ -177,7 +183,12 @@ class ErrorInterceptor extends Interceptor {
     }
     final cause = err.error;
     final causeText = cause?.toString() ?? '';
+    final uri = err.requestOptions.uri.toString().toLowerCase();
+    final isSupabaseHost = uri.contains('supabase.co');
     if (causeText.contains('SocketException')) {
+      if (causeText.contains('Failed host lookup') && isSupabaseHost) {
+        return 'Unable to reach server (DNS failed). Verify SUPABASE_URL/EDGE_FUNCTIONS_URL and that the project is not paused.';
+      }
       return 'Unable to reach server. Please check your connection.';
     }
     if (causeText.contains('HandshakeException')) {
@@ -186,7 +197,16 @@ class ErrorInterceptor extends Interceptor {
     if (causeText.contains('ClientException') ||
         causeText.contains('Failed host lookup') ||
         causeText.contains('Connection refused')) {
+      // On web ClientException + "XMLHttpRequest" often means CORS was blocked
+      // because the new origin jireta.vercel.app isn't in CORS_ALLOWED_ORIGINS.
+      if (causeText.contains('XMLHttpRequest') || causeText.contains('ClientException')) {
+        return 'Unable to reach server (network/CORS). If on jireta.vercel.app, check CORS_ALLOWED_ORIGINS includes this origin.';
+      }
       return 'Unable to reach server. Check your connection or verify the function is deployed.';
+    }
+    // Generic fallback — hint at CORS for Supabase hosts on web
+    if (isSupabaseHost && causeText.contains('XMLHttpRequest')) {
+      return 'Unable to reach server (CORS/network). Verify jireta.vercel.app is allowed in Supabase CORS settings.';
     }
     return 'Unable to reach server. Check your connection or verify the function is deployed.';
   }
