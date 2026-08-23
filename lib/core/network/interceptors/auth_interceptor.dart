@@ -76,10 +76,41 @@ class AuthInterceptor extends Interceptor {
       return handler.next(err);
     }
 
+    // Extract server code to avoid blind refresh on irrecoverable 401s.
+    // UNAUTHORIZED_ANON_TOKEN / USER_NOT_FOUND / MISSING_HEADER will never
+    // succeed with a refresh – they indicate no session or DB desync.
+    String? serverCode;
+    final respData = err.response?.data;
+    if (respData is Map) {
+      final errObj = respData['error'];
+      if (errObj is Map) serverCode = errObj['code']?.toString();
+    }
+    // Don't waste a refresh on anon/missing/user-not-found – they need re-login.
+    if (serverCode == 'UNAUTHORIZED_ANON_TOKEN' ||
+        serverCode == 'UNAUTHORIZED_USER_NOT_FOUND' ||
+        serverCode == 'UNAUTHORIZED_MISSING_HEADER' ||
+        serverCode == 'UNAUTHORIZED_EMPTY_TOKEN') {
+      // No refresh token will fix a missing DB row or an anon token sent
+      // because SecureStorage was empty. Surface 401 and let UI re-login.
+      // Only auto-logout if we can confirm no valid session – avoids
+      // logging out a user who is simply offline (where response is null).
+      if (serverCode == 'UNAUTHORIZED_USER_NOT_FOUND') {
+        await _dropDeadSession();
+      }
+      return handler.next(err);
+    }
+
     if (err.response?.statusCode == 401 && !_isRefreshing) {
       _isRefreshing = true;
       try {
-        final refreshToken = await SecureStorage.getRefreshToken();
+        // Re-read refresh token fresh – another refresher (AuthStateNotifier)
+        // may have already rotated it (enable_refresh_token_rotation=true race).
+        String? refreshToken;
+        try {
+          refreshToken = await SecureStorage.getRefreshToken();
+        } catch (_) {
+          refreshToken = null;
+        }
         if (refreshToken != null && refreshToken.isNotEmpty) {
           final response = await _dio.post(
             AppConstants.authRefreshPath,
@@ -87,9 +118,14 @@ class AuthInterceptor extends Interceptor {
           );
           final newAccessToken = response.data['access_token'];
           final newRefreshToken = response.data['refresh_token'];
+          if (newAccessToken is! String || newAccessToken.isEmpty) {
+            await _dropDeadSession();
+            _isRefreshing = false;
+            return handler.next(err);
+          }
           await SecureStorage.saveTokens(
             accessToken: newAccessToken,
-            refreshToken: newRefreshToken,
+            refreshToken: newRefreshToken is String ? newRefreshToken : refreshToken,
           );
           err.requestOptions.headers['Authorization'] =
               'Bearer $newAccessToken';
@@ -115,6 +151,9 @@ class AuthInterceptor extends Interceptor {
                   (top as String?) ??
                   'Request failed. Please try again.';
             }
+            // Retry still 401 → refresh succeeded but new token still rejected
+            // (e.g. DB row deleted). Drop session so UI doesn't loop.
+            if (status == 401) await _dropDeadSession();
             return handler.reject(DioException(
               requestOptions: err.requestOptions,
               response: retryResponse,
@@ -133,8 +172,54 @@ class AuthInterceptor extends Interceptor {
         // is invalid/expired → session cannot be recovered → auto-logout.
         // A connection-level failure (offline) must NOT clear the session —
         // the user just lost internet, don't log them out for that.
+        // Handle rotation race: if 401, re-read token – maybe another
+        // concurrent refresher already succeeded and stored a new token.
         if (refreshErr.response?.statusCode == 401) {
-          await _dropDeadSession();
+          try {
+            final currentRefresh = await SecureStorage.getRefreshToken();
+            // If storage now holds a DIFFERENT token than we tried, a
+            // concurrent refresh succeeded – don't wipe it. The original
+            // request will be retried on next user action via fresh token.
+            // Only wipe if token is same or empty.
+            if (currentRefresh == null || currentRefresh.isEmpty) {
+              await _dropDeadSession();
+            } else {
+              // Try one more time with the new token (max 1 retry to avoid loop)
+              try {
+                final retryResp = await _dio.post(
+                  AppConstants.authRefreshPath,
+                  data: {'refresh_token': currentRefresh},
+                );
+                final na = retryResp.data['access_token'];
+                final nr = retryResp.data['refresh_token'];
+                if (na != null && na is String && na.isNotEmpty) {
+                  await SecureStorage.saveTokens(
+                    accessToken: na,
+                    refreshToken: nr is String ? nr : currentRefresh,
+                  );
+                  _isRefreshing = false;
+                  // Resolve by retrying original request with new token
+                  err.requestOptions.headers['Authorization'] = 'Bearer $na';
+                  final retry2 = await _dio.request(
+                    err.requestOptions.path,
+                    options: Options(
+                      method: err.requestOptions.method,
+                      headers: err.requestOptions.headers,
+                    ),
+                    data: err.requestOptions.data,
+                    queryParameters: err.requestOptions.queryParameters,
+                  );
+                  if (retry2.statusCode != null && retry2.statusCode! < 400) {
+                    return handler.resolve(retry2);
+                  }
+                }
+              } catch (_) {
+                await _dropDeadSession();
+              }
+            }
+          } catch (_) {
+            await _dropDeadSession();
+          }
         }
       } catch (_) {
         await _dropDeadSession();

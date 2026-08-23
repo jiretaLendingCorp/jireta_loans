@@ -13,15 +13,41 @@ export interface AuthUser {
 export async function requireAuth(req: Request): Promise<AuthUser | Response> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return errorResponse('Missing or invalid authorization header', 401, 'UNAUTHORIZED');
+    console.error('[requireAuth] 401 MISSING_HEADER', { path: new URL(req.url).pathname + new URL(req.url).search, hasAuth: !!authHeader, fn: new URL(req.url).searchParams.get('fn') });
+    return errorResponse('Missing or invalid authorization header', 401, 'UNAUTHORIZED_MISSING_HEADER');
   }
 
-  const token = authHeader.replace('Bearer ', '');
+  const rawToken = authHeader.replace('Bearer ', '').trim();
+  if (!rawToken) {
+    console.error('[requireAuth] 401 EMPTY_TOKEN', { path: new URL(req.url).pathname + new URL(req.url).search });
+    return errorResponse('Missing or invalid authorization header', 401, 'UNAUTHORIZED_EMPTY_TOKEN');
+  }
+
+  // Fast-path: anon key is never a valid user session – return distinct code
+  // so the client/interceptor can avoid a pointless refresh attempt.
+  // Detect via JWT role claim without verifying signature (cheap).
+  try {
+    const payload = JSON.parse(atob(rawToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (payload?.role === 'anon') {
+      console.error('[requireAuth] 401 ANON_TOKEN', { path: new URL(req.url).pathname + new URL(req.url).search, fn: new URL(req.url).searchParams.get('fn') });
+      return errorResponse('Anonymous token not allowed', 401, 'UNAUTHORIZED_ANON_TOKEN');
+    }
+  } catch (_) {
+    // ignore decode failure – fall through to getUser verification
+  }
+
+  const token = rawToken;
   const supabase = getAdminClient();
 
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) {
-    return errorResponse('Invalid or expired token', 401, 'UNAUTHORIZED');
+    console.error('[requireAuth] 401 INVALID_TOKEN', {
+      path: new URL(req.url).pathname + new URL(req.url).search,
+      fn: new URL(req.url).searchParams.get('fn'),
+      error: error?.message ?? 'no user',
+      code: (error as unknown as { code?: string })?.code ?? null,
+    });
+    return errorResponse('Invalid or expired token', 401, 'UNAUTHORIZED_INVALID_TOKEN');
   }
 
   const { data: dbUserRow, error: dbErr } = await supabase
@@ -31,12 +57,20 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     .single();
 
   if (dbErr || !dbUserRow) {
-    return errorResponse('User not found', 401, 'UNAUTHORIZED');
+    console.error('[requireAuth] 401 USER_NOT_FOUND', {
+      userId: user.id,
+      email: user.email,
+      dbErr: dbErr?.message ?? null,
+      code: (dbErr as unknown as { code?: string })?.code ?? null,
+      path: new URL(req.url).pathname + new URL(req.url).search,
+    });
+    return errorResponse('User not found', 401, 'UNAUTHORIZED_USER_NOT_FOUND');
   }
 
   const dbUser = singleWithObjectEmbeds(dbUserRow);
   if (!dbUser) {
-    return errorResponse('User not found', 401, 'UNAUTHORIZED');
+    console.error('[requireAuth] 401 USER_NOT_FOUND_EMBED', { userId: user.id });
+    return errorResponse('User not found', 401, 'UNAUTHORIZED_USER_NOT_FOUND');
   }
 
   if (dbUser.account_status === 'archived') {

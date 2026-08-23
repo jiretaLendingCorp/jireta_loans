@@ -395,6 +395,89 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+[functions.audit-get-logs]
+verify_jwt = false
+[functions.auth-google]
+verify_jwt = false
+[functions.auth-login]
+verify_jwt = false
+[functions.auth-logout]
+verify_jwt = false
+[functions.auth-otp]
+verify_jwt = false
+[functions.auth-password]
+verify_jwt = false
+[functions.auth-register]
+verify_jwt = false
+[functions.auth-session]
+verify_jwt = false
+[functions.ci-manage]
+verify_jwt = false
+[functions.ci-submit]
+verify_jwt = false
+[functions.ci-view]
+verify_jwt = false
+[functions.collections-manage]
+verify_jwt = false
+[functions.collections-view]
+verify_jwt = false
+[functions.disbursements-delivery]
+verify_jwt = false
+[functions.disbursements-gcash]
+verify_jwt = false
+[functions.disbursements-select]
+verify_jwt = false
+[functions.disbursements-view]
+verify_jwt = false
+[functions.disbursements-xendit-webhook]
+verify_jwt = false
+[functions.in-office-create]
+verify_jwt = false
+[functions.in-office-view]
+verify_jwt = false
+[functions.kpi-view]
+verify_jwt = false
+[functions.kyc-submit]
+verify_jwt = false
+[functions.kyc-view]
+verify_jwt = false
+[functions.loans-apply]
+verify_jwt = false
+[functions.loans-manage]
+verify_jwt = false
+[functions.loans-view]
+verify_jwt = false
+[functions.location-manage]
+verify_jwt = false
+[functions.notifications-send]
+verify_jwt = false
+[functions.notifications-view]
+verify_jwt = false
+[functions.payments-manage]
+verify_jwt = false
+[functions.payments-view]
+verify_jwt = false
+[functions.payments-xendit-link]
+verify_jwt = false
+[functions.payments-xendit-webhook]
+verify_jwt = false
+[functions.reports-generate]
+verify_jwt = false
+[functions.reports-view]
+verify_jwt = false
+[functions.sms-send]
+verify_jwt = false
+[functions.system-update-config]
+verify_jwt = false
+[functions.system-view]
+verify_jwt = false
+[functions.users-admin]
+verify_jwt = false
+[functions.users-create]
+verify_jwt = false
+[functions.users-manage]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
@@ -422,8 +505,7 @@ deno_version = 2
 #   RESEND_FROM_NAME    — display name for the sender (default: "Jireta Loans").
 #   APP_URL             — web app origin used for redirect (e.g. https://app.jiretaloanscorp.com). Defaults to https://app.jiretaloanscorp.com.
 #   SITE_URL            — alias for APP_URL.
-[edge_runtime.secrets]
-USE_MOCK_SMS = "false"
+
 
 [analytics]
 enabled = true
