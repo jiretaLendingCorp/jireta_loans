@@ -14,7 +14,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { sanitizeString, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
+import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
@@ -92,8 +92,53 @@ async function handleUpdateProfile(req: Request) {
   if (body.phone && body.phone !== existing.phone_number) {
     if (!validatePhone(sanitizeString(body.phone))) return errorResponse('Invalid phone', 400, 'VALIDATION_ERROR');
     const { data: taken } = await db.from('users').select('id').eq('phone_number', body.phone.trim()).neq('id', targetId).maybeSingle();
-    if (taken) return errorResponse('Phone already used', 400, 'DUPLICATE');
+    if (taken) return errorResponse('Phone already used', 409, 'DUPLICATE');
     updateFields.phone_number = body.phone.trim();
+  }
+
+  // ── Email Uniqueness Check (security) ──────────────────────────────────
+  // Head-manager or self-service email change must still enforce
+  // case-insensitive uniqueness.  The DB trigger normalises to
+  // lower(trim(email)) and `uq_users_email_lower` is the atomic guard;
+  // we pre-check with `ilike` for a clean 409.
+  // `body.email` is the canonical field; some clients send `body.email`
+  // as empty string to clear — treat as not-allowed for accounts that
+  // require an email (head_manager / employee).  For rider/lender the
+  // trigger will NULL a jireta.temp address anyway.
+  if (body.email !== undefined && body.email !== null) {
+    const rawEmail = String(body.email).trim();
+    // Empty string → caller wants to clear email.  Only allow for rider/lender
+    // roles where email is optional; otherwise keep existing email.
+    if (rawEmail === '') {
+      // Explicit clear: set to NULL so the partial unique index is not hit.
+      // Only rider/lender can have NULL email; head_manager/employee must
+      // keep their email, so reject empty for them.
+      const curRole = existingRole?.name ?? '';
+      if (['rider', 'lender'].includes(curRole)) {
+        updateFields.email = null;
+      } else if (rawEmail !== (existing.email ?? '')) {
+        return errorResponse('Email is required', 400, 'VALIDATION_ERROR');
+      }
+    } else {
+      const cleanEmail = rawEmail.toLowerCase();
+      if (!validateEmail(cleanEmail)) return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
+      // Skip duplicate check if the normalised value equals existing (case-only
+      // change is still an update, but not a duplicate of another user).
+      const existingNorm = (existing.email ?? '').trim().toLowerCase();
+      if (cleanEmail !== existingNorm) {
+        const { data: takenEmail } = await db
+          .from('users')
+          .select('id')
+          .ilike('email', cleanEmail)
+          .neq('id', targetId)
+          .maybeSingle();
+        if (takenEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
+        updateFields.email = cleanEmail;
+      } else if (cleanEmail !== existing.email) {
+        // Case normalisation only (e.g. Admin@Ex.COM → admin@ex.com)
+        updateFields.email = cleanEmail;
+      }
+    }
   }
 
   if (body.fcm_token !== undefined) updateFields.fcm_token = body.fcm_token;
@@ -165,12 +210,45 @@ async function handleUpdateProfile(req: Request) {
   }
 
   if (Object.keys(updateFields).length > 0) {
+    // Keep GoTrue email in sync when the canonical users.email changes.
+    // Do it BEFORE the users row so an auth duplicate fails early and we
+    // don't end up with a desynced address.  If auth rejects, surface as 409.
+    if (updateFields.email !== undefined && updateFields.email !== null) {
+      const newEmail = String(updateFields.email);
+      if (newEmail !== existing.email) {
+        try {
+          const { error: authEmailErr } = await db.auth.admin.updateUserById(
+            targetId,
+            { email: newEmail, email_confirm: true },
+          );
+          if (authEmailErr) {
+            const msg = (authEmailErr.message ?? '').toLowerCase();
+            if (msg.includes('already') || msg.includes('duplicate') || msg.includes('exists')) {
+              return errorResponse('Email already registered', 409, 'DUPLICATE');
+            }
+            console.error('auth email sync error:', authEmailErr);
+            return errorResponse(`Failed to update email: ${authEmailErr.message}`, 400, 'UPDATE_FAILED');
+          }
+        } catch (e) {
+          console.error('auth email sync unexpected:', e);
+        }
+      }
+    }
+
     const { error: updateError } = await db
       .from('users')
       .update(updateFields)
       .eq('id', targetId);
     if (updateError) {
       console.error('users update error:', updateError);
+      const msg = (updateError.message ?? '').toLowerCase();
+      const code = (updateError as unknown as { code?: string }).code ?? '';
+      if (code === '23505' || msg.includes('duplicate') || msg.includes('uq_users_email_lower') || msg.includes('users_email')) {
+        return errorResponse('Email already registered', 409, 'DUPLICATE');
+      }
+      if (msg.includes('phone_number') && (msg.includes('duplicate') || code === '23505')) {
+        return errorResponse('Phone already used', 409, 'DUPLICATE');
+      }
       return errorResponse(
         `Failed to update user: ${updateError.message}`,
         400,
@@ -273,6 +351,7 @@ async function handleUpdateProfile(req: Request) {
     middle_name: updateFields.middle_name ?? existing.middle_name,
     last_name: updateFields.last_name ?? existing.last_name,
     suffix: updateFields.suffix ?? existing.suffix,
+    email: updateFields.email !== undefined ? updateFields.email : existing.email,
     phone_number: updateFields.phone_number ?? existing.phone_number,
     account_status: updateFields.account_status ?? existing.account_status,
     role: body.role ?? existingRole?.name ?? undefined,

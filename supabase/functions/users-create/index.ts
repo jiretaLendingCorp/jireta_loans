@@ -93,24 +93,49 @@ async function handleCreateEmployee(req: Request) {
   if (!first_name || !last_name || !email || !phone_number || !position) {
     return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
   }
-  if (!validateEmail(sanitizeString(email))) {
+  // ── Normalise + validate before any DB hit ──────────────────────────
+  const cleanEmail = sanitizeString(email).trim().toLowerCase();
+  if (!validateEmail(cleanEmail)) {
     return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
+  }
+  const cleanPhone = sanitizeString(phone_number).trim();
+  if (!validatePhone(cleanPhone)) {
+    return errorResponse('Invalid phone number format (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
   }
 
   const db = getAdminClient();
+
+  // ── Email Uniqueness Validation (security) ──────────────────────────
+  // Case-insensitive check (`ilike`) + phone duplicate guard.  The DB's
+  // partial unique index `uq_users_email_lower` is the atomic final guard;
+  // this pre-check returns a clean 409 without creating an orphan auth user.
+  const { data: dupEmail } = await db
+    .from('users')
+    .select('id')
+    .ilike('email', cleanEmail)
+    .maybeSingle();
+  if (dupEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
+
+  const { data: dupPhone } = await db
+    .from('users')
+    .select('id')
+    .eq('phone_number', cleanPhone)
+    .maybeSingle();
+  if (dupPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
 
   const { data: roleRow } = await db.from('roles').select('id').eq('name', 'employee').single();
   if (!roleRow) return errorResponse('Employee role not found', 500, 'SERVER_ERROR');
 
   const { data: authUser, error: createErr } = await db.auth.admin.createUser({
-    email: email.trim().toLowerCase(),
+    email: cleanEmail,
     password: DEFAULT_PASSWORD,
     email_confirm: true,
     app_metadata: { role: 'employee' },
   });
 
   if (createErr || !authUser?.user) {
-    if (createErr?.message?.includes('already')) {
+    // GoTrue also enforces email uniqueness in auth.users; surface as 409.
+    if (createErr?.message?.toLowerCase().includes('already') || createErr?.message?.toLowerCase().includes('duplicate')) {
       return errorResponse('Email already registered', 409, 'DUPLICATE');
     }
     return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
@@ -119,8 +144,8 @@ async function handleCreateEmployee(req: Request) {
   const { data: user, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,
     role_id: roleRow.id,
-    email: email.trim().toLowerCase(),
-    phone_number: sanitizeString(phone_number),
+    email: cleanEmail,
+    phone_number: cleanPhone,
     first_name: sanitizeString(first_name),
     middle_name: middle_name ? sanitizeString(middle_name) : null,
     last_name: sanitizeString(last_name),
@@ -131,6 +156,13 @@ async function handleCreateEmployee(req: Request) {
   }, { onConflict: 'id' }).select().single();
 
   if (userErr || !user) {
+    // If the DB's partial unique index `uq_users_email_lower` fired, surface as 409.
+    const msg = (userErr as unknown as { message?: string; code?: string })?.message?.toLowerCase() ?? '';
+    const code = (userErr as unknown as { code?: string })?.code ?? '';
+    if (code === '23505' || msg.includes('duplicate') || msg.includes('uq_users_email_lower') || msg.includes('users_email')) {
+      await db.auth.admin.deleteUser(authUser.user.id);
+      return errorResponse('Email already registered', 409, 'DUPLICATE');
+    }
     await db.auth.admin.deleteUser(authUser.user.id);
     return errorResponse('Failed to create user record', 500, 'SERVER_ERROR');
   }
@@ -188,7 +220,7 @@ async function handleCreateRider(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
   const { data: existingPhone } = await db.from('users').select('id').eq('phone_number', phone.trim()).maybeSingle();
-  if (existingPhone) return errorResponse('Phone number already registered', 400, 'DUPLICATE');
+  if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
 
   const { data: authUser, error: authErr } = await db.auth.admin.createUser({
     phone: toE164(phone.trim()),
@@ -273,7 +305,7 @@ async function handleCreateLender(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
 
   const { data: existingPhone } = await db.from('users').select('id').eq('phone_number', phone.trim()).maybeSingle();
-  if (existingPhone) return errorResponse('Phone number already registered', 400, 'DUPLICATE');
+  if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
 
   const { data: authUser, error: authErr } = await db.auth.admin.createUser({
     phone: lenderToE164(phone.trim()),

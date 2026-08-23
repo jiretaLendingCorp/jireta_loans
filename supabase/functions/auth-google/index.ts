@@ -86,10 +86,12 @@ async function handleExchange(req: Request) {
   }
 
   // ── Step 2: resolve the lender by email (or auto-register) ────────────────
+  // Email Uniqueness Check: use case-insensitive `ilike` so legacy
+  // mixed-case rows still resolve (canonical is lower via DB trigger).
   const { data: userRow } = await db
     .from('users')
     .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
-    .eq('email', email)
+    .ilike('email', email)
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
 

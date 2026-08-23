@@ -386,6 +386,14 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 # DEV: set to "true" to skip real Semaphore SMS and always issue OTP 123456.
+# RESEND (Forgot Password via third-party API):
+#   RESEND_API_KEY      — required for sending reset emails via Resend (https://resend.com/api-keys)
+#                         Set in cloud: `supabase secrets set RESEND_API_KEY=re_xxx` or Dashboard → Edge Functions → Secrets.
+#                         If unset (local dev), forgot-password falls back to Supabase built-in email (Inbucket at http://127.0.0.1:54324).
+#   RESEND_FROM_EMAIL   — verified sender address (e.g. noreply@jiretaloanscorp.com). Defaults to onboarding@resend.dev (only sends to account owner until domain verified).
+#   RESEND_FROM_NAME    — display name for the sender (default: "Jireta Loans").
+#   APP_URL             — web app origin used for redirect (e.g. https://app.jiretaloanscorp.com). Defaults to https://app.jiretaloanscorp.com.
+#   SITE_URL            — alias for APP_URL.
 [edge_runtime.secrets]
 USE_MOCK_SMS = "true"
 

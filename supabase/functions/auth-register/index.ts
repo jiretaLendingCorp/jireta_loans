@@ -91,11 +91,15 @@ serve(async (req) => {
       );
     }
 
-    // ── Duplicate checks ──────────────────────────────────────────────────
+    // ── Duplicate checks — Email Uniqueness Validation (security) ─────────
+    // Use case-insensitive `ilike` so `Admin@Ex.COM` still collides with
+    // `admin@ex.com`.  The DB trigger + partial unique index
+    // `uq_users_email_lower` is the final atomic guard; this SELECT gives a
+    // fast, user-friendly 409 before we hit the auth service.
     const { data: existingEmail } = await db
       .from('users')
       .select('id')
-      .eq('email', cleanEmail)
+      .ilike('email', cleanEmail)
       .maybeSingle();
     if (existingEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
 

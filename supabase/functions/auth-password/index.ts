@@ -15,6 +15,7 @@ import { writeAuditLog, sanitizeIpAddress } from "../_shared/audit.ts";
 import { isAuthUser, requireAuth } from "../_shared/auth.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient, getAnonClient } from "../_shared/db.ts";
+import { sendPasswordResetEmail } from "../_shared/email.ts";
 import { hashPassword, matchesPasswordHistory } from "../_shared/password_hash.ts";
 import { checkRateLimit, checkBlock, blockKey, recordSecurityEvent } from "../_shared/rate_limiter.ts";
 import { singleWithObjectEmbeds } from "../_shared/types.ts";
@@ -72,8 +73,12 @@ serve(async (req) => {
 });
 
 // ── [moved from functions/auth-forgot-password/index.ts] ────────────────────
+// UPDATED: Now sends the reset link via Resend (third-party API) when
+// RESEND_API_KEY is configured. Falls back to Supabase's built-in
+// resetPasswordForEmail in local dev (Inbucket) or when Resend fails.
 async function handleForgotPassword(req: Request) {
-  const { email } = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const { email } = body as { email?: unknown };
   if (!email) {
     return errorResponse("Email is required", 400, "VALIDATION_ERROR");
   }
@@ -110,7 +115,6 @@ async function handleForgotPassword(req: Request) {
     windowMinutes: FORGOT_WINDOW_MINUTES,
   });
   if (!allowed) {
-    // Repeated resets on the SAME email → suspicious account activity.
     await blockKey({
       key: `forgot:${cleanEmail}`,
       reason: "Multiple password reset requests",
@@ -129,8 +133,7 @@ async function handleForgotPassword(req: Request) {
     );
   }
 
-  // Per-IP: up to 10 reset requests / 15 min (multiple accounts from one IP
-  // is a classic enumeration / spam signature).
+  // Per-IP: up to 10 reset requests / 15 min
   const ipResult = await checkRateLimit({
     key: `forgot:ip:${ip}`,
     maxAttempts: FORGOT_MAX_PER_IP,
@@ -159,11 +162,12 @@ async function handleForgotPassword(req: Request) {
 
   const { data: userRow } = await db
     .from("users")
-    .select("id, account_status, roles!inner(name)")
+    .select("id, account_status, first_name, last_name, roles!inner(name)")
     .eq("email", cleanEmail)
-    .single();
+    .maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
 
+  // Anti-enumeration: same generic response when not found / wrong role / inactive
   if (!user || !["head_manager", "employee"].includes(user?.roles?.name)) {
     return jsonResponse({
       message: "If that email is registered, a reset link has been sent.",
@@ -176,19 +180,115 @@ async function handleForgotPassword(req: Request) {
     });
   }
 
-  const { error } = await db.auth.resetPasswordForEmail(cleanEmail, {
-    redirectTo: `${
-      Deno.env.get("APP_URL") ?? "https://app.jiretaloanscorp.com"
-    }/reset-password`,
-  });
+  const appUrl = Deno.env.get("APP_URL") ?? Deno.env.get("SITE_URL") ?? "https://app.jiretaloanscorp.com";
+  const redirectTo = `${appUrl.replace(/\/$/, "")}/reset-password`;
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
-  if (!error) {
+  // ── Primary path: Resend via generateLink ──────────────────────────────────
+  if (resendApiKey) {
+    try {
+      const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
+        type: "recovery",
+        email: cleanEmail,
+        options: { redirectTo },
+      });
+
+      const actionLink = (linkData as unknown as { properties?: { action_link?: string } })?.properties?.action_link
+        ?? (linkData as unknown as { action_link?: string })?.action_link;
+
+      if (linkError || !actionLink) {
+        console.error("[forgot-password] generateLink failed:", linkError?.message ?? "no action_link", linkError);
+        // Fallback to Supabase built-in email so user still gets a reset
+        const { error: fbErr } = await db.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+        if (!fbErr) {
+          try {
+            await db.from("auth_logs").insert({
+              user_id: user.id,
+              event_type: "password_reset_requested",
+              ip_address: ip,
+            });
+          } catch (_) { /* no-op */ }
+          console.log("[forgot-password] fallback Supabase email sent for", cleanEmail);
+        } else {
+          console.error("[forgot-password] fallback also failed:", fbErr.message);
+        }
+        return jsonResponse({
+          message: "If that email is registered, a reset link has been sent.",
+        });
+      }
+
+      const recipientName = [user.first_name, user.last_name].filter(Boolean).join(" ") || undefined;
+      const sendResult = await sendPasswordResetEmail({
+        to: cleanEmail,
+        resetLink: actionLink,
+        recipientName,
+      });
+
+      if (!sendResult.ok) {
+        console.error("[forgot-password] Resend failed, falling back to Supabase email:", sendResult.error);
+        const { error: fbErr } = await db.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+        if (!fbErr) {
+          console.log("[forgot-password] fallback Supabase email sent after Resend failure");
+        } else {
+          console.error("[forgot-password] fallback Supabase email also failed:", fbErr.message);
+        }
+      } else {
+        console.log(`[forgot-password] Reset email via Resend sent to ${cleanEmail} id=${sendResult.id}`);
+      }
+
+      try {
+        await db.from("auth_logs").insert({
+          user_id: user.id,
+          event_type: "password_reset_requested",
+          ip_address: ip,
+        });
+      } catch (e) {
+        console.error("[forgot-password] auth_logs insert failed:", e);
+      }
+
+      return jsonResponse({
+        message: "If that email is registered, a reset link has been sent.",
+      });
+    } catch (e) {
+      console.error("[forgot-password] Resend path exception:", e);
+      // Last-resort fallback to Supabase email
+      try {
+        const { error: fbErr } = await db.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+        if (!fbErr) {
+          try {
+            await db.from("auth_logs").insert({
+              user_id: user.id,
+              event_type: "password_reset_requested",
+              ip_address: ip,
+            });
+          } catch (_) { /* no-op */ }
+        }
+      } catch (_) { /* no-op */ }
+      return jsonResponse({
+        message: "If that email is registered, a reset link has been sent.",
+      });
+    }
+  }
+
+  // ── Fallback: no RESEND_API_KEY (local dev / Inbucket) ─────────────────────
+  console.warn("[forgot-password] RESEND_API_KEY not set — using Supabase built-in email (Inbucket in local dev)");
+  const { error } = await db.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+
+  if (error) {
+    console.error("[forgot-password] resetPasswordForEmail error:", error.message);
+    // Still return generic to avoid enumeration
+    return jsonResponse({
+      message: "If that email is registered, a reset link has been sent.",
+    });
+  }
+
+  try {
     await db.from("auth_logs").insert({
       user_id: user.id,
       event_type: "password_reset_requested",
       ip_address: ip,
     });
-  }
+  } catch (_) { /* no-op */ }
 
   return jsonResponse({
     message: "If that email is registered, a reset link has been sent.",
@@ -196,9 +296,17 @@ async function handleForgotPassword(req: Request) {
 }
 
 // ── [moved from functions/auth-reset-password/index.ts] ─────────────────────
+// UPDATED: Supports multiple token formats so the Resend-generated
+// `action_link` (PKCE `code`, `token_hash`, legacy userId, or JWT
+// access_token) all work. Falls back to legacy UUID path for backwards
+// compat.
 async function handleResetPassword(req: Request) {
-  const { token, new_password } = await req.json();
-  if (!token || !new_password) {
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  // Accept `token`, `code`, `token_hash`, or `access_token` from various clients
+  const rawToken = (body["token"] ?? body["code"] ?? body["token_hash"] ?? body["access_token"]) as string | undefined;
+  const new_password = body["new_password"] as string | undefined;
+
+  if (!rawToken || !new_password) {
     return errorResponse(
       "Token and new_password are required",
       400,
@@ -213,9 +321,86 @@ async function handleResetPassword(req: Request) {
   }
 
   const db = getAdminClient();
+  const anon = getAnonClient();
+  let userId: string | null = null;
+  const token = String(rawToken).trim();
 
-  const { data, error } = await db.auth.admin.getUserById(token);
-  if (error || !data.user) {
+  // 1) Try recovery token_hash via verifyOtp (used by Resend generateLink)
+  if (!userId && token.length > 20) {
+    try {
+      const verify = (anon.auth as unknown as { verifyOtp: (p: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).verifyOtp;
+      const { data, error } = await verify({ token_hash: token, type: "recovery" });
+      if (!error && (data as { user?: { id?: string } })?.user?.id) {
+        userId = (data as { user: { id: string } }).user.id;
+        console.log("[reset-password] verified via token_hash recovery");
+      } else if (error) {
+        // Not a token_hash — will try other methods
+      }
+    } catch (_) { /* no-op */ }
+  }
+
+  // 2) Try PKCE code exchange (new Supabase flow: ?code=xxx)
+  if (!userId && token.length > 20) {
+    try {
+      const exchange = (anon.auth as unknown as { exchangeCodeForSession: (c: string) => Promise<{ data: unknown; error: unknown }> }).exchangeCodeForSession;
+      if (exchange) {
+        const { data, error } = await exchange(token);
+        if (!error && (data as { user?: { id?: string } })?.user?.id) {
+          userId = (data as { user: { id: string } }).user.id;
+          console.log("[reset-password] exchanged PKCE code for session");
+        } else if (!error && (data as { session?: { user?: { id?: string } } })?.session?.user?.id) {
+          userId = (data as { session: { user: { id: string } } }).session.user.id;
+          console.log("[reset-password] exchanged PKCE code for session (session.user)");
+        }
+      }
+    } catch (_) { /* no-op */ }
+  }
+
+  // 3) Try JWT access_token via getUser(token)
+  if (!userId && token.includes(".")) {
+    try {
+      const { data, error } = await anon.auth.getUser(token);
+      if (!error && data?.user?.id) {
+        userId = data.user.id;
+        console.log("[reset-password] verified via JWT access_token");
+      }
+    } catch (_) { /* no-op */ }
+    // Also try admin getUser with token as JWT
+    if (!userId) {
+      try {
+        const { data, error } = await db.auth.getUser(token);
+        if (!error && data?.user?.id) userId = data.user.id;
+      } catch (_) { /* no-op */ }
+    }
+  }
+
+  // 4) Legacy: token is a UUID userId (old app behaviour)
+  if (!userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+    try {
+      const { data, error } = await db.auth.admin.getUserById(token);
+      if (!error && data?.user?.id) {
+        userId = data.user.id;
+        console.log("[reset-password] verified via legacy UUID");
+      }
+    } catch (_) { /* no-op */ }
+  }
+
+  // 5) Last attempt: treat token as hashed_token / otp and try verifyOtp with email-type
+  if (!userId) {
+    for (const t of ["recovery", "email"] as const) {
+      try {
+        const verify2 = (anon.auth as unknown as { verifyOtp: (p: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> }).verifyOtp;
+        const { data, error } = await verify2({ token_hash: token, type: t });
+        if (!error && (data as { user?: { id?: string } })?.user?.id) {
+          userId = (data as { user: { id: string } }).user.id;
+          console.log(`[reset-password] verified via token_hash type=${t}`);
+          break;
+        }
+      } catch (_) { /* no-op */ }
+    }
+  }
+
+  if (!userId) {
     return errorResponse(
       "Invalid or expired reset token",
       400,
@@ -223,27 +408,54 @@ async function handleResetPassword(req: Request) {
     );
   }
 
-  const userId = data.user.id;
+  // Check password history BEFORE updating (prevent reuse)
+  try {
+    const { data: history } = await db
+      .from("password_history")
+      .select("password_hash")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(PASSWORD_HISTORY_LIMIT);
+    for (const h of (history as { password_hash: string }[] | null) ?? []) {
+      if (await matchesPasswordHistory(userId, pw, h.password_hash)) {
+        return errorResponse(
+          `Cannot reuse last ${PASSWORD_HISTORY_LIMIT} passwords`,
+          400,
+          "PASSWORD_REUSE",
+        );
+      }
+    }
+  } catch (_) { /* no-op */ }
 
   const { error: updateError } = await db.auth.admin.updateUserById(userId, {
     password: pw,
   });
   if (updateError) {
+    console.error("[reset-password] updateUserById failed:", updateError);
     return errorResponse("Failed to reset password", 500, "SERVER_ERROR");
   }
 
-  await db.from("password_history").insert({
-    user_id: userId,
-    password_hash: await hashPassword(userId, pw),
-  });
+  try {
+    await db.from("password_history").insert({
+      user_id: userId,
+      password_hash: await hashPassword(userId, pw),
+    });
+  } catch (e) { console.error("[reset-password] password_history insert failed:", e); }
 
-  await writeAuditLog({
-    performedBy: userId,
-    action: "password_reset",
-    tableName: "users",
-    recordId: userId,
-    ipAddress: req.headers.get("x-forwarded-for") ?? "unknown",
-  });
+  try {
+    await writeAuditLog({
+      performedBy: userId,
+      action: "password_reset",
+      tableName: "users",
+      recordId: userId,
+      ipAddress: req.headers.get("x-forwarded-for") ?? "unknown",
+    });
+  } catch (_) { /* no-op */ }
+
+  // Also clear force_password_change if set
+  try {
+    await db.from("users").update({ force_password_change: false }).eq("id", userId);
+  } catch (_) { /* no-op */ }
 
   return jsonResponse({ message: "Password reset successfully" });
 }

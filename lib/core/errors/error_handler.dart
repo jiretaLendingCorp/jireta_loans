@@ -82,6 +82,14 @@ class ErrorHandler {
       case 404:
         return NotFoundFailure(message, code: code);
       case 409:
+        // 409 is used for both business conflicts and security validations.
+        // Email Uniqueness Check (`DUPLICATE` / `Email already registered`)
+        // should surface as a ValidationFailure so forms can show a field error.
+        if (code?.toUpperCase() == 'DUPLICATE' ||
+            message.toLowerCase().contains('already registered') ||
+            message.toLowerCase().contains('duplicate')) {
+          return ValidationFailure(message, code: code ?? 'DUPLICATE');
+        }
         // Collection request conflict — preserve ALREADY_IN_PROGRESS etc.
         return ServerFailure(message, code: code ?? 'CONFLICT');
       case 422:

@@ -11,6 +11,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/services/realtime_service.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../../data/datasources/remote/auth_remote_datasource.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../shared/providers/auth_state_provider.dart';
@@ -461,6 +462,42 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     if (message.contains('Invalid OTP code') ||
         message.contains('OTP expired or not found')) {
       return 'Invalid or expired OTP.';
+    }
+    // ── Email Uniqueness Check (security) ─────────────────────────────
+    // Surface duplicate-email/phone violations with a clear, field-specific
+    // message instead of the raw Postgres / GoTrue text.  The helper is
+    // case-insensitive and covers both the Edge Function 409 ("Email already
+    // registered") and a raw unique-index violation ("duplicate key …
+    // uq_users_email_lower").
+    // Try to extract the typed code from Dio's response payload as well.
+    String? duoCode;
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map) {
+        final errObj = data['error'];
+        if (errObj is Map) duoCode = errObj['code']?.toString();
+        duoCode ??= data['code']?.toString();
+      }
+      final inner = error.error;
+      if (duoCode == null && inner is AppException) duoCode = inner.code;
+    }
+    if (AppValidators.isEmailDuplicateError(message, duoCode)) {
+      return AppValidators.duplicateEmailMessage;
+    }
+    // Phone duplicate sibling — same DUPLICATE code but different field.
+    if (message.toLowerCase().contains('phone') &&
+        (message.toLowerCase().contains('already') ||
+            message.toLowerCase().contains('duplicate') ||
+            duoCode?.toUpperCase() == 'DUPLICATE')) {
+      // Distinguish the exact text so the user knows which field collided.
+      if (message.toLowerCase().contains('phone')) {
+        return 'Phone number already registered. Please use a different number.';
+      }
+    }
+    if (duoCode?.toUpperCase() == 'DUPLICATE' ||
+        message.contains('DUPLICATE')) {
+      // Generic duplicate fallback for any other unique violation.
+      return message;
     }
     // For Dio failures surface the server's actual message (so "Phone number
     // not registered" is no longer hidden behind the generic text). Only

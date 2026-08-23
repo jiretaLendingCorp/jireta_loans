@@ -28,6 +28,9 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _submitted = false;
+  // Email Uniqueness Check — surface 409 DUPLICATE as a field error, not just a toast.
+  String? _emailDuplicationError;
+  String? _phoneDuplicationError;
 
   static const List<String> _genders = ['male', 'female', 'other'];
   static const List<String> _civilStatuses = [
@@ -49,23 +52,46 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
   }
 
   Future<void> _submit() async {
+    // Clear previous server-side uniqueness errors so a corrected email can
+    // re-validate.  Local format validators still run first.
+    setState(() {
+      _emailDuplicationError = null;
+      _phoneDuplicationError = null;
+    });
     if (!_formKey.currentState!.validate()) return;
-    final error = await ref.read(authProvider.notifier).register(
+    final repoError = await ref.read(authProvider.notifier).register(
           firstName: _firstNameCtrl.text.trim(),
           lastName: _lastNameCtrl.text.trim(),
-          email: _emailCtrl.text.trim(),
+          // Email is canonicalised with lower(trim) before hitting the
+          // Email Uniqueness Check (DB index `uq_users_email_lower`).
+          email: AppValidators.normalizeEmail(_emailCtrl.text),
           phoneNumber: _phoneCtrl.text.trim(),
           password: _passwordCtrl.text,
           gender: _gender,
           civilStatus: _civilStatus,
         );
     if (!mounted) return;
-    if (error == null) {
+    if (repoError == null) {
       setState(() => _submitted = true);
     } else {
+      // Email Uniqueness Validation — promote 409 to a field-level error so
+      // the user sees exactly which field collided; still show a toast.
+      final isEmailDup = AppValidators.isEmailDuplicateError(repoError);
+      final isPhoneDup = repoError.toLowerCase().contains('phone') &&
+          (repoError.toLowerCase().contains('already') ||
+              repoError.toLowerCase().contains('duplicate'));
+      if (isEmailDup) {
+        setState(() => _emailDuplicationError = AppValidators.duplicateEmailMessage);
+        // Re-run validators so the new server error appears inline.
+        _formKey.currentState!.validate();
+      }
+      if (isPhoneDup) {
+        setState(() => _phoneDuplicationError = 'Phone number already registered. Please use a different number.');
+        _formKey.currentState!.validate();
+      }
       context.showSnackBarAsToast(
         SnackBar(
-          content: Text(error),
+          content: Text(repoError),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -156,12 +182,19 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 maxLength: 254,
+                onChanged: (_) {
+                  if (_emailDuplicationError != null) {
+                    setState(() => _emailDuplicationError = null);
+                  }
+                },
                 decoration: const InputDecoration(
                   labelText: 'Email Address',
                   prefixIcon: Icon(Icons.email_outlined),
                   counterText: '',
                 ),
                 validator: (v) {
+                  // Server-side Email Uniqueness Check — shown inline after 409.
+                  if (_emailDuplicationError != null) return _emailDuplicationError;
                   if (v == null || v.isEmpty) return 'Email is required';
                   if (!AppValidators.isValidEmail(v)) {
                     return 'Enter a valid email address';
@@ -174,12 +207,18 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
                 maxLength: 20,
+                onChanged: (_) {
+                  if (_phoneDuplicationError != null) {
+                    setState(() => _phoneDuplicationError = null);
+                  }
+                },
                 decoration: const InputDecoration(
                   labelText: 'Phone Number',
                   prefixIcon: Icon(Icons.phone_outlined),
                   counterText: '',
                 ),
                 validator: (v) {
+                  if (_phoneDuplicationError != null) return _phoneDuplicationError;
                   if (v == null || v.isEmpty) return 'Phone number is required';
                   if (!AppValidators.isValidPhone(v)) {
                     return 'Enter a valid PH phone number (e.g. 09xxxxxxxxx)';

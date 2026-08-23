@@ -5,6 +5,20 @@ class AppValidators {
     return null;
   }
 
+  /// Email format validation — used on every registration / profile form.
+  /// Security note (Email Uniqueness Validation):
+  ///   Format is checked here on the client, but UNIQUENESS is enforced
+  ///   server-side for security:
+  ///     • Edge Functions (`auth-register`, `users-create`) normalise to
+  ///       `lower(trim(email))` and pre-check with `ilike` before creating
+  ///       the auth user — returns 409 DUPLICATE with "Email already registered".
+  ///     • Postgres has a partial unique index `uq_users_email_lower`
+  ///       ON users (lower(email)) WHERE email IS NOT NULL — the atomic final
+  ///       guard against TOCTOU races and direct SQL inserts.
+  ///     • A BEFORE INSERT/UPDATE trigger `trg_users_normalize_email`
+  ///       canonicalises every stored email to lower(trim(email)).
+  ///   The UI should surface the server's 409 as a field error; see
+  ///   `duplicateEmailMessage` below and `AuthProvider.extractErrorMessage`.
   static String? email(String? value) {
     if (value == null || value.isEmpty) return 'Email is required';
     final regex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
@@ -13,6 +27,29 @@ class AppValidators {
   }
 
   static bool isValidEmail(String? value) => email(value) == null;
+
+  /// Canonicalises an email exactly as the DB trigger does — `lower(trim(...))`.
+  /// Use before sending to the API so `ILike` and the DB index stay aligned.
+  static String normalizeEmail(String? value) => (value ?? '').trim().toLowerCase();
+
+  /// User-facing text for a uniqueness violation (409 DUPLICATE).
+  /// Covers both the Edge Function (`Email already registered`) and the raw
+  /// Postgres `duplicate key … uq_users_email_lower` error.
+  static const String duplicateEmailMessage = 'Email already registered. Please use a different email address.';
+
+  /// Returns true when a server error string/code indicates an email uniqueness
+  /// violation — used by providers/widgets to promote the generic toast to a
+  /// field-level error.  Case-insensitive on purpose for GoTrue / PostgREST
+  /// message variations (`already registered`, `duplicate key`, `uq_users_email_lower`).
+  static bool isEmailDuplicateError(String? message, [String? code]) {
+    if (code != null && code.toUpperCase() == 'DUPLICATE') return true;
+    if (message == null || message.isEmpty) return false;
+    final m = message.toLowerCase();
+    return m.contains('already registered') && m.contains('email') ||
+        m.contains('duplicate') && m.contains('email') ||
+        m.contains('uq_users_email_lower') ||
+        (m.contains('duplicate key') && m.contains('users_email'));
+  }
 
   static String? phone(String? value) {
     if (value == null || value.isEmpty) return 'Phone number is required';
