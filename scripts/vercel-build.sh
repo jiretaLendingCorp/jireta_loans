@@ -48,19 +48,21 @@ else
 fi
 
 if [[ "$SUPABASE_URL_EFFECTIVE" == *"your-project.supabase.co"* ]]; then
-  echo "⚠️  WARNING: SUPABASE_URL is still the placeholder 'your-project.supabase.co'."
-  echo "   Set SUPABASE_URL in Vercel → Project Settings → Environment Variables,"
-  echo "   then redeploy. The app will show a persistent 'No Internet Connection'"
-  echo "   toast until this is fixed (probe DNS fails)."
+  echo "🚨 CRITICAL: SUPABASE_URL is still the placeholder 'your-project.supabase.co'."
+  echo "   Set SUPABASE_URL in Vercel → Project Settings → Environment Variables (Production),"
+  echo "   then trigger a Redeploy (Vercel → Deployments → ••• → Redeploy)."
+  echo "   Without this the production app will always fail with:"
+  echo "     ERR_NAME_NOT_RESOLVED your-project.supabase.co/functions/v1/auth-login"
+  echo "     → 'Cannot connect to server' on every login/register call."
   if [ "${APP_ENV:-production}" = "production" ]; then
-    echo "   Production build: failing fast to surface the mis-config."
-    # Uncomment to hard-fail production builds on missing env:
-    # exit 1
+    echo "   Failing build to prevent deploying a broken production build."
+    echo "   Fix: Vercel Dashboard → jireta → Settings → Environment Variables → Add (copy from Supabase Dashboard → Settings → API):"
+    echo "     SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co"
+    echo "     SUPABASE_ANON_KEY=eyJ... (Publishable key)"
+    echo "     EDGE_FUNCTIONS_URL=https://YOUR_PROJECT_REF.supabase.co/functions/v1"
+    echo "   Then Redeploy."
+    exit 1
   fi
-fi
-
-if [[ "$SUPABASE_URL_EFFECTIVE" == *"lcelzrvpqwlbeccrwpkp.supabase.co"* ]]; then
-  echo "ℹ️  Detected legacy Supabase project lcelzrvpqwlbeccrwpkp.supabase.co — verify it matches Vercel env."
 fi
 
 # Also warn if new origin jireta.vercel.app is not in CORS_ALLOWED_ORIGINS

@@ -15,7 +15,7 @@
 // Connection" even though the network was fine (fixed in connectivity_service.dart
 // web fast-path). API calls will still fail until CORS is corrected.
 
-const DEV_ALLOWED_ORIGIN = "https://jireta.vercel.app";
+const DEV_ALLOWED_ORIGIN = "*";
 
 function allowedOrigins(): string[] {
   const raw = Deno.env.get("CORS_ALLOWED_ORIGINS");
@@ -29,6 +29,7 @@ function allowedOrigins(): string[] {
 // The value stamped on every JSON response. When CORS is restricted the
 // deployment's own web origin is used (single-origin in practice); when
 // unconfigured `*` keeps local web/dev working. Mobile apps ignore CORS.
+// deno-lint-ignore no-unused-vars
 function defaultAllowOrigin(): string {
   const configured = allowedOrigins();
   if (configured.length === 0) return DEV_ALLOWED_ORIGIN;

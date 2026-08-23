@@ -36,6 +36,7 @@ const FORGOT_MAX_PER_IP = 10;
 const FORGOT_BLOCK_MINUTES = 60;
 
 // OTP settings (per spec: 6-digit, hashed, 1 min expiry, 5 attempts)
+// deno-lint-ignore no-unused-vars
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 1;
 const OTP_MAX_ATTEMPTS = 5;
@@ -156,7 +157,7 @@ async function handleForgotPassword(req: Request) {
   // Invalidate previous unused OTPs and insert new one (trigger also does)
   try {
     await db.from("email_reset_otps").update({ used: true }).eq("email", cleanEmail).eq("used", false);
-  } catch (_) {}
+  } catch (_) { /* ignore update failure */ }
   const { error: insertErr } = await db.from("email_reset_otps").insert({
     user_id: user.id,
     email: cleanEmail,
@@ -186,7 +187,7 @@ async function handleForgotPassword(req: Request) {
 
   try {
     await db.from("auth_logs").insert({ user_id: user.id, event_type: "password_reset_requested", ip_address: ip });
-  } catch (_) {}
+  } catch (_) { /* ignore log failure */ }
 
   return jsonResponse({ message: "If an account exists, we'll send a reset code.", expires_in: OTP_EXPIRY_MINUTES * 60 });
 }
@@ -322,7 +323,7 @@ async function handleResetPassword(req: Request) {
         return errorResponse(`Cannot reuse last ${PASSWORD_HISTORY_LIMIT} passwords`, 400, "PASSWORD_REUSE");
       }
     }
-  } catch (_) {}
+  } catch (_) { /* ignore history check failure */ }
 
   const { error: updateError } = await db.auth.admin.updateUserById(userId, { password: pw });
   if (updateError) {
@@ -341,11 +342,11 @@ async function handleResetPassword(req: Request) {
 
   try {
     await writeAuditLog({ performedBy: userId, action: "password_reset", tableName: "users", recordId: userId, ipAddress: req.headers.get("x-forwarded-for") ?? "unknown" });
-  } catch (_) {}
+  } catch (_) { /* ignore audit failure */ }
 
   try {
     await db.from("users").update({ force_password_change: false }).eq("id", userId);
-  } catch (_) {}
+  } catch (_) { /* ignore update failure */ }
 
   return jsonResponse({ message: "Password reset successfully" });
 }
