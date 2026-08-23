@@ -182,7 +182,11 @@ async function handleForgotPassword(req: Request) {
     });
   }
 
-  const appUrl = Deno.env.get("APP_URL") ?? Deno.env.get("SITE_URL") ?? "https://app.jiretaloanscorp.com";
+  // Deployed Vercel URL is https://lending-jet-five.vercel.app — must match
+  // Supabase Dashboard → Auth → URL Configuration → Redirect URLs allowlist.
+  // If APP_URL/SITE_URL not set in Edge Function secrets, fall back to the
+  // actual production URL (vercel) not the old placeholder.
+  const appUrl = Deno.env.get("APP_URL") ?? Deno.env.get("SITE_URL") ?? "https://lending-jet-five.vercel.app";
   const redirectTo = `${appUrl.replace(/\/$/, "")}/reset-password`;
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
