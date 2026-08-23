@@ -112,7 +112,26 @@ class AuthRemoteDataSource {
     await _client.post(ApiEndpoints.authForgotPassword, data: {'email': email});
   }
 
+  Future<void> verifyResetOtp({required String email, required String otp}) async {
+    await _client.post(
+      ApiEndpoints.authVerifyResetOtp,
+      data: {'email': email, 'otp': otp},
+    );
+  }
+
   Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    await _client.post(
+      ApiEndpoints.authResetPassword,
+      data: {'email': email, 'otp': otp, 'new_password': newPassword},
+    );
+  }
+
+  // Legacy token-based reset kept for backwards compat (not used by new OTP flow)
+  Future<void> resetPasswordWithToken({
     required String token,
     required String newPassword,
   }) async {

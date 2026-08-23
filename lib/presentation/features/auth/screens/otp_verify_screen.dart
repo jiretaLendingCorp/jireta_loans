@@ -219,7 +219,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
       _focusNodes[0].requestFocus();
       context.showSnackBarAsToast(
         const SnackBar(
-          content: Text('OTP sent successfully.'),
+          content: Text('OTP resent to your Gmail and SMS. Please check your inbox.'),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -301,11 +301,21 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Enter the 6-digit code sent to\n$maskedPhone',
+                  'Enter the 6-digit code sent to\n$maskedPhone and your Gmail',
                   style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,
                     height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Please check your Gmail inbox (and SMS) for the code.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textTertiary,
+                    height: 1.4,
                   ),
                   textAlign: TextAlign.center,
                 ),

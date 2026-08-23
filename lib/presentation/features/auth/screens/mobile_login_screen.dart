@@ -267,12 +267,12 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
             _FaqItem(
               question: 'How do I log in to the app?',
               answer:
-                  'Enter your registered mobile number and tap Send OTP. You will receive a one-time password (OTP) to verify your account.',
+                  'Enter your registered mobile number and tap Send OTP. You will receive a one-time password (OTP) on your Gmail and via SMS to verify your account.',
             ),
             _FaqItem(
               question: 'What if I do not receive my OTP?',
               answer:
-                  'Wait at least 60 seconds before requesting a new OTP. Make sure your mobile number is correct and you have a stable connection.',
+                  'Wait at least 60 seconds before tapping Resend OTP. Check your Gmail inbox (including Spam) and SMS. Make sure your mobile number and Gmail on file are correct and you have a stable connection.',
             ),
             _FaqItem(
               question: 'How do I apply for a loan?',
@@ -459,7 +459,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                           ),
                                           const SizedBox(height: 4),
                                           const Text(
-                                            'Enter your mobile number to receive an OTP',
+                                            'Enter your mobile number to receive an OTP\nvia Gmail and SMS',
+                                            textAlign: TextAlign.center,
                                             style: TextStyle(
                                               fontSize: 13,
                                               color: AppColors.textSecondary,

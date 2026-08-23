@@ -13,6 +13,7 @@ const _noRefreshPaths = {
   'auth-otp?fn=send-otp',
   'auth-otp?fn=verify-otp',
   'auth-password?fn=forgot-password',
+  'auth-password?fn=verify-otp',
   'auth-password?fn=reset-password',
   'auth-logout?fn=logout',
   'auth-google?fn=exchange',

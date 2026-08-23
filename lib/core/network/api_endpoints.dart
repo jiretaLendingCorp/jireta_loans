@@ -11,6 +11,7 @@ class ApiEndpoints {
       'auth-password?fn=force-change-password';
   static const String authChangePassword = 'auth-password?fn=change-password';
   static const String authForgotPassword = 'auth-password?fn=forgot-password';
+  static const String authVerifyResetOtp = 'auth-password?fn=verify-otp';
   static const String authResetPassword = 'auth-password?fn=reset-password';
   static const String authLogout = 'auth-logout?fn=logout';
   static const String authRefreshSession = 'auth-session?fn=refresh-session';

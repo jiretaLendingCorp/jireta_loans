@@ -29,15 +29,18 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final email = _emailCtrl.text.trim();
     final notifier = ref.read(authProvider.notifier);
-    final ok = await notifier.forgotPassword(email: _emailCtrl.text.trim());
+    final ok = await notifier.forgotPassword(email: email);
     if (!mounted) return;
     if (ok) {
-      setState(() => _sent = true);
+      // OTP flow: go directly to Reset Password (OTP + New Password) with email
+      // per spec: Forgot Password -> Enter email -> Generate OTP -> Gmail -> Enter OTP
+      context.go('${RouteConstants.resetPassword}?email=${Uri.encodeComponent(email)}');
     } else {
       final err = ref.read(authProvider).error;
       final msg = notifier.extractErrorMessage(err ?? 'Error') ??
-          'Failed to send reset link. Please try again.';
+          'Failed to send reset code. Please try again.';
       context.showSnackBarAsToast(
         SnackBar(
           content: Text(msg),
@@ -88,7 +91,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Enter your email and we\'ll send you a reset link.',
+          'Enter your email and we\'ll send you a 6-digit verification code.',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           textAlign: TextAlign.center,
         ),
@@ -133,7 +136,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                           ),
                         )
                       : const Text(
-                          'Send Reset Link',
+                          'Send Code',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -181,7 +184,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 8),
         const Text(
-          "If an account exists, we'll send a reset link. Please check your inbox (and spam folder). The link expires in 1 hour and can only be used once.",
+          "If an account exists, we'll send a 6-digit code. Please check your inbox (and spam folder). The code expires in 1 minute and can only be used once.",
           style: TextStyle(
             fontSize: 13,
             color: AppColors.textSecondary,
@@ -193,7 +196,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () => context.go(RouteConstants.webLogin),
+            onPressed: () => context.go(
+                '${RouteConstants.resetPassword}?email=${Uri.encodeComponent(_emailCtrl.text.trim())}'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.deepNavy,
@@ -203,12 +207,16 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               ),
             ),
             child: const Text(
-              'Back to Login',
+              'Enter Code',
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
           ),
         ),
         const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => context.go(RouteConstants.webLogin),
+          child: const Text('Back to Login'),
+        ),
         TextButton(
           onPressed: () => setState(() => _sent = false),
           child: const Text('Try another email'),

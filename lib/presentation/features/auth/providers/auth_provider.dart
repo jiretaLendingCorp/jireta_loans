@@ -352,13 +352,42 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  Future<bool> verifyResetOtp({required String email, required String otp}) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.verifyResetOtp(email: email, otp: otp);
+      state = const AsyncData(null);
+      return true;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return false;
+    }
+  }
+
   Future<bool> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.resetPassword(email: email, otp: otp, newPassword: newPassword);
+      state = const AsyncData(null);
+      return true;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return false;
+    }
+  }
+
+  // Legacy token-based reset kept for old links (not used by OTP flow)
+  Future<bool> resetPasswordWithToken({
     required String token,
     required String newPassword,
   }) async {
     state = const AsyncLoading();
     try {
-      await _ds.resetPassword(token: token, newPassword: newPassword);
+      await _ds.resetPasswordWithToken(token: token, newPassword: newPassword);
       state = const AsyncData(null);
       return true;
     } catch (e, s) {
