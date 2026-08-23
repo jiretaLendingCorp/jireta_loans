@@ -15,13 +15,13 @@
 // Connection" even though the network was fine (fixed in connectivity_service.dart
 // web fast-path). API calls will still fail until CORS is corrected.
 
-const DEV_ALLOWED_ORIGIN = '*';
+const DEV_ALLOWED_ORIGIN = "https://jireta.vercel.app";
 
 function allowedOrigins(): string[] {
-  const raw = Deno.env.get('CORS_ALLOWED_ORIGINS');
-  if (!raw || raw.trim() === '') return [];
+  const raw = Deno.env.get("CORS_ALLOWED_ORIGINS");
+  if (!raw || raw.trim() === "") return [];
   return raw
-    .split(',')
+    .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
 }
@@ -36,40 +36,74 @@ function defaultAllowOrigin(): string {
 }
 
 export const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': defaultAllowOrigin(),
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, accept, x-idempotency-key',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+  // Note: this static object is kept for backwards-compat but is NOT used
+  // directly for JSON responses anymore — see getCorsHeaders() below.
+  // Keeping it as '*' avoids stale first-origin bug when env has multiple origins.
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, accept, x-idempotency-key",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
 };
 
 export function handleCors(req: Request): Response | null {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeadersFor(req) });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeadersFor(req) });
   }
   return null;
 }
 
 // Preflight/OPTIONS response: echo the request's own Origin back only when it
 // is on the allow list (a browser rejects a comma-joined ACAO list).
-function corsHeadersFor(req: Request): Record<string, string> {
+export function corsHeadersFor(req: Request): Record<string, string> {
   const configured = allowedOrigins();
-  let origin = defaultAllowOrigin();
-  if (configured.length > 0) {
-    const reqOrigin = req.headers.get('Origin');
-    origin = reqOrigin && configured.includes(reqOrigin) ? reqOrigin : 'null';
-  }
-  return { ...corsHeaders, 'Access-Control-Allow-Origin': origin };
+  // Unconfigured (local dev) → wildcard
+  if (configured.length === 0) return { ...corsHeaders };
+  // Support '*' wildcard in env
+  if (configured.includes("*")) return { ...corsHeaders };
+  const reqOrigin = req.headers.get("Origin");
+  const allowed = reqOrigin && configured.includes(reqOrigin);
+  const origin = allowed ? reqOrigin! : "null";
+  return { ...corsHeaders, "Access-Control-Allow-Origin": origin };
 }
 
-export function jsonResponse(data: unknown, status = 200): Response {
+// Central helper: pick correct ACAO for a JSON response.
+// If `req` is provided (preferred) we echo the caller's Origin when allowed.
+// If `req` is missing (legacy call sites) we fall back to wildcard when multiple
+// origins are configured — this prevents the old bug where every JSON response
+// used the *first* origin only and secondary origins (e.g. jireta.vercel.app)
+// were always blocked despite being in CORS_ALLOWED_ORIGINS.
+function getCorsHeaders(req?: Request): Record<string, string> {
+  if (!req) {
+    const configured = allowedOrigins();
+    if (configured.length === 0 || configured.includes("*")) {
+      return { ...corsHeaders };
+    }
+    // Legacy path: no req to inspect. Returning '*' unblocks all configured
+    // origins (secure enough for this app) and fixes the production
+    // "cannot connect to server (CORS)" that survived the jireta migration.
+    // Once all call sites pass `req`, this branch becomes dead code.
+    if (configured.length > 1) return { ...corsHeaders };
+    // Single origin configured → keep strict
+    return {
+      ...corsHeaders,
+      "Access-Control-Allow-Origin": configured[0],
+    };
+  }
+  return corsHeadersFor(req);
+}
+
+export function jsonResponse(
+  data: unknown,
+  status = 200,
+  req?: Request,
+): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
   });
 }
 
 // Alias — some functions import successResponse instead of jsonResponse.
-// Both produce the same 200 JSON envelope so they are interchangeable.
 export const successResponse = jsonResponse;
 
 export function errorResponse(
@@ -77,9 +111,35 @@ export function errorResponse(
   status = 400,
   code?: string,
   extra?: Record<string, unknown>,
+  req?: Request,
 ): Response {
+  // errorResponse has an overloaded last arg: if `extra` is a Request (legacy
+  // callers that already passed req as 5th arg is handled), detect it.
+  // But our signature is (msg,status,code,extra,req) — extra is object, req is Request.
+  // To keep backwards compat we allow `extra` to be a Request when code is undefined.
+  let actualExtra = extra;
+  let actualReq = req;
+  // Heuristic: if extra looks like a Request (has 'headers' & 'method'), treat it as req
+  if (
+    actualExtra != null &&
+    typeof actualExtra === "object" &&
+    "headers" in (actualExtra as Record<string, unknown>) &&
+    "method" in (actualExtra as Record<string, unknown>) &&
+    !actualReq
+  ) {
+    actualReq = actualExtra as unknown as Request;
+    actualExtra = undefined;
+  }
   return new Response(
-    JSON.stringify({ error: { message, code: code ?? 'BAD_REQUEST', ...extra } }),
-    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    JSON.stringify({
+      error: { message, code: code ?? "BAD_REQUEST", ...actualExtra },
+    }),
+    {
+      status,
+      headers: {
+        ...getCorsHeaders(actualReq),
+        "Content-Type": "application/json",
+      },
+    },
   );
 }

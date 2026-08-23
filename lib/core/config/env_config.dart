@@ -34,7 +34,16 @@ class EnvConfig {
   }
 
   static String get edgeFunctionsUrl {
-    final v = dotenv.env['EDGE_FUNCTIONS_URL'];
+    var v = dotenv.env['EDGE_FUNCTIONS_URL'];
+    // Fallback: derive from SUPABASE_URL when EDGE_FUNCTIONS_URL was not set
+    // (e.g. Vercel env only has SUPABASE_URL). This prevents a hard crash in
+    // production that previously surfaced as "Cannot connect to server".
+    if (v == null || v.isEmpty) {
+      final supa = dotenv.env['SUPABASE_URL'];
+      if (supa != null && supa.isNotEmpty) {
+        v = '${supa.replaceAll(RegExp(r'/$'), '')}/functions/v1';
+      }
+    }
     if (v == null || v.isEmpty) {
       throw StateError(
         'EDGE_FUNCTIONS_URL is not set.\n'

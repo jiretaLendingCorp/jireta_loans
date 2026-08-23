@@ -130,6 +130,24 @@ class ErrorInterceptor extends Interceptor {
             type: err.type,
           ));
         case DioExceptionType.connectionError:
+          // On web, connectionError with XMLHttpRequest/ClientException often means
+          // CORS blocked (jireta.vercel.app not in CORS_ALLOWED_ORIGINS), not true offline.
+          // Detect and surface the CORS hint instead of generic "No internet".
+          final causeTextCE = err.error?.toString() ?? '';
+          final uriCE = err.requestOptions.uri.toString().toLowerCase();
+          final isSupabaseCE = uriCE.contains('supabase.co');
+          if (causeTextCE.contains('XMLHttpRequest') ||
+              causeTextCE.contains('ClientException')) {
+            final corsMsg = isSupabaseCE
+                ? 'Unable to reach server (network/CORS). If on jireta.vercel.app, check CORS_ALLOWED_ORIGINS includes this origin.'
+                : 'Unable to reach server (network/CORS). Please check your connection.';
+            return handler.reject(DioException(
+              requestOptions: err.requestOptions,
+              message: corsMsg,
+              error: NetworkException(corsMsg),
+              type: err.type,
+            ));
+          }
           const noNetMsg = 'No internet connection.';
           return handler.reject(DioException(
             requestOptions: err.requestOptions,

@@ -443,6 +443,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
 
     // FIX: Handle connection-level failures first so users see actionable text
     // instead of the raw DioException or "An error occurred" fallback.
+    // Preserve CORS/DNS hints — don't blanket-hide them behind generic text.
+    if (message.contains('CORS') ||
+        message.contains('DNS failed') ||
+        message.contains('CORS_ALLOWED_ORIGINS') ||
+        message.contains('jireta.vercel.app')) {
+      return message; // surface the detailed hint from ErrorInterceptor
+    }
     if (message.contains('NETWORK_ERROR') ||
         message.contains('Unable to reach server') ||
         message.contains('No internet')) {
