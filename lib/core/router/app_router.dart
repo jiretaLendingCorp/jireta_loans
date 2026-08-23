@@ -167,8 +167,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // screen (which shows an offline banner and disables actions) while
       // authenticated users keep their session and get the global offline
       // overlay instead.
-      final isOnline = ref.read(connectivityProvider).valueOrNull ?? false;
-      if (!isOnline) {
+      // ── Offline / probing handling ──────────────────────────────────────
+      // IMPORTANT: Do NOT treat the initial AsyncLoading (valueOrNull == null)
+      // as offline — that would bounce every deep link (e.g. the Supabase
+      // recovery redirect to /reset-password?code=...) to the splash screen
+      // before the probe finishes, making the Reset Password button appear
+      // to "just go to the web app" with no password fields.
+      // Also exempt the password-reset flow itself: the user must be able to
+      // SEE the reset form even if the probe is still pending; the form will
+      // show its own offline/error handling when they submit.
+      final connAsync = ref.read(connectivityProvider);
+      final connVal = connAsync.valueOrNull;
+      final connLoading = connAsync.isLoading;
+      const offlineExempt = [
+        RouteConstants.forgotPassword,
+        RouteConstants.resetPassword,
+      ];
+      if (!connLoading && connVal == false && !offlineExempt.contains(path)) {
         if (kIsWeb) {
           return path == RouteConstants.splash ? null : RouteConstants.splash;
         }

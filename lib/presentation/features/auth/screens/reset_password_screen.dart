@@ -49,6 +49,34 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
       final uri = Uri.base;
 
+      // Handle Supabase error redirects: when the recovery link is expired/
+      // invalid, Supabase redirects to redirect_to with ?error=...&error_code=otp_expired
+      // We need to surface this instead of showing a generic form.
+      final errorParam = uri.queryParameters['error'] ??
+          uri.queryParameters['error_code'];
+      final errorDesc = uri.queryParameters['error_description'] ??
+          uri.queryParameters['errorDescription'];
+      if (errorParam != null || errorDesc != null) {
+        final decodedDesc = errorDesc != null
+            ? Uri.decodeComponent(errorDesc.replaceAll('+', ' '))
+            : errorParam;
+        _statusMsg = decodedDesc != null && decodedDesc.isNotEmpty
+            ? decodedDesc
+            : 'Reset link is invalid or has expired.';
+        debugPrint('[reset] Supabase error in URL: $errorParam — $errorDesc → $_statusMsg');
+        // Also check fragment for error
+        if (uri.fragment.isNotEmpty) {
+          final fragErr = Uri.splitQueryString(uri.fragment);
+          final fragError = fragErr['error'] ?? fragErr['error_code'];
+          final fragDesc = fragErr['error_description'];
+          if (fragError != null || fragDesc != null) {
+            _statusMsg = fragDesc ?? fragError ?? _statusMsg;
+          }
+        }
+        // Keep _token empty and _hasSession false so build() shows invalid link
+        // with the specific error below. Don't return yet — fall through to finally.
+      }
+
       // 1) Extract raw token/code from query params or fragment.
       // Supabase `generateLink(type: recovery)` produces an `action_link` like:
       //   https://xxx.supabase.co/auth/v1/verify?token=TOKEN_HASH&type=recovery&redirect_to=APP_URL/reset-password
@@ -284,6 +312,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final isLoading = ref.watch(authProvider).isLoading;
+    final isInvalid = _token.isEmpty && !_hasSession && kIsWeb;
 
     return Scaffold(
       backgroundColor: AppColors.deepNavy,
@@ -301,7 +330,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                   )
                 : _done
                     ? _buildSuccess()
-                    : (_token.isEmpty && !_hasSession && kIsWeb)
+                    : isInvalid
                         ? _buildInvalidLink()
                         : _buildForm(isLoading),
           ),
@@ -311,6 +340,10 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   }
 
   Widget _buildInvalidLink() {
+    final detail = _statusMsg != null && _statusMsg!.isNotEmpty
+        ? _statusMsg!
+        : 'This password reset link is missing, invalid, or has expired. Links expire in 1 hour and can only be used once.';
+    final isSpecificError = _statusMsg != null && _statusMsg!.isNotEmpty;
     return Column(
       children: [
         Container(
@@ -334,11 +367,22 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'This password reset link is missing, invalid, or has expired. Links expire in 1 hour and can only be used once.',
-          style: TextStyle(fontSize: 13, color: Colors.white60, height: 1.6),
+        Text(
+          detail,
+          style: TextStyle(
+              fontSize: 13,
+              color: isSpecificError ? Colors.orange.shade200 : Colors.white60,
+              height: 1.6),
           textAlign: TextAlign.center,
         ),
+        if (isSpecificError) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Links expire in 1 hour and can only be used once. Please request a new one.',
+            style: TextStyle(fontSize: 12, color: Colors.white60, height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+        ],
         const SizedBox(height: 28),
         SizedBox(
           width: double.infinity,
