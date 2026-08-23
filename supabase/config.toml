@@ -168,9 +168,18 @@ additional_redirect_urls = [
   "http://127.0.0.1:3000/reset-password",
   "http://localhost:3000/reset-password",
   "https://127.0.0.1:3000",
+  # Legacy vercel — keep for old links
   "https://lending-jet-five.vercel.app/reset-password",
   "https://lending-jet-five.vercel.app",
   "https://lending-jet-five.vercel.app/login",
+  # NEW primary web origin (jireta.vercel.app) — fixes "No Internet" false flag
+  # caused by missing CORS/redirect allow-list after domain migration.
+  "https://jireta.vercel.app/reset-password",
+  "https://jireta.vercel.app",
+  "https://jireta.vercel.app/login",
+  "https://jireta.vercel.app/terms",
+  "https://www.jireta.vercel.app/reset-password",
+  "https://www.jireta.vercel.app",
   "https://app.jiretaloanscorp.com/reset-password",
   "https://app.jiretaloanscorp.com",
   "https://jiretaloanscorp.com/reset-password",
