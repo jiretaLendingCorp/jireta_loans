@@ -168,15 +168,17 @@ async function handleForgotPassword(req: Request) {
   const user = singleWithObjectEmbeds(userRow);
 
   // Anti-enumeration: same generic response when not found / wrong role / inactive
+  // This matches the spec flow: "Email not registered → Generic response: If an account exists, we'll send a reset link."
+  // Do NOT reveal whether the email exists or which role it has.
   if (!user || !["head_manager", "employee"].includes(user?.roles?.name)) {
     return jsonResponse({
-      message: "If that email is registered, a reset link has been sent.",
+      message: "If an account exists, we'll send a reset link.",
     });
   }
 
   if (user.account_status !== "active") {
     return jsonResponse({
-      message: "If that email is registered, a reset link has been sent.",
+      message: "If an account exists, we'll send a reset link.",
     });
   }
 
@@ -213,7 +215,7 @@ async function handleForgotPassword(req: Request) {
           console.error("[forgot-password] fallback also failed:", fbErr.message);
         }
         return jsonResponse({
-          message: "If that email is registered, a reset link has been sent.",
+          message: "If an account exists, we'll send a reset link.",
         });
       }
 
@@ -247,7 +249,7 @@ async function handleForgotPassword(req: Request) {
       }
 
       return jsonResponse({
-        message: "If that email is registered, a reset link has been sent.",
+        message: "If an account exists, we'll send a reset link.",
       });
     } catch (e) {
       console.error("[forgot-password] Resend path exception:", e);
@@ -265,7 +267,7 @@ async function handleForgotPassword(req: Request) {
         }
       } catch (_) { /* no-op */ }
       return jsonResponse({
-        message: "If that email is registered, a reset link has been sent.",
+        message: "If an account exists, we'll send a reset link.",
       });
     }
   }
@@ -276,9 +278,9 @@ async function handleForgotPassword(req: Request) {
 
   if (error) {
     console.error("[forgot-password] resetPasswordForEmail error:", error.message);
-    // Still return generic to avoid enumeration
+    // Still return generic to avoid enumeration (spec flow requirement)
     return jsonResponse({
-      message: "If that email is registered, a reset link has been sent.",
+      message: "If an account exists, we'll send a reset link.",
     });
   }
 
@@ -291,7 +293,7 @@ async function handleForgotPassword(req: Request) {
   } catch (_) { /* no-op */ }
 
   return jsonResponse({
-    message: "If that email is registered, a reset link has been sent.",
+    message: "If an account exists, we'll send a reset link.",
   });
 }
 

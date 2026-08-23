@@ -463,6 +463,18 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         message.contains('OTP expired or not found')) {
       return 'Invalid or expired OTP.';
     }
+    if (message.contains('INVALID_TOKEN') ||
+        message.contains('Invalid or expired reset token')) {
+      return 'Reset link is invalid or has expired. Please request a new one.';
+    }
+    if (message.contains('PASSWORD_REUSE') ||
+        message.contains('Cannot reuse last')) {
+      return 'Cannot reuse any of your last 5 passwords. Please choose a different password.';
+    }
+    if (message.contains('Password must contain') ||
+        message.contains('Password must be at least')) {
+      return message; // surface backend validation as-is
+    }
     // ── Email Uniqueness Check (security) ─────────────────────────────
     // Surface duplicate-email/phone violations with a clear, field-specific
     // message instead of the raw Postgres / GoTrue text.  The helper is

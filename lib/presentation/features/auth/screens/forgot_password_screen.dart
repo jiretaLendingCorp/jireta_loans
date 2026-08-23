@@ -29,16 +29,18 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final ok = await ref
-        .read(authProvider.notifier)
-        .forgotPassword(email: _emailCtrl.text.trim());
+    final notifier = ref.read(authProvider.notifier);
+    final ok = await notifier.forgotPassword(email: _emailCtrl.text.trim());
     if (!mounted) return;
     if (ok) {
       setState(() => _sent = true);
     } else {
+      final err = ref.read(authProvider).error;
+      final msg = notifier.extractErrorMessage(err ?? 'Error') ??
+          'Failed to send reset link. Please try again.';
       context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text('Failed to send reset link. Please try again.'),
+        SnackBar(
+          content: Text(msg),
           backgroundColor: AppColors.error,
         ),
       );
@@ -169,7 +171,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 20),
         const Text(
-          'Email Sent!',
+          'Check your email',
           style: TextStyle(
             fontFamily: 'PlayfairDisplay',
             fontSize: 24,
@@ -178,9 +180,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          'A password reset link has been sent to ${_emailCtrl.text}. Check your inbox.',
-          style: const TextStyle(
+        const Text(
+          "If an account exists, we'll send a reset link. Please check your inbox (and spam folder). The link expires in 1 hour and can only be used once.",
+          style: TextStyle(
             fontSize: 13,
             color: AppColors.textSecondary,
             height: 1.6,
@@ -205,6 +207,11 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
             ),
           ),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => setState(() => _sent = false),
+          child: const Text('Try another email'),
         ),
       ],
     );

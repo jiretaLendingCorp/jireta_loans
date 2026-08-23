@@ -222,7 +222,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return redirectForRole(path, authState.role);
         }
 
-        if (publicRoutes.contains(path) && !authState.forcePasswordChange) {
+        // Allow authenticated users to still access password reset flows.
+        // The reset link is a recovery session (supabase auth) that may coexist
+        // with a stale SecureStorage session. Redirecting away would make the
+        // link appear broken (user sees dashboard instead of reset form).
+        // Spec flow: User opens Gmail → Click [Reset Password] → Web App / Reset Password Page
+        // must work even if the browser still has an old login session.
+        const resetFlowRoutes = [
+          RouteConstants.forgotPassword,
+          RouteConstants.resetPassword,
+        ];
+        if (publicRoutes.contains(path) &&
+            !resetFlowRoutes.contains(path) &&
+            !authState.forcePasswordChange) {
           final role = authState.role;
           switch (role) {
             case AppConstants.roleHeadManager:
