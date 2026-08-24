@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
@@ -78,7 +79,18 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
 
     try {
       final pos = await LocationService.instance.getCurrentPosition();
-      if (pos == null) return;
+      if (pos == null) {
+        bool serviceEnabled = false;
+        try {
+          serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        } catch (_) {}
+        final msg = serviceEnabled
+            ? 'Location permission denied. Please enable location permission for the app.'
+            : 'GPS is off. Please turn on location services.';
+        state = state.copyWith(error: msg);
+        if (kDebugMode) debugPrint('[RiderLocation] $msg');
+        return;
+      }
       await _ds.updateRiderLocation(lat: pos.latitude, lng: pos.longitude);
       state = state.copyWith(
         lastLat: pos.latitude,

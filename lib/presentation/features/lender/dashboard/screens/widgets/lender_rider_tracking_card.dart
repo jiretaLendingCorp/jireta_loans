@@ -61,11 +61,13 @@ class _LenderRiderTrackingCardState
       };
 
   /// One marker per rider, deduplicated across assignment rows.
+  /// Stale locations (GPS off >120s) are filtered — no pin is drawn, the
+  /// rider appears as "Location paused" / "Waiting" in the list.
   Set<Marker> _buildMarkers(List<TrackedRiderModel> riders) {
     final markers = <Marker>{};
     final seen = <String>{};
     for (final rider in riders) {
-      if (!rider.hasLocation || seen.contains(rider.riderId)) continue;
+      if (!rider.hasLocation || rider.isStale || seen.contains(rider.riderId)) continue;
       seen.add(rider.riderId);
       markers.add(
         Marker(

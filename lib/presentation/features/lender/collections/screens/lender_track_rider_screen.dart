@@ -52,6 +52,8 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
   String? _destLabel;
   String? _assignmentType;
   DateTime? _lastUpdated;
+  DateTime? _riderUpdatedAt;
+  bool _isRiderStale = false;
   double? _lenderLat;
   double? _lenderLng;
 
@@ -97,8 +99,8 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
           .read(lenderCollectionProvider.notifier)
           .getRiderLocation(widget.riderId);
       if (!mounted) return;
-      final lat = (data?['latitude'] as num?)?.toDouble();
-      final lng = (data?['longitude'] as num?)?.toDouble();
+      final rawLat = (data?['latitude'] as num?)?.toDouble();
+      final rawLng = (data?['longitude'] as num?)?.toDouble();
       final dLat = (data?['destination_latitude'] as num?)?.toDouble();
       final dLng = (data?['destination_longitude'] as num?)?.toDouble();
       final rawAddr = data?['destination_address'];
@@ -106,6 +108,21 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
               rawAddr.trim() != 'Address not available')
           ? rawAddr.trim()
           : null;
+
+      // ── Stale detection: rider's GPS is considered OFF if backend says
+      // is_stale or if updated_at is older than 120s. In that case we hide
+      // the rider pin (set to null) so the map doesn't show a stale ghost.
+      final isStaleFlag = data?['is_stale'] == true;
+      DateTime? riderUpdatedAt;
+      final rawUpdated = data?['updated_at'] ?? data?['location_updated_at'];
+      if (rawUpdated is String) riderUpdatedAt = DateTime.tryParse(rawUpdated);
+      bool isStale = isStaleFlag;
+      if (!isStale && riderUpdatedAt != null) {
+        isStale = DateTime.now().difference(riderUpdatedAt).inSeconds > 120;
+      }
+      // If stale, hide the rider pin entirely — don't show ghost location.
+      final lat = isStale ? null : rawLat;
+      final lng = isStale ? null : rawLng;
       setState(() {
         _riderLat = lat;
         _riderLng = lng;
@@ -117,6 +134,8 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
         _isLoading = false;
         _error = null;
         _lastUpdated = DateTime.now();
+        _riderUpdatedAt = riderUpdatedAt;
+        _isRiderStale = isStale && rawLat != null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -182,8 +201,10 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
     final hasDestination =
         _destLat != null && _destLng != null ||
             (_destAddress != null && _destAddress!.isNotEmpty);
+    final hasRiderLocation =
+        _riderLat != null && _riderLng != null && !_isRiderStale;
 
-    if (!hasDestination) {
+    if (!hasDestination && !hasRiderLocation) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -206,6 +227,75 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
     final destSnippet = (_destLabel?.isNotEmpty ?? false)
         ? _destLabel!
         : 'Your address';
+
+    // Rider GPS off / stale: show map with destination + lender only,
+    // with a banner explaining why the rider pin is hidden.
+    if (!hasRiderLocation) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _isRiderStale
+                    ? AppColors.warning.withValues(alpha: 0.12)
+                    : AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _isRiderStale
+                      ? AppColors.warning.withValues(alpha: 0.4)
+                      : AppColors.border,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isRiderStale ? Icons.location_off : Icons.location_searching,
+                    size: 18,
+                    color: _isRiderStale ? AppColors.warning : AppColors.textTertiary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _isRiderStale
+                          ? 'Rider GPS is paused (last update ${_riderUpdatedAt != null ? "${_riderUpdatedAt!.hour}:${_riderUpdatedAt!.minute.toString().padLeft(2, '0')}" : "a while ago"}). Pin is hidden until they move again.'
+                          : 'Waiting for rider to start sharing location. Their pin will appear once GPS is on.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _isRiderStale ? AppColors.textPrimary : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: RiderTripMap(
+                originLat: null,
+                originLng: null,
+                originTitle: 'Rider',
+                originSnippet: 'Live location',
+                originHue: BitmapDescriptor.hueViolet,
+                destinationLat: _destLat,
+                destinationLng: _destLng,
+                destinationTitle: 'Your Location',
+                destinationSnippet: destSnippet,
+                destinationAddress: _destAddress,
+                lenderLat: _lenderLat,
+                lenderLng: _lenderLng,
+                lenderTitle: 'You (Lender)',
+                lenderSnippet: 'Your live GPS',
+                lenderHue: BitmapDescriptor.hueBlue,
+                height: double.infinity,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -249,29 +339,40 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
       body: Column(
         children: [
           if (_lastUpdated != null && !_isLoading)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: AppColors.lenderBlue.withValues(alpha: 0.1),
-              child: Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                        color: AppColors.success, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${assignmentLabel ?? 'Tracking'} — Last updated: ${_lastUpdated!.hour}:${_lastUpdated!.minute.toString().padLeft(2, '0')} · Auto-refreshes every 30s',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
+            Builder(builder: (context) {
+              final hasRider = _riderLat != null && !_isRiderStale;
+              final Color dotColor = !hasRider
+                  ? (_isRiderStale ? AppColors.warning : AppColors.textTertiary)
+                  : AppColors.success;
+              final String statusLabel = !hasRider
+                  ? (_isRiderStale ? 'GPS paused' : 'Waiting for GPS')
+                  : 'Live';
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: hasRider
+                    ? AppColors.lenderBlue.withValues(alpha: 0.1)
+                    : dotColor.withValues(alpha: 0.12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                          color: dotColor, shape: BoxShape.circle),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '$statusLabel · ${assignmentLabel ?? 'Tracking'} — Last updated: ${_lastUpdated!.hour}:${_lastUpdated!.minute.toString().padLeft(2, '0')} · Auto-refreshes every 30s',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           Expanded(child: _buildBody()),
           if (!_isLoading &&
               _error == null &&
