@@ -36,6 +36,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }
 
   Future<bool> login({required String email, required String password}) async {
+    _authState.startInteractiveAuth();
     state = const AsyncLoading();
     try {
       final res = await _ds.login(email: email, password: password);
@@ -116,6 +117,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   /// link, and the exchange Edge Function maps it to a lender account
   /// (auto-creating one if the Google email is not registered yet).
   Future<bool> signInWithGoogle() async {
+    _authState.startInteractiveAuth();
     state = const AsyncLoading();
     try {
       final session = await _performGoogleOAuth();
@@ -217,6 +219,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }
 
   Future<bool> verifyOtp({required String phone, required String otp}) async {
+    _authState.startInteractiveAuth();
     state = const AsyncLoading();
     try {
       final res = await _ds.verifyOtp(phone: phone, otp: otp);

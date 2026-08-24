@@ -503,6 +503,15 @@ async function handleVerifyOtp(req: Request) {
     return errorResponse('Unable to sign in. Please try again.', 500, 'SERVER_ERROR');
   }
 
+  if (session.user?.id && session.user.id !== user.id) {
+    console.warn('[auth-verify-otp] auth/public user id mismatch', {
+      auth_user_id: session.user.id,
+      public_user_id: user.id,
+      phone,
+      hint: 'Protected functions recover by verified phone, but this account should be resynced so public.users.id matches auth.users.id.',
+    });
+  }
+
   await db.from('auth_logs').insert({
     user_id: user.id,
     event_type: 'login_success',

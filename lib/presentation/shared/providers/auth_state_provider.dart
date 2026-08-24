@@ -1,15 +1,13 @@
 // lib/presentation/shared/providers/auth_state_provider.dart
 import 'dart:async';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/config/env_config.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/role_constants.dart';
 import '../../../core/security/jwt_parser.dart';
 import '../../../core/security/session_events.dart';
+import '../../../core/security/session_refresher.dart';
 import '../../../core/security/secure_storage.dart';
 import '../../../core/services/realtime_service.dart';
 import '../../../core/utils/logger.dart';
@@ -55,6 +53,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   StreamSubscription<void>? _sessionExpiredSub;
   Timer? _expiryTimer;
   bool _isRefreshing = false;
+  int _authRevision = 0;
 
   @override
   void dispose() {
@@ -64,12 +63,15 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> initialize() async {
+    final revision = _authRevision;
     state = state.copyWith(isLoading: true);
     try {
       final hasSession = await SecureStorage.hasValidSession();
+      if (revision != _authRevision || !mounted) return;
       if (hasSession) {
         final userId = await SecureStorage.getUserId();
         final role = await SecureStorage.getUserRole();
+        if (revision != _authRevision || !mounted) return;
         if (userId != null &&
             role != null &&
             RoleConstants.allRoles.contains(role)) {
@@ -83,21 +85,23 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
             if (kDebugMode) debugPrint('[JWT] initialize: stored token already expired, trying refresh');
             AppLogger.debug('[JWT] initialize: token expired, pre-refresh');
             final preResult = await _tryRefreshSession();
+            if (revision != _authRevision || !mounted) return;
             switch (preResult) {
-              case _RefreshResult.authRejected:
+              case SessionRefreshResult.authRejected:
                 if (kDebugMode) debugPrint('[JWT] initialize: pre-refresh rejected → auto-logout, allow re-login');
                 AppLogger.debug('[JWT] initialize: refresh rejected → clear session for re-login');
                 await SecureStorage.clearAll();
                 try {
                   await Supabase.instance.client.auth.signOut();
                 } catch (_) {}
+                if (revision != _authRevision || !mounted) return;
                 state = const AuthState(isAuthenticated: false);
                 return;
-              case _RefreshResult.offline:
+              case SessionRefreshResult.offline:
                 if (kDebugMode) debugPrint('[JWT] initialize: offline, keep session, show overlay');
                 // Keep authenticated; timer will retry in 30s via _scheduleExpiryCheck
                 break;
-              case _RefreshResult.success:
+              case SessionRefreshResult.success:
                 if (kDebugMode) debugPrint('[JWT] initialize: pre-refresh success, continue authenticated');
                 break;
             }
@@ -119,19 +123,30 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           return;
         }
       }
+      if (revision != _authRevision || !mounted) return;
       state = const AuthState(isAuthenticated: false);
     } catch (e) {
       if (kDebugMode) debugPrint('[JWT] initialize error: $e');
+      if (revision != _authRevision || !mounted) return;
       state = const AuthState(isAuthenticated: false);
     } finally {
       // Ensure loading flag is always cleared so router can redirect to login.
-      if (state.isLoading) {
+      if (revision == _authRevision && mounted && state.isLoading) {
         state = state.copyWith(isLoading: false);
       }
     }
   }
 
+  void startInteractiveAuth() {
+    _authRevision++;
+    _expiryTimer?.cancel();
+    if (state.isLoading) {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+
   void setAuthenticated(UserModel user) {
+    _authRevision++;
     _expiryTimer?.cancel();
     state = AuthState(isAuthenticated: true, user: user);
     _scheduleExpiryCheck();
@@ -146,6 +161,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    _authRevision++;
     _expiryTimer?.cancel();
     _isRefreshing = false;
     try {
@@ -213,19 +229,19 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       final result = await _tryRefreshSession();
       if (!mounted) return;
       switch (result) {
-        case _RefreshResult.success:
+        case SessionRefreshResult.success:
           if (kDebugMode) debugPrint('[JWT] refresh success → reschedule timer');
           AppLogger.debug('[JWT] refresh success, new exp scheduled');
           // New tokens stored → schedule from the refreshed expiry.
           _scheduleExpiryCheck();
           break;
-        case _RefreshResult.authRejected:
+        case SessionRefreshResult.authRejected:
           if (kDebugMode) debugPrint('[JWT] refresh rejected → auto-logout web app');
           AppLogger.debug('[JWT] refresh rejected → auto-logout');
           // Server definitively rejected the refresh token → auto-logout.
           await _onSessionExpired();
           break;
-        case _RefreshResult.offline:
+        case SessionRefreshResult.offline:
           if (kDebugMode) debugPrint('[JWT] offline during refresh → retry 30s, keep session');
           AppLogger.debug('[JWT] offline, keep session, retry in 30s');
           // No connection (token still stored). Keep the session so the
@@ -244,52 +260,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// One-shot token refresh used by the expiry scheduler. Kept independent of
   /// [AuthInterceptor] so expired-token detection works even while the app is
   /// idle and no request is being made.
-  Future<_RefreshResult> _tryRefreshSession() async {
-    final refreshToken = await SecureStorage.getRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) {
-      return _RefreshResult.authRejected;
-    }
-    try {
-      final dio = Dio(BaseOptions(
-        baseUrl: '${EnvConfig.edgeFunctionsUrl}/',
-        connectTimeout: const Duration(milliseconds: 10000),
-        receiveTimeout: const Duration(milliseconds: 10000),
-        sendTimeout: const Duration(milliseconds: 10000),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'apikey': EnvConfig.supabaseAnonKey,
-          // The gateway verifies the bearer before the function runs; without
-          // a valid JWT the refresh is rejected at the edge and the session
-          // can never recover. The anon key always passes; auth-session then
-          // validates the refresh_token itself via the admin client.
-          'Authorization': 'Bearer ${EnvConfig.supabaseAnonKey}',
-        },
-      ));
-      final response = await dio.post(
-        AppConstants.authRefreshPath,
-        data: {'refresh_token': refreshToken},
-      );
-      final newAccessToken = response.data['access_token'];
-      final newRefreshToken = response.data['refresh_token'];
-      if (newAccessToken == null || newAccessToken is! String) {
-        return _RefreshResult.authRejected;
-      }
-      await SecureStorage.saveTokens(
-        accessToken: newAccessToken,
-        refreshToken:
-            newRefreshToken is String ? newRefreshToken : refreshToken,
-      );
-      return _RefreshResult.success;
-    } on DioException catch (e) {
-      // Server responded → the refresh token is invalid/expired.
-      if (e.response != null) return _RefreshResult.authRejected;
-      // Transport-level failure → offline / unreachable.
-      return _RefreshResult.offline;
-    } catch (_) {
-      return _RefreshResult.authRejected;
-    }
-  }
+  Future<SessionRefreshResult> _tryRefreshSession() => SessionRefresher.refresh();
 
   Future<void> _onSessionExpired() async {
     if (!state.isAuthenticated) {
@@ -305,8 +276,6 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     // (No double-emit harm – broadcast stream deduplicates via state check).
   }
 }
-
-enum _RefreshResult { success, authRejected, offline }
 
 final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>((
   ref,

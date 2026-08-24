@@ -50,16 +50,54 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     return errorResponse('Invalid or expired token', 401, 'UNAUTHORIZED_INVALID_TOKEN');
   }
 
-  const { data: dbUserRow, error: dbErr } = await supabase
+  let { data: dbUserRow, error: dbErr } = await supabase
     .from('users')
     .select('id, account_status, roles(name)')
     .eq('id', user.id)
     .single();
 
   if (dbErr || !dbUserRow) {
+    const email = user.email?.trim().toLowerCase();
+
+    let identityRow = null;
+    let identityErr = null;
+    if (email) {
+      const result = await supabase
+        .from('users')
+        .select('id, account_status, roles(name)')
+        .ilike('email', email)
+        .maybeSingle();
+      identityRow = result.data;
+      identityErr = result.error;
+    }
+    if (!identityRow && user.phone) {
+      const result = await supabase
+        .from('users')
+        .select('id, account_status, roles(name)')
+        .eq('phone_number', user.phone)
+        .maybeSingle();
+      identityRow = result.data;
+      identityErr = result.error;
+    }
+
+    if (identityRow && !identityErr) {
+      console.warn('[requireAuth] auth/public user id mismatch recovered', {
+        auth_user_id: user.id,
+        public_user_id: identityRow.id,
+        email: user.email,
+        phone: user.phone,
+        path: new URL(req.url).pathname + new URL(req.url).search,
+      });
+      dbUserRow = identityRow;
+      dbErr = null;
+    }
+  }
+
+  if (dbErr || !dbUserRow) {
     console.error('[requireAuth] 401 USER_NOT_FOUND', {
       userId: user.id,
       email: user.email,
+      phone: user.phone,
       dbErr: dbErr?.message ?? null,
       code: (dbErr as unknown as { code?: string })?.code ?? null,
       path: new URL(req.url).pathname + new URL(req.url).search,

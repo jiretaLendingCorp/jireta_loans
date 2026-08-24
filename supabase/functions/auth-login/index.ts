@@ -257,6 +257,15 @@ serve(async (req) => {
       return errorResponse('Invalid email or password', 401, 'INVALID_CREDENTIALS');
     }
 
+    if (authData.user?.id && authData.user.id !== user.id) {
+      console.warn('[auth-login] auth/public user id mismatch', {
+        auth_user_id: authData.user.id,
+        public_user_id: user.id,
+        email: cleanEmail,
+        hint: 'Protected functions recover by verified email, but this account should be resynced so public.users.id matches auth.users.id.',
+      });
+    }
+
     // ── Step 8: success ───────────────────────────────────────────────────
     // Reset any lockout: a successful login must clear the persistent counter
     // so the escalation restarts from zero.
