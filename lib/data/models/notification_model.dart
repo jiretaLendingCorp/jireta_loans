@@ -1,4 +1,5 @@
 // lib/data/models/notification_model.dart
+import '../../core/utils/helpers.dart';
 class NotificationModel {
   final String id;
   final String userId;
@@ -28,7 +29,7 @@ class NotificationModel {
         body: json['body'] ?? '',
         type: json['type'] ?? 'general',
         referenceId: json['reference_id'],
-        isRead: json['is_read'] ?? false,
+        isRead: parseBool(json['is_read'], fallback: false),
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'])
             : DateTime.now(),

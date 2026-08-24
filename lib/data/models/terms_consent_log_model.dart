@@ -1,4 +1,5 @@
 // lib/data/models/terms_consent_log_model.dart
+import '../../core/utils/helpers.dart';
 class TermsConsentLogModel {
   final String id;
   final String? userId;
@@ -24,7 +25,7 @@ class TermsConsentLogModel {
       userId: json['user_id'],
       deviceId: json['device_id'] ?? '',
       termsVersion: json['terms_version'] ?? '1.0',
-      accepted: json['accepted'] ?? false,
+      accepted: parseBool(json['accepted'], fallback: false),
       ipAddress: json['ip_address'],
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])

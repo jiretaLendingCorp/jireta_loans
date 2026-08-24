@@ -1,4 +1,4 @@
-// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables, avoid_print
 // lib/main.dart
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +14,16 @@ import 'core/utils/url_strategy.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    print('FlutterError: ${details.exception}');
+    print(details.stack);
+  };
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    print('PlatformDispatcher error: $error');
+    print(stack);
+    return true;
+  };
 
   await dotenv.load(fileName: 'assets/env/.env');
 
@@ -29,7 +39,6 @@ void main() async {
   // "ERR_NAME_NOT_RESOLVED your-project.supabase.co" on every API call.
   if (EnvConfig.isPlaceholderEnv) {
     // Keep debugPrint visible in release logs as well (not just assert).
-    // ignore: avoid_print
     print('🚨 EnvConfig isPlaceholderEnv=true — bundled .env:');
     EnvConfig.debugPrint();
     runApp(const _PlaceholderEnvApp());

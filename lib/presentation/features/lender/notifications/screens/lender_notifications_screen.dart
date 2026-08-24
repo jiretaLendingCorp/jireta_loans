@@ -142,7 +142,8 @@ class _NotifTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isRead = item.isRead as bool? ?? true;
+    final raw = item.isRead;
+    final isRead = raw is bool ? raw : (raw?.toString().toLowerCase() == 'true' || raw?.toString() == '1');
     final type = item.type as String? ?? '';
     final title = item.title as String? ?? '';
     final body = item.body as String? ?? '';

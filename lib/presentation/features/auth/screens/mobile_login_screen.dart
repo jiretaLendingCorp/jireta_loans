@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
@@ -40,6 +41,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   int _lockSecondsLeft = 0;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
   late final AppLifecycleListener _lifecycleListener;
 
   @override
@@ -47,22 +49,22 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     super.initState();
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 700),
     );
-    _fadeAnim = Tween<double>(
-      begin: 0,
-      end: 1,
-    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
+    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic),
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic),
+    );
     _fadeController.forward();
     _lifecycleListener = AppLifecycleListener(onResume: _onAppResumed);
-    // The splash screen used to gate first-run users through the Terms screen;
-    // mobile now opens directly on this login screen, so check that gate here.
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstRun());
   }
 
-  /// First-run terms gate: after the secure-storage session check settles and
-  /// the user is confirmed logged out, send them to the Terms & Conditions
-  /// screen until they have accepted it once.
   Future<void> _checkFirstRun() async {
     var authState = ref.read(authStateProvider);
     if (authState.isLoading) {
@@ -73,7 +75,6 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       }
     }
     if (!mounted || authState.isAuthenticated) return;
-
     final prefs = await SharedPreferences.getInstance();
     final termsAccepted = prefs.getBool(AppConstants.termsAcceptedKey) ?? false;
     if (mounted && !termsAccepted) {
@@ -97,8 +98,6 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   bool get _isOnline => ref.read(connectivityProvider).valueOrNull ?? true;
 
-  /// Shows the remaining OTP-lock time (returned by the server) as a live
-  /// countdown in a top-right toast while the Send OTP button stays disabled.
   void _startLockCountdown(int seconds) {
     _lockTimer?.cancel();
     setState(() => _lockSecondsLeft = seconds);
@@ -135,7 +134,6 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       context.go(RouteConstants.otpVerify, extra: _rawPhone);
     } else {
       final err = ref.read(authProvider).error;
-      // OTP lockout: show a live countdown instead of a one-off snackbar.
       final lockSecs =
           ref.read(authProvider.notifier).extractOtpLockoutSeconds(err ?? '');
       if (lockSecs != null && lockSecs > 0) {
@@ -166,10 +164,6 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     }
   }
 
-  /// Resets the Google button when the user comes back from the browser flow
-  /// without completing it (pressed back / cancelled). A short grace period
-  /// lets a successful deep-link sign-in finish first — if it did, the router
-  /// already redirected and this widget is unmounted, so nothing happens.
   void _onAppResumed() {
     if (!_googleLoading) return;
     Future.delayed(const Duration(milliseconds: 1200), () {
@@ -186,7 +180,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         content: Text(msg),
         backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -194,11 +188,22 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   Widget _buildInfoMenuButton() {
     return PopupMenuButton<_InfoMenuAction>(
       tooltip: 'Menu',
-      icon: const Icon(Icons.more_vert, color: AppColors.deepNavy, size: 22),
+      offset: const Offset(0, 48),
       color: Colors.white,
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      offset: const Offset(0, 44),
+      elevation: 16,
+      shadowColor: AppColors.deepNavy.withValues(alpha: 0.15),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        ),
+        child: const Icon(Icons.more_horiz_rounded,
+            color: Colors.white, size: 20),
+      ),
       onSelected: (action) {
         switch (action) {
           case _InfoMenuAction.helpCenter:
@@ -214,13 +219,13 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
           value: _InfoMenuAction.helpCenter,
           child: Row(
             children: [
-              Icon(Icons.support_agent, color: AppColors.deepNavy, size: 20),
+              _MenuIcon(icon: Icons.support_agent_rounded),
               SizedBox(width: 12),
-              Text(
-                'Help Center',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-              ),
+              Text('Help Center',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: AppColors.deepNavy)),
             ],
           ),
         ),
@@ -228,13 +233,13 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
           value: _InfoMenuAction.about,
           child: Row(
             children: [
-              Icon(Icons.info_outline, color: AppColors.deepNavy, size: 20),
+              _MenuIcon(icon: Icons.info_outline_rounded),
               SizedBox(width: 12),
-              Text(
-                'About Jireta',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-              ),
+              Text('About Jireta',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: AppColors.deepNavy)),
             ],
           ),
         ),
@@ -242,14 +247,13 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
           value: _InfoMenuAction.appVersion,
           child: Row(
             children: [
-              Icon(Icons.verified_outlined,
-                  color: AppColors.deepNavy, size: 20),
+              _MenuIcon(icon: Icons.verified_outlined),
               SizedBox(width: 12),
-              Text(
-                'App Version',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-              ),
+              Text('App Version',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: AppColors.deepNavy)),
             ],
           ),
         ),
@@ -262,7 +266,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       MaterialPageRoute(
         builder: (_) => const _InfoPage(
           title: 'Help Center',
-          icon: Icons.support_agent,
+          icon: Icons.support_agent_rounded,
           faq: [
             _FaqItem(
               question: 'How do I log in to the app?',
@@ -310,7 +314,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       MaterialPageRoute(
         builder: (_) => const _InfoPage(
           title: 'About Jireta',
-          icon: Icons.info_outline,
+          icon: Icons.info_outline_rounded,
           sections: [
             _InfoSection(
               title: 'Company',
@@ -357,258 +361,1022 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     }
   }
 
+  String get _lockLabel {
+    final m = _lockSecondsLeft ~/ 60;
+    final s = _lockSecondsLeft % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // While the secure-storage session check is running (or a session is being
-    // restored), show a spinner instead of the login form so an already
-    // signed-in user never flashes the login screen before the router
-    // redirects them to their dashboard.
     final authState = ref.watch(authStateProvider);
     if (authState.isLoading || authState.isAuthenticated) {
       return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: AppColors.deepNavy,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.gold),
+        ),
       );
     }
 
-    // Live offline state: when connectivity drops, a persistent banner with a
-    // spinner is rendered below the Continue with Google button and stays until
-    // the connection is restored. The button gating below also reads this value
-    // so the user cannot submit while offline.
     final isOnline = ref.watch(
       connectivityProvider.select((v) => v.valueOrNull ?? true),
     );
 
+    final canSendOtp = _isPhoneValid &&
+        !_loading &&
+        !_googleLoading &&
+        isOnline &&
+        _lockSecondsLeft == 0;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        systemNavigationBarColor: Colors.white,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Color(0xFFF6F7F9),
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: Stack(
-            children: [
-              Column(
+        backgroundColor: const Color(0xFFF6F7F9),
+        body: Stack(
+          children: [
+            // ── Premium navy header background ──
+            Positioned.fill(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: FadeTransition(
-                      opacity: _fadeAnim,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.all(28),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: constraints.maxHeight - 56,
+                  Container(
+                    height: 360,
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF0D1B2A),
+                          Color(0xFF132A42),
+                          Color(0xFF1A3658),
+                        ],
+                      ),
+                    ),
+                    child: Stack(
+                      children: [
+                        // Gold glow top-right
+                        Positioned(
+                          top: -60,
+                          right: -40,
+                          child: Container(
+                            width: 220,
+                            height: 220,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  AppColors.gold.withValues(alpha: 0.18),
+                                  AppColors.gold.withValues(alpha: 0.0),
+                                ],
                               ),
-                              child: Center(
+                            ),
+                          ),
+                        ),
+                        // Gold glow bottom-left
+                        Positioned(
+                          top: 120,
+                          left: -50,
+                          child: Container(
+                            width: 180,
+                            height: 180,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  AppColors.gold.withValues(alpha: 0.10),
+                                  AppColors.gold.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Subtle pattern circles
+                        Positioned(
+                          top: 40,
+                          right: 28,
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 72,
+                          right: 56,
+                          child: Container(
+                            width: 3,
+                            height: 3,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 95,
+                          left: 32,
+                          child: Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.35),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(color: const Color(0xFFF6F7F9)),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Main scroll content ──
+            SafeArea(
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: Column(
+                            children: [
+                              // ── Premium Brand Header ──
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(24, 12, 24, 0),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    // Top bar: menu right-aligned
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        // small badge
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.10),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            border: Border.all(
+                                                color: Colors.white
+                                                    .withValues(alpha: 0.14)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: const BoxDecoration(
+                                                  color: Color(0xFF4CAF50),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'SECURE LOGIN',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 1.2,
+                                                  color: Colors.white
+                                                      .withValues(alpha: 0.9),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        _buildInfoMenuButton(),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    // Logo
+                                    Container(
+                                      width: 78,
+                                      height: 78,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: AppColors.gold
+                                              .withValues(alpha: 0.9),
+                                          width: 2.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black
+                                                .withValues(alpha: 0.18),
+                                            blurRadius: 20,
+                                            offset: const Offset(0, 8),
+                                          ),
+                                          BoxShadow(
+                                            color: AppColors.gold
+                                                .withValues(alpha: 0.18),
+                                            blurRadius: 24,
+                                            offset: const Offset(0, 0),
+                                          ),
+                                        ],
+                                      ),
+                                      padding: const EdgeInsets.all(3),
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          AssetConstants.logoJpg,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              const Icon(
+                                            Icons.account_balance_rounded,
+                                            color: AppColors.deepNavy,
+                                            size: 36,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    // Brand name
                                     const Text(
                                       'JIRETA',
                                       style: TextStyle(
                                         fontFamily: 'PlayfairDisplay',
-                                        fontSize: 28,
+                                        fontSize: 30,
                                         fontWeight: FontWeight.w700,
                                         color: AppColors.gold,
-                                        letterSpacing: 5,
+                                        letterSpacing: 7,
+                                        height: 1,
                                       ),
                                     ),
-                                    const Text(
-                                      'LOANS & CREDIT CORP · 1966',
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      width: 36,
+                                      height: 2,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold
+                                            .withValues(alpha: 0.9),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'LOANS & CREDIT CORP  ·  SINCE 1966',
                                       style: TextStyle(
                                         fontSize: 10,
-                                        color: AppColors.textSecondary,
-                                        letterSpacing: 2,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.white
+                                            .withValues(alpha: 0.72),
+                                        letterSpacing: 2.4,
                                       ),
                                     ),
-                                    const SizedBox(height: 48),
+                                    const SizedBox(height: 10),
                                     Container(
-                                      padding: const EdgeInsets.all(24),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
+                                        color: Colors.white
+                                            .withValues(alpha: 0.08),
                                         borderRadius: BorderRadius.circular(20),
-                                        border:
-                                            Border.all(color: AppColors.border),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: AppColors.deepNavy
-                                                .withValues(alpha: 0.06),
-                                            blurRadius: 16,
-                                            offset: const Offset(0, 6),
+                                        border: Border.all(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.10)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.verified_user_rounded,
+                                              size: 12,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.85)),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Trusted  •  Fast  •  Secure',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.white
+                                                  .withValues(alpha: 0.85),
+                                              letterSpacing: 0.6,
+                                            ),
                                           ),
                                         ],
                                       ),
+                                    ),
+                                    const SizedBox(height: 28),
+                                  ],
+                                ),
+                              ),
+
+                              // ── Premium Card (overlaps header) ──
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 20),
+                                child: Transform.translate(
+                                  offset: const Offset(0, -12),
+                                  child: Container(
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(28),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.deepNavy
+                                              .withValues(alpha: 0.08),
+                                          blurRadius: 32,
+                                          offset: const Offset(0, 16),
+                                        ),
+                                        BoxShadow(
+                                          color: AppColors.deepNavy
+                                              .withValues(alpha: 0.04),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          24, 28, 24, 24),
                                       child: Column(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                            CrossAxisAlignment.stretch,
                                         children: [
-                                          const Text(
-                                            'Login',
-                                            style: TextStyle(
-                                              fontFamily: 'PlayfairDisplay',
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.deepNavy,
+                                          // Handle
+                                          Center(
+                                            child: Container(
+                                              width: 36,
+                                              height: 4,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFE8E8EE),
+                                                borderRadius:
+                                                    BorderRadius.circular(2),
+                                              ),
                                             ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          const Text(
-                                            'Enter your mobile number to receive an OTP\nvia Gmail and SMS',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: AppColors.textSecondary,
-                                            ),
+                                          const SizedBox(height: 20),
+                                          // Title — reverted to Sign in
+                                          Row(
+                                            children: [
+                                              Container(
+                                                width: 36,
+                                                height: 36,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.deepNavy
+                                                      .withValues(alpha: 0.06),
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.waving_hand_rounded,
+                                                  size: 18,
+                                                  color: AppColors.deepNavy,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              const Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      'Welcome back',
+                                                      style: TextStyle(
+                                                        fontFamily:
+                                                            'PlayfairDisplay',
+                                                        fontSize: 20,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color:
+                                                            AppColors.deepNavy,
+                                                        height: 1.1,
+                                                      ),
+                                                    ),
+                                                    SizedBox(height: 2),
+                                                    Text(
+                                                      'Sign in to continue',
+                                                      style: TextStyle(
+                                                        fontSize: 12.5,
+                                                        color: AppColors
+                                                            .textSecondary,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(height: 24),
+                                          const SizedBox(height: 22),
+                                          // Phone field label
+                                          Row(
+                                            children: [
+                                              const Text(
+                                                'Mobile Number',
+                                                style: TextStyle(
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: AppColors.deepNavy,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 6,
+                                                        vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.error
+                                                      .withValues(alpha: 0.08),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
+                                                ),
+                                                child: const Text(
+                                                  'Required',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.error,
+                                                    letterSpacing: 0.4,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 10),
+                                          // Premium input — simple (no extra smooth anim)
                                           TextFormField(
                                             controller: _phoneCtrl,
                                             keyboardType: TextInputType.phone,
                                             maxLength: 13,
-                                            inputFormatters: [
-                                              // MaskTextInputFormatter already filters digits-only
-                                              // via filter: {'#': RegExp(r'[0-9]')}.
-                                              // Adding digitsOnly AFTER strips the spaces the mask
-                                              // inserts, causing an infinite reformatting loop.
-                                              _phoneMask,
-                                            ],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Mobile Number',
-                                              hintText: '09XX XXX XXXX',
-                                              counterText: '',
-                                              prefixIcon:
-                                                  Icon(Icons.phone_android),
+                                            inputFormatters: [_phoneMask],
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppColors.deepNavy,
+                                              letterSpacing: 0.8,
                                             ),
                                             onChanged: (_) => setState(() {}),
-                                          ),
-                                          const SizedBox(height: 20),
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton(
-                                              onPressed: (_isPhoneValid &&
-                                                      !_loading &&
-                                                      !_googleLoading &&
-                                                      _isOnline &&
-                                                      _lockSecondsLeft == 0)
-                                                  ? _sendOtp
-                                                  : null,
-                                              style: ElevatedButton.styleFrom(
+                                            decoration: InputDecoration(
+                                              hintText: '09XX XXX XXXX',
+                                              hintStyle: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                color: AppColors.textTertiary
+                                                    .withValues(alpha: 0.7),
+                                                letterSpacing: 0.6,
+                                              ),
+                                              counterText: '',
+                                              filled: true,
+                                              fillColor:
+                                                  const Color(0xFFF7F8FA),
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 14,
+                                                      vertical: 16),
+                                              prefixIcon: Padding(
                                                 padding:
-                                                    const EdgeInsets.symmetric(
-                                                        vertical: 16),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
+                                                    const EdgeInsets.all(8),
+                                                child: Container(
+                                                  width: 38,
+                                                  height: 38,
+                                                  decoration: BoxDecoration(
+                                                    color: _isPhoneValid
+                                                        ? AppColors.deepNavy
+                                                        : Colors.white,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10),
+                                                    border: Border.all(
+                                                      color: _isPhoneValid
+                                                          ? AppColors.deepNavy
+                                                          : const Color(
+                                                              0xFFE8E8EE),
+                                                    ),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.phone_rounded,
+                                                    size: 18,
+                                                    color: _isPhoneValid
+                                                        ? Colors.white
+                                                        : AppColors
+                                                            .textTertiary,
+                                                  ),
                                                 ),
                                               ),
-                                              child: _loading
+                                              suffixIcon: _phoneCtrl
+                                                      .text.isNotEmpty
+                                                  ? Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              right: 12),
+                                                      child: Icon(
+                                                        _isPhoneValid
+                                                            ? Icons
+                                                                .check_circle_rounded
+                                                            : Icons
+                                                                .error_outline_rounded,
+                                                        size: 20,
+                                                        color: _isPhoneValid
+                                                            ? const Color(
+                                                                0xFF2E7D32)
+                                                            : AppColors
+                                                                .textTertiary
+                                                                .withValues(
+                                                                    alpha: 0.6),
+                                                      ),
+                                                    )
+                                                  : null,
+                                              suffixIconConstraints:
+                                                  const BoxConstraints(
+                                                      minWidth: 0,
+                                                      minHeight: 0),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                borderSide: const BorderSide(
+                                                    color: Color(0xFFE8E8EE)),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                borderSide: const BorderSide(
+                                                    color: AppColors.gold,
+                                                    width: 1.7),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.lock_outline_rounded,
+                                                size: 11,
+                                                color: AppColors.textTertiary
+                                                    .withValues(alpha: 0.9),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              const Expanded(
+                                                child: Text(
+                                                  'We’ll send a code to your Gmail & SMS',
+                                                  style: TextStyle(
+                                                    fontSize: 11.5,
+                                                    color:
+                                                        AppColors.textTertiary,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 22),
+
+                                          // ── Lock countdown inline ──
+                                          if (_lockSecondsLeft > 0)
+                                            Container(
+                                              margin: const EdgeInsets.only(
+                                                  bottom: 14),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 14,
+                                                      vertical: 12),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.errorLight,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                                border: Border.all(
+                                                    color: AppColors.error
+                                                        .withValues(
+                                                            alpha: 0.18)),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Container(
+                                                    width: 28,
+                                                    height: 28,
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                      color: AppColors.error,
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(
+                                                        Icons.timer_rounded,
+                                                        size: 14,
+                                                        color: Colors.white),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        const Text(
+                                                          'Too many attempts',
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: AppColors
+                                                                .error,
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          'Try again in $_lockLabel',
+                                                          style:
+                                                              const TextStyle(
+                                                            fontSize: 11,
+                                                            color: AppColors
+                                                                .error,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    _lockLabel,
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: AppColors.error,
+                                                      fontFeatures: [
+                                                        FontFeature
+                                                            .tabularFigures()
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                          // ── Premium CTA ──
+                                          SizedBox(
+                                            width: double.infinity,
+                                            height: 54,
+                                            child: DecoratedBox(
+                                              decoration: BoxDecoration(
+                                                gradient: canSendOtp
+                                                    ? const LinearGradient(
+                                                        colors: [
+                                                          Color(0xFFC9A84C),
+                                                          Color(0xFFB8942E),
+                                                        ],
+                                                        begin:
+                                                            Alignment.topLeft,
+                                                        end: Alignment
+                                                            .bottomRight,
+                                                      )
+                                                    : null,
+                                                color: canSendOtp
+                                                    ? null
+                                                    : const Color(0xFFE8E8EE),
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                                boxShadow: canSendOtp
+                                                    ? [
+                                                        BoxShadow(
+                                                          color: AppColors.gold
+                                                              .withValues(
+                                                                  alpha: 0.35),
+                                                          blurRadius: 16,
+                                                          offset:
+                                                              const Offset(
+                                                                  0, 8),
+                                                        ),
+                                                      ]
+                                                    : null,
+                                              ),
+                                              child: ElevatedButton(
+                                                onPressed: canSendOtp
+                                                    ? _sendOtp
+                                                    : null,
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.transparent,
+                                                  shadowColor:
+                                                      Colors.transparent,
+                                                  disabledBackgroundColor:
+                                                      Colors.transparent,
+                                                  disabledForegroundColor:
+                                                      AppColors.textTertiary
+                                                          .withValues(
+                                                              alpha: 0.6),
+                                                  foregroundColor: Colors.white,
+                                                  elevation: 0,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            14),
+                                                  ),
+                                                  padding:
+                                                      const EdgeInsets
+                                                          .symmetric(
+                                                          horizontal: 20),
+                                                ),
+                                                child: _loading
+                                                    ? const SizedBox(
+                                                        height: 22,
+                                                        width: 22,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          strokeWidth: 2.4,
+                                                          color: Colors.white,
+                                                        ),
+                                                      )
+                                                    : Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          Text(
+                                                            _lockSecondsLeft > 0
+                                                                ? 'Locked · $_lockLabel'
+                                                                : 'Send OTP',
+                                                            style: TextStyle(
+                                                              fontSize: 15.5,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                              letterSpacing:
+                                                                  0.3,
+                                                              color: canSendOtp
+                                                                  ? Colors.white
+                                                                  : AppColors
+                                                                      .textTertiary,
+                                                            ),
+                                                          ),
+                                                          if (canSendOtp) ...[
+                                                            const SizedBox(
+                                                                width: 8),
+                                                            Container(
+                                                              width: 22,
+                                                              height: 22,
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: Colors
+                                                                    .white
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.22),
+                                                                shape: BoxShape
+                                                                    .circle,
+                                                              ),
+                                                              child: const Icon(
+                                                                Icons
+                                                                    .arrow_forward_rounded,
+                                                                size: 14,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ],
+                                                      ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 18),
+
+                                          // Divider
+                                          Row(
+                                            children: [
+                                              const Expanded(
+                                                  child: Divider(
+                                                      color:
+                                                          Color(0xFFE8E8EE),
+                                                      thickness: 1)),
+                                              Container(
+                                                margin:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 12),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      const Color(0xFFF7F8FA),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                  border: Border.all(
+                                                      color: const Color(
+                                                          0xFFE8E8EE)),
+                                                ),
+                                                child: const Text(
+                                                  'or continue with',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color:
+                                                        AppColors.textTertiary,
+                                                    letterSpacing: 0.3,
+                                                  ),
+                                                ),
+                                              ),
+                                              const Expanded(
+                                                  child: Divider(
+                                                      color:
+                                                          Color(0xFFE8E8EE),
+                                                      thickness: 1)),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 18),
+
+                                          // Google button
+                                          SizedBox(
+                                            width: double.infinity,
+                                            height: 52,
+                                            child: OutlinedButton.icon(
+                                              onPressed: (_loading ||
+                                                      _googleLoading ||
+                                                      !isOnline)
+                                                  ? null
+                                                  : _signInWithGoogle,
+                                              style: OutlinedButton.styleFrom(
+                                                backgroundColor: Colors.white,
+                                                foregroundColor:
+                                                    AppColors.deepNavy,
+                                                side: const BorderSide(
+                                                    color: Color(0xFFE8E8EE),
+                                                    width: 1.2),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                ),
+                                                elevation: 0,
+                                              ),
+                                              icon: _googleLoading
                                                   ? const SizedBox(
                                                       height: 20,
                                                       width: 20,
                                                       child:
                                                           CircularProgressIndicator(
                                                         strokeWidth: 2,
-                                                        color: Colors.white,
+                                                        color:
+                                                            AppColors.deepNavy,
                                                       ),
                                                     )
-                                                  : const Text(
-                                                      'Send OTP',
-                                                      style: TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.w600,
+                                                  : Container(
+                                                      width: 26,
+                                                      height: 26,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white,
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(6),
+                                                        border: Border.all(
+                                                            color: const Color(
+                                                                0xFFE8E8EE)),
+                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              4),
+                                                      child: Image.network(
+                                                        'https://www.google.com/favicon.ico',
+                                                        width: 18,
+                                                        height: 18,
+                                                        errorBuilder: (_,
+                                                                __, ___) =>
+                                                            const Icon(
+                                                                Icons
+                                                                    .g_mobiledata_rounded,
+                                                                size: 20,
+                                                                color: AppColors
+                                                                    .deepNavy),
                                                       ),
                                                     ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          const Divider(),
-                                          const SizedBox(height: 16),
-                                          OutlinedButton.icon(
-                                            onPressed: (_loading ||
-                                                    _googleLoading ||
-                                                    !_isOnline)
-                                                ? null
-                                                : _signInWithGoogle,
-                                            style: OutlinedButton.styleFrom(
-                                              minimumSize: const Size(
-                                                  double.infinity, 52),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              side: const BorderSide(
-                                                color: AppColors.border,
-                                                width: 1.5,
-                                              ),
-                                            ),
-                                            icon: _googleLoading
-                                                ? const SizedBox(
-                                                    height: 20,
-                                                    width: 20,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: AppColors.deepNavy,
-                                                    ),
-                                                  )
-                                                : Image.network(
-                                                    'https://www.google.com/favicon.ico',
-                                                    width: 20,
-                                                    height: 20,
-                                                    errorBuilder: (_, __,
-                                                            ___) =>
-                                                        const Icon(
-                                                            Icons.g_mobiledata,
-                                                            size: 24),
-                                                  ),
-                                            label: const Text(
-                                              'Continue with Google',
-                                              style: TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w500,
-                                                color: AppColors.textPrimary,
+                                              label: const Text(
+                                                'Continue with Google',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppColors.deepNavy,
+                                                  letterSpacing: 0.1,
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              // Offline banner
+                              if (!isOnline)
+                                const Padding(
+                                  padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                                  child: OfflineToast(),
+                                ),
+
+                              // Legal + version footer
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                                child: Column(
+                                  children: [
+                                    const LegalLinks(
+                                      textColor: AppColors.textSecondary,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 4,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.textTertiary
+                                                .withValues(alpha: 0.5),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '© 1966  Jireta Loans & Credit Corp',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppColors.textTertiary
+                                                .withValues(alpha: 0.9),
+                                            letterSpacing: 0.4,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          width: 4,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.textTertiary
+                                                .withValues(alpha: 0.5),
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                              SizedBox(
+                                  height:
+                                      MediaQuery.of(context).padding.bottom +
+                                          8),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  if (!isOnline)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 24, right: 24, bottom: 16),
-                      child: OfflineToast(),
-                    ),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(24, 0, 24, 20),
-                    child: LegalLinks(),
-                  ),
-                ],
+                ),
               ),
-              Positioned(
-                top: 4,
-                left: 4,
-                child: _buildInfoMenuButton(),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _MenuIcon extends StatelessWidget {
+  final IconData icon;
+  const _MenuIcon({required this.icon});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 28,
+      decoration: BoxDecoration(
+        color: AppColors.deepNavy.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, size: 15, color: AppColors.deepNavy),
     );
   }
 }
@@ -627,9 +1395,6 @@ class _FaqItem {
   const _FaqItem({required this.question, required this.answer});
 }
 
-/// A full-screen page used to display the Help Center (Q&A), About, and App
-/// Version content. Pushed with [MaterialPageRoute] so it covers the whole
-/// screen with an app bar at the top, instead of a bottom sheet.
 class _InfoPage extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -646,15 +1411,23 @@ class _InfoPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF6F7F9),
       appBar: AppBar(
         backgroundColor: AppColors.deepNavy,
         foregroundColor: Colors.white,
         elevation: 0,
         title: Row(
           children: [
-            Icon(icon, color: AppColors.gold, size: 20),
-            const SizedBox(width: 8),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: AppColors.gold, size: 16),
+            ),
+            const SizedBox(width: 10),
             Text(
               title,
               style: const TextStyle(
@@ -720,10 +1493,10 @@ class _InfoPage extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
-      color: AppColors.surfaceVariant,
+      color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.border),
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE8E8EE)),
       ),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(

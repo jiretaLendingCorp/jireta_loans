@@ -1,4 +1,5 @@
 // lib/data/models/ci_document_model.dart
+import '../../core/utils/helpers.dart';
 class CiDocumentModel {
   final String id;
   final String ciId;
@@ -34,7 +35,7 @@ class CiDocumentModel {
       caption: json['caption'],
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      gpsSpoof: json['gps_spoof'] ?? false,
+      gpsSpoof: parseBool(json['gps_spoof'], fallback: false),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),

@@ -102,7 +102,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
                             message: 'No CI assignments found')
                         : ListView.separated(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                             itemCount: state.investigations.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 12),

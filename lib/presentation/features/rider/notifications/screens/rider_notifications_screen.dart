@@ -69,6 +69,7 @@ class RiderNotificationsScreen extends ConsumerWidget {
                   ? const EmptyStateWidget(message: 'No notifications yet')
                   : ListView.separated(
                       physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
                       itemCount: state.notifications.length,
                       separatorBuilder: (_, __) =>
                           const Divider(height: 1, indent: 16, endIndent: 16),

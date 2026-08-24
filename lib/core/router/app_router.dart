@@ -149,9 +149,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   }
 
   final router = GoRouter(
-    // Mobile has no splash screen — open straight on the login screen and let
-    // the redirect below send already-authenticated users to their dashboard.
-    initialLocation: kIsWeb ? RouteConstants.splash : RouteConstants.mobileLogin,
+    // Branded splash on both web and mobile for consistent launch experience.
+    initialLocation: RouteConstants.splash,
     debugLogDiagnostics: false,
     redirect: (context, state) {
       // Always evaluate against the LATEST auth state.
@@ -162,11 +161,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final path = state.uri.path;
 
       // While offline (or still probing for connectivity) the web app stays on
-      // the splash screen — it cannot be opened without internet access. The
-      // mobile app has no splash: unauthenticated users land on the login
-      // screen (which shows an offline banner and disables actions) while
-      // authenticated users keep their session and get the global offline
-      // overlay instead.
+      // the splash screen — it cannot be opened without internet access. Mobile
+      // now also shows splash first; authenticated mobile users may proceed
+      // offline to their dashboard with cached session (overlay instead of
+      // forced splash), while unauthenticated mobile users stay on splash
+      // until connectivity returns.
       // ── Offline / probing handling ──────────────────────────────────────
       // IMPORTANT: Do NOT treat the initial AsyncLoading (valueOrNull == null)
       // as offline — that would bounce every deep link (e.g. the Supabase
@@ -187,12 +186,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (kIsWeb) {
           return path == RouteConstants.splash ? null : RouteConstants.splash;
         }
+        // Mobile: allow splash itself to show even offline; let SplashScreen
+        // decide whether to wait (unauthenticated) or proceed (authenticated).
+        if (path == RouteConstants.splash) return null;
         if (authState.isAuthenticated) {
           return redirectForRole(path, authState.role);
         }
-        return path == RouteConstants.mobileLogin
-            ? null
-            : RouteConstants.mobileLogin;
+        // Unauthenticated mobile offline: keep on splash (shows offline toast)
+        // instead of jumping straight to login, so branding is visible.
+        return path == RouteConstants.splash ? null : RouteConstants.splash;
       }
 
       final isAuthenticated = authState.isAuthenticated;

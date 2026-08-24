@@ -56,7 +56,7 @@ class _RiderDisbursementListScreenState
       ],
       body: state.isLoading
           ? ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: 5,
               itemBuilder: (_, __) => const Padding(
                 padding: EdgeInsets.only(bottom: 12),
@@ -70,7 +70,7 @@ class _RiderDisbursementListScreenState
                   onRefresh: () =>
                       ref.read(riderDisbursementProvider.notifier).refresh(),
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: state.disbursements.length,
                     itemBuilder: (_, i) =>
                         _buildCard(context, state.disbursements[i]),

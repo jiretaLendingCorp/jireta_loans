@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 // lib/presentation/features/rider/collections/providers/rider_collection_provider.dart
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,7 +69,9 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         page: 1,
       );
       state = state.copyWith(collections: list, isLoading: false);
-    } catch (e) {
+    } catch (e, st) {
+      print('load collections failed: $e');
+      print(st);
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
@@ -86,13 +89,45 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
           isLoading: true, error: null, clearSelection: true);
     }
     try {
-      final list = await _ds.getCollectionList(page: 1, limit: 100);
-      final matches = list.where((c) => c.id == assignmentId);
-      state = state.copyWith(
-        selectedCollection: matches.isEmpty ? null : matches.first,
-        isLoading: false,
-      );
-    } catch (e) {
+      // Accepted collections are stored under status='accepted'/'in_progress', 
+      // so fetching without status (which defaults to 'assigned' on some backends) 
+      // makes accepted items appear as "not found". Try multiple statuses and
+      // fallback to unfiltered fetch. Also check already-loaded lists first.
+      CollectionAssignmentModel? found;
+      // 1) check already-loaded collections (assigned/accepted tabs)
+      try {
+        found = state.collections.firstWhere((c) => c.id == assignmentId);
+      } catch (_) {}
+      if (found != null) {
+        state = state.copyWith(selectedCollection: found, isLoading: false);
+        return;
+      }
+      // 2) try unfiltered fetch
+      var list = await _ds.getCollectionList(page: 1, limit: 100);
+      var matches = list.where((c) => c.id == assignmentId);
+      if (matches.isNotEmpty) {
+        state = state.copyWith(selectedCollection: matches.first, isLoading: false);
+        return;
+      }
+      // 3) try each status tab that rider uses
+      for (final status in ['accepted', 'in_progress', 'assigned', 'completed', 'declined']) {
+        try {
+          list = await _ds.getCollectionList(status: status, page: 1, limit: 100);
+          matches = list.where((c) => c.id == assignmentId);
+          if (matches.isNotEmpty) {
+            state = state.copyWith(selectedCollection: matches.first, isLoading: false);
+            return;
+          }
+        } catch (_) {}
+      }
+      // Not found in any status
+      state = state.copyWith(selectedCollection: null, isLoading: false);
+    } catch (e, st) {
+      if (!silent) {
+        // Log full type error for String vs bool debugging
+        print('loadDetails failed: $e');
+        print(st);
+      }
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);

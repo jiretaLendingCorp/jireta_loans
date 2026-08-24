@@ -19,6 +19,9 @@ class AppHelpers {
     return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
   }
 
+  static bool parseBoolValue(dynamic value, {bool fallback = false}) =>
+      parseBool(value, fallback: fallback);
+
   static String formatRole(String role) {
     switch (role) {
       case 'head_manager':
@@ -84,6 +87,20 @@ class AppHelpers {
 bool isValidCoordinate(double? lat, double? lng) {
   if (lat == null || lng == null) return false;
   return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
+/// Robust bool parser: handles String 'true'/'false', '1'/'0', int 0/1
+bool parseBool(dynamic value, {bool fallback = false}) {
+  if (value == null) return fallback;
+  if (value is bool) return value;
+  if (value is int) return value != 0;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final v = value.trim().toLowerCase();
+    if (v == 'true' || v == 't' || v == '1' || v == 'yes') return true;
+    if (v == 'false' || v == 'f' || v == '0' || v == 'no' || v == '') return false;
+  }
+  return fallback;
 }
 
 String formatRole(String role) {

@@ -1,4 +1,5 @@
 // lib/data/models/sms_template_model.dart
+import '../../core/utils/helpers.dart';
 class SmsTemplateModel {
   final String id;
   final String key;
@@ -27,7 +28,7 @@ class SmsTemplateModel {
       name: json['name'] ?? '',
       body: json['body'] ?? '',
       variables: (json['variables'] as List?)?.cast<String>() ?? [],
-      isActive: json['is_active'] ?? true,
+      isActive: parseBool(json['is_active'], fallback: true),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),

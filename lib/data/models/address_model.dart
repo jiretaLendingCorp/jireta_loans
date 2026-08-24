@@ -1,4 +1,5 @@
 // lib/data/models/address_model.dart
+import '../../core/utils/helpers.dart';
 class AddressModel {
   final String id;
   final String userId;
@@ -40,7 +41,7 @@ class AddressModel {
       zipCode: json['zip_code'] ?? '',
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      isPrimary: json['is_primary'] ?? false,
+      isPrimary: parseBool(json['is_primary'], fallback: false),
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),

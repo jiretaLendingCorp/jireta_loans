@@ -6,6 +6,9 @@
 /// the cash handover with the lender is done at that point), an
 /// accepted/in_progress credit-investigation, or an in-flight rider-delivery
 /// disbursement. Mirrors the payload of `location-manage?fn=list-tracked`.
+library;
+import '../../core/utils/helpers.dart';
+
 class TrackedRiderModel {
   final String riderId;
   final String riderName;
@@ -52,7 +55,7 @@ class TrackedRiderModel {
       locationUpdatedAt: json['location_updated_at'] != null
           ? DateTime.tryParse(json['location_updated_at'])
           : null,
-      isStale: json['is_stale'] == true,
+      isStale: parseBool(json['is_stale'], fallback: false),
     );
   }
 }

@@ -1,4 +1,5 @@
 // lib/data/models/rider_profile_model.dart
+import '../../core/utils/helpers.dart';
 class RiderProfileModel {
   final String id;
   final String userId;
@@ -39,7 +40,7 @@ class RiderProfileModel {
           ? DateTime.parse(json['drivers_license_expiry'])
           : null,
       vehicleBrand: json['vehicle_brand'],
-      isAvailable: json['is_available'] ?? true,
+      isAvailable: parseBool(json['is_available'], fallback: true),
       riderStatus: json['rider_status'] ?? 'off',
       totalAmountCollected:
           (json['total_amount_collected'] as num?)?.toDouble() ?? 0.0,

@@ -62,6 +62,8 @@ class MobileScaffold extends ConsumerWidget {
       ),
       child: Scaffold(
         backgroundColor: const Color(0xFFF0F2F5),
+        extendBody: true,
+        extendBodyBehindAppBar: false,
         resizeToAvoidBottomInset: resizeToAvoidBottomInset,
         appBar: AppBar(
           backgroundColor: accentColor,
@@ -157,104 +159,213 @@ class _FloatingBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 62,
+      bottom: true,
+      minimum: const EdgeInsets.only(bottom: 0),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          // Raised a bit more + vibrant per request — 36px above SafeArea
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 36),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 336),
+            child: Container(
+              // PREMIUM — compressed, vibrant, floated
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  width: 1.2,
+                gradient: const LinearGradient(
+                  colors: [Colors.white, Color(0xFFFCFCFA)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(
+                  color: AppColors.gold.withValues(alpha: 0.44),
+                  width: 2.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.gold.withValues(alpha: 0.14),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                    spreadRadius: 0,
+                  ),
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.14),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                    spreadRadius: 0,
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: _buildItems(context),
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: _buildModernItems(context),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  List<Widget> _buildItems(BuildContext context) {
+  List<Widget> _buildModernItems(BuildContext context) {
     return items.asMap().entries.map((e) {
       final i = e.key;
       final item = e.value;
       final isSelected = currentIndex == i;
+      // Negative if no match (e.g., deep route) -> none selected, treat as 0? keep none
+      final effectiveSelected = currentIndex >= 0 && isSelected;
 
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: GestureDetector(
-          onTap: () => onTap(i),
-          behavior: HitTestBehavior.opaque,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onTap(i);
+              },
+              borderRadius: BorderRadius.circular(22),
+              splashColor: accentColor.withValues(alpha: 0.10),
+              highlightColor: accentColor.withValues(alpha: 0.06),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  gradient: effectiveSelected
+                      ? LinearGradient(
+                          colors: [
+                            accentColor,
+                            accentColor.withValues(alpha: 0.88),
+                            AppColors.gold.withValues(alpha: 0.92),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : null,
+                  color: effectiveSelected ? null : Colors.transparent,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: effectiveSelected
+                        ? Colors.white.withValues(alpha: 0.65)
+                        : Colors.transparent,
+                    width: effectiveSelected ? 1 : 1,
+                  ),
+                  boxShadow: effectiveSelected
+                      ? [
+                          BoxShadow(
+                            color: AppColors.gold.withValues(alpha: 0.22),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: 0.28),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 160),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, anim) =>
-                          FadeTransition(opacity: anim, child: child),
-                      child: Icon(
-                        isSelected ? item.activeIcon : item.icon,
-                        key: ValueKey(isSelected),
-                        size: 26,
-                        weight: 700,
-                        color: isSelected
-                            ? accentColor
-                            : AppColors.textPrimary,
-                      ),
-                    ),
-                    if ((item.badgeCount ?? 0) > 0)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: const BoxDecoration(
-                            color: AppColors.error,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          width: effectiveSelected ? 26 : 24,
+                          height: effectiveSelected ? 26 : 24,
+                          decoration: BoxDecoration(
+                            color: effectiveSelected
+                                ? Colors.white.withValues(alpha: 0.20)
+                                : accentColor.withValues(alpha: 0.08),
                             shape: BoxShape.circle,
                           ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${item.badgeCount}',
-                            style: const TextStyle(
-                              fontSize: 9,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
+                        ),
+                        Icon(
+                          effectiveSelected ? item.activeIcon : item.icon,
+                          size: effectiveSelected ? 20 : 19,
+                          weight: 700,
+                          color: effectiveSelected
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                        ),
+                        if ((item.badgeCount ?? 0) > 0)
+                          Positioned(
+                            top: -6,
+                            right: -8,
+                            child: Container(
+                              constraints: const BoxConstraints(minWidth: 16),
+                              height: 16,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.error,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: Colors.white, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.error
+                                        .withValues(alpha: 0.35),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                (item.badgeCount! > 99)
+                                    ? '99+'
+                                    : '${item.badgeCount}',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  height: 1,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.15,
+                        height: 1.1,
+                        color: effectiveSelected
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                        fontFamily: 'Inter',
                       ),
+                      child: Text(
+                        item.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 3),
-                AnimatedDefaultTextStyle(
-                  duration: const Duration(milliseconds: 220),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                    color: isSelected ? accentColor : AppColors.textPrimary,
-                    fontFamily: 'Inter',
-                  ),
-                  child: Text(item.label),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -272,8 +383,8 @@ List<MobileNavItem> riderNavItems() => [
         route: RouteConstants.riderDashboard,
       ),
       const MobileNavItem(
-        icon: Icons.local_shipping_outlined,
-        activeIcon: Icons.local_shipping,
+        icon: Icons.delivery_dining_outlined,
+        activeIcon: Icons.delivery_dining,
         label: 'Collections',
         route: RouteConstants.riderCollections,
       ),

@@ -1,5 +1,6 @@
 // lib/data/models/loan_model.dart
 import '../../domain/entities/loan_entity.dart';
+import '../../core/utils/helpers.dart';
 
 class LoanModel extends LoanEntity {
   final Map<String, dynamic>? lenderProfile;
@@ -68,7 +69,7 @@ class LoanModel extends LoanEntity {
           json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
       status: json['status'] ?? 'pending',
       rejectionReason: json['rejection_reason'],
-      penaltyApplied: json['penalty_applied'] ?? false,
+      penaltyApplied: parseBool(json['penalty_applied'], fallback: false),
       disbursementMethod: json['disbursement_method'],
       disbursedAt: json['disbursed_at'] != null
           ? DateTime.parse(json['disbursed_at'])
@@ -88,7 +89,7 @@ class LoanModel extends LoanEntity {
       disbursementAccount: json['disbursement_account'],
       purpose: json['purpose'],
       lenderAddress: json['lender_address'],
-      riderDeliveryAssigned: json['rider_delivery_assigned'] == true,
+      riderDeliveryAssigned: parseBool(json['rider_delivery_assigned'], fallback: false),
       installmentAmount: _toDouble(json['installment_amount']),
     );
   }

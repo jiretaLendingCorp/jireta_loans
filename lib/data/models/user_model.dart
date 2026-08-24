@@ -1,5 +1,6 @@
 // lib/data/models/user_model.dart
 import '../../domain/entities/user_entity.dart';
+import '../../core/utils/helpers.dart';
 
 class UserModel extends UserEntity {
   final String? department;
@@ -74,7 +75,7 @@ class UserModel extends UserEntity {
       lastName: json['last_name'] ?? '',
       suffix: json['suffix'],
       accountStatus: json['account_status'] ?? 'active',
-      forcePasswordChange: json['force_password_change'] ?? false,
+      forcePasswordChange: parseBool(json['force_password_change'], fallback: false),
       profilePhotoUrl: json['profile_photo_url'],
       lastLoginAt: json['last_login_at'] != null
           ? DateTime.parse(json['last_login_at'])

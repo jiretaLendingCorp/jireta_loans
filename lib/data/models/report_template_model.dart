@@ -1,4 +1,5 @@
 // lib/data/models/report_template_model.dart
+import '../../core/utils/helpers.dart';
 class ReportTemplateModel {
   final String id;
   final String templateKey;
@@ -24,8 +25,8 @@ class ReportTemplateModel {
         templateKey: json['template_key'] ?? '',
         name: json['name'] ?? '',
         description: json['description'] ?? '',
-        supportsPdf: json['supports_pdf'] ?? true,
-        supportsXlsx: json['supports_xlsx'] ?? true,
+        supportsPdf: parseBool(json['supports_pdf'], fallback: true),
+        supportsXlsx: parseBool(json['supports_xlsx'], fallback: true),
         availableFilters:
             (json['available_filters'] as List?)?.cast<String>() ?? [],
       );

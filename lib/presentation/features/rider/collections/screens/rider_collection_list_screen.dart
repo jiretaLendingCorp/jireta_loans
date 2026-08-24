@@ -98,7 +98,7 @@ class _RiderCollectionListScreenState
           Expanded(
             child: state.isLoading
                 ? ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: 5,
                     itemBuilder: (_, __) => const Padding(
                       padding: EdgeInsets.only(bottom: 12),
@@ -113,7 +113,7 @@ class _RiderCollectionListScreenState
                             .read(riderCollectionProvider.notifier)
                             .refresh(),
                         child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                           itemCount: state.collections.length,
                           itemBuilder: (_, i) =>
                               _buildCard(context, state.collections[i]),
