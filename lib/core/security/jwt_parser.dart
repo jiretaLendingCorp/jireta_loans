@@ -23,10 +23,29 @@ class JwtParser {
   /// Expiry claim (`exp`, seconds since epoch) as a UTC [DateTime], or null.
   static DateTime? expiry(String? token) {
     final exp = decodePayload(token)?['exp'];
-    if (exp is int) return DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+    if (exp is int) {
+      return DateTime.fromMillisecondsSinceEpoch(exp * 1000, isUtc: true);
+    }
     if (exp is num) {
-      return DateTime.fromMillisecondsSinceEpoch((exp * 1000).round());
+      return DateTime.fromMillisecondsSinceEpoch(
+        (exp * 1000).round(),
+        isUtc: true,
+      );
     }
     return null;
+  }
+
+  /// True if the token is expired or malformed (treat as expired for safety).
+  static bool isExpired(String? token) {
+    final exp = expiry(token);
+    if (exp == null) return true;
+    return DateTime.now().toUtc().isAfter(exp);
+  }
+
+  /// Seconds until expiry (negative if already expired), null if malformed.
+  static int? secondsUntilExpiry(String? token) {
+    final exp = expiry(token);
+    if (exp == null) return null;
+    return exp.difference(DateTime.now().toUtc()).inSeconds;
   }
 }

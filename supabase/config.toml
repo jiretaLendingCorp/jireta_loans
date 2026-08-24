@@ -395,8 +395,17 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# ── JWT verification (fix: JWT ON) ────────────────────────────────────────
+# verify_jwt = true  → Supabase gateway validates JWT before invoking the
+# function (recommended for all authenticated routes). verify_jwt = false is
+# ONLY for public/auth endpoints (login, OTP, refresh) and external webhooks
+# (Xendit) that do not carry a user JWT.
+# With JWT ON, expired tokens are rejected at the gateway with 401 → the app's
+# AuthInterceptor / AuthStateNotifier catch the 401, try refresh, and on
+# definitive refresh failure auto-logout and allow re-login.
+
 [functions.audit-get-logs]
-verify_jwt = false
+verify_jwt = true
 [functions.auth-google]
 verify_jwt = false
 [functions.auth-login]
@@ -412,71 +421,71 @@ verify_jwt = false
 [functions.auth-session]
 verify_jwt = false
 [functions.ci-manage]
-verify_jwt = false
+verify_jwt = true
 [functions.ci-submit]
-verify_jwt = false
+verify_jwt = true
 [functions.ci-view]
-verify_jwt = false
+verify_jwt = true
 [functions.collections-manage]
-verify_jwt = false
+verify_jwt = true
 [functions.collections-view]
-verify_jwt = false
+verify_jwt = true
 [functions.disbursements-delivery]
-verify_jwt = false
+verify_jwt = true
 [functions.disbursements-gcash]
-verify_jwt = false
+verify_jwt = true
 [functions.disbursements-select]
-verify_jwt = false
+verify_jwt = true
 [functions.disbursements-view]
-verify_jwt = false
+verify_jwt = true
 [functions.disbursements-xendit-webhook]
 verify_jwt = false
 [functions.in-office-create]
-verify_jwt = false
+verify_jwt = true
 [functions.in-office-view]
-verify_jwt = false
+verify_jwt = true
 [functions.kpi-view]
-verify_jwt = false
+verify_jwt = true
 [functions.kyc-submit]
-verify_jwt = false
+verify_jwt = true
 [functions.kyc-view]
-verify_jwt = false
+verify_jwt = true
 [functions.loans-apply]
-verify_jwt = false
+verify_jwt = true
 [functions.loans-manage]
-verify_jwt = false
+verify_jwt = true
 [functions.loans-view]
-verify_jwt = false
+verify_jwt = true
 [functions.location-manage]
-verify_jwt = false
+verify_jwt = true
 [functions.notifications-send]
-verify_jwt = false
+verify_jwt = true
 [functions.notifications-view]
-verify_jwt = false
+verify_jwt = true
 [functions.payments-manage]
-verify_jwt = false
+verify_jwt = true
 [functions.payments-view]
-verify_jwt = false
+verify_jwt = true
 [functions.payments-xendit-link]
-verify_jwt = false
+verify_jwt = true
 [functions.payments-xendit-webhook]
 verify_jwt = false
 [functions.reports-generate]
-verify_jwt = false
+verify_jwt = true
 [functions.reports-view]
-verify_jwt = false
+verify_jwt = true
 [functions.sms-send]
 verify_jwt = false
 [functions.system-update-config]
-verify_jwt = false
+verify_jwt = true
 [functions.system-view]
-verify_jwt = false
+verify_jwt = true
 [functions.users-admin]
-verify_jwt = false
+verify_jwt = true
 [functions.users-create]
-verify_jwt = false
+verify_jwt = true
 [functions.users-manage]
-verify_jwt = false
+verify_jwt = true
 
 [edge_runtime]
 enabled = true
