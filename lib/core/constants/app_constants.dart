@@ -23,8 +23,15 @@ class AppConstants {
   static const String refreshTokenKey = 'refresh_token';
   static const String userIdKey = 'user_id';
   static const String userRoleKey = 'user_role';
+  static const String sessionStartedAtKey = 'session_started_at';
 
   static const String authRefreshPath = 'auth-session?fn=refresh-session';
+
+  /// Absolute session lifetime: 1 hour hard expiry.
+  /// After 1 hour user MUST re-login and gets a new 1-hour session.
+  static const Duration sessionDuration = Duration(hours: 1);
+  static const int sessionDurationMs = 3600000;
+  static const int sessionDurationSeconds = 3600;
 
   /// Deep link Supabase redirects to after Google OAuth completes on mobile.
   /// Must match the Android intent-filter scheme and the iOS URL scheme.

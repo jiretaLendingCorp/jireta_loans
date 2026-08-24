@@ -27,12 +27,17 @@ class SupabaseStorageService {
   /// This restores the session from the stored tokens before any upload.
   Future<void> _ensureSession() async {
     final client = Supabase.instance.client;
-    if (client.auth.currentSession != null) return;
     final accessToken = await SecureStorage.getAccessToken();
     final refreshToken = await SecureStorage.getRefreshToken();
     if (accessToken == null || accessToken.isEmpty) {
       throw Exception('Not signed in');
     }
+    // Always sync to latest SecureStorage tokens, even if Supabase already has a session.
+    // This fixes the bug where multiple logins (or re-login after 1h auto-logout) left the
+    // old JWT in Supabase's memory, causing immediate 401 / apparent instant expiry.
+    // If current session already matches the stored token, setSession is a cheap no-op.
+    final current = client.auth.currentSession?.accessToken;
+    if (current != null && current == accessToken) return;
     try {
       await client.auth.setSession(
         refreshToken ?? '',

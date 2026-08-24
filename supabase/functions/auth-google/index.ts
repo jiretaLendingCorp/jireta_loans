@@ -170,6 +170,15 @@ async function handleExchange(req: Request) {
     console.error('[auth-google] auth_log insert failed', err);
   }
 
+  // Update absolute 1h session anchor so refresh checks use fresh server time.
+  // Without this, a lender who last logged in days ago would have an immediate
+  // SESSION_EXPIRED on the next refresh even though they just logged in.
+  try {
+    await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
+  } catch (e) {
+    console.warn('[auth-google] last_login_at update failed', e);
+  }
+
   return jsonResponse({
     access_token:  accessTokenOut,
     refresh_token: refreshTokenOut,

@@ -25,6 +25,22 @@ class SessionRefresher {
   }
 
   static Future<SessionRefreshResult> _refreshOnce() async {
+    // Absolute 1-hour hard expiry: never refresh if absolute session already expired.
+    // This enforces "after 1 hour must re-login" even if refresh token is still technically valid.
+    // Grace +30s to avoid clock-skew false positives right after login.
+    try {
+      final isExpired = await SecureStorage.isAbsoluteSessionExpired();
+      if (isExpired) {
+        // Double-check: if we have no startedAt (legacy) we already returned false above,
+        // so this is a real 1h expiry. Confirm remaining to avoid false logout on web storage lag.
+        final remaining = await SecureStorage.getRemainingSessionTime();
+        // If remaining is null (legacy) -> not expired (handled in isAbsolute...), but be safe
+        if (remaining != null) return SessionRefreshResult.authRejected;
+      }
+    } catch (_) {
+      // If storage throws, proceed to normal refresh attempt
+    }
+
     final refreshToken = await SecureStorage.getRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) {
       return SessionRefreshResult.authRejected;
@@ -68,10 +84,22 @@ class SessionRefresher {
       );
       return SessionRefreshResult.success;
     } on DioException catch (e) {
-      if (e.response != null) return SessionRefreshResult.authRejected;
+      final status = e.response?.statusCode;
+      // Only 401 is definitive "refresh token invalid/expired" → hard logout.
+      // 429 (rate limit), 500, 400 etc are transient — keep session, retry later.
+      if (status == 401) return SessionRefreshResult.authRejected;
+      if (status != null) {
+        // Got an HTTP response but not 401 → server reachable, but transient error.
+        // Don't logout; treat as offline so the timer/overlay retries.
+        return SessionRefreshResult.offline;
+      }
+      // No response → real network failure (timeout, DNS, offline)
       return SessionRefreshResult.offline;
     } catch (_) {
-      return SessionRefreshResult.authRejected;
+      // Unexpected error (e.g. JSON parse) — don't nuke session, retry.
+      return SessionRefreshResult.offline;
+    } finally {
+      // Dio instance is short-lived; let GC collect. No close needed for this ephemeral Dio.
     }
   }
 }

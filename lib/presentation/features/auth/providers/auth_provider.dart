@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/errors/app_exception.dart';
+import '../../../../core/security/jwt_parser.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/services/realtime_service.dart';
 import '../../../../core/utils/validators.dart';
@@ -43,11 +44,18 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String;
       final userData = res['user'] as Map<String, dynamic>;
+      // Ensure clean slate for second login (avoids race where old auto-logout's clearAll deletes new tokens)
+      await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
       await SecureStorage.saveUserInfo(
         userId: userData['id'],
         role: userData['role'],
       );
+      // ── 1-hour absolute session: store login start time ─────────────────
+      // Use JWT iat/exp (server time) instead of client now to avoid clock-skew
+      // causing immediate "expired" on web when device clock is off.
+      final sessionStart = JwtParser.sessionStartFromToken(token);
+      await SecureStorage.saveSessionStartedAt(sessionStart);
       final user = UserModel(
         id: userData['id'],
         role: userData['role'],
@@ -132,11 +140,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String? ?? '';
       final userData = res['user'] as Map<String, dynamic>;
+      await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
       await SecureStorage.saveUserInfo(
         userId: userData['id'],
         role: userData['role'],
       );
+      await SecureStorage.saveSessionStartedAt(JwtParser.sessionStartFromToken(token));
       final user = UserModel(
         id: userData['id'],
         role: userData['role'],
@@ -226,11 +236,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String;
       final userData = res['user'] as Map<String, dynamic>;
+      await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
       await SecureStorage.saveUserInfo(
         userId: userData['id'],
         role: userData['role'],
       );
+      await SecureStorage.saveSessionStartedAt(JwtParser.sessionStartFromToken(token));
       final user = UserModel(
         id: userData['id'],
         role: userData['role'],

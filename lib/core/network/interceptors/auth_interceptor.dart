@@ -51,21 +51,58 @@ class AuthInterceptor extends Interceptor {
     final isRefreshPath = path == AppConstants.authRefreshPath;
     final ownsNoSession = _noRefreshPaths.contains(path);
 
-    if (token != null &&
-        token.isNotEmpty &&
-        !ownsNoSession &&
-        JwtParser.isExpired(token)) {
-      final refreshResult = await SessionRefresher.refresh();
-      if (refreshResult == SessionRefreshResult.success) {
-        try {
-          token = await SecureStorage.getAccessToken();
-        } catch (_) {
-          token = null;
+    // ── Absolute 1-hour hard expiry: if session started >1h ago, hard logout ──
+    // Do NOT attempt soft refresh — 1 hour is absolute, must re-login.
+    // Grace already applied in isAbsoluteSessionExpired (30s leeway).
+    bool isAbsoluteExpired = false;
+    try {
+      isAbsoluteExpired = await SecureStorage.isAbsoluteSessionExpired();
+      // Only enforce absolute check if we have a startedAt timestamp.
+      // Legacy sessions without timestamp fall back to JWT-only logic.
+      final startedAt = await SecureStorage.getSessionStartedAt();
+      if (startedAt == null) isAbsoluteExpired = false;
+    } catch (_) {
+      isAbsoluteExpired = false;
+    }
+    if (isAbsoluteExpired && !ownsNoSession && !isRefreshPath) {
+      // Extra stale guard: if token is still fresh, this expiry is from an old
+      // session that hasn't been overwritten yet — don't kill the new login.
+      bool isStale = false;
+      try {
+        if (token != null && token.isNotEmpty && !JwtParser.isExpired(token)) {
+          final remaining = await SecureStorage.getRemainingSessionTime();
+          // If remaining is null (legacy) but JWT is fresh, treat as stale.
+          // If remaining is still positive, also stale (new session just created).
+          if (remaining == null || remaining.inSeconds > 10) isStale = true;
         }
-      } else if (refreshResult == SessionRefreshResult.authRejected) {
+      } catch (_) {}
+      if (!isStale) {
         await _dropDeadSession();
         token = null;
       }
+    } else if (token != null &&
+        token.isNotEmpty &&
+        !ownsNoSession &&
+        (JwtParser.isExpired(token) || JwtParser.isExpiringSoon(token))) {
+      // Soft JWT expiry within 1h window → try refresh without extending absolute deadline
+      // Proactive: also refresh if expiring within 60s to avoid sending a token that
+      // will expire during the request. If absolute is about to expire, the refresh
+      // will be wasted but still handled as hard logout on next request.
+      // Never block the request on a failed refresh — just fall back to anon if needed.
+      try {
+        final refreshResult = await SessionRefresher.refresh();
+        if (refreshResult == SessionRefreshResult.success) {
+          try {
+            token = await SecureStorage.getAccessToken();
+          } catch (_) {
+            token = null;
+          }
+        } else if (refreshResult == SessionRefreshResult.authRejected) {
+          await _dropDeadSession();
+          token = null;
+        }
+        // offline → keep old token, let request try (server may still accept if not yet expired)
+      } catch (_) {}
     }
 
     if (token != null && token.isNotEmpty && !ownsNoSession) {
@@ -116,6 +153,40 @@ class AuthInterceptor extends Interceptor {
     }
 
     if (err.response?.statusCode == 401) {
+      // ── Stale 401 guard for multiple logins ───────────────────────────
+      // If the 401 came from an OLD token (first login) but we've already
+      // logged in again (second login) and current stored token is different,
+      // don't clear the new session. This fixes "second login expired immediately".
+      try {
+        final failedHeader = err.requestOptions.headers['Authorization']?.toString() ?? '';
+        final failedToken = failedHeader.startsWith('Bearer ') ? failedHeader.substring(7) : failedHeader;
+        final currentToken = await SecureStorage.getAccessToken();
+        if (currentToken != null && currentToken.isNotEmpty && failedToken.isNotEmpty && currentToken != failedToken && !JwtParser.isExpired(currentToken)) {
+          // Current session is fresh and valid, the 401 is stale from old session
+          return handler.next(err);
+        }
+      } catch (_) {}
+
+      // Hard 1h check before soft refresh: if absolute expired, never refresh
+      bool absoluteExpired = false;
+      try {
+        final startedAt = await SecureStorage.getSessionStartedAt();
+        if (startedAt != null) {
+          absoluteExpired = await SecureStorage.isAbsoluteSessionExpired();
+        }
+      } catch (_) {}
+      if (absoluteExpired) {
+        // Double-check stale: if remaining >10s, it's a stale hard expiry from old session
+        try {
+          final remaining = await SecureStorage.getRemainingSessionTime();
+          if (remaining != null && remaining.inSeconds > 10) {
+            return handler.next(err);
+          }
+        } catch (_) {}
+        await _dropDeadSession();
+        return handler.next(err);
+      }
+
       try {
         final result = await SessionRefresher.refresh();
         if (result == SessionRefreshResult.success) {
@@ -156,6 +227,38 @@ class AuthInterceptor extends Interceptor {
   }
 
   Future<void> _dropDeadSession() async {
+    // Stale guard: don't clear if a new second login has already created a fresh 1h session.
+    // This fixes "second login expired immediately" where an in-flight 401 from the
+    // first session's timer arrives after the second login has stored fresh tokens.
+    try {
+      final remaining = await SecureStorage.getRemainingSessionTime();
+      if (remaining != null && remaining.inSeconds > 10) {
+        // New session still valid (>10s left) → this drop is from an old/stale 401, ignore
+        return;
+      }
+      // Legacy case: no absolute timestamp but JWT still valid and not expiring soon → stale
+      if (remaining == null) {
+        final token = await SecureStorage.getAccessToken();
+        if (token != null &&
+            token.isNotEmpty &&
+            !JwtParser.isExpired(token) &&
+            !JwtParser.isExpiringSoon(token)) {
+          return;
+        }
+      }
+      // Also guard against deleting a just-saved token that hasn't had time to
+      // persist startedAt yet: if token is fresh (not expired) and startedAt is
+      // missing, it might be a web storage lag — don't nuke.
+      if (remaining != null && remaining.inSeconds <= -30) {
+        // Truly expired (30s grace already in isAbsoluteSessionExpired) → allow drop
+      } else if (remaining != null && remaining.inSeconds <= 10 && remaining.inSeconds > -30) {
+        // Within grace window ( -30 .. 10 ) — could be clock skew, check JWT.
+        // If JWT is still valid for >60s, this is likely a false positive.
+        final token = await SecureStorage.getAccessToken();
+        final secs = JwtParser.secondsUntilExpiry(token);
+        if (secs != null && secs > 60) return;
+      }
+    } catch (_) {}
     await SecureStorage.clearAll();
     SessionEvents.emitSessionExpired();
   }

@@ -51,13 +51,27 @@ async function handleRefreshSession(req: Request) {
 
   const { data: dbUserRow } = await db
     .from('users')
-    .select('id, account_status, force_password_change, roles(name)')
+    .select('id, account_status, force_password_change, last_login_at, roles(name)')
     .eq('id', data.user!.id)
     .single();
   const dbUser = singleWithObjectEmbeds(dbUserRow);
 
   if (!dbUser) return errorResponse('User not found', 401, 'UNAUTHORIZED');
   if (dbUser.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+
+  // ── 1-hour absolute session: hard expiry, no infinite refresh ──────────
+  // After 1 hour from last_login_at, refresh is rejected and user must re-login
+  // to get a new 1-hour session. This enforces the required 1h session lifetime.
+  // Grace +5m to avoid immediate expiry on clock skew for second login.
+  if (dbUser.last_login_at) {
+    const elapsed = Date.now() - new Date(dbUser.last_login_at).getTime();
+    const ONE_HOUR_MS = 3600 * 1000;
+    const GRACE_MS = 5 * 60 * 1000;
+    console.log(`[auth-session] refresh check user=${dbUser.id} elapsed=${Math.floor(elapsed/1000)}s last_login_at=${dbUser.last_login_at}`);
+    if (elapsed > ONE_HOUR_MS + GRACE_MS) {
+      return errorResponse('Session expired after 1 hour, please login again', 401, 'SESSION_EXPIRED');
+    }
+  }
 
   return jsonResponse({
     access_token: data.session.access_token,

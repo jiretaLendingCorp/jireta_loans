@@ -50,18 +50,19 @@ class RealtimeService {
   }
 
   Future<void> _ensureSession() async {
-    if (_sessionReady) return;
-    final client = Supabase.instance.client;
-    if (client.auth.currentSession != null) {
-      _sessionReady = true;
-      return;
-    }
     final accessToken = await SecureStorage.getAccessToken();
     final refreshToken = await SecureStorage.getRefreshToken();
     if (accessToken == null || accessToken.isEmpty) {
       AppLogger.debug('[Realtime] No stored session to restore');
+      _sessionReady = false;
       return;
     }
+    final client = Supabase.instance.client;
+    final current = client.auth.currentSession?.accessToken;
+    // If we already synced this exact token and _sessionReady, skip.
+    // Otherwise always re-sync to latest SecureStorage token — fixes multiple-login
+    // bug where old JWT stayed in memory and expired instantly after re-login.
+    if (_sessionReady && current != null && current == accessToken) return;
     try {
       await client.auth.setSession(
         refreshToken ?? '',
@@ -70,6 +71,7 @@ class RealtimeService {
       _sessionReady = true;
     } catch (e) {
       AppLogger.error('[Realtime] Session restore failed: $e');
+      _sessionReady = false;
     }
   }
 

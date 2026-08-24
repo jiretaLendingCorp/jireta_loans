@@ -295,6 +295,14 @@ serve(async (req) => {
       is_locked:       false,
     });
 
+    // Explicitly update last_login_at for absolute 1h hard expiry (don't rely solely on trigger)
+    // Ensures second login's timestamp is fresh even if trigger missed, prevents immediate 401 on refresh
+    try {
+      await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
+    } catch (e) {
+      console.warn('[auth-login] last_login_at update failed', e);
+    }
+
    return jsonResponse({
   access_token:  authData.session.access_token,
   refresh_token: authData.session.refresh_token,
