@@ -519,7 +519,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           RouteConstants.hmCi,
         ),
         const _NavItem(
-          Icons.local_shipping_outlined,
+          Icons.delivery_dining_outlined,
           'Collections',
           RouteConstants.hmCollections,
         ),
@@ -567,7 +567,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           RouteConstants.empCi,
         ),
         const _NavItem(
-          Icons.local_shipping_outlined,
+          Icons.delivery_dining_outlined,
           'Collections',
           RouteConstants.empCollections,
         ),

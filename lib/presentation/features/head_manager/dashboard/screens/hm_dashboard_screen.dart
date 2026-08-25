@@ -29,16 +29,19 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
     return WebScaffold(
       title: 'Dashboard',
       actions: [
-        IconButton(
-          onPressed: () => ref.read(hmDashboardProvider.notifier).refresh(),
-          icon: dashState.isLoading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.refresh, color: AppColors.textSecondary),
-          tooltip: 'Refresh',
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: IconButton(
+            onPressed: () => ref.read(hmDashboardProvider.notifier).refresh(),
+            icon: dashState.isLoading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh_rounded, color: AppColors.textSecondary, size: 20),
+            tooltip: 'Refresh',
+          ),
         ),
       ],
       body: dashState.isLoading
@@ -51,20 +54,10 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Entrance(
-                      child: HmAnalyticsPanel(kpi: dashState.kpi),
-                    ),
+                    _Entrance(child: HmAnalyticsPanel(kpi: dashState.kpi)),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
-                      Icons.account_balance_wallet_outlined,
-                      'Financial Metrics',
-                      'Money in, money out and everything in between',
-                    ),
-                    const SizedBox(height: 14),
-                    _buildFinancialGrid(dashState.kpi),
-                    const SizedBox(height: 28),
-                    _buildSectionTitle(
-                      Icons.bolt_outlined,
+                      Icons.bolt_rounded,
                       'Quick Actions',
                       'Jump straight to the most used modules',
                     ),
@@ -72,7 +65,15 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     _buildQuickActions(context),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
-                      Icons.people_outline,
+                      Icons.account_balance_wallet_rounded,
+                      'Financial Metrics',
+                      'Money in, money out and everything in between',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildFinancialGrid(dashState.kpi),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.people_rounded,
                       'User Statistics',
                       'Staff and borrower counts across the branch',
                     ),
@@ -80,7 +81,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     _buildUserStatsGrid(dashState.kpi),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
-                      Icons.description_outlined,
+                      Icons.description_rounded,
                       'Loan Overview',
                       'Loan portfolio at a glance',
                     ),
@@ -88,7 +89,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     _buildLoanStatsGrid(dashState.kpi),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
-                      Icons.assessment_outlined,
+                      Icons.assessment_rounded,
                       'Operational Metrics',
                       'Internal operations summary',
                     ),
@@ -103,8 +104,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
   }
 
   Widget _buildShimmer() {
-    // Scrollable so short viewports never get a bottom-overflow error while
-    // the (fixed-height) skeleton rows are showing.
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24),
@@ -159,24 +158,24 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 34,
-          height: 34,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [AppColors.gold, AppColors.goldDark],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(11),
             boxShadow: [
               BoxShadow(
-                color: AppColors.gold.withValues(alpha: 0.35),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: AppColors.gold.withValues(alpha: 0.32),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
-          child: Icon(icon, size: 17, color: Colors.white),
+          child: Icon(icon, size: 18, color: Colors.white),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -212,47 +211,52 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
   Widget _buildQuickActions(BuildContext context) {
     final actions = [
       _QuickAction(
-        Icons.storefront_outlined,
+        Icons.storefront_rounded,
         'In-Office Application',
         AppColors.deepNavy,
         () => context.go(RouteConstants.hmInOffice),
       ),
       _QuickAction(
-        Icons.person_add_outlined,
+        Icons.person_add_rounded,
         'Add Employee',
         AppColors.riderGreen,
         () => context.go(RouteConstants.hmEmployees),
       ),
       _QuickAction(
-        Icons.description_outlined,
+        Icons.description_rounded,
         'Loan Applications',
         AppColors.warning,
         () => context.go(RouteConstants.hmLoanApplications),
       ),
       _QuickAction(
-        Icons.verified_user_outlined,
+        Icons.verified_user_rounded,
         'Account Upgrade Review',
         AppColors.lenderBlue,
         () => context.go(RouteConstants.hmAccountUpgrade),
       ),
       _QuickAction(
-        Icons.assessment_outlined,
+        Icons.assessment_rounded,
         'Generate Report',
         AppColors.goldDark,
         () => context.go(RouteConstants.hmReports),
+      ),
+      _QuickAction(
+        Icons.delivery_dining_rounded,
+        'Collections',
+        const Color(0xFF2E7D32),
+        () => context.go(RouteConstants.hmCollections),
       ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 900
-            ? 5
+        final columns = constraints.maxWidth >= 1000
+            ? 3
             : constraints.maxWidth >= 600
-                ? 3
-                : 2;
+                ? 2
+                : 1;
         const spacing = 12.0;
-        final cardWidth =
-            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+        final cardWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
@@ -262,7 +266,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
               .map((e) => SizedBox(
                     width: cardWidth,
                     child: _Entrance(
-                      delay: 100 + e.key * 70,
+                      delay: 80 + e.key * 55,
                       child: _QuickActionCard(action: e.value),
                     ),
                   ))
@@ -274,34 +278,10 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
 
   Widget _buildUserStatsGrid(KpiHeadManagerModel kpi) {
     return _buildGridRow([
-      _KpiCard(
-        label: 'Total Employees',
-        value: kpi.totalEmployees.toDouble(),
-        icon: Icons.people_outline,
-        color: AppColors.deepNavy,
-        isCurrency: false,
-      ),
-      _KpiCard(
-        label: 'Total Riders',
-        value: kpi.totalRiders.toDouble(),
-        icon: Icons.delivery_dining_outlined,
-        color: AppColors.riderGreen,
-        isCurrency: false,
-      ),
-      _KpiCard(
-        label: 'Total Lenders',
-        value: kpi.totalLenders.toDouble(),
-        icon: Icons.person_outline,
-        color: AppColors.lenderBlue,
-        isCurrency: false,
-      ),
-      _KpiCard(
-        label: 'Pending Account Upgrade',
-        value: kpi.totalPendingAccountUpgrade.toDouble(),
-        icon: Icons.verified_user_outlined,
-        color: AppColors.warning,
-        isCurrency: false,
-      ),
+      _KpiCard(label: 'Total Employees', value: kpi.totalEmployees.toDouble(), icon: Icons.people_rounded, color: AppColors.deepNavy, isCurrency: false),
+      _KpiCard(label: 'Total Riders', value: kpi.totalRiders.toDouble(), icon: Icons.delivery_dining_rounded, color: AppColors.riderGreen, isCurrency: false),
+      _KpiCard(label: 'Total Lenders', value: kpi.totalLenders.toDouble(), icon: Icons.person_rounded, color: AppColors.lenderBlue, isCurrency: false),
+      _KpiCard(label: 'Pending Account Upgrade', value: kpi.totalPendingAccountUpgrade.toDouble(), icon: Icons.verified_user_rounded, color: AppColors.warning, isCurrency: false),
     ]);
   }
 
@@ -309,65 +289,17 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
     return Column(
       children: [
         _buildGridRow([
-          _KpiCard(
-            label: 'Total Applications',
-            value: kpi.totalLoanApplications.toDouble(),
-            icon: Icons.description_outlined,
-            color: AppColors.info,
-            isCurrency: false,
-          ),
-          _KpiCard(
-            label: 'Approved Loans',
-            value: kpi.totalApprovedLoans.toDouble(),
-            icon: Icons.check_circle_outline,
-            color: AppColors.riderGreen,
-            isCurrency: false,
-          ),
-          _KpiCard(
-            label: 'Active Loans',
-            value: kpi.totalActiveLoans.toDouble(),
-            icon: Icons.account_balance_wallet_outlined,
-            color: AppColors.deepNavy,
-            isCurrency: false,
-          ),
-          _KpiCard(
-            label: 'Completed Loans',
-            value: kpi.totalCompletedLoans.toDouble(),
-            icon: Icons.done_all_outlined,
-            color: AppColors.info,
-            isCurrency: false,
-          ),
+          _KpiCard(label: 'Total Applications', value: kpi.totalLoanApplications.toDouble(), icon: Icons.description_rounded, color: AppColors.info, isCurrency: false),
+          _KpiCard(label: 'Approved Loans', value: kpi.totalApprovedLoans.toDouble(), icon: Icons.check_circle_rounded, color: AppColors.riderGreen, isCurrency: false),
+          _KpiCard(label: 'Active Loans', value: kpi.totalActiveLoans.toDouble(), icon: Icons.account_balance_wallet_rounded, color: AppColors.deepNavy, isCurrency: false),
+          _KpiCard(label: 'Completed Loans', value: kpi.totalCompletedLoans.toDouble(), icon: Icons.done_all_rounded, color: AppColors.info, isCurrency: false),
         ]),
         const SizedBox(height: 12),
         _buildGridRow([
-          _KpiCard(
-            label: 'Rejected Loans',
-            value: kpi.totalRejectedLoans.toDouble(),
-            icon: Icons.cancel_outlined,
-            color: AppColors.error,
-            isCurrency: false,
-          ),
-          _KpiCard(
-            label: 'Overdue Loans',
-            value: kpi.totalOverdueLoans.toDouble(),
-            icon: Icons.warning_outlined,
-            color: AppColors.statusOverdue,
-            isCurrency: false,
-          ),
-          _KpiCard(
-            label: 'CI Assignments',
-            value: kpi.totalCiAssignments.toDouble(),
-            icon: Icons.search_outlined,
-            color: AppColors.lenderBlue,
-            isCurrency: false,
-          ),
-          _KpiCard(
-            label: 'Collections',
-            value: kpi.totalCollectionTransactions.toDouble(),
-            icon: Icons.local_shipping_outlined,
-            color: AppColors.riderGreen,
-            isCurrency: false,
-          ),
+          _KpiCard(label: 'Rejected Loans', value: kpi.totalRejectedLoans.toDouble(), icon: Icons.cancel_rounded, color: AppColors.error, isCurrency: false),
+          _KpiCard(label: 'Overdue Loans', value: kpi.totalOverdueLoans.toDouble(), icon: Icons.warning_rounded, color: AppColors.statusOverdue, isCurrency: false),
+          _KpiCard(label: 'CI Assignments', value: kpi.totalCiAssignments.toDouble(), icon: Icons.search_rounded, color: AppColors.lenderBlue, isCurrency: false),
+          _KpiCard(label: 'Collections', value: kpi.totalCollectionTransactions.toDouble(), icon: Icons.delivery_dining_rounded, color: AppColors.riderGreen, isCurrency: false),
         ]),
       ],
     );
@@ -377,51 +309,15 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
     return Column(
       children: [
         _buildGridRow([
-          _KpiCard(
-            label: 'Amount Released',
-            value: kpi.totalLoanAmountReleased,
-            icon: Icons.payments_outlined,
-            color: AppColors.deepNavy,
-            isCurrency: true,
-          ),
-          _KpiCard(
-            label: 'Amount Collected',
-            value: kpi.totalAmountCollected,
-            icon: Icons.savings_outlined,
-            color: AppColors.riderGreen,
-            isCurrency: true,
-          ),
-          _KpiCard(
-            label: 'Outstanding Balance',
-            value: kpi.totalOutstandingBalance,
-            icon: Icons.account_balance_outlined,
-            color: AppColors.warning,
-            isCurrency: true,
-          ),
-          _KpiCard(
-            label: 'Interest Earned',
-            value: kpi.totalInterestEarned,
-            icon: Icons.trending_up_outlined,
-            color: AppColors.goldDark,
-            isCurrency: true,
-          ),
+          _KpiCard(label: 'Amount Released', value: kpi.totalLoanAmountReleased, icon: Icons.payments_rounded, color: AppColors.deepNavy, isCurrency: true),
+          _KpiCard(label: 'Amount Collected', value: kpi.totalAmountCollected, icon: Icons.savings_rounded, color: AppColors.riderGreen, isCurrency: true),
+          _KpiCard(label: 'Outstanding Balance', value: kpi.totalOutstandingBalance, icon: Icons.account_balance_rounded, color: AppColors.warning, isCurrency: true),
+          _KpiCard(label: 'Interest Earned', value: kpi.totalInterestEarned, icon: Icons.trending_up_rounded, color: AppColors.goldDark, isCurrency: true),
         ]),
         const SizedBox(height: 12),
         _buildGridRow([
-          _KpiCard(
-            label: 'Penalties Collected',
-            value: kpi.totalPenaltiesCollected,
-            icon: Icons.gavel_outlined,
-            color: AppColors.error,
-            isCurrency: true,
-          ),
-          _KpiCard(
-            label: 'Total Revenue',
-            value: kpi.totalRevenue,
-            icon: Icons.monetization_on_outlined,
-            color: AppColors.riderGreen,
-            isCurrency: true,
-          ),
+          _KpiCard(label: 'Penalties Collected', value: kpi.totalPenaltiesCollected, icon: Icons.gavel_rounded, color: AppColors.error, isCurrency: true),
+          _KpiCard(label: 'Total Revenue', value: kpi.totalRevenue, icon: Icons.monetization_on_rounded, color: AppColors.riderGreen, isCurrency: true),
         ]),
       ],
     );
@@ -429,20 +325,8 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
 
   Widget _buildOperationalGrid(KpiHeadManagerModel kpi) {
     return _buildGridRow([
-      _KpiCard(
-        label: 'Report Exports',
-        value: kpi.totalReportExports.toDouble(),
-        icon: Icons.assessment_outlined,
-        color: AppColors.info,
-        isCurrency: false,
-      ),
-      _KpiCard(
-        label: 'CI Assignments',
-        value: kpi.totalCiAssignments.toDouble(),
-        icon: Icons.fact_check_outlined,
-        color: AppColors.deepNavy,
-        isCurrency: false,
-      ),
+      _KpiCard(label: 'Report Exports', value: kpi.totalReportExports.toDouble(), icon: Icons.assessment_rounded, color: AppColors.info, isCurrency: false),
+      _KpiCard(label: 'CI Assignments', value: kpi.totalCiAssignments.toDouble(), icon: Icons.fact_check_rounded, color: AppColors.deepNavy, isCurrency: false),
     ]);
   }
 
@@ -457,8 +341,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                 : constraints.maxWidth >= 480
                     ? 2
                     : 1;
-        final cardWidth =
-            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+        final cardWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
@@ -467,10 +350,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
               .entries
               .map((e) => SizedBox(
                     width: cardWidth,
-                    child: _Entrance(
-                      delay: 100 + e.key * 70,
-                      child: e.value,
-                    ),
+                    child: _Entrance(delay: 80 + e.key * 55, child: e.value),
                   ))
               .toList(),
         );
@@ -505,7 +385,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: AnimatedScale(
-        scale: _hover ? 1.03 : 1.0,
+        scale: _hover ? 1.02 : 1.0,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
         child: AnimatedContainer(
@@ -513,24 +393,10 @@ class _QuickActionCardState extends State<_QuickActionCard> {
           decoration: BoxDecoration(
             color: _hover ? color.withValues(alpha: 0.06) : Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _hover ? color.withValues(alpha: 0.4) : AppColors.border,
-            ),
+            border: Border.all(color: _hover ? color.withValues(alpha: 0.35) : AppColors.border),
             boxShadow: _hover
-                ? [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.18),
-                      blurRadius: 14,
-                      offset: const Offset(0, 5),
-                    ),
-                  ]
-                : const [
-                    BoxShadow(
-                      color: Color(0x0D000000),
-                      blurRadius: 4,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
+                ? [BoxShadow(color: color.withValues(alpha: 0.16), blurRadius: 14, offset: const Offset(0, 5))]
+                : const [BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 1))],
           ),
           child: InkWell(
             onTap: widget.action.onTap,
@@ -540,39 +406,20 @@ class _QuickActionCardState extends State<_QuickActionCard> {
               child: Row(
                 children: [
                   Container(
-                    width: 38,
-                    height: 38,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [color, color.withValues(alpha: 0.7)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                       borderRadius: BorderRadius.circular(11),
+                      boxShadow: [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
                     ),
-                    child: Icon(
-                      widget.action.icon,
-                      size: 18,
-                      color: Colors.white,
-                    ),
+                    child: Icon(widget.action.icon, size: 18, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      widget.action.label,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: _hover ? color : AppColors.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    child: Text(widget.action.label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _hover ? color : AppColors.textPrimary), overflow: TextOverflow.ellipsis),
                   ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 11,
-                    color: _hover ? color : AppColors.textTertiary,
-                  ),
+                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: _hover ? color : AppColors.textTertiary),
                 ],
               ),
             ),
@@ -590,23 +437,11 @@ class _KpiCard extends StatelessWidget {
   final Color color;
   final bool isCurrency;
 
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.isCurrency,
-  });
+  const _KpiCard({required this.label, required this.value, required this.icon, required this.color, required this.isCurrency});
 
   @override
   Widget build(BuildContext context) {
-    return _KpiCardBody(
-      label: label,
-      value: value,
-      icon: icon,
-      color: color,
-      isCurrency: isCurrency,
-    );
+    return _KpiCardBody(label: label, value: value, icon: icon, color: color, isCurrency: isCurrency);
   }
 }
 
@@ -617,13 +452,7 @@ class _KpiCardBody extends StatefulWidget {
   final Color color;
   final bool isCurrency;
 
-  const _KpiCardBody({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.isCurrency,
-  });
+  const _KpiCardBody({required this.label, required this.value, required this.icon, required this.color, required this.isCurrency});
 
   @override
   State<_KpiCardBody> createState() => _KpiCardBodyState();
@@ -644,24 +473,10 @@ class _KpiCardBodyState extends State<_KpiCardBody> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _hover ? color.withValues(alpha: 0.35) : AppColors.border,
-          ),
+          border: Border.all(color: _hover ? color.withValues(alpha: 0.32) : AppColors.border),
           boxShadow: _hover
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.14),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : const [
-                  BoxShadow(
-                    color: Color(0x0D000000),
-                    blurRadius: 6,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+              ? [BoxShadow(color: color.withValues(alpha: 0.14), blurRadius: 16, offset: const Offset(0, 6))]
+              : const [BoxShadow(color: Color(0x0D000000), blurRadius: 6, offset: Offset(0, 2))],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,34 +484,17 @@ class _KpiCardBodyState extends State<_KpiCardBody> {
             Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [color, color.withValues(alpha: 0.65)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.65)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
+                    boxShadow: [BoxShadow(color: color.withValues(alpha: 0.28), blurRadius: 8, offset: const Offset(0, 3))],
                   ),
                   child: Icon(widget.icon, size: 19, color: Colors.white),
                 ),
                 const Spacer(),
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.6),
-                    shape: BoxShape.circle,
-                  ),
-                ),
+                Container(width: 8, height: 8, decoration: BoxDecoration(color: color.withValues(alpha: 0.55), shape: BoxShape.circle)),
               ],
             ),
             const SizedBox(height: 14),
@@ -704,38 +502,11 @@ class _KpiCardBodyState extends State<_KpiCardBody> {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: widget.isCurrency
-                  ? CountUpAnimation(
-                      value: widget.value,
-                      prefix: '₱',
-                      decimalPlaces: 2,
-                      style: TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                        letterSpacing: -0.4,
-                      ),
-                    )
-                  : CountUpAnimation(
-                      value: widget.value,
-                      style: TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                        color: color,
-                        letterSpacing: -0.4,
-                      ),
-                    ),
+                  ? CountUpAnimation(value: widget.value, prefix: '₱', decimalPlaces: 2, style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.4))
+                  : CountUpAnimation(value: widget.value, style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.4)),
             ),
             const SizedBox(height: 6),
-            Text(
-              widget.label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            Text(widget.label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 10),
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: 1),
@@ -743,26 +514,11 @@ class _KpiCardBodyState extends State<_KpiCardBody> {
               curve: Curves.easeOutCubic,
               builder: (context, t, _) => Container(
                 height: 3,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  gradient: LinearGradient(
-                    colors: [
-                      color.withValues(alpha: 0.5),
-                      color.withValues(alpha: 0.15),
-                    ],
-                  ),
-                ),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), gradient: LinearGradient(colors: [color.withValues(alpha: 0.5), color.withValues(alpha: 0.15)])),
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
                   widthFactor: t,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(2),
-                      gradient: LinearGradient(
-                        colors: [color, color.withValues(alpha: 0.5)],
-                      ),
-                    ),
-                  ),
+                  child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.5)]))),
                 ),
               ),
             ),
@@ -783,8 +539,7 @@ class _Entrance extends StatefulWidget {
   State<_Entrance> createState() => _EntranceState();
 }
 
-class _EntranceState extends State<_Entrance>
-    with SingleTickerProviderStateMixin {
+class _EntranceState extends State<_Entrance> with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _opacity;
   late final Animation<Offset> _offset;
@@ -794,17 +549,10 @@ class _EntranceState extends State<_Entrance>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 550),
-    );
-    final curved =
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 550));
+    final curved = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
     _opacity = Tween<double>(begin: 0, end: 1).animate(curved);
-    _offset = Tween<Offset>(
-      begin: const Offset(0, 0.06),
-      end: Offset.zero,
-    ).animate(curved);
+    _offset = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(curved);
     _scale = Tween<double>(begin: 0.96, end: 1).animate(curved);
     _timer = Timer(Duration(milliseconds: widget.delay), () {
       if (mounted) _ctrl.forward();
@@ -820,12 +568,6 @@ class _EntranceState extends State<_Entrance>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: SlideTransition(
-        position: _offset,
-        child: ScaleTransition(scale: _scale, child: widget.child),
-      ),
-    );
+    return FadeTransition(opacity: _opacity, child: SlideTransition(position: _offset, child: ScaleTransition(scale: _scale, child: widget.child)));
   }
 }

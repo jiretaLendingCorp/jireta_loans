@@ -9,7 +9,6 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
-import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -39,34 +38,20 @@ class _HmAccountUpgradeListScreenState
     return WebScaffold(
       title: 'Account Upgrade Review',
       actions: [
-        IconButton(
-          onPressed: () => ref.read(hmAccountUpgradeProvider.notifier).fetch(),
-          icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-          tooltip: 'Refresh',
+        Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+          child: IconButton(onPressed: () => ref.read(hmAccountUpgradeProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.textSecondary), tooltip: 'Refresh'),
         ),
       ],
       body: Column(
         children: [
-          buildFilterBar(
-            searchController: _search,
-            searchHint: 'Search lender name...',
-            filters: [
-              (
-                label: 'Status',
-                value: state.statusFilter,
-                options: ['all', 'submitted', 'verified', 'rejected'],
-                onChanged: (v) =>
-                    ref.read(hmAccountUpgradeProvider.notifier).setStatus(v),
-              ),
-            ],
-            onExport: null,
-          ),
+          _buildFilterBar(state),
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
                 : state.docs.isEmpty
                     ? _buildEmpty()
-                    : _buildTable(context, state),
+                    : _buildList(context, state),
           ),
           if (state.totalPages > 1)
             TablePagination(
@@ -81,44 +66,83 @@ class _HmAccountUpgradeListScreenState
     );
   }
 
-  Widget _buildTable(BuildContext context, HmAccountUpgradeState state) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: state.docs.map((doc) {
-            return _AccountUpgradeRow(
-              key: ValueKey(doc.id),
-              doc: doc,
-              onTap: () => context.go(
-                RouteConstants.hmAccountUpgradeDetails.replaceFirst(
-                    ':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId),
+  Widget _buildFilterBar(HmAccountUpgradeState state) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _search,
+              decoration: InputDecoration(
+                hintText: 'Search lender name…',
+                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textTertiary),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
-              onVerify: () => _verifyAll(doc, 'verified'),
-              onReject: () => _promptReject(doc),
-            );
-          }).toList(),
-        ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _StatusPill(label: 'All', value: 'all', selected: state.statusFilter == 'all', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(label: 'Submitted', value: 'submitted', selected: state.statusFilter == 'submitted', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(label: 'Verified', value: 'verified', selected: state.statusFilter == 'verified', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(label: 'Rejected', value: 'rejected', selected: state.statusFilter == 'rejected', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
+            ]),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _verifyAll(dynamic doc, String action) async {
-    final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(
-          lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId,
-          action: action,
+  Widget _buildList(BuildContext context, HmAccountUpgradeState state) {
+    final q = _search.text.toLowerCase().trim();
+    final docs = q.isEmpty ? state.docs : state.docs.where((d) => (d.lenderName?.toString().toLowerCase().contains(q) ?? false) || (d.lender?['email']?.toString().toLowerCase().contains(q) ?? false)).toList();
+    if (docs.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 72, height: 72, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary)),
+          const SizedBox(height: 14),
+          const Text('No matches', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text('Try a different search or filter', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        ]),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      itemCount: docs.length,
+      itemBuilder: (context, i) {
+        final doc = docs[i];
+        return Padding(
+          padding: EdgeInsets.only(bottom: i == docs.length - 1 ? 0 : 10),
+          child: _AccountUpgradeRow(
+            key: ValueKey(doc.id),
+            doc: doc,
+            onTap: () => context.go(RouteConstants.hmAccountUpgradeDetails.replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)),
+            onVerify: () => _verifyAll(doc, 'verified'),
+            onReject: () => _promptReject(doc),
+          ),
         );
-    if (!mounted) return;
-    context.showSnackBarAsToast(
-      SnackBar(
-        content: Text(ok
-            ? (action == 'verified'
-                ? 'Account upgrade documents verified'
-                : 'Account upgrade documents rejected')
-            : 'Action failed'),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ),
+      },
     );
+  }
+
+  Future<void> _verifyAll(dynamic doc, String action) async {
+    final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId, action: action);
+    if (!mounted) return;
+    context.showSnackBarAsToast(SnackBar(content: Text(ok ? (action == 'verified' ? 'Account upgrade documents verified' : 'Account upgrade documents rejected') : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
   }
 
   Future<void> _promptReject(dynamic doc) async {
@@ -126,98 +150,76 @@ class _HmAccountUpgradeListScreenState
     final notesCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.cancel_outlined, color: AppColors.error, size: 24),
-            SizedBox(width: 10),
-            Text('Reject Account Upgrade'),
-          ],
-        ),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Rejecting will reject all submitted documents for this lender.',
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-              ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.cancel_rounded, color: AppColors.error)),
+                const SizedBox(width: 12),
+                const Expanded(child: Text('Reject Account Upgrade', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+              ]),
+              const SizedBox(height: 12),
+              const Text('Rejecting will reject all submitted documents for this lender.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
               const SizedBox(height: 16),
-              const Text('Rejection Reason *',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text('Rejection Reason *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
               const SizedBox(height: 8),
-              TextField(
-                controller: notesCtrl,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Enter reason for rejection...',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ],
+              TextField(controller: notesCtrl, maxLines: 3, decoration: InputDecoration(hintText: 'Enter reason for rejection…', filled: true, fillColor: AppColors.surfaceVariant, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.error)))),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: OutlinedButton(onPressed: () => Navigator.of(context).pop(false), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('Cancel'))),
+                const SizedBox(width: 12),
+                Expanded(child: ElevatedButton(onPressed: () { if (notesCtrl.text.trim().isEmpty) { context.showSnackBarAsToast(const SnackBar(content: Text('Please provide a rejection reason'), backgroundColor: AppColors.error)); return; } Navigator.of(context).pop(true); }, style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w700)))),
+              ]),
+            ]),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (notesCtrl.text.trim().isEmpty) {
-                context.showSnackBarAsToast(
-                  const SnackBar(
-                    content: Text('Please provide a rejection reason'),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-                return;
-              }
-              Navigator.of(context).pop(true);
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white),
-            child: const Text('Reject'),
-          ),
-        ],
       ),
     );
     if (confirmed == true) {
       if (!mounted) return;
-      final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(
-            lenderId: lenderId,
-            action: 'rejected',
-            rejectionNotes: notesCtrl.text.trim(),
-          );
+      final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: 'rejected', rejectionNotes: notesCtrl.text.trim());
       if (!mounted) return;
-      context.showSnackBarAsToast(
-        SnackBar(
-          content:
-              Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),
-          backgroundColor: ok ? AppColors.success : AppColors.error,
-        ),
-      );
+      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'Account upgrade documents rejected' : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
     }
   }
 
   Widget _buildEmpty() {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.verified_user_outlined,
-              size: 64, color: AppColors.textTertiary),
-          SizedBox(height: 16),
-          Text(
-            'No account upgrade submissions found',
-            style: TextStyle(fontSize: 15, color: AppColors.textSecondary),
-          ),
-        ],
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 80, height: 80, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFF00838F).withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18)), child: const Icon(Icons.verified_user_rounded, size: 40, color: Color(0xFF00838F))),
+          const SizedBox(height: 16),
+          const Text('No account upgrade submissions found', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          const Text('Lender KYC upgrade requests will appear here for review.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
+        ]),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool selected;
+  final ValueChanged<String> onTap;
+  const _StatusPill({required this.label, required this.value, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(color: selected ? AppColors.deepNavy : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? AppColors.deepNavy : AppColors.border)),
+        child: Text(label, style: TextStyle(fontSize: 12, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? Colors.white : AppColors.textSecondary)),
       ),
     );
   }
@@ -229,13 +231,7 @@ class _AccountUpgradeRow extends StatefulWidget {
   final VoidCallback onVerify;
   final VoidCallback onReject;
 
-  const _AccountUpgradeRow({
-    super.key,
-    required this.doc,
-    required this.onTap,
-    required this.onVerify,
-    required this.onReject,
-  });
+  const _AccountUpgradeRow({super.key, required this.doc, required this.onTap, required this.onVerify, required this.onReject});
 
   @override
   State<_AccountUpgradeRow> createState() => _AccountUpgradeRowState();
@@ -244,12 +240,25 @@ class _AccountUpgradeRow extends StatefulWidget {
 class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
   bool _hovered = false;
 
+  Color _accentForStatus(String s) {
+    switch (s.toLowerCase()) {
+      case 'verified':
+        return AppColors.riderGreen;
+      case 'rejected':
+        return AppColors.error;
+      case 'submitted':
+        return AppColors.lenderBlue;
+      default:
+        return AppColors.warning;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final doc = widget.doc;
-    final date =
-        DateFormat('MMM d, y').format(doc.submittedAt ?? doc.createdAt);
+    final date = DateFormat('MMM d, y').format(doc.submittedAt ?? doc.createdAt);
     final status = (doc.status ?? 'pending').toString();
+    final accent = _accentForStatus(status);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -257,127 +266,63 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: _hovered
-                ? AppColors.deepNavy.withValues(alpha: 0.03)
-                : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: _hovered
-                  ? AppColors.deepNavy.withValues(alpha: 0.2)
-                  : AppColors.border,
-            ),
-            boxShadow: _hovered
-                ? [
-                    BoxShadow(
-                      color: AppColors.deepNavy.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    )
-                  ]
-                : [
-                    const BoxShadow(
-                      color: Color(0x0D000000),
-                      blurRadius: 2,
-                      offset: Offset(0, 1),
-                    )
-                  ],
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _hovered ? accent.withValues(alpha: 0.3) : AppColors.border),
+            boxShadow: _hovered ? [BoxShadow(color: accent.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 6))] : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
           ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 620;
-              final avatar = ProfileAvatar(
-                photoUrl: doc.lender?['profile_photo_url'] as String?,
-                name: doc.lenderName,
-                color: AppColors.info,
-                radius: 20,
-                fallback: const Icon(Icons.verified_user_outlined,
-                    size: 20, color: AppColors.info),
-              );
-              final info = Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      doc.lenderName ?? 'Unknown Lender',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${doc.documentCountLabel ?? 'Account Upgrade Submission'}  •  $date',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-              );
-              final statusBadge = StatusBadge(status: status);
-              final actionButtons = Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (status != 'verified')
-                    _ActionButton(
-                      icon: Icons.check_circle_outline,
-                      label: 'Verify',
-                      color: AppColors.success,
-                      onPressed: widget.onVerify,
-                    ),
-                  if (status != 'verified' && status != 'rejected') ...[
+          child: Row(
+            children: [
+              Container(width: 4, height: 48, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
+              const SizedBox(width: 12),
+              ProfileAvatar(photoUrl: doc.lender?['profile_photo_url'] as String?, name: doc.lenderName, color: accent, radius: 22, fallback: Icon(Icons.verified_user_rounded, size: 20, color: accent)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Text(doc.lenderName ?? 'Unknown Lender', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
+                    StatusBadge(status: status),
+                  ]),
+                  const SizedBox(height: 3),
+                  Row(children: [
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)), child: Text(doc.documentCountLabel ?? 'Account Upgrade Submission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent))),
                     const SizedBox(width: 8),
-                    _ActionButton(
-                      icon: Icons.cancel_outlined,
-                      label: 'Reject',
-                      color: AppColors.error,
-                      onPressed: widget.onReject,
-                    ),
-                  ],
-                ],
-              );
-
-              if (isNarrow) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        avatar,
-                        const SizedBox(width: 14),
-                        info,
-                        const SizedBox(width: 8),
-                        statusBadge,
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: actionButtons,
-                    ),
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  avatar,
-                  const SizedBox(width: 14),
-                  info,
-                  const SizedBox(width: 8),
-                  statusBadge,
-                  const SizedBox(width: 12),
-                  actionButtons,
-                  const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right,
-                      size: 18, color: AppColors.textTertiary),
-                ],
-              );
-            },
+                    const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
+                    const SizedBox(width: 4),
+                    Text(date, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                  ]),
+                ]),
+              ),
+              const SizedBox(width: 12),
+              // Desktop actions
+              if (MediaQuery.of(context).size.width >= 640) ...[
+                if (status != 'verified')
+                  _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: widget.onVerify, primary: true),
+                if (status != 'verified' && status != 'rejected') const SizedBox(width: 8),
+                if (status != 'verified' && status != 'rejected')
+                  _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: widget.onReject, primary: false),
+                const SizedBox(width: 10),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(color: _hovered ? accent : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10)),
+                  child: Icon(Icons.arrow_forward_rounded, size: 18, color: _hovered ? Colors.white : AppColors.textSecondary),
+                ),
+              ] else ...[
+                // Mobile: stack actions below — handled via column inside, but keep chevron
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(color: _hovered ? accent : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10)),
+                  child: Icon(Icons.chevron_right_rounded, size: 18, color: _hovered ? Colors.white : AppColors.textSecondary),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -385,32 +330,41 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends StatefulWidget {
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onPressed;
+  final bool primary;
+  const _ActionButton({required this.icon, required this.label, required this.color, required this.onPressed, required this.primary});
+  @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
 
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onPressed,
-  });
-
+class _ActionButtonState extends State<_ActionButton> {
+  bool _hover = false;
   @override
   Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16, color: color),
-      label: Text(label,
-          style: TextStyle(
-              fontSize: 12, color: color, fontWeight: FontWeight.w600)),
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        minimumSize: Size.zero,
-        backgroundColor: color.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: InkWell(
+        onTap: widget.onPressed,
+        borderRadius: BorderRadius.circular(9),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.primary ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1)) : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: widget.color.withValues(alpha: widget.primary ? 0.2 : 0.3)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(widget.icon, size: 14, color: widget.primary ? (_hover ? Colors.white : widget.color) : widget.color),
+            const SizedBox(width: 6),
+            Text(widget.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: widget.primary ? (_hover ? Colors.white : widget.color) : widget.color)),
+          ]),
+        ),
       ),
     );
   }

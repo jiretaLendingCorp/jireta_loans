@@ -134,7 +134,7 @@ class _AssignRiderCollectionModalState
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.local_shipping_outlined,
+                  const Icon(Icons.delivery_dining_outlined,
                       color: AppColors.gold, size: 22),
                   const SizedBox(width: 12),
                   const Expanded(

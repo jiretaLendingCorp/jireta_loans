@@ -44,21 +44,18 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     return WebScaffold(
       title: 'CI Assignment Details',
       actions: [
-        TextButton.icon(
+        OutlinedButton.icon(
           onPressed: () => context.go(RouteConstants.hmCi),
-          icon: const Icon(Icons.arrow_back, size: 16),
-          label: const Text('Back to CI List'),
+          icon: const Icon(Icons.arrow_back_rounded, size: 16),
+          label: const Text('Back to CI List', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
         ),
         const SizedBox(width: 12),
       ],
       body: ciAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-            child: Text('Error: $e',
-                style: const TextStyle(color: AppColors.error))),
-        data: (ci) => ci == null
-            ? const Center(child: Text('CI assignment not found'))
-            : _buildContent(context, ci),
+        error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.error))),
+        data: (ci) => ci == null ? const Center(child: Text('CI assignment not found')) : _buildContent(context, ci),
       ),
     );
   }
@@ -71,25 +68,35 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeaderCard(model, status),
-          const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          _buildPremiumHeader(model, status, ci),
+          const SizedBox(height: 16),
+          _buildTimeline(status, ci),
+          const SizedBox(height: 16),
+          LayoutBuilder(builder: (context, c) {
+            final isNarrow = c.maxWidth < 820;
+            if (isNarrow) {
+              return Column(children: [
+                _buildBorrowerCard(ci, model),
+                const SizedBox(height: 16),
+                _buildAssignmentCard(ci, model),
+              ]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(child: _buildBorrowerCard(ci, model)),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16),
               Expanded(child: _buildAssignmentCard(ci, model)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if ((ci['report_summary'] as String?)?.isNotEmpty == true)
+            ]);
+          }),
+          if ((ci['report_summary'] as String?)?.isNotEmpty == true) ...[
+            const SizedBox(height: 16),
             _buildReportCard(ci),
+          ],
           if ((ci['ci_documents'] as List?)?.isNotEmpty == true) ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             _buildDocumentsCard(ci),
           ],
           if (status == 'pending' || status == 'declined') ...[
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             _buildAssignRiderSection(context, ci),
           ],
         ],
@@ -97,236 +104,273 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     );
   }
 
-  Widget _buildHeaderCard(CreditInvestigationModel model, String status) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.border),
+  Widget _buildPremiumHeader(CreditInvestigationModel model, String status, Map<String, dynamic> ci) {
+    final accent = _accentForStatus(status);
+    final deadline = ci['deadline'] != null ? DateTime.tryParse(ci['deadline'].toString()) : null;
+    final isOverdue = deadline != null && deadline.isBefore(DateTime.now()) && status != 'completed';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [AppColors.deepNavy, AppColors.deepNavy.withValues(alpha: 0.9), const Color(0xFF1E3A5F)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 8))],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.lenderBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.search_outlined,
-                  color: AppColors.lenderBlue, size: 28),
+      child: Row(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 4))],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'CI-${model.id.substring(0, 8).toUpperCase()}',
-                    style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary),
+            child: const Icon(Icons.search_rounded, color: Colors.white, size: 30),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text('CI-${model.id.substring(0, 8).toUpperCase()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                const SizedBox(width: 10),
+                if (isOverdue)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(6)),
+                    child: const Text('OVERDUE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Loan: ${model.loanNumber.isEmpty ? 'N/A' : model.loanNumber}',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-            StatusBadge(status: status),
-          ],
-        ),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)), child: Text('Loan: ${model.loanNumber.isEmpty ? 'N/A' : model.loanNumber}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+                const SizedBox(width: 8),
+                if (deadline != null)
+                  Text('Due ${DateFormat('MMM d, yyyy').format(deadline)}', style: TextStyle(color: isOverdue ? const Color(0xFFFF8A80) : Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+              ]),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          StatusBadge(status: status),
+        ],
       ),
     );
   }
 
-  Widget _buildBorrowerCard(
-      Map<String, dynamic> ci, CreditInvestigationModel model) {
+  Widget _buildTimeline(String status, Map<String, dynamic> ci) {
+    final steps = [
+      ('Assigned', ci['created_at'] != null, Icons.assignment_turned_in_rounded),
+      ('Accepted', ci['response_at'] != null, Icons.handshake_rounded),
+      ('In Progress', status == 'in_progress' || status == 'completed', Icons.timelapse_rounded),
+      ('Completed', ci['completed_at'] != null, Icons.verified_rounded),
+    ];
+    final activeIndex = () {
+      if (ci['completed_at'] != null) return 3;
+      if (status == 'in_progress') return 2;
+      if (ci['response_at'] != null) return 1;
+      return 0;
+    }();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Row(
+        children: steps.asMap().entries.map((e) {
+          final idx = e.key;
+          final isDone = e.value.$2;
+          final isActive = idx == activeIndex;
+          final isLast = idx == steps.length - 1;
+          return Expanded(
+            child: Row(children: [
+              Column(children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isDone ? AppColors.riderGreen : isActive ? AppColors.lenderBlue : AppColors.surfaceVariant,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: isDone ? AppColors.riderGreen : isActive ? AppColors.lenderBlue : AppColors.border),
+                  ),
+                  child: Icon(e.value.$3, size: 16, color: isDone || isActive ? Colors.white : AppColors.textTertiary),
+                ),
+                const SizedBox(height: 6),
+                Text(e.value.$1, style: TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.w800 : FontWeight.w600, color: isActive ? AppColors.deepNavy : AppColors.textSecondary)),
+              ]),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    height: 2,
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: isDone ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+            ]),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildBorrowerCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
     final addresses = ci['loans']?['lender_address'];
     final principal = ci['loans']?['principal_amount'];
-
-    return _InfoCard(
+    return _PremiumInfoCard(
       title: 'Lender Information',
-      icon: Icons.person_outline,
+      subtitle: 'Borrower under investigation',
+      icon: Icons.person_rounded,
+      accent: AppColors.lenderBlue,
       children: [
-        _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName),
-        _InfoRow(
-            'Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone),
-        _InfoRow(
-            'Loan Amount',
-            principal != null
-                ? '₱${_fmt.format((principal as num).toDouble())}'
-                : 'N/A'),
-        if (addresses is Map)
-          _InfoRow('Primary Address',
-              _formatAddress(Map<String, dynamic>.from(addresses))),
-        _InfoRow('CI Notes', ci['investigation_notes'] ?? 'None'),
-        _InfoRow(
-            'Deadline',
-            ci['deadline'] != null
-                ? DateFormat('MMM d, yyyy')
-                    .format(DateTime.parse(ci['deadline']))
-                : 'N/A'),
+        _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName, icon: Icons.badge_outlined),
+        _InfoRow('Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone, icon: Icons.phone_outlined),
+        _InfoRow('Loan Amount', principal != null ? '₱${_fmt.format((principal as num).toDouble())}' : 'N/A', icon: Icons.payments_outlined, highlight: true),
+        if (addresses is Map) _InfoRow('Primary Address', _formatAddress(Map<String, dynamic>.from(addresses)), icon: Icons.location_on_outlined),
+        _InfoRow('CI Notes', ci['investigation_notes'] ?? 'None', icon: Icons.sticky_note_2_outlined),
+        _InfoRow('Deadline', ci['deadline'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(ci['deadline'])) : 'N/A', icon: Icons.event_outlined),
       ],
     );
   }
 
-  Widget _buildAssignmentCard(
-      Map<String, dynamic> ci, CreditInvestigationModel model) {
-    return _InfoCard(
+  Widget _buildAssignmentCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
+    return _PremiumInfoCard(
       title: 'Assignment Details',
-      icon: Icons.assignment_outlined,
+      subtitle: 'Workflow & ownership',
+      icon: Icons.assignment_rounded,
+      accent: AppColors.deepNavy,
       children: [
-        _InfoRow('Status', ci['status'] ?? 'N/A'),
-        _InfoRow(
-            'Assigned Rider',
-            model.riderName.isEmpty ? 'Not Assigned' : model.riderName),
-        _InfoRow(
-            'Assigned By',
-            model.assignedByName.isEmpty ? 'N/A' : model.assignedByName),
-        _InfoRow(
-            'Assigned At',
-            ci['created_at'] != null
-                ? _dateFmt.format(DateTime.parse(ci['created_at']))
-                : 'N/A'),
-        _InfoRow(
-            'Accepted At',
-            ci['response_at'] != null
-                ? _dateFmt.format(DateTime.parse(ci['response_at']))
-                : 'N/A'),
-        _InfoRow(
-            'Completed At',
-            ci['completed_at'] != null
-                ? _dateFmt.format(DateTime.parse(ci['completed_at']))
-                : 'N/A'),
+        _InfoRow('Status', (ci['status'] ?? 'N/A').toString().replaceAll('_', ' '), icon: Icons.flag_outlined),
+        _InfoRow('Assigned Rider', model.riderName.isEmpty ? 'Not Assigned' : model.riderName, icon: Icons.delivery_dining_rounded),
+        _InfoRow('Assigned By', model.assignedByName.isEmpty ? 'N/A' : model.assignedByName, icon: Icons.admin_panel_settings_outlined),
+        _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(DateTime.parse(ci['created_at'])) : 'N/A', icon: Icons.schedule_rounded),
+        _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(DateTime.parse(ci['response_at'])) : 'Pending', icon: Icons.check_circle_outline_rounded),
+        _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(DateTime.parse(ci['completed_at'])) : '—', icon: Icons.verified_outlined),
       ],
     );
   }
 
   Widget _buildReportCard(Map<String, dynamic> ci) {
-    return _InfoCard(
-      title: 'Investigation Report',
-      icon: Icons.article_outlined,
-      children: [
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            ci['report_summary'] as String? ?? '',
-            style: const TextStyle(
-                fontSize: 14, height: 1.6, color: AppColors.textPrimary),
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider))),
+          child: Row(children: [
+            Container(width: 36, height: 36, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF00838F), Color(0xFF006064)]), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.article_rounded, color: Colors.white, size: 18)),
+            const SizedBox(width: 10),
+            const Text('Investigation Report', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+            const Spacer(),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)), child: const Text('FIELD REPORT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.warning))),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(ci['report_summary'] as String? ?? '', style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
+            ]),
           ),
         ),
-      ],
+      ]),
     );
   }
 
   Widget _buildDocumentsCard(Map<String, dynamic> ci) {
     final docs = (ci['ci_documents'] as List?) ?? [];
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.photo_library_outlined,
-                    color: AppColors.deepNavy, size: 20),
-                const SizedBox(width: 8),
-                Text('Evidence Photos (${docs.length})',
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                childAspectRatio: 1,
-              ),
-              itemCount: docs.length,
-              itemBuilder: (ctx, i) {
-                final doc = docs[i] as Map<String, dynamic>;
-                return _DocumentThumbnail(doc: doc);
-              },
-            ),
-          ],
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.deepNavy.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.photo_library_rounded, color: AppColors.deepNavy, size: 18)),
+            const SizedBox(width: 10),
+            Text('Evidence Photos (${docs.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+            const Spacer(),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)), child: Text('${docs.length} files', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))),
+          ]),
         ),
-      ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1),
+            itemCount: docs.length,
+            itemBuilder: (ctx, i) {
+              final doc = docs[i] as Map<String, dynamic>;
+              return _DocumentThumbnail(doc: doc);
+            },
+          ),
+        ),
+      ]),
     );
   }
 
-  Widget _buildAssignRiderSection(
-      BuildContext context, Map<String, dynamic> ci) {
+  Widget _buildAssignRiderSection(BuildContext context, Map<String, dynamic> ci) {
     final ridersAsync = ref.watch(_availableRidersProvider);
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: AppColors.gold.withValues(alpha: 0.4)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+        boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.assignment_ind_outlined,
-                    color: AppColors.gold, size: 20),
-                SizedBox(width: 8),
-                Text('Assign Rider for CI',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ridersAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (e, _) => Text('Could not load riders: $e'),
-              data: (riders) => _AssignRiderForm(
-                ciId: widget.ciId,
-                loanId: ci['loan_id'] as String? ?? '',
-                riders: riders,
-                onAssigned: () =>
-                    ref.invalidate(_ciDetailProvider(widget.ciId)),
-              ),
-            ),
-          ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.08), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+          child: Row(children: [
+            Container(width: 36, height: 36, decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.gold, AppColors.goldDark]), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.assignment_ind_rounded, color: Colors.white, size: 18)),
+            const SizedBox(width: 10),
+            const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Assign Rider for CI', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+              Text('Choose a field rider and set investigation timeline', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ]),
+          ]),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: ridersAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (e, _) => Text('Could not load riders: $e'),
+            data: (riders) => _AssignRiderForm(ciId: widget.ciId, loanId: ci['loan_id'] as String? ?? '', riders: riders, onAssigned: () => ref.invalidate(_ciDetailProvider(widget.ciId))),
+          ),
+        ),
+      ]),
     );
   }
 
   String _formatAddress(Map<String, dynamic> addr) {
-    final parts = [
-      addr['street'],
-      addr['barangay'],
-      addr['city'],
-      addr['province']
-    ];
+    final parts = [addr['street'], addr['barangay'], addr['city'], addr['province']];
     return parts.where((p) => p != null && p.toString().isNotEmpty).join(', ');
   }
+
+  Color _accentForStatus(String s) {
+    switch (s.toLowerCase()) {
+      case 'assigned':
+        return AppColors.lenderBlue;
+      case 'accepted':
+        return AppColors.riderGreen;
+      case 'in_progress':
+        return AppColors.warning;
+      case 'completed':
+        return AppColors.riderGreen;
+      case 'declined':
+        return AppColors.error;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
 }
 
 class _AssignRiderForm extends ConsumerStatefulWidget {
@@ -335,12 +379,7 @@ class _AssignRiderForm extends ConsumerStatefulWidget {
   final List<Map<String, dynamic>> riders;
   final VoidCallback onAssigned;
 
-  const _AssignRiderForm({
-    required this.ciId,
-    required this.loanId,
-    required this.riders,
-    required this.onAssigned,
-  });
+  const _AssignRiderForm({required this.ciId, required this.loanId, required this.riders, required this.onAssigned});
 
   @override
   ConsumerState<_AssignRiderForm> createState() => _AssignRiderFormState();
@@ -360,91 +399,73 @@ class _AssignRiderFormState extends ConsumerState<_AssignRiderForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        DropdownButtonFormField<String>(
-          initialValue: _selectedRiderId,
-          decoration: const InputDecoration(
-            labelText: 'Select Available Rider',
-            border: OutlineInputBorder(),
-          ),
-          items: widget.riders.map((r) {
-            return DropdownMenuItem<String>(
-              value: r['id'] as String,
-              child: Text('${r['first_name']} ${r['last_name']}'),
-            );
-          }).toList(),
-          onChanged: (v) => setState(() => _selectedRiderId = v),
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Select Rider', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      DropdownButtonFormField<String>(
+        initialValue: _selectedRiderId,
+        decoration: InputDecoration(
+          hintText: 'Choose available rider',
+          filled: true,
+          fillColor: AppColors.surfaceVariant,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.4)),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _notesCtrl,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Investigation Notes',
-            border: OutlineInputBorder(),
-          ),
+        items: widget.riders.map((r) => DropdownMenuItem<String>(value: r['id'] as String, child: Text('${r['first_name']} ${r['last_name']}', style: const TextStyle(fontSize: 13)))).toList(),
+        onChanged: (v) => setState(() => _selectedRiderId = v),
+      ),
+      const SizedBox(height: 14),
+      const Text('Investigation Notes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      TextFormField(
+        controller: _notesCtrl,
+        maxLines: 3,
+        decoration: InputDecoration(
+          hintText: 'Add instructions for the field rider…',
+          filled: true,
+          fillColor: AppColors.surfaceVariant,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.4)),
         ),
-        const SizedBox(height: 12),
-        InkWell(
-          onTap: () async {
-            final d = await showDatePicker(
-              context: context,
-              initialDate: DateTime.now().add(const Duration(days: 3)),
-              firstDate: DateTime.now(),
-              lastDate: DateTime.now().add(const Duration(days: 30)),
-            );
-            if (d != null) setState(() => _deadline = d);
-          },
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_today_outlined,
-                    size: 18, color: AppColors.textSecondary),
-                const SizedBox(width: 8),
-                Text(
-                  _deadline != null
-                      ? DateFormat('MMM d, yyyy').format(_deadline!)
-                      : 'Select Deadline',
-                  style: TextStyle(
-                      color: _deadline != null
-                          ? AppColors.textPrimary
-                          : AppColors.textTertiary),
-                ),
-              ],
-            ),
-          ),
+      ),
+      const SizedBox(height: 14),
+      const Text('Deadline', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      InkWell(
+        onTap: () async {
+          final d = await showDatePicker(context: context, initialDate: DateTime.now().add(const Duration(days: 3)), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30)));
+          if (d != null) setState(() => _deadline = d);
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: AppColors.surfaceVariant, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            Container(width: 32, height: 32, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.deepNavy)),
+            const SizedBox(width: 10),
+            Text(_deadline != null ? DateFormat('MMM d, yyyy').format(_deadline!) : 'Select Deadline', style: TextStyle(color: _deadline != null ? AppColors.textPrimary : AppColors.textTertiary, fontWeight: FontWeight.w600, fontSize: 13)),
+            const Spacer(),
+            const Icon(Icons.arrow_drop_down_rounded, color: AppColors.textTertiary),
+          ]),
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.deepNavy,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
+      ),
+      const SizedBox(height: 18),
+      SizedBox(
+        width: double.infinity,
+        child: Container(
+          decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))]),
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
             onPressed: _selectedRiderId == null || _loading ? null : _assign,
-            child: _loading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
-                : const Text('Assign Rider',
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w600)),
+            icon: _loading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send_rounded, size: 18, color: Colors.white),
+            label: Text(_loading ? 'Assigning…' : 'Assign Rider', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
           ),
         ),
-      ],
-    );
+      ),
+    ]);
   }
 
   Future<void> _assign() async {
@@ -452,27 +473,13 @@ class _AssignRiderFormState extends ConsumerState<_AssignRiderForm> {
     setState(() => _loading = true);
     try {
       final ds = sl<CiRemoteDataSource>();
-      await ds.assignCi(
-        loanId: widget.loanId,
-        riderId: _selectedRiderId!,
-        investigationNotes: _notesCtrl.text.trim(),
-        deadline: _deadline?.toIso8601String(),
-      );
+      await ds.assignCi(loanId: widget.loanId, riderId: _selectedRiderId!, investigationNotes: _notesCtrl.text.trim(), deadline: _deadline?.toIso8601String());
       if (mounted) {
-        context.showSnackBarAsToast(
-          const SnackBar(
-              content: Text('Rider assigned successfully'),
-              backgroundColor: AppColors.success),
-        );
+        context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
         widget.onAssigned();
       }
     } catch (e) {
-      if (mounted) {
-        context.showSnackBarAsToast(
-          SnackBar(
-              content: Text('Error: $e'), backgroundColor: AppColors.error),
-        );
-      }
+      if (mounted) context.showSnackBarAsToast(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -487,25 +494,14 @@ class _DocumentThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = doc['file_url'] as String? ?? '';
     return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: AppColors.surfaceVariant,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: AppColors.surfaceVariant, border: Border.all(color: AppColors.border)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(children: [
+          Positioned.fill(
             child: url.isNotEmpty
-                ? Image.network(url,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    errorBuilder: (_, __, ___) => const Icon(
-                        Icons.broken_image_outlined,
-                        color: AppColors.textTertiary))
-                : const Icon(Icons.photo_outlined,
-                    color: AppColors.textTertiary),
+                ? Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: AppColors.textTertiary))
+                : const Center(child: Icon(Icons.photo_outlined, color: AppColors.textTertiary)),
           ),
           if ((doc['caption'] as String?)?.isNotEmpty == true)
             Positioned(
@@ -513,64 +509,49 @@ class _DocumentThumbnail extends StatelessWidget {
               left: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.only(
-                    bottomLeft: Radius.circular(8),
-                    bottomRight: Radius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  doc['caption'] as String,
-                  style: const TextStyle(color: Colors.white, fontSize: 9),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: const BoxDecoration(gradient: LinearGradient(colors: [Colors.transparent, Colors.black54], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+                child: Text(doc['caption'] as String, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
-        ],
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white)),
+          ),
+        ]),
       ),
     );
   }
 }
 
-class _InfoCard extends StatelessWidget {
+class _PremiumInfoCard extends StatelessWidget {
   final String title;
+  final String subtitle;
   final IconData icon;
+  final Color accent;
   final List<Widget> children;
-  const _InfoCard(
-      {required this.title, required this.icon, required this.children});
+  const _PremiumInfoCard({required this.title, required this.subtitle, required this.icon, required this.accent, required this.children});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: AppColors.deepNavy, size: 18),
-                const SizedBox(width: 8),
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary)),
-              ],
-            ),
-            const Divider(height: 20),
-            ...children,
-          ],
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider)), color: accent.withValues(alpha: 0.04), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+          child: Row(children: [
+            Container(width: 36, height: 36, decoration: BoxDecoration(gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]), borderRadius: BorderRadius.circular(9)), child: Icon(icon, color: Colors.white, size: 18)),
+            const SizedBox(width: 10),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ]),
+          ]),
         ),
-      ),
+        Padding(padding: const EdgeInsets.all(16), child: Column(children: children)),
+      ]),
     );
   }
 }
@@ -578,30 +559,20 @@ class _InfoCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  const _InfoRow(this.label, this.value);
+  final IconData icon;
+  final bool highlight;
+  const _InfoRow(this.label, this.value, {required this.icon, this.highlight = false});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary)),
-          ),
-          Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary)),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(7)), child: Icon(icon, size: 14, color: AppColors.textSecondary)),
+        const SizedBox(width: 10),
+        SizedBox(width: 120, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
+      ]),
     );
   }
 }
