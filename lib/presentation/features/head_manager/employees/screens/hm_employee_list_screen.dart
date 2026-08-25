@@ -8,7 +8,6 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_employee_provider.dart';
 import '../widgets/create_employee_modal.dart';
 
@@ -151,12 +150,8 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
 
   Widget _buildTableRow(UserModel user, bool isEven) {
     final isActive = user.accountStatus == 'active';
-    return InkWell(
+    return Container(
       key: ValueKey(user.id),
-      onTap: () => context.go(
-        RouteConstants.hmEmployeeDetails.replaceFirst(':id', user.id),
-      ),
-      child: Container(
         color: isEven
             ? Colors.white
             : AppColors.surfaceVariant.withValues(alpha: 0.3),
@@ -165,23 +160,10 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
           children: [
             Expanded(
               flex: 3,
-              child: Row(
-                children: [
-                  ProfileAvatar(
-                    photoUrl: user.profilePhotoUrl,
-                    name: user.firstName,
-                    color: AppColors.deepNavy,
-                    radius: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      '${user.firstName} ${user.lastName}',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              child: Text(
+                '${user.firstName} ${user.lastName}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -246,8 +228,7 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   String _statusLabel(String status) {

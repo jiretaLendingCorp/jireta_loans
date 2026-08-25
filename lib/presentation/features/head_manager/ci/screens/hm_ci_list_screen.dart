@@ -106,7 +106,7 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
   Widget _buildList(BuildContext context, HmCiState state) {
     // client-side search filter
     final q = _search.text.toLowerCase().trim();
-    final items = q.isEmpty ? state.items : state.items.where((ci) => (ci.loanNumber?.toString().toLowerCase().contains(q) ?? false) || (ci.borrowerName?.toString().toLowerCase().contains(q) ?? false) || (ci.riderName?.toString().toLowerCase().contains(q) ?? false)).toList();
+    final items = q.isEmpty ? state.items : state.items.where((ci) => ci.loanNumber.toString().toLowerCase().contains(q) || ci.borrowerName.toString().toLowerCase().contains(q) || ci.riderName.toString().toLowerCase().contains(q)).toList();
 
     if (items.isEmpty) {
       return Center(
@@ -216,83 +216,85 @@ class _CiCardState extends State<_CiCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _hover ? accent.withValues(alpha: 0.3) : AppColors.border),
-            boxShadow: _hover
-                ? [BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6))]
-                : const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 48,
-                decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4)),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
-                ),
-                child: const Icon(Icons.search_rounded, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(ci.loanNumber ?? 'CI Assignment', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _hover ? accent.withValues(alpha: 0.3) : AppColors.border),
+          boxShadow: _hover
+              ? [BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6))]
+              : const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 48,
+              decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(ci.loanNumber ?? 'CI Assignment', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                      ),
+                      StatusBadge(status: ci.status ?? 'pending'),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      _Meta(icon: Icons.delivery_dining_rounded, text: ci.riderName?.toString().isNotEmpty == true ? ci.riderName : 'Unassigned'),
+                      _Meta(icon: Icons.person_outline_rounded, text: ci.borrowerName ?? '—'),
+                      _Meta(
+                        icon: Icons.event_rounded,
+                        text: ci.deadline != null ? DateFormat('MMM d, y').format(ci.deadline!) : 'No deadline',
+                        color: isOverdue ? AppColors.error : AppColors.textSecondary,
+                      ),
+                      if (isOverdue)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                          child: const Text('OVERDUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.error, letterSpacing: 0.4)),
                         ),
-                        StatusBadge(status: ci.status ?? 'pending'),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
-                      children: [
-                        _Meta(icon: Icons.delivery_dining_rounded, text: ci.riderName?.toString().isNotEmpty == true ? ci.riderName : 'Unassigned'),
-                        _Meta(icon: Icons.person_outline_rounded, text: ci.borrowerName ?? '—'),
-                        _Meta(
-                          icon: Icons.event_rounded,
-                          text: ci.deadline != null ? DateFormat('MMM d, y').format(ci.deadline!) : 'No deadline',
-                          color: isOverdue ? AppColors.error : AppColors.textSecondary,
-                        ),
-                        if (isOverdue)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                            child: const Text('OVERDUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.error, letterSpacing: 0.4)),
-                          ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Tooltip(
+              message: 'View',
+              child: InkWell(
+                onTap: widget.onTap,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepNavy.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                      SizedBox(width: 4),
+                      Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 12),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(color: _hover ? accent : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10)),
-                child: Icon(Icons.arrow_forward_rounded, size: 18, color: _hover ? Colors.white : AppColors.textSecondary),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

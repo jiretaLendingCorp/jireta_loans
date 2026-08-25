@@ -401,7 +401,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Late payment penalty: an additional 20% is added automatically if the borrower fails to pay within one month.',
+                  'Late payment penalty: an additional 20% is added automatically if the lender fails to pay within one month.',
                   style: TextStyle(fontSize: 12, color: AppColors.warning),
                 ),
               ),
@@ -524,7 +524,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                 color: AppColors.textPrimary)),
         const SizedBox(height: 4),
         Text(
-          'Choose how many $unit the borrower wants to repay.',
+          'Choose how many $unit the lender wants to repay.',
           style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 10),

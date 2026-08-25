@@ -1,29 +1,36 @@
-// lib/presentation/features/head_manager/loans/screens/hm_loan_application_details_screen.dart
+// lib/presentation/features/head_manager/loans/widgets/loan_application_details_modal.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/constants/route_constants.dart';
-import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_loan_provider.dart';
 
-class HmLoanApplicationDetailsScreen extends ConsumerStatefulWidget {
-  final String loanId;
-  const HmLoanApplicationDetailsScreen({super.key, required this.loanId});
-
-  @override
-  ConsumerState<HmLoanApplicationDetailsScreen> createState() =>
-      _HmLoanApplicationDetailsScreenState();
+Future<void> showLoanApplicationDetailsModal(
+  BuildContext context,
+  String loanId) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) => LoanApplicationDetailsModal(loanId: loanId));
 }
 
-class _HmLoanApplicationDetailsScreenState
-    extends ConsumerState<HmLoanApplicationDetailsScreen> {
+class LoanApplicationDetailsModal extends ConsumerStatefulWidget {
+  final String loanId;
+  const LoanApplicationDetailsModal({super.key, required this.loanId});
+
+  @override
+  ConsumerState<LoanApplicationDetailsModal> createState() =>
+      _LoanApplicationDetailsModalState();
+}
+
+class _LoanApplicationDetailsModalState
+    extends ConsumerState<LoanApplicationDetailsModal> {
   Map<String, dynamic>? _loan;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -32,86 +39,146 @@ class _HmLoanApplicationDetailsScreenState
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final data =
         await ref.read(hmLoanProvider.notifier).getLoanDetails(widget.loanId);
     if (!mounted) return;
     setState(() {
       _loan = data;
       _loading = false;
+      if (data == null) _error = 'Loan not found';
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return WebScaffold(
-      title: 'Loan Application Details',
-      actions: [
-        TextButton.icon(
-          onPressed: () => context.go(RouteConstants.hmLoanApplications),
-          icon: const Icon(Icons.arrow_back_rounded, size: 18),
-          label: const Text('Back to Applications')),
-        const SizedBox(width: 6),
-        Container(
+    final size = MediaQuery.of(context).size;
+    final maxW = size.width > 960 ? 900.0 : size.width * 0.92;
+    final maxH = size.height * 0.88;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
+        child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: AppColors.border)),
-          child: IconButton(
+            color: const Color(0xFFF0F2F5),
+            borderRadius: BorderRadius.zero,
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 24,
+                  offset: Offset(0, 8)),
+            ]),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _loan == null
+                        ? _buildNotFound()
+                        : _buildContent()),
+            ]))));
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy,
+              borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.description_outlined,
+                color: AppColors.gold, size: 18)),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Loan Application Details',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary)),
+                Text('Lender • Terms • Co-maker • Schedule',
+                    style: TextStyle(
+                        fontSize: 11, color: AppColors.textTertiary)),
+              ])),
+          IconButton(
             onPressed: _load,
             icon: const Icon(Icons.refresh_rounded,
                 size: 18, color: AppColors.textSecondary),
-            tooltip: 'Refresh')),
-        const SizedBox(width: 12),
-      ],
-      body: Container(
-        color: const Color(0xFFF0F2F5),
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _loan == null
-                ? _buildNotFound()
-                : _buildContent()));
+            tooltip: 'Refresh',
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.surfaceVariant,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded,
+                size: 18, color: AppColors.textSecondary),
+            tooltip: 'Close',
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.surfaceVariant,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)))),
+        ]));
   }
 
   Widget _buildNotFound() {
     return Center(
       child: Container(
         margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.all(28),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.border)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
                 color: AppColors.error.withValues(alpha: 0.08),
                 shape: BoxShape.circle),
               child: const Icon(Icons.search_off_rounded,
-                  size: 28, color: AppColors.error)),
-            const SizedBox(height: 16),
+                  size: 26, color: AppColors.error)),
+            const SizedBox(height: 14),
             const Text('Loan not found',
                 style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary)),
             const SizedBox(height: 6),
-            const Text(
-              'The application may have been removed or the link is invalid.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            Text(
+              _error ?? 'The application may have been removed.',
+              style:
+                  const TextStyle(fontSize: 12, color: AppColors.textSecondary),
               textAlign: TextAlign.center),
-            const SizedBox(height: 18),
-            ElevatedButton.icon(
-              onPressed: () => context.go(RouteConstants.hmLoanApplications),
-              icon: const Icon(Icons.arrow_back_rounded, size: 16),
-              label: const Text('Back to Applications'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepNavy,
-                foregroundColor: Colors.white)),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9))),
+              child: const Text('Close')),
           ])));
   }
 
@@ -125,24 +192,24 @@ class _HmLoanApplicationDetailsScreenState
     final fmt = NumberFormat('#,##0.00', 'en_PH');
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHero(loan, status, fmt),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, c) {
-              final isNarrow = c.maxWidth < 820;
+              final isNarrow = c.maxWidth < 760;
               if (isNarrow) {
                 return Column(
                   children: [
                     _buildLenderCard(loan),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _buildLoanCard(loan, fmt),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _buildCoMakerCard(loan),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     _buildSchedulePreview(loan, fmt),
                   ]);
               }
@@ -152,15 +219,15 @@ class _HmLoanApplicationDetailsScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: _buildLenderCard(loan)),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
                       Expanded(child: _buildLoanCard(loan, fmt)),
                     ]),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(child: _buildCoMakerCard(loan)),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
                       Expanded(child: _buildSchedulePreview(loan, fmt)),
                     ]),
                 ]);
@@ -168,7 +235,6 @@ class _HmLoanApplicationDetailsScreenState
         ]));
   }
 
-  // ─────────────────────────────── Hero (Simplified) ───────────────────────────────
   Widget _buildHero(Map<String, dynamic> loan, String status, NumberFormat fmt) {
     final lender = loan['lender'] as Map<String, dynamic>? ?? {};
     final name =
@@ -182,44 +248,39 @@ class _HmLoanApplicationDetailsScreenState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2)),
-        ]),
-      padding: const EdgeInsets.all(16),
+        border: Border.all(color: AppColors.border)),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: AppColors.surfaceVariant,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppColors.border)),
                 child: const Icon(Icons.description_outlined,
-                    color: AppColors.textSecondary, size: 20)),
-              const SizedBox(width: 12),
+                    color: AppColors.textSecondary, size: 18)),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      loanNumber,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                    Text(loanNumber,
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
                     const SizedBox(height: 2),
                     Text(
                       name.isEmpty
                           ? 'Applied ${_formatDate(applied)}'
                           : '$name • Applied ${_formatDate(applied)}',
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary),
+                          fontSize: 11, color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis),
                   ])),
               StatusBadge(status: status),
@@ -230,31 +291,29 @@ class _HmLoanApplicationDetailsScreenState
           Row(
             children: [
               Expanded(
-                child: _SimpleStat(
-                  label: 'Principal',
-                  value: '₱${fmt.format(principal)}')),
-              Container(width: 1, height: 32, color: AppColors.divider),
+                  child: _SimpleStat(
+                      label: 'Principal',
+                      value: '₱${fmt.format(principal)}')),
+              Container(width: 1, height: 30, color: AppColors.divider),
               Expanded(
-                child: _SimpleStat(
-                  label: 'Total Payable',
-                  value: '₱${fmt.format(totalPayable)}')),
-              Container(width: 1, height: 32, color: AppColors.divider),
+                  child: _SimpleStat(
+                      label: 'Total Payable',
+                      value: '₱${fmt.format(totalPayable)}')),
+              Container(width: 1, height: 30, color: AppColors.divider),
               Expanded(
-                child: _SimpleStat(
-                  label: 'Term',
-                  value: _loanTermLabel(loan))),
+                  child: _SimpleStat(
+                      label: 'Term', value: _loanTermLabel(loan))),
             ]),
         ]));
   }
 
-  // ───────────────────────── Cards ─────────────────────────
+  // ───────────────────────── Cards (reused from details page) ─────────────────────────
   Widget _buildLenderCard(Map<String, dynamic> loan) {
     final lender = loan['lender'] as Map<String, dynamic>? ?? {};
     final profile = lender['lender_profiles'] as Map<String, dynamic>? ?? {};
     final name =
         '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim();
     final initials = _initials(name.isEmpty ? 'Lender' : name);
-
     return _PremiumCard(
       title: 'Lender Information',
       subtitle: 'Lender profile & KYC',
@@ -263,8 +322,8 @@ class _HmLoanApplicationDetailsScreenState
           Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -273,47 +332,45 @@ class _HmLoanApplicationDetailsScreenState
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(11)),
                 alignment: Alignment.center,
                 child: Text(initials,
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
-                        fontSize: 16))),
-              const SizedBox(width: 12),
+                        fontSize: 15))),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(name.isEmpty ? '—' : name,
                         style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary)),
-                    Text(
-                      _maskPhone(lender['phone_number'] as String? ?? ''),
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                    Text(_maskPhone(lender['phone_number'] as String? ?? ''),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
                   ])),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _upgradeBg(
-                      profile['account_upgrade_status'] as String?),
+                  color: _upgradeBg(profile['account_upgrade_status'] as String?),
                   borderRadius: BorderRadius.circular(20)),
                 child: Text(
                   _capitalize(
                       profile['account_upgrade_status'] as String? ?? 'Unknown'),
                   style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: _upgradeColor(
                           profile['account_upgrade_status'] as String?)))),
             ]),
-          const SizedBox(height: 14),
-          const Divider(height: 1),
           const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
           _KVRow(
               label: 'Employment',
               value: _capitalize(profile['employment_type'] as String? ?? '-')),
@@ -335,17 +392,16 @@ class _HmLoanApplicationDetailsScreenState
     final frequency =
         (loan['payment_frequency'] ?? loan['frequency'] ?? '-').toString();
     final method = (loan['disbursement_method'] ?? '-').toString();
-
     return _PremiumCard(
       title: 'Loan Details',
-      subtitle: 'Terms & disbursement preference',
+      subtitle: 'Terms & disbursement',
       child: Column(
         children: [
           _KVRow(
               label: 'Principal',
               value: '₱${fmt.format(loan['principal_amount'] ?? 0)}',
               valueStyle: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.w800,
                   color: AppColors.deepNavy)),
           _KVRow(
@@ -355,54 +411,52 @@ class _HmLoanApplicationDetailsScreenState
             margin: const EdgeInsets.symmetric(vertical: 8),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.deepNavy.withValues(alpha: 0.06),
-                  AppColors.gold.withValues(alpha: 0.10),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
+              color: AppColors.deepNavy.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.22))),
+              border: Border.all(color: AppColors.border)),
             child: Row(
               children: [
                 Container(
-                  width: 32,
-                  height: 32,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     color: AppColors.deepNavy,
                     borderRadius: BorderRadius.circular(8)),
-                  child:
-                      const Icon(Icons.savings_rounded, size: 16, color: AppColors.gold)),
-                const SizedBox(width: 10),
+                  child: const Icon(Icons.savings_rounded,
+                      size: 14, color: AppColors.gold)),
+                const SizedBox(width: 8),
                 const Text('Total Payable',
                     style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textSecondary)),
                 const Spacer(),
                 Text('₱${fmt.format(loan['total_payable'] ?? 0)}',
                     style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
                         color: AppColors.deepNavy)),
               ])),
           _KVRow(
               label: 'Frequency',
               value: _capitalize(frequency),
               valueWidget: _FrequencyPill(frequency: frequency)),
-          _KVRow(label: 'Loan Term', value: _loanTermLabel(loan)),
+          _KVRow(
+              label: 'Loan Term',
+              value: _loanTermLabel(loan)),
           _KVRow(
               label: 'No. of Payments',
               value: '${loan['term_periods'] ?? '-'}'),
           _KVRow(
               label: 'Installment',
               value: '₱${fmt.format(loan['installment_amount'] ?? 0)}'),
-          _KVRow(label: 'Purpose', value: loan['loan_purpose'] as String? ?? '-'),
-          const SizedBox(height: 10),
+          _KVRow(
+              label: 'Purpose',
+              value: loan['loan_purpose'] as String? ?? '-'),
+          const SizedBox(height: 8),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
               color: _disbursementBg(method),
               borderRadius: BorderRadius.circular(8),
@@ -410,12 +464,12 @@ class _HmLoanApplicationDetailsScreenState
             child: Row(
               children: [
                 Icon(_disbursementIcon(method),
-                    size: 14, color: _disbursementColor(method)),
+                    size: 13, color: _disbursementColor(method)),
                 const SizedBox(width: 6),
                 Text(
                   'Disbursement: ${_capitalize(method.replaceAll('_', ' '))}',
                   style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: _disbursementColor(method))),
               ])),
@@ -430,7 +484,7 @@ class _HmLoanApplicationDetailsScreenState
         title: 'Co-Maker',
         subtitle: 'Guarantor information',
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(10),
@@ -438,18 +492,17 @@ class _HmLoanApplicationDetailsScreenState
           child: const Row(
             children: [
               Icon(Icons.info_outline_rounded,
-                  size: 18, color: AppColors.textTertiary),
+                  size: 16, color: AppColors.textTertiary),
               SizedBox(width: 8),
-              Text('No co-maker on file for this application.',
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
+              Expanded(
+                child: Text('No co-maker on file for this application.',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary))),
             ])));
     }
     final cm = coMakers.first;
     final signature = cm['signature'] as String?;
-    final name =
-        '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim();
-
+    final name = '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim();
     return _PremiumCard(
       title: 'Co-Maker',
       subtitle: 'Guarantor & signature',
@@ -459,31 +512,31 @@ class _HmLoanApplicationDetailsScreenState
           Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: AppColors.lenderBlue.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10)),
                 child: const Icon(Icons.person_outline_rounded,
-                    color: AppColors.lenderBlue, size: 20)),
-              const SizedBox(width: 10),
+                    color: AppColors.lenderBlue, size: 18)),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(name.isEmpty ? '—' : name,
                         style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary)),
                     Text(cm['relationship'] as String? ?? '-',
                         style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
+                            fontSize: 11, color: AppColors.textSecondary)),
                   ])),
             ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           const Divider(height: 1),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _KVRow(
               label: 'Phone',
               value: _maskPhone(cm['phone_number'] as String? ?? '')),
@@ -494,27 +547,21 @@ class _HmLoanApplicationDetailsScreenState
               label: 'Address',
               value: cm['address'] as String? ?? '-'),
           if (signature != null && signature.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             const Text('Co-Maker Signature',
                 style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textSecondary,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 8),
+                    letterSpacing: 0.4)),
+            const SizedBox(height: 6),
             Container(
               width: double.infinity,
-              height: 140,
+              height: 120,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-                boxShadow: const [
-                  BoxShadow(
-                      color: Color(0x08000000),
-                      blurRadius: 8,
-                      offset: Offset(0, 2)),
-                ]),
+                border: Border.all(color: AppColors.border)),
               clipBehavior: Clip.antiAlias,
               child: _buildSignatureImage(signature)),
           ],
@@ -523,21 +570,19 @@ class _HmLoanApplicationDetailsScreenState
 
   Widget _buildSignatureImage(String signature) {
     const placeholder = Center(
-      child: Icon(Icons.draw_outlined,
-          size: 40, color: AppColors.textTertiary));
+        child: Icon(Icons.draw_outlined,
+            size: 32, color: AppColors.textTertiary));
     if (signature.startsWith('data:') || signature.startsWith('http')) {
-      return Image.network(
-        signature,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => placeholder);
+      return Image.network(signature,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => placeholder);
     }
     try {
       final bytes = base64Decode(signature);
-      return Image.memory(
-        bytes,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => placeholder);
+      return Image.memory(bytes,
+          fit: BoxFit.contain,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => placeholder);
     } catch (_) {
       return placeholder;
     }
@@ -551,17 +596,16 @@ class _HmLoanApplicationDetailsScreenState
     if (schedules.isEmpty) {
       return _PremiumCard(
         title: 'Payment Schedule',
-        subtitle: 'First 5 periods preview',
+        subtitle: 'First 5 periods',
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border)),
           child: const Text('No schedule generated yet.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary))));
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary))));
     }
-
     return _PremiumCard(
       title: 'Payment Schedule',
       subtitle: 'First 5 periods • Preview',
@@ -570,12 +614,11 @@ class _HmLoanApplicationDetailsScreenState
         decoration: BoxDecoration(
           color: AppColors.deepNavy.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20)),
-        child: Text(
-          '${loan['term_periods'] ?? schedules.length} total',
-          style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.deepNavy))),
+        child: Text('${loan['term_periods'] ?? schedules.length} total',
+            style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppColors.deepNavy))),
       child: Column(
         children: [
           Container(
@@ -592,25 +635,23 @@ class _HmLoanApplicationDetailsScreenState
               },
               children: [
                 TableRow(
-                  decoration:
-                      const BoxDecoration(color: Color(0xFFF8F9FB)),
+                  decoration: const BoxDecoration(color: Color(0xFFF8F9FB)),
                   children: ['#', 'Due Date', 'Amount Due', 'Status']
                       .map((h) => Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
+                                horizontal: 10, vertical: 9),
                             child: Text(h,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 11,
-                                    color: AppColors.textSecondary,
-                                    letterSpacing: 0.4))))
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary))))
                       .toList()),
                 ...schedules.map((s) {
                   final st = s['status'] as String? ?? '-';
                   return TableRow(
                     decoration: const BoxDecoration(
-                      border: Border(
-                          bottom: BorderSide(color: Color(0xFFF0F0F0)))),
+                        border: Border(
+                            bottom: BorderSide(color: Color(0xFFF0F0F0)))),
                     children: [
                       _tableCell(
                           s['period_number']?.toString() ??
@@ -622,27 +663,26 @@ class _HmLoanApplicationDetailsScreenState
                           bold: true),
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 8),
+                            horizontal: 6, vertical: 7),
                         child: _ScheduleStatusPill(status: st)),
                     ]);
                 }),
               ])),
-          const SizedBox(height: 8),
-          const Text(
-            'Full schedule available after approval and disbursement.',
-            style: TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+          const SizedBox(height: 6),
+          const Text('Full schedule available after approval.',
+              style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
         ]));
   }
 
   Widget _tableCell(String text, {bool bold = false}) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         child: Text(text,
             style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
                 color: AppColors.textPrimary)));
 
-  // ───────────────────────── Helpers ─────────────────────────
+  // Helpers
   String _initials(String name) {
     if (name.trim().isEmpty) return '?';
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -791,10 +831,7 @@ class _HmLoanApplicationDetailsScreenState
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reusable premium card + helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── helpers ──
 class _PremiumCard extends StatelessWidget {
   final IconData? icon;
   final String title;
@@ -812,14 +849,9 @@ class _PremiumCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
-      padding: const EdgeInsets.all(18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border)),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -827,19 +859,13 @@ class _PremiumCard extends StatelessWidget {
             children: [
               if (icon != null) ...[
                 Container(
-                  width: 36,
-                  height: 36,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.deepNavy, Color(0xFF1E3A5F)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon!, size: 18, color: AppColors.gold),
-                ),
-                const SizedBox(width: 10),
+                    color: AppColors.deepNavy,
+                    borderRadius: BorderRadius.circular(9)),
+                  child: Icon(icon!, size: 16, color: AppColors.gold)),
+                const SizedBox(width: 8),
               ],
               Expanded(
                 child: Column(
@@ -847,25 +873,20 @@ class _PremiumCard extends StatelessWidget {
                   children: [
                     Text(title,
                         style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary)),
                     Text(subtitle,
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.textTertiary)),
-                  ],
-                ),
-              ),
+                            fontSize: 10, color: AppColors.textTertiary)),
+                  ])),
               if (trailing != null) trailing!,
-            ],
-          ),
-          const SizedBox(height: 14),
+            ]),
+          const SizedBox(height: 10),
           const Divider(height: 1),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           child,
-        ],
-      ),
-    );
+        ]));
   }
 }
 
@@ -939,7 +960,6 @@ class _FrequencyPill extends StatelessWidget {
 class _ScheduleStatusPill extends StatelessWidget {
   final String status;
   const _ScheduleStatusPill({required this.status});
-
   @override
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
@@ -955,15 +975,13 @@ class _ScheduleStatusPill extends StatelessWidget {
         c = AppColors.warning;
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: c.withValues(alpha: 0.18))),
-      child: Text(
-        s.isEmpty ? '-' : '${s[0].toUpperCase()}${s.substring(1)}',
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w700, color: c)));
+          color: c.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: c.withValues(alpha: 0.18))),
+      child: Text(s.isEmpty ? '-' : '${s[0].toUpperCase()}${s.substring(1)}',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c)));
   }
 }
 
@@ -971,20 +989,19 @@ class _SimpleStat extends StatelessWidget {
   final String label;
   final String value;
   const _SimpleStat({required this.label, required this.value});
-
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Text(label,
             style: const TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textTertiary)),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(value,
             style: const TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary),
             textAlign: TextAlign.center),

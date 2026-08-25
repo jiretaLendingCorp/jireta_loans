@@ -7,7 +7,6 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_all_users_provider.dart';
 
 class HmAllUsersScreen extends ConsumerStatefulWidget {
@@ -133,10 +132,8 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
   Widget _row(UserModel user, bool isEven) {
     final isActive = user.accountStatus == 'active';
     final isArchived = user.accountStatus == 'archived';
-    return InkWell(
+    return Container(
       key: ValueKey(user.id),
-      onTap: () => _goToDetails(user),
-      child: Container(
         color: isEven
             ? Colors.white
             : AppColors.surfaceVariant.withValues(alpha: 0.3),
@@ -145,23 +142,10 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
           children: [
             Expanded(
               flex: 3,
-              child: Row(
-                children: [
-                  ProfileAvatar(
-                    photoUrl: user.profilePhotoUrl,
-                    name: user.firstName,
-                    color: _roleColor(user.role),
-                    radius: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      '${user.firstName} ${user.lastName}',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              child: Text(
+                '${user.firstName} ${user.lastName}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -242,8 +226,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   void _goToDetails(UserModel user) {

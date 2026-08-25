@@ -427,7 +427,7 @@ class _ReportTemplatesTab extends StatelessWidget {
         'formats': ['PDF', 'Excel'],
       },
       {
-        'key': 'borrower_report',
+        'key': 'lender_report',
         'name': 'Lender Report',
         'desc': 'List of all registered lenders with their loan status.',
         'formats': ['PDF', 'Excel'],

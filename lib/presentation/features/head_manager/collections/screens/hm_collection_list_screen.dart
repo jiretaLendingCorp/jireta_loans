@@ -103,7 +103,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   Widget _buildList(BuildContext context, HmCollectionState state) {
     final q = _search.text.toLowerCase().trim();
     final fmt = NumberFormat('#,##0.00', 'en_PH');
-    final items = q.isEmpty ? state.items : state.items.where((c) => (c.loanNumber?.toString().toLowerCase().contains(q) ?? false) || (c.lenderName?.toString().toLowerCase().contains(q) ?? false) || (c.riderName?.toString().toLowerCase().contains(q) ?? false)).toList();
+    final items = q.isEmpty ? state.items : state.items.where((c) => c.loanNumber.toString().toLowerCase().contains(q) || c.lenderName.toString().toLowerCase().contains(q) || c.riderName.toString().toLowerCase().contains(q)).toList();
     if (items.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(width: 72, height: 72, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary)),
@@ -237,9 +237,7 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
+      child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -252,26 +250,16 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
             children: [
               Container(width: 4, height: 56, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
               const SizedBox(width: 12),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [isOffice ? const Color(0xFF00838F) : accent, (isOffice ? const Color(0xFF00838F) : accent).withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
-                ),
-                child: Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Expanded(child: Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(color: (isOffice ? const Color(0xFF00838F) : AppColors.riderGreen).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                      child: Text(isOffice ? 'OFFICE' : 'RIDER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: isOffice ? const Color(0xFF00838F) : AppColors.riderGreen, letterSpacing: 0.6)),
-                    ),
+                    if (isOffice)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(color: const Color(0xFF00838F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('OFFICE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF00838F), letterSpacing: 0.6)),
+                      ),
                   ]),
                   const SizedBox(height: 2),
                   Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
@@ -301,17 +289,32 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
                   ),
                 ),
               if (_canAssign) const SizedBox(width: 8),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(color: _hover ? accent : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(9)),
-                child: Icon(Icons.arrow_forward_rounded, size: 16, color: _hover ? Colors.white : AppColors.textSecondary),
+              Tooltip(
+                message: 'View',
+                child: InkWell(
+                  onTap: widget.onTap,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.deepNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                        SizedBox(width: 4),
+                        Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
         ),
-      ),
     );
   }
 }

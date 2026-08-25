@@ -8,7 +8,6 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/profile_avatar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -108,7 +107,7 @@ class _HmAccountUpgradeListScreenState
 
   Widget _buildList(BuildContext context, HmAccountUpgradeState state) {
     final q = _search.text.toLowerCase().trim();
-    final docs = q.isEmpty ? state.docs : state.docs.where((d) => (d.lenderName?.toString().toLowerCase().contains(q) ?? false) || (d.lender?['email']?.toString().toLowerCase().contains(q) ?? false)).toList();
+    final docs = q.isEmpty ? state.docs : state.docs.where((d) => d.lenderName.toString().toLowerCase().contains(q) || (d.lender?['email']?.toString().toLowerCase().contains(q) ?? false)).toList();
     if (docs.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -263,67 +262,93 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _hovered ? accent.withValues(alpha: 0.3) : AppColors.border),
-            boxShadow: _hovered ? [BoxShadow(color: accent.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 6))] : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
-          ),
-          child: Row(
-            children: [
-              Container(width: 4, height: 48, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
-              const SizedBox(width: 12),
-              ProfileAvatar(photoUrl: doc.lender?['profile_photo_url'] as String?, name: doc.lenderName, color: accent, radius: 22, fallback: Icon(Icons.verified_user_rounded, size: 20, color: accent)),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Text(doc.lenderName ?? 'Unknown Lender', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
-                    StatusBadge(status: status),
-                  ]),
-                  const SizedBox(height: 3),
-                  Row(children: [
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)), child: Text(doc.documentCountLabel ?? 'Account Upgrade Submission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent))),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Text(date, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
-                  ]),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _hovered ? accent.withValues(alpha: 0.3) : AppColors.border),
+          boxShadow: _hovered ? [BoxShadow(color: accent.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 6))] : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Container(width: 4, height: 48, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(doc.lenderName ?? 'Unknown Lender', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
+                  StatusBadge(status: status),
                 ]),
+                const SizedBox(height: 3),
+                Row(children: [
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)), child: Text(doc.documentCountLabel ?? 'Account Upgrade Submission', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent))),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
+                  const SizedBox(width: 4),
+                  Text(date, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                ]),
+              ]),
+            ),
+            const SizedBox(width: 12),
+            // Desktop actions
+            if (MediaQuery.of(context).size.width >= 640) ...[
+              if (status != 'verified')
+                _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: widget.onVerify, primary: true),
+              if (status != 'verified' && status != 'rejected') const SizedBox(width: 8),
+              if (status != 'verified' && status != 'rejected')
+                _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: widget.onReject, primary: false),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'View',
+                child: InkWell(
+                  onTap: widget.onTap,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.deepNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                        SizedBox(width: 4),
+                        Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(width: 12),
-              // Desktop actions
-              if (MediaQuery.of(context).size.width >= 640) ...[
-                if (status != 'verified')
-                  _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: widget.onVerify, primary: true),
-                if (status != 'verified' && status != 'rejected') const SizedBox(width: 8),
-                if (status != 'verified' && status != 'rejected')
-                  _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: widget.onReject, primary: false),
-                const SizedBox(width: 10),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(color: _hovered ? accent : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10)),
-                  child: Icon(Icons.arrow_forward_rounded, size: 18, color: _hovered ? Colors.white : AppColors.textSecondary),
+            ] else ...[
+              Tooltip(
+                message: 'View',
+                child: InkWell(
+                  onTap: widget.onTap,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.deepNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                        SizedBox(width: 4),
+                        Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                      ],
+                    ),
+                  ),
                 ),
-              ] else ...[
-                // Mobile: stack actions below — handled via column inside, but keep chevron
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(color: _hovered ? accent : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10)),
-                  child: Icon(Icons.chevron_right_rounded, size: 18, color: _hovered ? Colors.white : AppColors.textSecondary),
-                ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );

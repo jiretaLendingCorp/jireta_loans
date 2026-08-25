@@ -222,7 +222,7 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
             child: ElevatedButton.icon(
               onPressed: () => showCollectionProofDialog(context, [
                 if (col.proofPhoto != null) CollectionProofItem(label: 'Payment Proof', url: col.proofPhoto!),
-                if (col.borrowerSignature != null) CollectionProofItem(label: 'Borrower Signature', url: col.borrowerSignature!),
+                if (col.borrowerSignature != null) CollectionProofItem(label: 'Lender Signature', url: col.borrowerSignature!),
                 if (col.collectionPhoto != null) CollectionProofItem(label: 'Scene Photo', url: col.collectionPhoto!),
               ]),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),

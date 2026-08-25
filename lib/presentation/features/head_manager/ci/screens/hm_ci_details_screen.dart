@@ -76,13 +76,13 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
             final isNarrow = c.maxWidth < 820;
             if (isNarrow) {
               return Column(children: [
-                _buildBorrowerCard(ci, model),
+                _buildLenderCard(ci, model),
                 const SizedBox(height: 16),
                 _buildAssignmentCard(ci, model),
               ]);
             }
             return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: _buildBorrowerCard(ci, model)),
+              Expanded(child: _buildLenderCard(ci, model)),
               const SizedBox(width: 16),
               Expanded(child: _buildAssignmentCard(ci, model)),
             ]);
@@ -214,12 +214,12 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     );
   }
 
-  Widget _buildBorrowerCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
+  Widget _buildLenderCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
     final addresses = ci['loans']?['lender_address'];
     final principal = ci['loans']?['principal_amount'];
     return _PremiumInfoCard(
       title: 'Lender Information',
-      subtitle: 'Borrower under investigation',
+      subtitle: 'Lender under investigation',
       icon: Icons.person_rounded,
       accent: AppColors.lenderBlue,
       children: [

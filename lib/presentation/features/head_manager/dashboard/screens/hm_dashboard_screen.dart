@@ -75,7 +75,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     _buildSectionTitle(
                       Icons.people_rounded,
                       'User Statistics',
-                      'Staff and borrower counts across the branch',
+                      'Staff and lender counts across the branch',
                     ),
                     const SizedBox(height: 14),
                     _buildUserStatsGrid(dashState.kpi),

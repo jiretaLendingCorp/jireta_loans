@@ -7,22 +7,22 @@ import '../../../../../domain/repositories/i_user_repository.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/app_button.dart';
 
-class Step1IdentifyBorrower extends ConsumerStatefulWidget {
+class Step1IdentifyLender extends ConsumerStatefulWidget {
   final Map<String, dynamic> data;
   final ValueChanged<Map<String, dynamic>> onDataChanged;
 
-  const Step1IdentifyBorrower({
+  const Step1IdentifyLender({
     super.key,
     required this.data,
     required this.onDataChanged,
   });
 
   @override
-  ConsumerState<Step1IdentifyBorrower> createState() =>
-      _Step1IdentifyBorrowerState();
+  ConsumerState<Step1IdentifyLender> createState() =>
+      _Step1IdentifyLenderState();
 }
 
-class _Step1IdentifyBorrowerState extends ConsumerState<Step1IdentifyBorrower> {
+class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
   final _searchCtrl = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   Map<String, dynamic>? _selectedLender;
@@ -457,3 +457,6 @@ class _SelectedLenderCard extends StatelessWidget {
     );
   }
 }
+
+// Backward compatibility alias — old name contained "Borrower"
+typedef Step1IdentifyBorrower = Step1IdentifyLender;

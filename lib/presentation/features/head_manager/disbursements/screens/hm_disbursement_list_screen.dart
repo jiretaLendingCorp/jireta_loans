@@ -149,47 +149,77 @@ class _HmDisbursementListScreenState
           Expanded(flex: 2, child: Text('Amount', style: style)),
           Expanded(flex: 2, child: Text('Status', style: style)),
           Expanded(flex: 2, child: Text('Date', style: style)),
+          SizedBox(width: 80, child: Text('Actions', style: style, textAlign: TextAlign.end)),
         ],
       ),
     );
   }
 
   Widget _buildRow(BuildContext context, DisbursementModel d) {
-    return InkWell(
+    return Container(
       key: ValueKey(d.id),
-      onTap: () => context.go('/hm/disbursements/${d.id}'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.divider)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-                flex: 2,
-                child: Text(d.loanNumber,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: AppColors.deepNavy))),
-            Expanded(
-                flex: 3,
-                child:
-                    Text(d.lenderName, style: const TextStyle(fontSize: 13))),
-            Expanded(flex: 2, child: _methodChip(d.disbursementMethod)),
-            Expanded(
-                flex: 2,
-                child: Text('₱${d.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13))),
-            Expanded(flex: 2, child: StatusBadge(status: d.status)),
-            Expanded(
-                flex: 2,
-                child: Text(DateFormat('MMM d, y').format(d.createdAt),
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary))),
-          ],
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+              flex: 2,
+              child: Text(d.loanNumber,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: AppColors.deepNavy))),
+          Expanded(
+              flex: 3,
+              child: Text(d.lenderName, style: const TextStyle(fontSize: 13))),
+          Expanded(flex: 2, child: _methodChip(d.disbursementMethod)),
+          Expanded(
+              flex: 2,
+              child: Text('₱${d.amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 13))),
+          Expanded(flex: 2, child: StatusBadge(status: d.status)),
+          Expanded(
+              flex: 2,
+              child: Text(DateFormat('MMM d, y').format(d.createdAt),
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary))),
+          SizedBox(
+            width: 80,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Tooltip(
+                message: 'View',
+                child: InkWell(
+                  onTap: () => context.go('/hm/disbursements/${d.id}'),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.deepNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                        SizedBox(width: 4),
+                        Text('View',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.deepNavy)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
