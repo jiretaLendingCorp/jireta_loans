@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/profile/screens/lender_edit_profile_screen.dart
+﻿// lib/presentation/features/lender/profile/screens/lender_edit_profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -256,7 +256,7 @@ class _LenderEditProfileScreenState
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

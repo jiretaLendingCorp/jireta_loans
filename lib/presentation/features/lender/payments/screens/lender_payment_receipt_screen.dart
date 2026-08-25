@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/payments/screens/lender_payment_receipt_screen.dart
+﻿// lib/presentation/features/lender/payments/screens/lender_payment_receipt_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -88,7 +88,7 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
     final loanNum = data['loan_number'] as String? ?? '';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         children: [
           _ReceiptCard(

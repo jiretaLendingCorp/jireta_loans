@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/loans/screens/lender_loan_history_screen.dart
+﻿// lib/presentation/features/lender/loans/screens/lender_loan_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -54,7 +54,7 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
       showBackButton: true,
       body: state.isLoading
           ? ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: 5,
               itemBuilder: (_, __) => const Padding(
                   padding: EdgeInsets.only(bottom: 12),
@@ -80,7 +80,7 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
                   onRefresh: () =>
                       ref.read(lenderLoanProvider.notifier).loadLoans(),
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: state.loans.length,
                     itemBuilder: (_, i) => _LoanCard(
                         key: ValueKey(state.loans[i].id),

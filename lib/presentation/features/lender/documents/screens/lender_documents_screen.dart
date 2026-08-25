@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/documents/screens/lender_documents_screen.dart
+﻿// lib/presentation/features/lender/documents/screens/lender_documents_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,7 +73,7 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
                   onRefresh: () =>
                       ref.read(lenderDocumentsProvider.notifier).refresh(),
                   child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: state.documents.length,
                     itemBuilder: (ctx, i) => _DocumentCard(
                         key: ValueKey(state.documents[i].id),

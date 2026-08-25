@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/payments/screens/lender_payment_history_screen.dart
+﻿// lib/presentation/features/lender/payments/screens/lender_payment_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -72,7 +72,7 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
                           .read(lenderPaymentProvider.notifier)
                           .loadPaymentHistory(),
                       child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                         itemCount: state.payments.length,
                         itemBuilder: (ctx, i) => _PaymentCard(
                             key: ValueKey(state.payments[i].id),

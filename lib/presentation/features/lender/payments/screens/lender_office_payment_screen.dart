@@ -251,7 +251,7 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
       navItems: _lenderNavItems,
       showBackButton: true,
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
         children: [
           Container(
             width: 72,

@@ -120,7 +120,9 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                 opacity: _fadeCtrl,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
+                  // Extra bottom space so the last item rests level with
+                  // the floating pill of the bottom nav bar when scrolled.
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

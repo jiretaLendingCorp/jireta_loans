@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/profile/screens/lender_profile_screen.dart
+﻿// lib/presentation/features/lender/profile/screens/lender_profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -80,7 +80,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
 
     return LayoutBuilder(builder: (context, constraints) {
       return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
         child: ConstrainedBox(
           constraints:
               BoxConstraints(minHeight: constraints.maxHeight - 16),

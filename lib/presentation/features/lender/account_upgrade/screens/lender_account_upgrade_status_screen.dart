@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_status_screen.dart
+﻿// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_status_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -62,7 +62,7 @@ class _LenderAccountUpgradeStatusScreenState
                   ref.read(lenderAccountUpgradeProvider.notifier).loadStatus(),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

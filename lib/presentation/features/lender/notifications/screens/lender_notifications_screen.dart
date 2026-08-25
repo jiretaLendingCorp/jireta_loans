@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/notifications/screens/lender_notifications_screen.dart
+﻿// lib/presentation/features/lender/notifications/screens/lender_notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -77,7 +77,7 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
                   onRefresh: () =>
                       ref.read(lenderNotificationProvider.notifier).load(),
                   child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 108),
                     itemCount: state.notifications.length,
                     separatorBuilder: (_, __) =>
                         const Divider(height: 1, indent: 72),

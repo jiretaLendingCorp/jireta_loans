@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/loans/screens/lender_loan_application_status_screen.dart
+﻿// lib/presentation/features/lender/loans/screens/lender_loan_application_status_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/constants/route_constants.dart';
@@ -57,7 +57,7 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
           : loan == null
               ? const Center(child: Text('Loan not found'))
               : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

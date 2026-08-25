@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/documents/screens/lender_upload_document_screen.dart
+﻿// lib/presentation/features/lender/documents/screens/lender_upload_document_screen.dart
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -141,7 +141,7 @@ class _State extends ConsumerState<LenderUploadDocumentScreen> {
       navItems: _lenderNavItems,
       showBackButton: true,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

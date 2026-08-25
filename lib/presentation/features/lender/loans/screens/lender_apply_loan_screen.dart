@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
+﻿// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -1422,7 +1422,7 @@ class _AccountUpgradeGate extends StatelessWidget {
 
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1476,7 +1476,7 @@ class _AgeGateView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1524,7 +1524,7 @@ class _ApplicationReviewView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1661,7 +1661,7 @@ class _AwaitingReleaseView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1764,7 +1764,7 @@ class _ActiveLoanView extends StatelessWidget {
   Widget build(BuildContext context) {
     final outstanding = loan.outstandingBalance;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         children: [
           Container(
@@ -1950,7 +1950,7 @@ class _ChooseDisbursementViewState
   Widget build(BuildContext context) {
     final loan = widget.loan;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

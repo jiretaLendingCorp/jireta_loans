@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/payments/screens/lender_payment_schedule_screen.dart
+﻿// lib/presentation/features/lender/payments/screens/lender_payment_schedule_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -153,7 +153,7 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                       child: schedules.isEmpty
                           ? const Center(child: Text('No schedule available'))
                           : ListView.separated(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                               itemCount: schedules.length,
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 8),

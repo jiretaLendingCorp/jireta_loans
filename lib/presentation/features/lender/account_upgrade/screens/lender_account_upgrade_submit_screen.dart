@@ -1,4 +1,4 @@
-// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_submit_screen.dart
+﻿// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_submit_screen.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -432,7 +432,7 @@ class _LenderAccountUpgradeSubmitScreenState
         _StepIndicator(current: _step, labels: _steps),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             child: _buildStepContent(),
           ),
         ),
@@ -445,7 +445,7 @@ class _LenderAccountUpgradeSubmitScreenState
     final status = state.status;
     final isVerified = status == 'verified';
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
