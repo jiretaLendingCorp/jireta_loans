@@ -1,51 +1,57 @@
 // lib/presentation/features/employee/collections/widgets/emp_assign_rider_modal.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
-import '../../../../shared/widgets/forms/app_dropdown.dart';
-import '../../../../shared/widgets/forms/app_date_picker.dart';
 import '../providers/emp_collection_provider.dart';
-import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpAssignRiderModal extends ConsumerStatefulWidget {
   final String loanScheduleId;
+  final String loanId;
   final String? assignmentId;
-  final VoidCallback onAssigned;
-
   const EmpAssignRiderModal({
     super.key,
     required this.loanScheduleId,
+    required this.loanId,
     this.assignmentId,
-    required this.onAssigned,
   });
 
+  // Legacy constructor support for older callers that pass onAssigned
+  // We keep compatibility by allowing callers to omit loanId via named optional
+  // But to keep API clean, we also provide factory for legacy.
+  static EmpAssignRiderModal legacy({
+    required String loanScheduleId,
+    String? assignmentId,
+    required VoidCallback onAssigned,
+  }) {
+    return EmpAssignRiderModal(
+      loanScheduleId: loanScheduleId,
+      loanId: '',
+      assignmentId: assignmentId,
+    );
+  }
+
   @override
-  ConsumerState<EmpAssignRiderModal> createState() =>
-      _EmpAssignRiderModalState();
+  ConsumerState<EmpAssignRiderModal> createState() => _EmpAssignRiderModalState();
 }
 
 class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
   String? _selectedRiderId;
   final _notesCtrl = TextEditingController();
-  DateTime? _scheduleDate;
+  DateTime? _collectionSchedule;
   bool _loading = false;
   bool _loadingRiders = true;
   List<Map<String, dynamic>> _riders = [];
+  String? _error;
 
   @override
   void initState() {
     super.initState();
     _loadRiders();
-  }
-
-  Future<void> _loadRiders() async {
-    final riders =
-        await ref.read(empCollectionListProvider.notifier).getAvailableRiders();
-    setState(() {
-      _riders = riders;
-      _loadingRiders = false;
-    });
   }
 
   @override
@@ -54,124 +60,203 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
     super.dispose();
   }
 
+  Future<void> _loadRiders() async {
+    try {
+      final ds = sl<UserRemoteDataSource>();
+      final res = await ds.getUserList(role: 'rider', status: 'active', page: 1, limit: 100);
+      final list = (res['data'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+      setState(() {
+        _riders = list.where((r) => (r['rider_profiles']?['is_available'] ?? true) == true).toList();
+        _loadingRiders = false;
+      });
+    } catch (_) {
+      setState(() => _loadingRiders = false);
+    }
+  }
+
+  Future<void> _pickDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time == null) return;
+    setState(() {
+      _collectionSchedule = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+    });
+  }
+
   Future<void> _submit() async {
     if (_selectedRiderId == null) {
-      context.showSnackBarAsToast(
-          const SnackBar(content: Text('Please select a rider.')));
+      setState(() => _error = 'Please select a rider');
       return;
     }
-    setState(() => _loading = true);
-    final ok = await ref.read(empCollectionListProvider.notifier).assign(
-          loanScheduleId: widget.loanScheduleId,
-          assignmentId: widget.assignmentId,
-          riderId: _selectedRiderId!,
-          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-          schedule: _scheduleDate?.toIso8601String(),
-        );
-    setState(() => _loading = false);
-    if (ok && mounted) {
-      Navigator.of(context).pop();
-      widget.onAssigned();
-    } else if (mounted) {
-      context.showSnackBarAsToast(
-          const SnackBar(content: Text('Failed to assign rider. Try again.')));
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await ref.read(empCollectionProvider.notifier).assignRider(
+            loanScheduleId: widget.loanScheduleId,
+            loanId: widget.loanId,
+            riderId: _selectedRiderId!,
+            assignmentId: widget.assignmentId,
+            collectionSchedule: _collectionSchedule,
+            notes: _notesCtrl.text.trim(),
+          );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      setState(() {
+        _error = e.toString().replaceAll('Exception: ', '');
+        _loading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: AppColors.deepNavy,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
                 children: [
-                  const Icon(Icons.local_shipping_outlined,
-                      color: AppColors.deepNavy),
-                  const SizedBox(width: 10),
-                  const Text('Assign Rider for Collection',
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.deepNavy)),
-                  const Spacer(),
+                  const Icon(Icons.delivery_dining_outlined, color: AppColors.gold, size: 22),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Assign Rider for Collection',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, size: 20),
+                    icon: const Icon(Icons.close, color: Colors.white60, size: 20),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              if (_loadingRiders)
-                const Center(child: CircularProgressIndicator())
-              else ...[
-                AppDropdown<String>(
-                  label: 'Select Available Rider *',
-                  value: _selectedRiderId,
-                  items: _riders
-                      .map((r) => DropdownMenuItem<String>(
-                            value: r['id'] as String,
-                            child: Text(
-                                '${r['full_name'] ?? '-'} — ${r['vehicle_type'] ?? ''}'),
-                          ))
-                      .toList(),
-                  onChanged: (v) => setState(() {
-                    _selectedRiderId = v;
-                  }),
-                ),
-                const SizedBox(height: 14),
-                AppDatePicker(
-                  label: 'Collection Schedule',
-                  selectedDate: _scheduleDate,
-                  onDateSelected: (d) => setState(() => _scheduleDate = d),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 90)),
-                ),
-                const SizedBox(height: 14),
-                AppTextField(
-                  controller: _notesCtrl,
-                  label: 'Collection Notes (optional)',
-                  maxLines: 3,
-                  maxLength: 255,
-                ),
-              ],
-              const SizedBox(height: 24),
-              Row(
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
+                  if (_loadingRiders)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_riders.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                      ),
+                      child: const Text('No available riders at the moment.',
+                          style: TextStyle(color: AppColors.warning, fontSize: 13)),
+                    )
+                  else ...[
+                    const Text('Select Rider *', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration:
+                          BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedRiderId,
+                          isExpanded: true,
+                          hint: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 12),
+                              child: Text('Choose a rider...', style: TextStyle(color: AppColors.textTertiary))),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          borderRadius: BorderRadius.circular(8),
+                          items: _riders.map((r) {
+                            final name = '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}';
+                            final plate = r['rider_profiles']?['plate_number'] ?? r['rider_profile']?['plate_number'] ?? '';
+                            return DropdownMenuItem<String>(value: r['id'] as String, child: Text('$name — $plate'));
+                          }).toList(),
+                          onChanged: (v) => setState(() => _selectedRiderId = v),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: _pickDateTime,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration:
+                          BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(8)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textSecondary),
+                          const SizedBox(width: 10),
+                          Text(
+                            _collectionSchedule != null
+                                ? '${_collectionSchedule!.day}/${_collectionSchedule!.month}/${_collectionSchedule!.year} ${_collectionSchedule!.hour.toString().padLeft(2, '0')}:${_collectionSchedule!.minute.toString().padLeft(2, '0')}'
+                                : 'Collection Schedule (optional)',
+                            style: TextStyle(
+                                color: _collectionSchedule != null ? AppColors.textPrimary : AppColors.textTertiary,
+                                fontSize: 14),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _loading || _loadingRiders ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.deepNavy,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: _loading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Text('Assign Rider'),
+                  const SizedBox(height: 16),
+                  AppTextField(controller: _notesCtrl, label: 'Notes (optional)', maxLines: 2, maxLength: 255),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.error.withValues(alpha: 0.3))),
+                      child: Text(_error!, style: const TextStyle(color: AppColors.error, fontSize: 13)),
                     ),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: OutlinedButton(
+                              onPressed: _loading ? null : () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'))),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: AppButton(
+                              label: 'Assign Rider',
+                              onPressed: _loading ? null : _submit,
+                              isLoading: _loading,
+                              color: AppColors.deepNavy)),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

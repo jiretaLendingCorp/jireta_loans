@@ -43,6 +43,8 @@ class KpiHeadManagerModel {
   final int totalReportExports;
   final int totalPendingAccountUpgrade;
   final List<MonthlyKpiPoint> monthlySeries;
+  final Map<String, int> loanStatusBreakdown;
+  final int pendingBucket;
 
   const KpiHeadManagerModel({
     required this.totalEmployees,
@@ -65,6 +67,8 @@ class KpiHeadManagerModel {
     required this.totalReportExports,
     required this.totalPendingAccountUpgrade,
     this.monthlySeries = const [],
+    this.loanStatusBreakdown = const {},
+    this.pendingBucket = 0,
   });
 
   int get totalApproved => totalApprovedLoans;
@@ -80,6 +84,11 @@ class KpiHeadManagerModel {
   int get totalCollectionTxns => totalCollectionTransactions;
 
   factory KpiHeadManagerModel.fromJson(Map<String, dynamic> json) {
+    final rawBreakdown = json['loan_status_breakdown'] as Map<String, dynamic>?;
+    Map<String, int> breakdown = {};
+    if (rawBreakdown != null) {
+      breakdown = rawBreakdown.map((k, v) => MapEntry(k, (v as num).toInt()));
+    }
     return KpiHeadManagerModel(
       totalEmployees: (json['total_employees'] as num?)?.toInt() ?? 0,
       totalRiders: (json['total_riders'] as num?)?.toInt() ?? 0,
@@ -112,6 +121,8 @@ class KpiHeadManagerModel {
       monthlySeries: (json['monthly_series'] as List<dynamic>? ?? [])
           .map((e) => MonthlyKpiPoint.fromJson(e as Map<String, dynamic>))
           .toList(),
+      loanStatusBreakdown: breakdown,
+      pendingBucket: (json['pending_bucket'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -135,5 +146,7 @@ class KpiHeadManagerModel {
         totalCiAssignments: 0,
         totalReportExports: 0,
         totalPendingAccountUpgrade: 0,
+        loanStatusBreakdown: {},
+        pendingBucket: 0,
       );
 }

@@ -540,7 +540,7 @@ class _PremiumInfoCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider)), color: accent.withValues(alpha: 0.04), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+          decoration: BoxDecoration(border: const Border(bottom: BorderSide(color: AppColors.divider)), color: accent.withValues(alpha: 0.04), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
           child: Row(children: [
             Container(width: 36, height: 36, decoration: BoxDecoration(gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]), borderRadius: BorderRadius.circular(9)), child: Icon(icon, color: Colors.white, size: 18)),
             const SizedBox(width: 10),

@@ -2,171 +2,210 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
+import '../../../../shared/widgets/app_card.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../../../shared/widgets/dialogs/error_dialog.dart';
+import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/emp_payment_provider.dart';
+
+final _empPaymentDetailFutureProvider =
+    FutureProvider.family<Map<String, dynamic>?, String>((ref, id) async {
+  final ds = sl<PaymentRemoteDataSource>();
+  try {
+    final p = await ds.getPaymentDetail(id);
+    return {
+      'id': p.id,
+      'status': p.status,
+      'method': p.method,
+      'amount': p.amount,
+      'created_at': p.createdAt.toIso8601String(),
+      'reference_number': p.referenceNumber,
+      'xendit_payment_id': p.xenditPaymentId,
+      'notes': p.notes,
+      'loan': p.loan,
+      'recorded_by_user': p.recordedByUser,
+    };
+  } catch (_) {
+    return null;
+  }
+});
 
 class EmpPaymentDetailsScreen extends ConsumerStatefulWidget {
   final String paymentId;
   const EmpPaymentDetailsScreen({super.key, required this.paymentId});
 
   @override
-  ConsumerState<EmpPaymentDetailsScreen> createState() =>
-      _EmpPaymentDetailsScreenState();
+  ConsumerState<EmpPaymentDetailsScreen> createState() => _EmpPaymentDetailsScreenState();
 }
 
-class _EmpPaymentDetailsScreenState
-    extends ConsumerState<EmpPaymentDetailsScreen> {
-  Map<String, dynamic>? _detail;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final data = await ref
-        .read(empPaymentListProvider.notifier)
-        .getDetail(widget.paymentId);
-    setState(() {
-      _detail = data;
-      _loading = false;
-    });
-  }
+class _EmpPaymentDetailsScreenState extends ConsumerState<EmpPaymentDetailsScreen> {
+  bool _reversing = false;
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const WebScaffold(title: 'Payment Details', body: ShimmerLoader());
-    }
-    if (_detail == null) {
-      return const WebScaffold(
-          title: 'Payment Details',
-          body: Center(child: Text('Payment not found.')));
-    }
-
-    final fmt = NumberFormat('#,##0.00', 'en_PH');
-    final amount = (_detail!['amount'] as num?)?.toDouble() ?? 0.0;
-    final outstanding = (_detail!['outstanding_balance'] as num?)?.toDouble();
-
+    final async = ref.watch(_empPaymentDetailFutureProvider(widget.paymentId));
     return WebScaffold(
       title: 'Payment Details',
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _card(
-              'Payment Overview',
-              [
-                _row('Payment #', _detail!['id'] ?? '-'),
-                _row('Loan Number', _detail!['loan_number'] ?? '-'),
-                _row('Lender', _detail!['lender_name'] ?? '-'),
-                _row('Status', '', badge: _detail!['status'] as String?),
-                _row('Amount', '₱${fmt.format(amount)}'),
-                if (outstanding != null)
-                  _row('Remaining Balance After Payment',
-                      '₱${fmt.format(outstanding)}'),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _card(
-              'Payment Method & Reference',
-              [
-                _row('Method', _methodLabel(_detail!['payment_method'] ?? '')),
-                if (_detail!['reference_number'] != null)
-                  _row('Reference #', _detail!['reference_number']),
-                if (_detail!['xendit_payment_id'] != null)
-                  _row('Xendit ID', _detail!['xendit_payment_id']),
-                _row('Recorded By', _detail!['recorded_by_name'] ?? '-'),
-                _row('Date', _detail!['created_at'] ?? '-'),
-                if (_detail!['notes'] != null) _row('Notes', _detail!['notes']),
-              ],
-            ),
-            if (_detail!['reversed_at'] != null) ...[
-              const SizedBox(height: 16),
-              _card(
-                'Reversal Details',
-                [
-                  _row('Reversed At', _detail!['reversed_at']),
-                  _row('Reversed By', _detail!['reversed_by_name'] ?? '-'),
-                  _row('Reversal Reason', _detail!['reversal_reason'] ?? '-'),
-                ],
-              ),
-            ],
-          ],
-        ),
+      body: async.when(
+        loading: () => const Center(child: ShimmerLoader()),
+        error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.error))),
+        data: (d) => d == null ? const Center(child: Text('Payment not found')) : _buildBody(context, d),
       ),
     );
   }
 
-  Widget _card(String title, List<Widget> rows) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2)),
-        ],
-      ),
+  Widget _buildBody(BuildContext context, Map<String, dynamic> d) {
+    final status = d['status'] ?? '';
+    final method = d['method'] ?? '';
+    final amount = (d['amount'] as num?)?.toDouble() ?? 0;
+    final createdAt = d['created_at'] != null ? DateTime.tryParse(d['created_at']) : null;
+    final loan = d['loan'] as Map<String, dynamic>?;
+    final recordedByUser = d['recorded_by_user'] as Map<String, dynamic>?;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Text(title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.deepNavy)),
-          ),
-          const Divider(height: 24),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-            child: Column(children: rows),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _row(String label, String value, {String? badge}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 200,
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary)),
-          ),
-          const SizedBox(width: 12),
-          badge != null
-              ? StatusBadge(status: badge)
-              : Expanded(
-                  child: Text(value,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textPrimary)),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Payment #${d['reference_number'] ?? d['id']?.toString().substring(0, 8) ?? ''}',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.deepNavy),
+                    ),
+                    const SizedBox(height: 4),
+                    if (createdAt != null)
+                      Text(
+                        DateFormat('MMM dd, yyyy hh:mm a').format(createdAt),
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                  ],
                 ),
+              ),
+              StatusBadge(status: status),
+              if (status == 'verified')
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: ElevatedButton.icon(
+                    onPressed: _reversing ? null : () => _reversePayment(context, d['id']),
+                    icon: _reversing
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.undo, size: 16),
+                    label: const Text('Reverse'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          AppCard(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Payment Information',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: AppColors.deepNavy)),
+                  const Divider(height: 24),
+                  _row('Amount', amount.toCurrency),
+                  _row('Method', _methodLabel(method)),
+                  _row('Status', status.toString().toUpperCase()),
+                  if (d['reference_number'] != null) _row('Reference #', d['reference_number']),
+                  if (d['xendit_payment_id'] != null) _row('Xendit ID', d['xendit_payment_id']),
+                  if (d['notes'] != null) _row('Notes', d['notes']),
+                  if (createdAt != null) _row('Date', DateFormat('MMM dd, yyyy hh:mm a').format(createdAt)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (loan != null)
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Loan Information',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: AppColors.deepNavy)),
+                    const Divider(height: 24),
+                    _row('Loan #', loan['loan_number'] ?? ''),
+                    _row('Total Payable', ((loan['total_payable'] as num?)?.toDouble() ?? 0).toCurrency),
+                    _row('Outstanding Balance', ((loan['outstanding_balance'] as num?)?.toDouble() ?? 0).toCurrency),
+                    _row('Status', loan['status'] ?? ''),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (recordedByUser != null)
+            AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Recorded By',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: AppColors.deepNavy)),
+                    const Divider(height: 24),
+                    _row('Name', '${recordedByUser['first_name'] ?? ''} ${recordedByUser['last_name'] ?? ''}'.trim()),
+                    _row('Role', recordedByUser['role'] ?? ''),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  String _methodLabel(String m) {
-    switch (m) {
+  Future<void> _reversePayment(BuildContext context, String? paymentId) async {
+    if (paymentId == null) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => const ConfirmationDialog(
+        title: 'Reverse Payment',
+        message: 'Are you sure you want to reverse this payment? This action cannot be undone.',
+        confirmLabel: 'Reverse',
+        confirmColor: AppColors.error,
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _reversing = true);
+    try {
+      final notifier = ref.read(empPaymentListProvider.notifier);
+      final ok = await notifier.reverse(paymentId: paymentId, reason: 'Manual reversal by Employee');
+      if (!mounted) return;
+      if (ok) {
+        if (!context.mounted) return;
+        showDialog(context: context, builder: (_) => const SuccessDialog(message: 'Payment reversed successfully.'));
+        ref.invalidate(_empPaymentDetailFutureProvider(widget.paymentId));
+      } else {
+        if (!context.mounted) return;
+        showDialog(context: context, builder: (_) => const ErrorDialog(message: 'Failed to reverse payment.'));
+      }
+    } finally {
+      if (mounted) setState(() => _reversing = false);
+    }
+  }
+
+  String _methodLabel(String method) {
+    switch (method) {
       case 'gcash':
         return 'GCash';
       case 'office_cash':
@@ -174,10 +213,19 @@ class _EmpPaymentDetailsScreenState
         return 'Office';
       case 'rider_collection':
         return 'Rider Collection';
-      case 'gcash_xendit':
-        return 'GCash';
       default:
-        return m;
+        return method;
     }
   }
+
+  Widget _row(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 180, child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13))),
+            Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.textPrimary))),
+          ],
+        ),
+      );
 }

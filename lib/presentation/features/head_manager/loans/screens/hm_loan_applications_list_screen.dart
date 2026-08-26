@@ -6,12 +6,13 @@ import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
 import '../widgets/loan_application_details_modal.dart';
+import '../../in_office/providers/hm_in_office_provider.dart';
+import '../../in_office/widgets/in_office_wizard.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmLoanApplicationsListScreen extends ConsumerStatefulWidget {
@@ -26,6 +27,10 @@ class _HmLoanApplicationsListScreenState
     extends ConsumerState<HmLoanApplicationsListScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  // Keeps In-Office selected locally while staying on /hm/loan-applications
+  // so WebScaffold continues to highlight "Loan Records" in the side nav.
+  String? _overrideTab;
+  String _inOfficeSearch = '';
 
   final _tabs = const [
     _TabDef('all', 'All', Icons.layers_outlined),
@@ -34,6 +39,8 @@ class _HmLoanApplicationsListScreenState
     _TabDef('ci_required', 'CI Required', Icons.search_outlined),
     _TabDef('ci_assigned', 'CI Assigned', Icons.assignment_ind_outlined),
     _TabDef('ci_completed', 'CI Completed', Icons.verified_outlined),
+    _TabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
+    _TabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
   ];
 
   @override
@@ -45,11 +52,13 @@ class _HmLoanApplicationsListScreenState
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(hmLoanProvider);
-    final activeTab = state.tabFilter;
+    final loanState = ref.watch(hmLoanProvider);
+    final inOfficeState = ref.watch(hmInOfficeProvider);
+    final effectiveTab = _overrideTab ?? loanState.tabFilter;
+    final isInOffice = effectiveTab == 'in_office';
 
     return WebScaffold(
-      title: 'Loan Applications',
+      title: 'Loan Records',
       body: Container(
         color: const Color(0xFFF0F2F5),
         child: SingleChildScrollView(
@@ -58,21 +67,28 @@ class _HmLoanApplicationsListScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTabPills(activeTab),
+              _buildTabPills(effectiveTab),
               const SizedBox(height: 16),
-              _buildToolbar(state),
+              // Toolbar stays visible for both modes; search filters the
+              // currently visible list. For In-Office we still show the
+              // same outer box (no inner box) with placeholder "Search".
+              _buildToolbar(loanState, inOfficeState, isInOffice),
               const SizedBox(height: 16),
-              if (state.isLoading)
-                _buildLoadingShimmer()
-              else if (state.loans.isEmpty)
-                _buildEmpty(state)
-              else
-                _Entrance(
-                  child: _buildPremiumTable(state.loans),
-                ),
-              if (state.totalPages > 1) ...[
-                const SizedBox(height: 16),
-                _buildPagination(state),
+              if (isInOffice) ...[
+                _buildInOfficeSection(inOfficeState),
+              ] else ...[
+                if (loanState.isLoading)
+                  _buildLoadingShimmer()
+                else if (loanState.loans.isEmpty)
+                  _buildEmpty(loanState)
+                else
+                  _Entrance(
+                    child: _buildPremiumTable(loanState.loans),
+                  ),
+                if (loanState.totalPages > 1) ...[
+                  const SizedBox(height: 16),
+                  _buildPagination(loanState),
+                ],
               ],
               const SizedBox(height: 8),
             ],
@@ -83,6 +99,8 @@ class _HmLoanApplicationsListScreenState
   }
 
   // ─────────────────────────────── Pill Tabs ───────────────────────────────
+  // All pills stay on /hm/loan-applications so the side-nav highlights
+  // "Loan Records" for Active Loan & In-Office as requested.
   Widget _buildTabPills(String active) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -94,8 +112,21 @@ class _HmLoanApplicationsListScreenState
             child: _PillTab(
               def: t,
               active: isActive,
-              onTap: () =>
-                  ref.read(hmLoanProvider.notifier).setTab(t.key),
+              onTap: () {
+                if (t.key == 'in_office') {
+                  setState(() => _overrideTab = 'in_office');
+                  // Ensure in-office data is fresh when tab is first opened.
+                  // ignore: unused_result
+                  ref.read(hmInOfficeProvider.notifier).load();
+                  return;
+                }
+                // For Active Loan and the pipeline tabs, use the loans provider.
+                // Clear in-office override so we return to loan table view.
+                if (_overrideTab != null) {
+                  setState(() => _overrideTab = null);
+                }
+                ref.read(hmLoanProvider.notifier).setTab(t.key);
+              },
             ),
           );
         }).toList(),
@@ -104,10 +135,16 @@ class _HmLoanApplicationsListScreenState
   }
 
   // ─────────────────────────────── Toolbar ───────────────────────────────
-  Widget _buildToolbar(HmLoanState state) {
-    final hasSearch = state.search.isNotEmpty;
+  // No inner box — single outer container with flat Search field (hint "Search").
+  Widget _buildToolbar(
+      HmLoanState loanState, HmInOfficeState inOfficeState, bool isInOffice) {
+    final hasSearch =
+        isInOffice ? _inOfficeSearch.isNotEmpty : loanState.search.isNotEmpty;
+    final resultsCount = isInOffice
+        ? _filteredInOffice(inOfficeState.applications).length
+        : loanState.loans.length;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -119,68 +156,60 @@ class _HmLoanApplicationsListScreenState
       ),
       child: Row(
         children: [
+          Icon(Icons.search_rounded,
+              size: 18,
+              color:
+                  hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
+          const SizedBox(width: 10),
           Expanded(
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FB),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: hasSearch
-                        ? AppColors.deepNavy.withValues(alpha: 0.22)
-                        : AppColors.border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18,
-                      color: hasSearch
-                          ? AppColors.deepNavy
-                          : AppColors.textTertiary),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (v) =>
-                          ref.read(hmLoanProvider.notifier).setSearch(v),
-                      style: const TextStyle(fontSize: 13),
-                      decoration: const InputDecoration(
-                        hintText: 'Search by loan # or lender name…',
-                        hintStyle: TextStyle(
-                            fontSize: 13, color: AppColors.textTertiary),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                  if (hasSearch)
-                    InkWell(
-                      onTap: () {
-                        _searchCtrl.clear();
-                        ref.read(hmLoanProvider.notifier).setSearch('');
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: AppColors.textTertiary.withValues(alpha: 0.14),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.close_rounded,
-                            size: 14, color: AppColors.textSecondary),
-                      ),
-                    ),
-                ],
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) {
+                if (isInOffice) {
+                  setState(() => _inOfficeSearch = v);
+                } else {
+                  ref.read(hmLoanProvider.notifier).setSearch(v);
+                }
+              },
+              style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Search',
+                hintStyle: TextStyle(
+                    fontSize: 13, color: AppColors.textTertiary),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          if (hasSearch)
+            InkWell(
+              onTap: () {
+                _searchCtrl.clear();
+                if (isInOffice) {
+                  setState(() => _inOfficeSearch = '');
+                } else {
+                  ref.read(hmLoanProvider.notifier).setSearch('');
+                }
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: AppColors.textTertiary.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded,
+                    size: 14, color: AppColors.textSecondary),
+              ),
+            ),
+          if (hasSearch) const SizedBox(width: 10),
           _ToolbarIcon(
             icon: Icons.refresh_rounded,
             tooltip: 'Refresh',
-            onTap: () => ref.read(hmLoanProvider.notifier).fetchLoans(),
+            onTap: () => isInOffice
+                ? ref.read(hmInOfficeProvider.notifier).load()
+                : ref.read(hmLoanProvider.notifier).fetchLoans(),
           ),
           const SizedBox(width: 8),
           Container(
@@ -196,7 +225,7 @@ class _HmLoanApplicationsListScreenState
                     size: 14, color: Colors.white),
                 const SizedBox(width: 6),
                 Text(
-                  '${state.loans.length} results',
+                  '$resultsCount results',
                   style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -204,6 +233,250 @@ class _HmLoanApplicationsListScreenState
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _filteredInOffice(
+      List<Map<String, dynamic>> apps) {
+    if (_inOfficeSearch.isEmpty) return apps;
+    final q = _inOfficeSearch.toLowerCase();
+    return apps.where((a) {
+      final name = (a['lender_name'] ?? '').toString().toLowerCase();
+      final id = (a['id'] ?? '').toString().toLowerCase();
+      return name.contains(q) || id.contains(q);
+    }).toList();
+  }
+
+  // ───────────────────────── In-Office (embedded) ──────────────────────────
+  Widget _buildInOfficeSection(HmInOfficeState st) {
+    if (st.isLoading) return _buildLoadingShimmer();
+    final apps = _filteredInOffice(st.applications);
+    if (apps.isEmpty) return _buildInOfficeEmpty();
+    return _Entrance(child: _buildInOfficeList(apps));
+  }
+
+  Widget _buildInOfficeList(List<Map<String, dynamic>> apps) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8F9FB),
+              border: Border(bottom: BorderSide(color: AppColors.border)),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                    flex: 3,
+                    child: _HLabel('Lender', Icons.person_outline)),
+                const Expanded(
+                    flex: 2, child: _HLabel('Step', Icons.layers_outlined)),
+                const Expanded(
+                    flex: 2, child: _HLabel('Created', Icons.event_outlined)),
+                const Expanded(
+                    flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
+                SizedBox(
+                  width: 140,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      onPressed: () => showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (_) => InOfficeWizard(
+                          applicationId: null,
+                          onComplete: () =>
+                              ref.read(hmInOfficeProvider.notifier).load(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.add, size: 14),
+                      label: const Text('New Walk-in',
+                          style: TextStyle(fontSize: 11)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.deepNavy,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        minimumSize: const Size(0, 32),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...apps.asMap().entries.map((e) {
+            final idx = e.key;
+            final app = e.value;
+            final isEven = idx.isEven;
+            final createdAt = app['created_at'] != null
+                ? DateTime.tryParse(app['created_at'].toString())
+                : null;
+            final dateStr = createdAt != null
+                ? DateFormat('MMM dd, yyyy').format(createdAt)
+                : '—';
+            return Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: isEven ? Colors.white : const Color(0xFFFDFDFD),
+                border:
+                    const Border(bottom: BorderSide(color: Color(0xFFF0F0F0))),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      (app['lender_name'] ?? 'Walk-in Lender').toString(),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      'Step ${app['wizard_step'] ?? 1} of 5',
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      dateStr,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: _StatusInline(
+                        status: (app['status'] ?? 'submitted').toString()),
+                  ),
+                  SizedBox(
+                    width: 140,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _InOfficeActions(app: app),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInOfficeEmpty() {
+    final isFiltered = _inOfficeSearch.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.deepNavy.withValues(alpha: 0.10),
+                  AppColors.gold.withValues(alpha: 0.16),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Icon(
+              isFiltered
+                  ? Icons.search_off_rounded
+                  : Icons.storefront_outlined,
+              size: 32,
+              color: AppColors.deepNavy.withValues(alpha: 0.75),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isFiltered ? 'No matching applications' : 'No walk-in applications',
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            isFiltered
+                ? 'Try a different search term.'
+                : 'Walk-in applications will appear here once created.',
+            textAlign: TextAlign.center,
+            style:
+                const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isFiltered)
+                OutlinedButton.icon(
+                  onPressed: () {
+                    _searchCtrl.clear();
+                    setState(() => _inOfficeSearch = '');
+                  },
+                  icon: const Icon(Icons.clear_all_rounded, size: 16),
+                  label: const Text('Clear search'),
+                ),
+              if (isFiltered) const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: () => showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => InOfficeWizard(
+                    applicationId: null,
+                    onComplete: () =>
+                        ref.read(hmInOfficeProvider.notifier).load(),
+                  ),
+                ),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('New Walk-in'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.deepNavy,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -233,27 +506,32 @@ class _HmLoanApplicationsListScreenState
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
               color: Color(0xFFF8F9FB),
-              border:
-                  Border(bottom: BorderSide(color: AppColors.border)),
+              border: Border(bottom: BorderSide(color: AppColors.border)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Expanded(
+                Expanded(
                     flex: 3,
                     child: _HLabel('Lender & Loan', Icons.person_outline)),
-                const Expanded(
+                Expanded(
                     flex: 2,
                     child: _HLabel('Amount', Icons.payments_outlined)),
-                const Expanded(
+                Expanded(
                     flex: 2,
-                    child: _HLabel('Frequency', Icons.repeat_rounded)),
-                const Expanded(
+                    child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _HLabel('Frequency', Icons.repeat_rounded))),
+                Expanded(
                     flex: 2,
-                    child: _HLabel('Applied', Icons.event_outlined)),
-                const Expanded(
+                    child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _HLabel('Applied', Icons.event_outlined))),
+                Expanded(
                     flex: 3,
-                    child: _HLabel('Status', Icons.flag_outlined)),
-                const SizedBox(width: 96, child: _HLabel('Action', Icons.bolt_outlined, alignEnd: true)),
+                    child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _HLabel('Status', Icons.flag_outlined))),
+                SizedBox(width: 96, child: _HLabel('Action', Icons.bolt_outlined)),
               ],
             ),
           ),
@@ -352,12 +630,15 @@ class _HmLoanApplicationsListScreenState
                         ],
                       ),
                     ),
-                    // Frequency
+                    // Frequency — flat inline, start-aligned pantay sa header
                     Expanded(
                       flex: 2,
-                      child: _FrequencyPill(frequency: loan.paymentFrequency),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _FrequencyInline(frequency: loan.paymentFrequency),
+                      ),
                     ),
-                    // Applied date
+                    // Applied date — start-aligned pantay sa header
                     Expanded(
                       flex: 2,
                       child: Column(
@@ -365,6 +646,7 @@ class _HmLoanApplicationsListScreenState
                         children: [
                           Text(
                             dateFmt.format(loan.createdAt),
+                            textAlign: TextAlign.start,
                             style: const TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textPrimary,
@@ -372,6 +654,7 @@ class _HmLoanApplicationsListScreenState
                           ),
                           Text(
                             _timeAgo(loan.createdAt),
+                            textAlign: TextAlign.start,
                             style: const TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textTertiary),
@@ -379,46 +662,38 @@ class _HmLoanApplicationsListScreenState
                         ],
                       ),
                     ),
-                    // Status
+                    // Status — flat inline dot + text, start-aligned pantay sa header
                     Expanded(
                       flex: 3,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          StatusBadge(status: status),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _StatusInline(status: status),
+                          ),
                           if (loan.ciStatus != null &&
                               (loan.ciStatus == 'assigned' ||
                                   loan.ciStatus == 'accepted' ||
                                   loan.ciStatus == 'in_progress') &&
                               loan.status == 'ci_assigned') ...[
                             const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.riderGreen
-                                    .withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                    color: AppColors.riderGreen
-                                        .withValues(alpha: 0.18)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.riderGreen,
-                                      shape: BoxShape.circle,
-                                    ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.riderGreen,
+                                    shape: BoxShape.circle,
                                   ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      loan.assignedRiderName != null
-                                          ? 'Rider: ${loan.assignedRiderName}'
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    loan.assignedRiderName != null
+                                        ? 'Rider: ${loan.assignedRiderName}'
                                           : 'Rider assigned',
                                       style: const TextStyle(
                                           fontSize: 11,
@@ -429,16 +704,15 @@ class _HmLoanApplicationsListScreenState
                                   ),
                                 ],
                               ),
-                            ),
                           ],
                         ],
                       ),
                     ),
-                    // Action
+                    // Action — left-aligned pantay sa header
                     SizedBox(
                       width: 96,
                       child: Align(
-                        alignment: Alignment.centerRight,
+                        alignment: Alignment.centerLeft,
                         child: _RowActions(loan: loan, onRefresh: _onActionDone),
                       ),
                     ),
@@ -822,12 +1096,11 @@ class _PillTab extends StatelessWidget {
 class _HLabel extends StatelessWidget {
   final String text;
   final IconData icon;
-  final bool alignEnd;
-  const _HLabel(this.text, this.icon, {this.alignEnd = false});
+  const _HLabel(this.text, this.icon);
 
   @override
   Widget build(BuildContext context) {
-    final row = Row(
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 12, color: AppColors.textTertiary),
@@ -845,16 +1118,12 @@ class _HLabel extends StatelessWidget {
         ),
       ],
     );
-    if (alignEnd) {
-      return Align(alignment: Alignment.centerRight, child: row);
-    }
-    return row;
   }
 }
 
-class _FrequencyPill extends StatelessWidget {
+class _FrequencyInline extends StatelessWidget {
   final String frequency;
-  const _FrequencyPill({required this.frequency});
+  const _FrequencyInline({required this.frequency});
 
   @override
   Widget build(BuildContext context) {
@@ -874,25 +1143,95 @@ class _FrequencyPill extends StatelessWidget {
         c = AppColors.deepNavy;
         icon = Icons.calendar_month_outlined;
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: c.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: c),
-          const SizedBox(width: 5),
-          Text(
-            f.isEmpty ? '-' : '${f[0].toUpperCase()}${f.substring(1)}',
+    // Flat inline — no square pill background/border
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: c),
+        const SizedBox(width: 6),
+        Text(
+          f.isEmpty ? '-' : '${f[0].toUpperCase()}${f.substring(1)}',
+          style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w600, color: c),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatusInline extends StatelessWidget {
+  final String status;
+  const _StatusInline({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = status.toLowerCase();
+    final Color c;
+    final String label;
+    switch (s) {
+      case 'pending':
+        c = AppColors.warning;
+        label = 'Pending';
+        break;
+      case 'under_review':
+        c = AppColors.info;
+        label = 'Under Review';
+        break;
+      case 'ci_required':
+        c = AppColors.warning;
+        label = 'CI Required';
+        break;
+      case 'ci_assigned':
+        c = AppColors.lenderBlue;
+        label = 'CI Assigned';
+        break;
+      case 'ci_completed':
+        c = AppColors.deepNavy;
+        label = 'CI Completed';
+        break;
+      case 'approved':
+        c = AppColors.success;
+        label = 'Approved';
+        break;
+      case 'rejected':
+        c = AppColors.error;
+        label = 'Rejected';
+        break;
+      case 'active':
+        c = AppColors.riderGreen;
+        label = 'Active';
+        break;
+      case 'completed':
+        c = AppColors.info;
+        label = 'Completed';
+        break;
+      case 'overdue':
+        c = AppColors.error;
+        label = 'Overdue';
+        break;
+      default:
+        c = AppColors.textSecondary;
+        label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+    }
+    // Flat — dot + colored text, no square Container background/border
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
             style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700, color: c),
+                fontSize: 12, fontWeight: FontWeight.w600, color: c),
+            overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1048,6 +1387,48 @@ class _RowActions extends StatelessWidget {
             ),
             child: const Icon(Icons.more_horiz_rounded,
                 size: 16, color: AppColors.textSecondary),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InOfficeActions extends ConsumerWidget {
+  final Map<String, dynamic> app;
+  const _InOfficeActions({required this.app});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = app['id']?.toString() ?? '';
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ActionIcon(
+          icon: Icons.visibility_outlined,
+          color: AppColors.deepNavy,
+          tooltip: 'Continue application',
+          onTap: () => showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => InOfficeWizard(
+              applicationId: id.isEmpty ? null : id,
+              onComplete: () => ref.read(hmInOfficeProvider.notifier).load(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        _ActionIcon(
+          icon: Icons.edit_outlined,
+          color: AppColors.info,
+          tooltip: 'Resume wizard',
+          onTap: () => showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => InOfficeWizard(
+              applicationId: id.isEmpty ? null : id,
+              onComplete: () => ref.read(hmInOfficeProvider.notifier).load(),
+            ),
           ),
         ),
       ],

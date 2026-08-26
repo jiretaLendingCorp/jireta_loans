@@ -23,13 +23,15 @@ class EmpLoanState {
     this.statusFilter,
   });
 
+  static const _unset = Object();
+
   EmpLoanState copyWith({
     List<LoanModel>? loans,
     bool? isLoading,
     String? error,
     int? page,
     String? search,
-    String? statusFilter,
+    Object? statusFilter = _unset,
   }) =>
       EmpLoanState(
         loans: loans ?? this.loans,
@@ -37,7 +39,9 @@ class EmpLoanState {
         error: error,
         page: page ?? this.page,
         search: search ?? this.search,
-        statusFilter: statusFilter ?? this.statusFilter,
+        statusFilter: statusFilter == _unset
+            ? this.statusFilter
+            : statusFilter as String?,
       );
 }
 

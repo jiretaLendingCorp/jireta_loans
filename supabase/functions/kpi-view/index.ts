@@ -124,7 +124,7 @@ async function handleHeadManager(req: Request) {
   // ── Monthly trend series (last 6 months, oldest → newest) ──────────────
   const { data: trendLoans } = await db
     .from('loans')
-    .select('created_at');
+    .select('created_at, status, principal_amount');
   const { data: trendDisbursements } = await db
     .from('disbursements')
     .select('disbursed_at, amount')
@@ -162,6 +162,40 @@ async function handleHeadManager(req: Request) {
     });
   }
 
+  // ── Loan portfolio breakdown by status (for interactive donut drill-down) ─
+  // Compute exact counts per status in a single pass; keeps donut tooltip
+  // accurate even when new statuses are added and avoids N separate head queries.
+  const loanStatusBreakdown: Record<string, number> = {};
+  (trendLoans ?? []).forEach((r: { status: string }) => {
+    const s = (r.status ?? 'unknown') as string;
+    loanStatusBreakdown[s] = (loanStatusBreakdown[s] ?? 0) + 1;
+  });
+  // Ensure all known statuses appear (frontend expects stable keys for legend)
+  const knownStatuses = [
+    'pending',
+    'under_review',
+    'ci_required',
+    'ci_assigned',
+    'ci_completed',
+    'approved',
+    'active',
+    'completed',
+    'rejected',
+    'cancelled',
+    'overdue',
+  ];
+  for (const s of knownStatuses) {
+    if (!(s in loanStatusBreakdown)) loanStatusBreakdown[s] = 0;
+  }
+  // Aggregate pending-like bucket that the old frontend derived ad-hoc.
+  const pendingBucket = (loanStatusBreakdown['pending'] ?? 0) +
+    (loanStatusBreakdown['under_review'] ?? 0) +
+    (loanStatusBreakdown['ci_required'] ?? 0) +
+    (loanStatusBreakdown['ci_assigned'] ?? 0) +
+    (loanStatusBreakdown['ci_completed'] ?? 0) +
+    (loanStatusBreakdown['approved'] ?? 0) +
+    (loanStatusBreakdown['cancelled'] ?? 0);
+
   return jsonResponse({
     total_employees: totalEmployees ?? 0,
     total_riders: totalRiders ?? 0,
@@ -183,6 +217,8 @@ async function handleHeadManager(req: Request) {
     total_report_exports: totalReports ?? 0,
     total_pending_account_upgrade: totalPendingAccountUpgrade ?? 0,
     monthly_series: monthlySeries,
+    loan_status_breakdown: loanStatusBreakdown,
+    pending_bucket: pendingBucket,
   });
 }
 

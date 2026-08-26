@@ -2,18 +2,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/profile_avatar.dart';
+import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/emp_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
   const EmpAccountUpgradeListScreen({super.key});
+
   @override
   ConsumerState<EmpAccountUpgradeListScreen> createState() =>
       _EmpAccountUpgradeListScreenState();
@@ -21,394 +22,553 @@ class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
 
 class _EmpAccountUpgradeListScreenState
     extends ConsumerState<EmpAccountUpgradeListScreen> {
-  final _searchCtrl = TextEditingController();
-  String? _statusFilter;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(empAccountUpgradeProvider.notifier).loadList();
-    });
-  }
+  final _search = TextEditingController();
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
+    _search.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final accountUpgradeState = ref.watch(empAccountUpgradeProvider);
+    final state = ref.watch(empAccountUpgradeProvider);
+
     return WebScaffold(
-      title: 'Account Upgrade Review',
-      body: Column(children: [
-        _buildFilters(),
-        Expanded(
-            child: accountUpgradeState.when(
-          loading: () => ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: 5,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (_, __) => const ShimmerLoader(height: 60),
-          ),
-          error: (e, _) => Center(
-              child: Text('Error: $e',
-                  style: const TextStyle(color: AppColors.error))),
-          data: (data) {
-            final items = (data['items'] as List?) ?? [];
-            if (items.isEmpty) return _buildEmpty();
-            return _buildTable(items);
-          },
-        )),
-      ]),
-    );
-  }
-
-  Widget _buildFilters() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: Colors.white,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final search = TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              hintText: 'Search by lender name...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-            onChanged: (v) => ref
-                .read(empAccountUpgradeProvider.notifier)
-                .loadList(search: v, status: _statusFilter),
-          );
-          final statusDropdown = DropdownButton<String?>(
-            value: _statusFilter,
-            hint: const Text('All Status'),
-            items: const [
-              DropdownMenuItem(value: null, child: Text('All Status')),
-              DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
-              DropdownMenuItem(value: 'verified', child: Text('Verified')),
-              DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
-            ],
-            onChanged: (v) {
-              setState(() => _statusFilter = v);
-              ref
-                  .read(empAccountUpgradeProvider.notifier)
-                  .loadList(status: v, search: _searchCtrl.text);
-            },
-          );
-          final refreshBtn = IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => ref
-                .read(empAccountUpgradeProvider.notifier)
-                .loadList(status: _statusFilter),
-          );
-
-          if (constraints.maxWidth < 560) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                search,
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: statusDropdown),
-                  refreshBtn,
-                ]),
-              ],
-            );
-          }
-          return Row(children: [
-            Expanded(child: search),
-            const SizedBox(width: 12),
-            statusDropdown,
-            const SizedBox(width: 12),
-            refreshBtn,
-          ]);
-        },
-      ),
-    );
-  }
-
-  Widget _buildTable(List items) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: AppColors.border)),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final tableWidth =
-                constraints.maxWidth < 760 ? 760.0 : constraints.maxWidth;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tableWidth,
-                child: Column(children: [
-                  _buildHeader(),
-                  const Divider(height: 1),
-                  ...items.asMap().entries.map((e) =>
-                      _buildRow(e.value as Map<String, dynamic>, e.key.isEven)),
-                ]),
-              ),
-            );
-          },
+      title: 'Lender Account Upgrade',
+      actions: [
+        Container(
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border)),
+          child: IconButton(
+              onPressed: () =>
+                  ref.read(empAccountUpgradeProvider.notifier).fetch(),
+              icon: const Icon(Icons.refresh_rounded,
+                  size: 20, color: AppColors.textSecondary),
+              tooltip: 'Refresh'),
         ),
+      ],
+      body: Column(
+        children: [
+          _buildFilterBar(state),
+          Expanded(
+            child: state.isLoading
+                ? const ShimmerLoader()
+                : state.docs.isEmpty
+                    ? _buildEmpty()
+                    : _buildList(context, state),
+          ),
+          if (state.totalPages > 1)
+            TablePagination(
+              currentPage: state.currentPage,
+              totalPages: state.totalPages,
+              totalCount: state.totalCount,
+              onPageChange: (p) =>
+                  ref.read(empAccountUpgradeProvider.notifier).fetch(page: p),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildHeader() {
-    const s = TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
-        color: AppColors.textSecondary);
+  Widget _buildFilterBar(EmpAccountUpgradeState state) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.surfaceVariant,
-      child: const Row(children: [
-        Expanded(flex: 3, child: Text('Lender', style: s)),
-        Expanded(flex: 2, child: Text('Documents', style: s)),
-        Expanded(flex: 2, child: Text('Submitted', style: s)),
-        Expanded(flex: 1, child: Text('Status', style: s)),
-        Expanded(flex: 2, child: Text('Action', style: s)),
-      ]),
-    );
-  }
-
-  Widget _buildRow(Map<String, dynamic> accountUpgrade, bool isEven) {
-    final lender = accountUpgrade['lender'] as Map<String, dynamic>?;
-    final name =
-        lender != null ? '${lender['first_name']} ${lender['last_name']}' : '—';
-    final submittedAt = accountUpgrade['submitted_at'] != null
-        ? DateTime.parse(accountUpgrade['submitted_at']).toDisplayDate
-        : accountUpgrade['created_at'] != null
-            ? DateTime.tryParse(accountUpgrade['created_at'])?.toDisplayDate ??
-                '—'
-            : '—';
-    final docCount = (accountUpgrade['document_count'] as num?)?.toInt() ?? 0;
-    final status = accountUpgrade['status'] ?? 'pending';
-    final lenderId = accountUpgrade['lender_id'] as String? ??
-        accountUpgrade['id'] as String? ??
-        '';
-
-    return InkWell(
-      key: ValueKey(accountUpgrade['id']),
-      onTap: () => context.go(RouteConstants.empAccountUpgradeDetails
-          .replaceFirst(':id', lenderId)),
-      child: Container(
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(children: [
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))
+          ]),
+      child: Row(
+        children: [
           Expanded(
-              flex: 3,
-              child: Row(children: [
-                ProfileAvatar(
-                  photoUrl: lender?['profile_photo_url'] as String?,
-                  name: lender?['first_name'] as String? ?? '',
-                  color: AppColors.info,
-                  radius: 16,
-                  fallback: const Icon(Icons.person_outline,
-                      size: 16, color: AppColors.info),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                    child: Text(name,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                        overflow: TextOverflow.ellipsis)),
-              ])),
-          Expanded(
-              flex: 2,
-              child: Text(
-                  docCount <= 0
-                      ? 'Account Upgrade Submission'
-                      : docCount == 1
-                          ? '1 document'
-                          : '$docCount documents',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary))),
-          Expanded(
-              flex: 2,
-              child: Text(submittedAt,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary))),
-          Expanded(flex: 1, child: StatusBadge(status: status)),
-          Expanded(
-            flex: 2,
-            child: Row(
-              children: [
-                if (status != 'verified')
-                  _EmpActionButton(
-                    label: 'Verify',
-                    color: AppColors.success,
-                    icon: Icons.check_circle_outline,
-                    onPressed: () => _verifyAll(lenderId, 'verified'),
-                  ),
-                if (status != 'verified' && status != 'rejected') ...[
-                  const SizedBox(width: 8),
-                  _EmpActionButton(
-                    label: 'Reject',
-                    color: AppColors.error,
-                    icon: Icons.cancel_outlined,
-                    onPressed: () => _promptReject(lenderId),
-                  ),
-                ],
-              ],
+            child: TextField(
+              controller: _search,
+              decoration: InputDecoration(
+                hintText: 'Search lender name…',
+                hintStyle:
+                    const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    size: 19, color: AppColors.textTertiary),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              onChanged: (_) => setState(() {}),
             ),
           ),
-        ]),
+          const SizedBox(width: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _StatusPill(
+                  label: 'All',
+                  value: 'all',
+                  selected: state.statusFilter == 'all',
+                  onTap: (v) =>
+                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(
+                  label: 'Submitted',
+                  value: 'submitted',
+                  selected: state.statusFilter == 'submitted',
+                  onTap: (v) =>
+                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(
+                  label: 'Verified',
+                  value: 'verified',
+                  selected: state.statusFilter == 'verified',
+                  onTap: (v) =>
+                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(
+                  label: 'Rejected',
+                  value: 'rejected',
+                  selected: state.statusFilter == 'rejected',
+                  onTap: (v) =>
+                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
+            ]),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _verifyAll(String lenderId, String action) async {
-    final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(
-          lenderId: lenderId,
-          action: action,
+  Widget _buildList(BuildContext context, EmpAccountUpgradeState state) {
+    final q = _search.text.toLowerCase().trim();
+    final docs = q.isEmpty
+        ? state.docs
+        : state.docs
+            .where((d) =>
+                d.lenderName.toString().toLowerCase().contains(q) ||
+                (d.lender?['email']?.toString().toLowerCase().contains(q) ??
+                    false))
+            .toList();
+    if (docs.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(16)),
+              child: const Icon(Icons.search_off_rounded,
+                  size: 36, color: AppColors.textTertiary)),
+          const SizedBox(height: 14),
+          const Text('No matches',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text('Try a different search or filter',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        ]),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      itemCount: docs.length,
+      itemBuilder: (context, i) {
+        final doc = docs[i];
+        return Padding(
+          padding: EdgeInsets.only(bottom: i == docs.length - 1 ? 0 : 10),
+          child: _AccountUpgradeRow(
+            key: ValueKey(doc.id),
+            doc: doc,
+            onTap: () => context.go(RouteConstants.empAccountUpgradeDetails
+                .replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)),
+            onVerify: () => _verifyAll(doc, 'verified'),
+            onReject: () => _promptReject(doc),
+          ),
         );
+      },
+    );
+  }
+
+  Future<void> _verifyAll(dynamic doc, String action) async {
+    final ok = await ref
+        .read(empAccountUpgradeProvider.notifier)
+        .verifyAll(
+            lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId,
+            action: action);
     if (!mounted) return;
-    context.showSnackBarAsToast(
-      SnackBar(
+    context.showSnackBarAsToast(SnackBar(
         content: Text(ok
             ? (action == 'verified'
                 ? 'Account upgrade documents verified'
                 : 'Account upgrade documents rejected')
             : 'Action failed'),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ),
-    );
+        backgroundColor: ok ? AppColors.success : AppColors.error));
   }
 
-  Future<void> _promptReject(String lenderId) async {
+  Future<void> _promptReject(dynamic doc) async {
+    final lenderId = doc.lenderId.isEmpty ? doc.id : doc.lenderId;
     final notesCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.cancel_outlined, color: AppColors.error, size: 24),
-            SizedBox(width: 10),
-            Text('Reject Account Upgrade'),
-          ],
-        ),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Rejecting will reject all submitted documents for this lender.',
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              const Text('Rejection Reason *',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: notesCtrl,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Enter reason for rejection...',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.cancel_rounded, color: AppColors.error)),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                        child: Text('Reject Account Upgrade',
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+                  ]),
+                  const SizedBox(height: 12),
+                  const Text('Rejecting will reject all submitted documents for this lender.',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  const Text('Rejection Reason *',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  TextField(
+                      controller: notesCtrl,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                          hintText: 'Enter reason for rejection…',
+                          filled: true,
+                          fillColor: AppColors.surfaceVariant,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide.none),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: AppColors.border)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: AppColors.error)))),
+                  const SizedBox(height: 20),
+                  Row(children: [
+                    Expanded(
+                        child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10))),
+                            child: const Text('Cancel'))),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: ElevatedButton(
+                            onPressed: () {
+                              if (notesCtrl.text.trim().isEmpty) {
+                                context.showSnackBarAsToast(const SnackBar(
+                                    content: Text('Please provide a rejection reason'),
+                                    backgroundColor: AppColors.error));
+                                return;
+                              }
+                              Navigator.of(context).pop(true);
+                            },
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.error,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10))),
+                            child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w700)))),
+                  ]),
+                ]),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (notesCtrl.text.trim().isEmpty) {
-                context.showSnackBarAsToast(
-                  const SnackBar(
-                    content: Text('Please provide a rejection reason'),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-                return;
-              }
-              Navigator.of(context).pop(true);
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white),
-            child: const Text('Reject'),
-          ),
-        ],
       ),
     );
     if (confirmed == true) {
       if (!mounted) return;
-      final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(
-            lenderId: lenderId,
-            action: 'rejected',
-            rejectionNotes: notesCtrl.text.trim(),
-          );
+      final ok = await ref
+          .read(empAccountUpgradeProvider.notifier)
+          .verifyAll(lenderId: lenderId, action: 'rejected', rejectionNotes: notesCtrl.text.trim());
       if (!mounted) return;
-      context.showSnackBarAsToast(
-        SnackBar(
-          content:
-              Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),
-          backgroundColor: ok ? AppColors.success : AppColors.error,
-        ),
-      );
+      context.showSnackBarAsToast(SnackBar(
+          content: Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),
+          backgroundColor: ok ? AppColors.success : AppColors.error));
     }
   }
 
   Widget _buildEmpty() {
-    return const Center(
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.verified_user_outlined,
-          size: 64, color: AppColors.textTertiary),
-      SizedBox(height: 16),
-      Text('No account upgrade submissions found',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-    ]));
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [
+                    const Color(0xFF00838F).withValues(alpha: 0.12),
+                    AppColors.deepNavy.withValues(alpha: 0.08)
+                  ]),
+                  borderRadius: BorderRadius.circular(18)),
+              child: const Icon(Icons.verified_user_rounded, size: 40, color: Color(0xFF00838F))),
+          const SizedBox(height: 16),
+          const Text('No account upgrade submissions found',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          const Text('Lender KYC upgrade requests will appear here for review.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              textAlign: TextAlign.center),
+        ]),
+      ),
+    );
   }
 }
 
-class _EmpActionButton extends StatelessWidget {
+class _StatusPill extends StatelessWidget {
   final String label;
-  final Color color;
-  final IconData icon;
-  final VoidCallback onPressed;
+  final String value;
+  final bool selected;
+  final ValueChanged<String> onTap;
+  const _StatusPill(
+      {required this.label,
+      required this.value,
+      required this.selected,
+      required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+            color: selected ? AppColors.deepNavy : AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: selected ? AppColors.deepNavy : AppColors.border)),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? Colors.white : AppColors.textSecondary)),
+      ),
+    );
+  }
+}
 
-  const _EmpActionButton({
-    required this.label,
-    required this.color,
-    required this.icon,
-    required this.onPressed,
-  });
+class _AccountUpgradeRow extends StatefulWidget {
+  final dynamic doc;
+  final VoidCallback onTap;
+  final VoidCallback onVerify;
+  final VoidCallback onReject;
+
+  const _AccountUpgradeRow(
+      {super.key, required this.doc, required this.onTap, required this.onVerify, required this.onReject});
+
+  @override
+  State<_AccountUpgradeRow> createState() => _AccountUpgradeRowState();
+}
+
+class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
+  bool _hovered = false;
+
+  Color _accentForStatus(String s) {
+    switch (s.toLowerCase()) {
+      case 'verified':
+        return AppColors.riderGreen;
+      case 'rejected':
+        return AppColors.error;
+      case 'submitted':
+        return AppColors.lenderBlue;
+      default:
+        return AppColors.warning;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, size: 16, color: color),
-      label: Text(label,
-          style: TextStyle(
-              fontSize: 12, color: color, fontWeight: FontWeight.w600)),
-      style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        minimumSize: Size.zero,
-        backgroundColor: color.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    final doc = widget.doc;
+    final date = DateFormat('MMM d, y').format(doc.submittedAt ?? doc.createdAt);
+    final status = (doc.status ?? 'pending').toString();
+    final accent = _accentForStatus(status);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _hovered ? accent.withValues(alpha: 0.3) : AppColors.border),
+          boxShadow: _hovered
+              ? [BoxShadow(color: accent.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 6))]
+              : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Container(
+                width: 4,
+                height: 48,
+                decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(
+                      child: Text(doc.lenderName ?? 'Unknown Lender',
+                          style:
+                              const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
+                  StatusBadge(status: status),
+                ]),
+                const SizedBox(height: 3),
+                Row(children: [
+                  Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
+                      child: Text(doc.documentCountLabel ?? 'Account Upgrade Submission',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent))),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
+                  const SizedBox(width: 4),
+                  Text(date, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                ]),
+              ]),
+            ),
+            const SizedBox(width: 12),
+            if (MediaQuery.of(context).size.width >= 640) ...[
+              if (status != 'verified')
+                _ActionButton(
+                    icon: Icons.verified_rounded,
+                    label: 'Verify',
+                    color: AppColors.riderGreen,
+                    onPressed: widget.onVerify,
+                    primary: true),
+              if (status != 'verified' && status != 'rejected') const SizedBox(width: 8),
+              if (status != 'verified' && status != 'rejected')
+                _ActionButton(
+                    icon: Icons.cancel_rounded,
+                    label: 'Reject',
+                    color: AppColors.error,
+                    onPressed: widget.onReject,
+                    primary: false),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'View',
+                child: InkWell(
+                  onTap: widget.onTap,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.deepNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                        SizedBox(width: 4),
+                        Text('View',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...[
+              Tooltip(
+                message: 'View',
+                child: InkWell(
+                  onTap: widget.onTap,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.deepNavy.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                        SizedBox(width: 4),
+                        Text('View',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+  final bool primary;
+  const _ActionButton(
+      {required this.icon, required this.label, required this.color, required this.onPressed, required this.primary});
+  @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: InkWell(
+        onTap: widget.onPressed,
+        borderRadius: BorderRadius.circular(9),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.primary
+                ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1))
+                : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: widget.color.withValues(alpha: widget.primary ? 0.2 : 0.3)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(widget.icon, size: 14, color: widget.primary ? (_hover ? Colors.white : widget.color) : widget.color),
+            const SizedBox(width: 6),
+            Text(widget.label,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: widget.primary ? (_hover ? Colors.white : widget.color) : widget.color)),
+          ]),
+        ),
       ),
     );
   }

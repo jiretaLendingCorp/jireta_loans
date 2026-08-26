@@ -1048,14 +1048,12 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PremiumCard extends StatelessWidget {
-  final IconData? icon;
   final String title;
   final String subtitle;
   final Widget child;
   final Widget? trailing;
   const _PremiumCard(
-      {this.icon,
-      required this.title,
+      {required this.title,
       required this.subtitle,
       required this.child,
       this.trailing});
@@ -1077,22 +1075,6 @@ class _PremiumCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              if (icon != null) ...[
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.deepNavy, Color(0xFF1E3A5F)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon!, size: 18, color: AppColors.gold),
-                ),
-                const SizedBox(width: 10),
-              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1189,28 +1171,16 @@ class _FrequencyPill extends StatelessWidget {
 }
 
 class _HeroStatSmall extends StatelessWidget {
-  final IconData? icon;
   final String label;
   final String value;
   final String? sub;
-  const _HeroStatSmall(
-      {this.icon, required this.label, required this.value, this.sub});
+  const _HeroStatSmall({required this.label, required this.value, this.sub});
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Row(
         children: [
-          if (icon != null) ...[
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8)),
-              child: Icon(icon!, size: 14, color: AppColors.goldLight)),
-            const SizedBox(width: 8),
-          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

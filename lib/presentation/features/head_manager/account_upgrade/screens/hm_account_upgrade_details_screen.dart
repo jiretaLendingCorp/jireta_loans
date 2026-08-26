@@ -140,7 +140,7 @@ class _HmAccountUpgradeDetailsScreenState
   @override
   Widget build(BuildContext context) {
     return WebScaffold(
-      title: 'Account Upgrade Details',
+      title: 'Lender Account Upgrade Details',
       body: _loading
           ? const ShimmerLoader()
           : _error != null

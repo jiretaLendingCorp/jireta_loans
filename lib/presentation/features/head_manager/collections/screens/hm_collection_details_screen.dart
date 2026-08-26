@@ -143,9 +143,13 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
       ('Completed', col.completedAt != null, Icons.verified_rounded),
     ];
     int activeIdx = 0;
-    if (col.completedAt != null) activeIdx = 3;
-    else if (col.responseAt != null) activeIdx = 2;
-    else if (col.assignedByName.isNotEmpty) activeIdx = 1;
+    if (col.completedAt != null) {
+      activeIdx = 3;
+    } else if (col.responseAt != null) {
+      activeIdx = 2;
+    } else if (col.assignedByName.isNotEmpty) {
+      activeIdx = 1;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -289,23 +293,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
         return AppColors.error;
       default:
         return AppColors.textSecondary;
-    }
-  }
-
-  IconData _iconForStatus(String s) {
-    switch (s.toLowerCase()) {
-      case 'requested':
-        return Icons.pending_actions_rounded;
-      case 'assigned':
-        return Icons.assignment_ind_rounded;
-      case 'accepted':
-        return Icons.handshake_rounded;
-      case 'in_progress':
-        return Icons.timelapse_rounded;
-      case 'completed':
-        return Icons.verified_rounded;
-      default:
-        return Icons.info_rounded;
     }
   }
 }

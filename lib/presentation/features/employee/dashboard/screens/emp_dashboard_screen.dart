@@ -113,13 +113,13 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
       ),
       _QuickAction(
         Icons.description_outlined,
-        'Loan Applications',
+        'Loan Records',
         AppColors.warning,
         () => context.go(RouteConstants.empLoans),
       ),
       _QuickAction(
         Icons.verified_user_outlined,
-        'Account Upgrade Review',
+        'Lender Account Upgrade',
         AppColors.info,
         () => context.go(RouteConstants.empAccountUpgrade),
       ),

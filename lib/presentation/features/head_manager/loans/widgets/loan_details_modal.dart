@@ -51,15 +51,15 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
         child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F2F5),
+          decoration: const BoxDecoration(
+            color: Color(0xFFF0F2F5),
             borderRadius: BorderRadius.zero,
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
                   color: Color(0x33000000),
                   blurRadius: 24,
@@ -950,14 +950,12 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
 }
 
 class _PremiumCard extends StatelessWidget {
-  final IconData? icon;
   final String title;
   final String subtitle;
   final Widget child;
   final Widget? trailing;
   const _PremiumCard(
-      {this.icon,
-      required this.title,
+      {required this.title,
       required this.subtitle,
       required this.child,
       this.trailing});
@@ -974,16 +972,6 @@ class _PremiumCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              if (icon != null) ...[
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AppColors.deepNavy,
-                    borderRadius: BorderRadius.circular(9)),
-                  child: Icon(icon!, size: 16, color: AppColors.gold)),
-                const SizedBox(width: 8),
-              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1011,12 +999,8 @@ class _KVRow extends StatelessWidget {
   final String label;
   final String value;
   final TextStyle? valueStyle;
-  final Widget? valueWidget;
   const _KVRow(
-      {required this.label,
-      required this.value,
-      this.valueStyle,
-      this.valueWidget});
+      {required this.label, required this.value, this.valueStyle});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1032,15 +1016,18 @@ class _KVRow extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: AppColors.deepNavy))),
           Expanded(
-            child: valueWidget ??
-                Text(
-                  value,
-                  style: valueStyle ??
-                      const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary))),
-        ]));
+            child: Text(
+              value,
+              style: valueStyle ??
+                  const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

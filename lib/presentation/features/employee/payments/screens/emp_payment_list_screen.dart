@@ -2,217 +2,284 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/empty_state_widget.dart';
-import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/tables/table_filter_bar.dart';
-import '../../../../shared/widgets/tables/table_pagination.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 import '../providers/emp_payment_provider.dart';
 
 class EmpPaymentListScreen extends ConsumerStatefulWidget {
   const EmpPaymentListScreen({super.key});
 
   @override
-  ConsumerState<EmpPaymentListScreen> createState() =>
-      _EmpPaymentListScreenState();
+  ConsumerState<EmpPaymentListScreen> createState() => _EmpPaymentListScreenState();
 }
 
-class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen> {
-  final _searchCtrl = TextEditingController();
-  String? _methodFilter;
-  String? _statusFilter;
-  int _currentPage = 1;
+class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final _tabs = [
+    ('all', 'All'),
+    ('gcash', 'GCash'),
+    ('office_cash', 'Office'),
+    ('rider_collection', 'Rider Collection')
+  ];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(empPaymentListProvider.notifier).loadList();
-    });
+    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    final tab = _tabs[_tabController.index].$1;
+    ref.read(empPaymentListProvider.notifier).fetch(method: tab == 'all' ? null : tab);
   }
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(empPaymentListProvider);
-    final items = state.valueOrNull?['items'] as List? ?? [];
-    final total = state.valueOrNull?['total'] as int? ?? 0;
-    final totalPages = (total / 20).ceil();
-
     return WebScaffold(
       title: 'Payments',
       actions: [
         IconButton(
-          onPressed: () => ref.read(empPaymentListProvider.notifier).loadList(
-              method: _methodFilter, status: _statusFilter, page: _currentPage),
-          icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-        ),
+            onPressed: () => ref.read(empPaymentListProvider.notifier).fetch(),
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh'),
+        const SizedBox(width: 12),
       ],
       body: Column(
         children: [
-          buildFilterBar(
-            searchController: _searchCtrl,
-            searchHint: 'Search by loan# or lender...',
-            filters: [
-              (
-                label: 'Method',
-                value: _methodFilter ?? 'all',
-                options: ['all', 'gcash', 'office_cash', 'rider_collection'],
-                onChanged: (v) {
-                  setState(() => _methodFilter = v == 'all' ? null : v);
-                  ref.read(empPaymentListProvider.notifier).loadList(
-                      method: _methodFilter, status: _statusFilter, page: 1);
-                },
-              ),
-              (
-                label: 'Status',
-                value: _statusFilter ?? 'all',
-                options: ['all', 'pending', 'verified', 'reversed'],
-                onChanged: (v) {
-                  setState(() => _statusFilter = v == 'all' ? null : v);
-                  ref.read(empPaymentListProvider.notifier).loadList(
-                      method: _methodFilter, status: _statusFilter, page: 1);
-                },
-              ),
-            ],
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              labelColor: AppColors.deepNavy,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.gold,
+              tabs: _tabs.map((t) => Tab(text: t.$2)).toList(),
+            ),
           ),
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
-                : items.isEmpty
-                    ? const EmptyStateWidget(
-                        icon: Icons.payment_outlined,
-                        title: 'No payments found',
-                        subtitle: 'Payment records will appear here.',
-                      )
-                    : _PaymentListView(items: items),
+                : state.payments.isEmpty
+                    ? _buildEmpty()
+                    : _buildTable(state),
           ),
-          if (totalPages > 1)
-            TablePagination(
-              currentPage: _currentPage,
-              totalPages: totalPages,
-              totalCount: total,
-              onPageChange: (p) {
-                setState(() => _currentPage = p);
-                ref.read(empPaymentListProvider.notifier).loadList(
-                    method: _methodFilter, status: _statusFilter, page: p);
-              },
-            ),
         ],
       ),
     );
   }
-}
 
-class _PaymentListView extends StatelessWidget {
-  final List items;
-  const _PaymentListView({required this.items});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildTable(EmpPaymentState state) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
-    return ListView.separated(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (ctx, i) {
-        final p = items[i] as Map<String, dynamic>;
-        final id = p['id'] as String? ?? '';
-        final loanNumber = p['loan_number'] as String? ?? '-';
-        final lenderName = p['lender_name'] as String? ?? '-';
-        final amount = (p['amount'] as num?)?.toDouble() ?? 0.0;
-        final method = p['payment_method'] as String? ?? '-';
-        final status = p['status'] as String? ?? '-';
-        final date = p['created_at'] as String? ?? '-';
-
-        return Card(
-          key: ValueKey(id),
-          elevation: 1,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => context.go(
-              RouteConstants.empPaymentDetails.replaceFirst(':id', id),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.deepNavy.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.receipt_outlined,
-                        color: AppColors.deepNavy, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(loanNumber,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700, fontSize: 13)),
-                            const SizedBox(width: 8),
-                            StatusBadge(status: status),
-                          ],
-                        ),
-                        Text(lenderName,
-                            style: const TextStyle(
-                                fontSize: 13, color: AppColors.textSecondary)),
-                        Text('${_methodLabel(method)} • $date',
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textTertiary)),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('₱${fmt.format(amount)}',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: AppColors.deepNavy)),
-                      const Icon(Icons.chevron_right,
-                          color: AppColors.textTertiary, size: 18),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.border)),
+        child: Column(
+          children: [
+            _buildHeader(),
+            const Divider(height: 1),
+            ...state.payments.asMap().entries.map((e) => _buildRow(e.value, e.key.isEven, fmt)),
+          ],
+        ),
+      ),
     );
   }
 
-  String _methodLabel(String m) {
-    switch (m) {
+  Widget _buildHeader() {
+    const s = TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: AppColors.surfaceVariant,
+      child: const Row(
+        children: [
+          Expanded(flex: 3, child: Text('LENDER', style: s)),
+          Expanded(flex: 2, child: Text('LOAN #', style: s)),
+          Expanded(flex: 2, child: Text('AMOUNT', style: s)),
+          Expanded(flex: 2, child: Text('METHOD', style: s)),
+          Expanded(flex: 2, child: Text('DATE', style: s)),
+          Expanded(flex: 2, child: Text('STATUS', style: s)),
+          Expanded(flex: 1, child: Text('', style: s)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRow(Map<String, dynamic> p, bool isEven, NumberFormat fmt) {
+    final lender = p['lender'] as Map<String, dynamic>? ?? {};
+    final loan = p['loan'] as Map<String, dynamic>? ?? {};
+    final loanNumberFlat = p['loan_number'] as String? ?? p['loan']?['loan_number'] as String?;
+    final displayLoan = loanNumberFlat ?? loan['loan_number'] as String? ?? '-';
+    final flatLenderName = p['lender_name'] != null ? p['lender_name'] as String : null;
+    final resolvedLender = flatLenderName != null && flatLenderName.isNotEmpty
+        ? flatLenderName
+        : ('${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim().isEmpty
+            ? '-'
+            : '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim());
+    // Use resolved values
+    final status = p['status'] as String? ?? '-';
+    final method = p['payment_method'] as String? ?? p['method'] as String? ?? '-';
+    final statusColor = status == 'verified'
+        ? AppColors.success
+        : status == 'pending'
+            ? AppColors.warning
+            : AppColors.error;
+    return InkWell(
+      onTap: () {
+        final id = p['id'] as String? ?? '';
+        if (id.isNotEmpty) context.go(RouteConstants.empPaymentDetails.replaceFirst(':id', id));
+      },
+      child: Container(
+        key: ValueKey(p['id']),
+        color: isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+                flex: 3,
+                child: Text(resolvedLender.isEmpty ? '-' : resolvedLender,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+            Expanded(
+                flex: 2,
+                child: Text(displayLoan.isEmpty ? '-' : displayLoan, style: const TextStyle(fontSize: 13))),
+            Expanded(
+                flex: 2,
+                child: Text('₱${fmt.format(p['amount'] ?? 0)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+            Expanded(flex: 2, child: _buildMethodBadge(method)),
+            Expanded(
+                flex: 2,
+                child: Text(_formatDate(p['created_at']),
+                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+            Expanded(
+              flex: 2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration:
+                    BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+                child: Text(_capitalize(status),
+                    style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w500)),
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: status == 'verified'
+                  ? Tooltip(
+                      message: 'Reverse Payment',
+                      child: IconButton(
+                        onPressed: () => _confirmReverse(p['id'] as String? ?? ''),
+                        icon: const Icon(Icons.undo, size: 18, color: AppColors.error),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMethodBadge(String method) {
+    Color c;
+    switch (method) {
       case 'gcash':
-        return 'GCash';
+        c = AppColors.lenderBlue;
+        break;
       case 'office_cash':
       case 'cash':
-        return 'Office';
+        c = AppColors.success;
+        break;
       case 'rider_collection':
-        return 'Rider Collection';
+        c = AppColors.riderGreen;
+        break;
       default:
-        return m;
+        c = AppColors.info;
+    }
+    String label;
+    switch (method) {
+      case 'gcash':
+      case 'gcash_xendit':
+        label = 'GCash';
+        break;
+      case 'office_cash':
+      case 'cash':
+        label = 'Office';
+        break;
+      case 'rider_collection':
+        label = 'Rider Collection';
+        break;
+      default:
+        label = _capitalize(method.replaceAll('_', ' '));
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+      child: Text(label, style: TextStyle(fontSize: 12, color: c, fontWeight: FontWeight.w500)),
+    );
+  }
+
+  Widget _buildEmpty() => const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.payments_outlined, size: 64, color: AppColors.textTertiary),
+            SizedBox(height: 16),
+            Text('No payments found', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+          ],
+        ),
+      );
+
+  Future<void> _confirmReverse(String paymentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reverse Payment'),
+        content: const Text('Are you sure you want to reverse this payment? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+              child: const Text('Reverse')),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      final ok = await ref.read(empPaymentListProvider.notifier).reversePayment(paymentId);
+      if (mounted) {
+        context.showSnackBarAsToast(
+          SnackBar(
+              content: Text(ok ? 'Payment reversed' : 'Failed to reverse payment'),
+              backgroundColor: ok ? AppColors.success : AppColors.error),
+        );
+      }
     }
   }
+
+  String _formatDate(dynamic d) {
+    if (d == null) return '-';
+    try {
+      return DateFormat('MMM dd, yyyy').format(DateTime.parse(d.toString()));
+    } catch (_) {
+      return d.toString();
+    }
+  }
+
+  String _capitalize(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 }

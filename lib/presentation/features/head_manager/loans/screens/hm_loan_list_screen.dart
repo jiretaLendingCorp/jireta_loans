@@ -324,8 +324,7 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
                     .clamp(0.0, 1.0)
                 : 0.0;
             final due = loan.dueDate;
-            final daysLeft =
-                due != null ? due.difference(DateTime.now()).inDays : null;
+            final daysLeft = due?.difference(DateTime.now()).inDays;
 
             return Container(
               padding:

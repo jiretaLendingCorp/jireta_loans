@@ -796,14 +796,12 @@ class _HmLoanApplicationDetailsScreenState
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PremiumCard extends StatelessWidget {
-  final IconData? icon;
   final String title;
   final String subtitle;
   final Widget child;
   final Widget? trailing;
   const _PremiumCard(
-      {this.icon,
-      required this.title,
+      {required this.title,
       required this.subtitle,
       required this.child,
       this.trailing});
@@ -825,22 +823,6 @@ class _PremiumCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              if (icon != null) ...[
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.deepNavy, Color(0xFF1E3A5F)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon!, size: 18, color: AppColors.gold),
-                ),
-                const SizedBox(width: 10),
-              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

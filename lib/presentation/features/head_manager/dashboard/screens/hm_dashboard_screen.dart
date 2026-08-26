@@ -224,13 +224,13 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
       ),
       _QuickAction(
         Icons.description_rounded,
-        'Loan Applications',
+        'Loan Records',
         AppColors.warning,
         () => context.go(RouteConstants.hmLoanApplications),
       ),
       _QuickAction(
         Icons.verified_user_rounded,
-        'Account Upgrade Review',
+        'Lender Account Upgrade',
         AppColors.lenderBlue,
         () => context.go(RouteConstants.hmAccountUpgrade),
       ),

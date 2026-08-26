@@ -4,329 +4,411 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/tables/table_filter_bar.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/emp_collection_provider.dart';
+import '../widgets/emp_assign_rider_modal.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpCollectionListScreen extends ConsumerStatefulWidget {
   const EmpCollectionListScreen({super.key});
 
   @override
-  ConsumerState<EmpCollectionListScreen> createState() =>
-      _EmpCollectionListScreenState();
+  ConsumerState<EmpCollectionListScreen> createState() => _EmpCollectionListScreenState();
 }
 
-class _EmpCollectionListScreenState
-    extends ConsumerState<EmpCollectionListScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabCtrl;
-  final _searchCtrl = TextEditingController();
-  int _currentPage = 1;
-
-  final _tabs = [
-    ('all', 'All'),
-    ('requested', 'Requested'),
-    ('assigned', 'Assigned'),
-    ('accepted', 'Accepted'),
-    ('in_progress', 'In Progress'),
-    ('completed', 'Completed'),
-    ('failed', 'Failed'),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: _tabs.length, vsync: this);
-    _tabCtrl.addListener(_onTabChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(empCollectionListProvider.notifier).loadList();
-    });
-  }
-
-  void _onTabChanged() {
-    if (_tabCtrl.indexIsChanging) return;
-    _currentPage = 1;
-    ref.read(empCollectionListProvider.notifier).loadList(
-        status: _tabs[_tabCtrl.index].$1 == 'all'
-            ? null
-            : _tabs[_tabCtrl.index].$1);
-  }
+class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScreen> {
+  final _search = TextEditingController();
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
-    _searchCtrl.dispose();
+    _search.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(empCollectionListProvider);
-    final items = state.valueOrNull?['items'] as List? ?? [];
-    final total = state.valueOrNull?['total'] as int? ?? 0;
-    final totalPages = (total / 20).ceil();
+    final state = ref.watch(empCollectionProvider);
 
     return WebScaffold(
       title: 'Collections',
       actions: [
-        IconButton(
-          onPressed: () => ref
-              .read(empCollectionListProvider.notifier)
-              .loadList(
-                  status: _tabs[_tabCtrl.index].$1 == 'all'
-                      ? null
-                      : _tabs[_tabCtrl.index].$1),
-          icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-          tooltip: 'Refresh',
+        Container(
+          decoration: BoxDecoration(
+              color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+          child: IconButton(
+              onPressed: () => ref.read(empCollectionProvider.notifier).fetch(),
+              icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.textSecondary)),
         ),
       ],
       body: Column(
         children: [
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabCtrl,
-              isScrollable: true,
-              labelColor: AppColors.deepNavy,
-              unselectedLabelColor: AppColors.textSecondary,
-              indicatorColor: AppColors.gold,
-              tabs: _tabs.map((t) => Tab(text: t.$2)).toList(),
-            ),
-          ),
-          buildFilterBar(
-            searchController: _searchCtrl,
-            searchHint: 'Search by loan# or lender name...',
-            onSearch: (q) => ref
-                .read(empCollectionListProvider.notifier)
-                .loadList(
-                    status: _tabs[_tabCtrl.index].$1 == 'all'
-                        ? null
-                        : _tabs[_tabCtrl.index].$1),
-            filters: const [],
-          ),
+          _buildFilterBar(state),
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
-                : state.hasError
-                    ? _buildError(context)
-                    : items.isEmpty
-                        ? const EmptyStateWidget(
-                            icon: Icons.local_shipping_outlined,
-                            title: 'No collections found',
-                            subtitle: 'Assign a rider to begin collection.',
-                          )
-                        : ListView.separated(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: items.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 8),
-                            itemBuilder: (ctx, i) => _CollectionCard(
-                              key: ValueKey(items[i]['id']),
-                              collection: items[i],
-                            ),
-                          ),
+                : state.items.isEmpty
+                    ? (state.error != null ? _buildError(context, ref, state.error!) : _buildEmpty())
+                    : _buildList(context, state),
           ),
-          if (totalPages > 1)
+          if (state.totalPages > 1)
             TablePagination(
-              currentPage: _currentPage,
-              totalPages: totalPages,
-              totalCount: total,
-              onPageChange: (p) {
-                _currentPage = p;
-                ref.read(empCollectionListProvider.notifier).loadList(
-                    status: _tabs[_tabCtrl.index].$1 == 'all'
-                        ? null
-                        : _tabs[_tabCtrl.index].$1,
-                    page: p);
-              },
-            ),
+                currentPage: state.currentPage,
+                totalPages: state.totalPages,
+                totalCount: state.totalCount,
+                onPageChange: (p) => ref.read(empCollectionProvider.notifier).fetch(page: p)),
         ],
       ),
     );
   }
-  Widget _buildError(BuildContext context) {
-    final state = ref.watch(empCollectionListProvider);
-    final message =
-        ErrorHandler.handle(state.error).message;
+
+  Widget _buildFilterBar(EmpCollectionState state) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+          boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _search,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search by loan # or lender…',
+                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textTertiary),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _StatusPill(
+                  label: 'All',
+                  value: 'all',
+                  selected: state.statusFilter == 'all',
+                  onTap: (v) => ref.read(empCollectionProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(
+                  label: 'Requested',
+                  value: 'requested',
+                  selected: state.statusFilter == 'requested',
+                  onTap: (v) => ref.read(empCollectionProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(
+                  label: 'Assigned',
+                  value: 'assigned',
+                  selected: state.statusFilter == 'assigned',
+                  onTap: (v) => ref.read(empCollectionProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(
+                  label: 'In Progress',
+                  value: 'in_progress',
+                  selected: state.statusFilter == 'in_progress',
+                  onTap: (v) => ref.read(empCollectionProvider.notifier).setStatus(v)),
+              const SizedBox(width: 6),
+              _StatusPill(
+                  label: 'Completed',
+                  value: 'completed',
+                  selected: state.statusFilter == 'completed',
+                  onTap: (v) => ref.read(empCollectionProvider.notifier).setStatus(v)),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildList(BuildContext context, EmpCollectionState state) {
+    final q = _search.text.toLowerCase().trim();
+    final fmt = NumberFormat('#,##0.00', 'en_PH');
+    final items = q.isEmpty
+        ? state.items
+        : state.items
+            .where((c) =>
+                c.loanNumber.toString().toLowerCase().contains(q) ||
+                c.lenderName.toString().toLowerCase().contains(q) ||
+                c.riderName.toString().toLowerCase().contains(q))
+            .toList();
+    if (items.isEmpty) {
+      return Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(16)),
+            child: const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary)),
+        const SizedBox(height: 14),
+        const Text('No matches', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('Try a different search or status filter',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+      ]));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (ctx, i) => _CollectionCard(
+          key: ValueKey(items[i].id), collection: items[i], fmt: fmt, onTap: () => context.go(RouteConstants.empCollectionDetails.replaceFirst(':id', items[i].id))),
+    );
+  }
+
+  Widget _buildError(BuildContext context, WidgetRef ref, String message) {
     return Center(
-      child: Padding(
+      child: Container(
+        margin: const EdgeInsets.all(24),
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined,
-                size: 56, color: AppColors.textTertiary),
-            const SizedBox(height: 12),
-            const Text(
-              'Failed to load collections',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => ref
-                  .read(empCollectionListProvider.notifier)
-                  .loadList(
-                      status: _tabs[_tabCtrl.index].$1 == 'all'
-                          ? null
-                          : _tabs[_tabCtrl.index].$1),
-              icon: const Icon(Icons.refresh, size: 18),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.cloud_off_rounded, size: 32, color: AppColors.error)),
+          const SizedBox(height: 14),
+          const Text('Failed to load collections', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+              onPressed: () => ref.read(empCollectionProvider.notifier).fetch(),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Retry'),
-            ),
-          ],
-        ),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [AppColors.riderGreen.withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]),
+                  borderRadius: BorderRadius.circular(18)),
+              child: const Icon(Icons.delivery_dining_rounded, size: 40, color: AppColors.riderGreen)),
+          const SizedBox(height: 16),
+          const Text('No collections found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          const Text('Rider collection assignments will appear here once requested.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
+        ]),
       ),
     );
   }
 }
 
-class _CollectionCard extends ConsumerWidget {
-  final Map<String, dynamic> collection;
-  const _CollectionCard({super.key, required this.collection});
+class _StatusPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool selected;
+  final ValueChanged<String> onTap;
+  const _StatusPill({required this.label, required this.value, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+            color: selected ? AppColors.deepNavy : AppColors.surfaceVariant,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: selected ? AppColors.deepNavy : AppColors.border)),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? Colors.white : AppColors.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _CollectionCard extends ConsumerStatefulWidget {
+  final dynamic collection;
+  final NumberFormat fmt;
+  final VoidCallback onTap;
+  const _CollectionCard({super.key, required this.collection, required this.fmt, required this.onTap});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final fmt = NumberFormat('#,##0.00', 'en_PH');
-    final id = collection['id'] as String? ?? '';
-    final loanNumber = collection['loan_number'] ??
-        collection['loans']?['loan_number'] ??
-        '-';
-    final lenderProf = collection['loans']?['lender_profiles'];
-    final lenderUsers = lenderProf?['users'];
-    final lenderName = collection['lender_name'] ??
-        '${lenderUsers?['first_name'] ?? ''} ${lenderUsers?['last_name'] ?? ''}'
-            .trim();
-    final riderUsers = collection['rider']?['users'];
-    final riderName = (collection['rider_name'] ??
-            '${riderUsers?['first_name'] ?? ''} ${riderUsers?['last_name'] ?? ''}'
-                .trim())
-        .toString()
-        .isEmpty
-        ? 'Unassigned'
-        : collection['rider_name'] ??
-            '${riderUsers?['first_name'] ?? ''} ${riderUsers?['last_name'] ?? ''}'
-                .trim();
-    final status = collection['status'] as String? ?? 'assigned';
-    final collectionType =
-        collection['collection_type'] as String? ?? 'rider';
-    final isOffice = collectionType == 'office';
-    final amount = (collection['amount_due'] as num?)?.toDouble() ??
-        (collection['loan_schedule']?['amount_due'] as num?)?.toDouble() ??
-        0.0;
-    final schedule = collection['collection_schedule'] as String?;
-    final lenderPhone = collection['lender_phone'] as String?;
-    final addresses =
-        (collection['lender_addresses'] as List?) ?? const [];
-    final primaryAddr = addresses.isEmpty
-        ? null
-        : addresses.firstWhere(
-            (a) => a is Map && a['is_primary'] == true,
-            orElse: () => addresses.first,
-          ) as Map?;
-    final addrText = primaryAddr == null
-        ? null
-        : [
-            primaryAddr['street'],
-            primaryAddr['barangay'],
-            primaryAddr['city'],
-          ].whereType<String>().where((s) => s.isNotEmpty).join(', ');
+  ConsumerState<_CollectionCard> createState() => _CollectionCardState();
+}
 
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => context.go(
-          RouteConstants.empCollectionDetails.replaceFirst(':id', id),
+class _CollectionCardState extends ConsumerState<_CollectionCard> {
+  bool _hover = false;
+
+  bool get _canAssign {
+    final col = widget.collection;
+    final isOffice = col.collectionType == 'office';
+    return col.status == 'requested' && !isOffice;
+  }
+
+  Future<void> _assignRider() async {
+    final col = widget.collection;
+    final loanScheduleId = col.loanScheduleId as String? ?? '';
+    final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
+    final result = await showDialog<bool>(
+        context: context,
+        builder: (_) => EmpAssignRiderModal(loanScheduleId: loanScheduleId, loanId: loanId, assignmentId: col.id as String? ?? ''));
+    if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
+  }
+
+  Color _accentForStatus(String s) {
+    switch (s.toLowerCase()) {
+      case 'requested':
+        return AppColors.warning;
+      case 'assigned':
+        return AppColors.lenderBlue;
+      case 'accepted':
+        return AppColors.riderGreen;
+      case 'in_progress':
+        return const Color(0xFFFFA000);
+      case 'completed':
+        return AppColors.riderGreen;
+      case 'failed':
+      case 'declined':
+        return AppColors.error;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final col = widget.collection;
+    final schedule = col.loanSchedule as Map<String, dynamic>? ?? {};
+    final isOffice = col.collectionType == 'office';
+    final amount = col.amountCollected ?? (schedule['amount_due'] as num?)?.toDouble() ?? 0.0;
+    final status = (col.status?.toString() ?? '').toLowerCase();
+    final accent = _accentForStatus(status);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _hover ? accent.withValues(alpha: 0.3) : AppColors.border),
+          boxShadow: _hover
+              ? [BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6))]
+              : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.deepNavy.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                    isOffice
-                        ? Icons.storefront_outlined
-                        : Icons.local_shipping_outlined,
-                    color: AppColors.deepNavy,
-                    size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(loanNumber,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13)),
-                        const SizedBox(width: 8),
-                        StatusBadge(status: status),
-                      ],
+        child: Row(
+          children: [
+            Container(width: 4, height: 56, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(
+                      child: Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                          overflow: TextOverflow.ellipsis)),
+                  if (isOffice)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(color: const Color(0xFF00838F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('OFFICE',
+                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF00838F), letterSpacing: 0.6)),
                     ),
-                    const SizedBox(height: 2),
-                    Text(lenderName,
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary)),
-                    if (lenderPhone != null &&
-                        lenderPhone.toString().isNotEmpty)
-                      Text('Phone: $lenderPhone',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary)),
-                    if (addrText != null && addrText.isNotEmpty)
-                      Text(addrText,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary)),
-                    Text(isOffice ? 'Office visit payment' : 'Rider: $riderName',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textTertiary)),
-                    if (schedule != null)
-                      Text('Schedule: $schedule',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.textTertiary)),
-                  ],
+                ]),
+                const SizedBox(height: 2),
+                Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Wrap(spacing: 10, runSpacing: 4, children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded,
+                        size: 13, color: AppColors.textTertiary),
+                    const SizedBox(width: 4),
+                    Flexible(
+                        child: Text(isOffice ? 'Office visit payment' : col.riderName.isNotEmpty ? col.riderName : 'Unassigned',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))
+                  ]),
+                  if (col.collectionSchedule != null)
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.event_rounded, size: 12, color: AppColors.textTertiary),
+                      const SizedBox(width: 4),
+                      Text(DateFormat('MMM d, y').format(col.collectionSchedule!),
+                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))
+                    ]),
+                ]),
+              ]),
+            ),
+            const SizedBox(width: 12),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('₱${widget.fmt.format(amount)}',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
+              const SizedBox(height: 4),
+              StatusBadge(status: col.status),
+            ]),
+            const SizedBox(width: 10),
+            if (_canAssign)
+              InkWell(
+                onTap: () => _assignRider(),
+                borderRadius: BorderRadius.circular(9),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [AppColors.riderGreen, AppColors.riderGreenDark]),
+                      borderRadius: BorderRadius.circular(9),
+                      boxShadow: [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))]),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white),
+                    SizedBox(width: 6),
+                    Text('Assign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))
+                  ]),
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('₱${fmt.format(amount)}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: AppColors.deepNavy)),
-                  const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right,
-                      color: AppColors.textTertiary, size: 20),
-                ],
+            if (_canAssign) const SizedBox(width: 8),
+            Tooltip(
+              message: 'View',
+              child: InkWell(
+                onTap: widget.onTap,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepNavy.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                      SizedBox(width: 4),
+                      Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                    ],
+                  ),
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

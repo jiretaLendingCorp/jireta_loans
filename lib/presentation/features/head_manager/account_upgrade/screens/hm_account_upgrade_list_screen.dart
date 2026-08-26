@@ -35,7 +35,7 @@ class _HmAccountUpgradeListScreenState
     final state = ref.watch(hmAccountUpgradeProvider);
 
     return WebScaffold(
-      title: 'Account Upgrade Review',
+      title: 'Lender Account Upgrade',
       actions: [
         Container(
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),

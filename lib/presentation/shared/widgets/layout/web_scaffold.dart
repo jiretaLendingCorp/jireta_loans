@@ -497,21 +497,11 @@ class _SidebarState extends ConsumerState<_Sidebar> {
         const _NavItem(
             Icons.person_outline, 'Lenders', RouteConstants.hmLenders),
         const _NavItem(
-          Icons.storefront_outlined,
-          'In-Office Application',
-          RouteConstants.hmInOffice,
-        ),
-        const _NavItem(
           Icons.description_outlined,
-          'Loan Applications',
+          'Loan Records',
           RouteConstants.hmLoanApplications,
         ),
-        const _NavItem(
-          Icons.account_balance_wallet_outlined,
-          'Active Loans',
-          RouteConstants.hmLoans,
-        ),
-        const _NavItem(Icons.verified_user_outlined, 'Account Upgrade Review',
+        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
             RouteConstants.hmAccountUpgrade),
         const _NavItem(
           Icons.search_outlined,
@@ -546,20 +536,10 @@ class _SidebarState extends ConsumerState<_Sidebar> {
         ),
         const _NavItem(
           Icons.description_outlined,
-          'Loan Applications',
+          'Loan Records',
           RouteConstants.empLoans,
         ),
-        const _NavItem(
-          Icons.account_balance_wallet_outlined,
-          'Active Loans',
-          RouteConstants.empActiveLoans,
-        ),
-        const _NavItem(
-          Icons.storefront_outlined,
-          'In-Office Application',
-          RouteConstants.empInOffice,
-        ),
-        const _NavItem(Icons.verified_user_outlined, 'Account Upgrade Review',
+        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
             RouteConstants.empAccountUpgrade),
         const _NavItem(
           Icons.search_outlined,
@@ -651,8 +631,23 @@ class _SidebarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
-    final isActive = item.route.isNotEmpty &&
-        (path == item.route || path.startsWith('${item.route}/'));
+    // Loan Records (formerly Loan Applications) is the parent of Active Loans & In-Office — keep it
+    // highlighted when the user is on those child routes (tabs moved into
+    // Loan Records top pills, side-nav entries removed).
+    final isLoanApplicationsParent =
+        (item.route == RouteConstants.hmLoanApplications &&
+            (path == RouteConstants.hmLoans ||
+                path.startsWith('${RouteConstants.hmLoans}/') ||
+                path == RouteConstants.hmInOffice ||
+                path.startsWith('${RouteConstants.hmInOffice}/'))) ||
+        (item.route == RouteConstants.empLoans &&
+            (path == RouteConstants.empActiveLoans ||
+                path.startsWith('${RouteConstants.empActiveLoans}/') ||
+                path == RouteConstants.empInOffice ||
+                path.startsWith('${RouteConstants.empInOffice}/')));
+    final isActive = isLoanApplicationsParent ||
+        (item.route.isNotEmpty &&
+            (path == item.route || path.startsWith('${item.route}/')));
 
     return Tooltip(
       message: collapsed ? item.label : '',
