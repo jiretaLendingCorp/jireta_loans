@@ -3,9 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
@@ -57,12 +55,12 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     _Entrance(child: HmAnalyticsPanel(kpi: dashState.kpi)),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
-                      Icons.bolt_rounded,
-                      'Quick Actions',
-                      'Jump straight to the most used modules',
+                      Icons.people_rounded,
+                      'User Statistics',
+                      'Staff and lender counts across the branch',
                     ),
                     const SizedBox(height: 14),
-                    _buildQuickActions(context),
+                    _buildUserStatsGrid(dashState.kpi),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.account_balance_wallet_rounded,
@@ -71,14 +69,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     ),
                     const SizedBox(height: 14),
                     _buildFinancialGrid(dashState.kpi),
-                    const SizedBox(height: 28),
-                    _buildSectionTitle(
-                      Icons.people_rounded,
-                      'User Statistics',
-                      'Staff and lender counts across the branch',
-                    ),
-                    const SizedBox(height: 14),
-                    _buildUserStatsGrid(dashState.kpi),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.description_rounded,
@@ -208,74 +198,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
     );
   }
 
-  Widget _buildQuickActions(BuildContext context) {
-    final actions = [
-      _QuickAction(
-        Icons.storefront_rounded,
-        'In-Office Application',
-        AppColors.deepNavy,
-        () => context.go(RouteConstants.hmInOffice),
-      ),
-      _QuickAction(
-        Icons.person_add_rounded,
-        'Add Employee',
-        AppColors.riderGreen,
-        () => context.go(RouteConstants.hmEmployees),
-      ),
-      _QuickAction(
-        Icons.description_rounded,
-        'Loan Records',
-        AppColors.warning,
-        () => context.go(RouteConstants.hmLoanApplications),
-      ),
-      _QuickAction(
-        Icons.verified_user_rounded,
-        'Lender Account Upgrade',
-        AppColors.lenderBlue,
-        () => context.go(RouteConstants.hmAccountUpgrade),
-      ),
-      _QuickAction(
-        Icons.assessment_rounded,
-        'Generate Report',
-        AppColors.goldDark,
-        () => context.go(RouteConstants.hmReports),
-      ),
-      _QuickAction(
-        Icons.delivery_dining_rounded,
-        'Collections',
-        const Color(0xFF2E7D32),
-        () => context.go(RouteConstants.hmCollections),
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 1000
-            ? 3
-            : constraints.maxWidth >= 600
-                ? 2
-                : 1;
-        const spacing = 12.0;
-        final cardWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: actions
-              .asMap()
-              .entries
-              .map((e) => SizedBox(
-                    width: cardWidth,
-                    child: _Entrance(
-                      delay: 80 + e.key * 55,
-                      child: _QuickActionCard(action: e.value),
-                    ),
-                  ))
-              .toList(),
-        );
-      },
-    );
-  }
-
   Widget _buildUserStatsGrid(KpiHeadManagerModel kpi) {
     return _buildGridRow([
       _KpiCard(label: 'Total Employees', value: kpi.totalEmployees.toDouble(), icon: Icons.people_rounded, color: AppColors.deepNavy, isCurrency: false),
@@ -355,77 +277,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
               .toList(),
         );
       },
-    );
-  }
-}
-
-class _QuickAction {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _QuickAction(this.icon, this.label, this.color, this.onTap);
-}
-
-class _QuickActionCard extends StatefulWidget {
-  final _QuickAction action;
-  const _QuickActionCard({required this.action});
-
-  @override
-  State<_QuickActionCard> createState() => _QuickActionCardState();
-}
-
-class _QuickActionCardState extends State<_QuickActionCard> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = widget.action.color;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: AnimatedScale(
-        scale: _hover ? 1.02 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: _hover ? color.withValues(alpha: 0.06) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _hover ? color.withValues(alpha: 0.35) : AppColors.border),
-            boxShadow: _hover
-                ? [BoxShadow(color: color.withValues(alpha: 0.16), blurRadius: 14, offset: const Offset(0, 5))]
-                : const [BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 1))],
-          ),
-          child: InkWell(
-            onTap: widget.action.onTap,
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                      borderRadius: BorderRadius.circular(11),
-                      boxShadow: [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
-                    ),
-                    child: Icon(widget.action.icon, size: 18, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(widget.action.label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _hover ? color : AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                  ),
-                  Icon(Icons.arrow_forward_ios_rounded, size: 12, color: _hover ? color : AppColors.textTertiary),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -10,6 +10,10 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
 
+/// Modern chart-based analytics section shown at the top of the Head Manager
+/// dashboard. Renders live charts (donut, monthly bar, applications trend and
+/// revenue breakdown) — now fully interactive with hover tooltips and drill-down
+/// detail sheets on tap.
 class HmAnalyticsPanel extends StatelessWidget {
   final KpiHeadManagerModel kpi;
   const HmAnalyticsPanel({super.key, required this.kpi});
@@ -99,6 +103,7 @@ class HmAnalyticsPanel extends StatelessWidget {
   }
 }
 
+// ── Shared chart card ───────────────────────────────────────────────────────
 class _ChartCard extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -207,6 +212,7 @@ class _ChartCard extends StatelessWidget {
   }
 }
 
+// ── Donut: loan portfolio by status ─────────────────────────────────────────
 class _DonutSegment {
   final String label;
   final String statusKey;
@@ -229,6 +235,8 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
   int _hovered = -1;
 
   List<_DonutSegment> _segments(KpiHeadManagerModel kpi) {
+    // Prefer backend breakdown when available for exact "pending" bucket;
+    // fallback to derived count for backwards-compatibility.
     final int pending;
     if (kpi.loanStatusBreakdown.isNotEmpty && kpi.pendingBucket > 0) {
       pending = kpi.pendingBucket;
@@ -271,6 +279,8 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
         initialIndex: index,
         onNavigate: (statusKey) {
           Navigator.pop(ctx);
+          // Navigate to loan records; filter hint passed via extra is best-effort
+          // (route itself doesn't require it — sheet still shows correct detail).
           try {
             GoRouter.of(context).go(RouteConstants.hmLoanApplications);
           } catch (_) {}
@@ -305,6 +315,7 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                 Expanded(
                   child: Row(
                     children: [
+                      // Donut chart with fl_chart — fully interactive
                       Expanded(
                         flex: isNarrow ? 5 : 4,
                         child: PieChart(
@@ -366,11 +377,15 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                               );
                             }),
                           ),
-                          duration: const Duration(milliseconds: 420),
-                          curve: Curves.easeOutCubic,
+                          // ignore: deprecated_member_use
+                          swapAnimationDuration:
+                              const Duration(milliseconds: 420),
+                          // ignore: deprecated_member_use
+                          swapAnimationCurve: Curves.easeOutCubic,
                         ),
                       ),
                       const SizedBox(width: 8),
+                      // Interactive legend — hover highlights slice, tap drills down
                       Expanded(
                         flex: isNarrow ? 5 : 4,
                         child: SingleChildScrollView(
@@ -489,6 +504,7 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                 ),
               ],
             ),
+            // Overlay tooltip — does not affect layout so legend never overflows
             if (_hovered >= 0 && _hovered < segs.length)
               Positioned(
                 top: 0,
@@ -539,6 +555,7 @@ class _DonutTooltip extends StatelessWidget {
       default:
         desc = 'In pipeline · pending review / CI / approval';
     }
+    // Estimate share of released amount per status proportionally when possible
     final avgPrincipal = kpi.totalLoanApplications == 0
         ? 0
         : kpi.totalLoanAmountReleased /
@@ -731,6 +748,7 @@ class _PortfolioDrillSheet extends StatelessWidget {
                   controller: scrollCtrl,
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                   children: [
+                    // Summary cards
                     Row(
                       children: [
                         Expanded(
@@ -865,6 +883,7 @@ class _PortfolioDrillSheet extends StatelessWidget {
                       );
                     }),
                     const SizedBox(height: 16),
+                    // Backend breakdown expander
                     if (kpi.loanStatusBreakdown.isNotEmpty) ...[
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
@@ -992,6 +1011,7 @@ class _DrillStatCard extends StatelessWidget {
   }
 }
 
+// ── Monthly bar: disbursements vs collections ───────────────────────────────
 class _MonthlyBarChart extends StatefulWidget {
   final KpiHeadManagerModel kpi;
   const _MonthlyBarChart({required this.kpi});
@@ -1129,9 +1149,8 @@ class _MonthlyBarChartState extends State<_MonthlyBarChart> {
                           reservedSize: 22,
                           getTitlesWidget: (v, meta) {
                             final i = v.toInt();
-                            if (i < 0 || i >= points.length) {
+                            if (i < 0 || i >= points.length)
                               return const SizedBox.shrink();
-                            }
                             final isHovered = _hovered == i;
                             return SideTitleWidget(
                               axisSide: meta.axisSide,
@@ -1196,10 +1215,12 @@ class _MonthlyBarChartState extends State<_MonthlyBarChart> {
                           ),
                         ],
                       );
-                    }                    ),
+                    }),
                   ),
-                  duration: const Duration(milliseconds: 380),
-                  curve: Curves.easeOutCubic,
+                  // ignore: deprecated_member_use
+                  swapAnimationDuration: const Duration(milliseconds: 380),
+                  // ignore: deprecated_member_use
+                  swapAnimationCurve: Curves.easeOutCubic,
                 ),
               ),
             ),
@@ -1285,7 +1306,8 @@ class _BarTooltipCard extends StatelessWidget {
   final MonthlyKpiPoint? prev;
   final String fullLabel;
   const _BarTooltipCard(
-      {required this.point,
+      {super.key,
+      required this.point,
       required this.prev,
       required this.fullLabel});
 
@@ -1670,6 +1692,7 @@ class _MonthBarDrillSheet extends StatelessWidget {
   }
 }
 
+// ── Monthly applications trend ──────────────────────────────────────────────
 class _ApplicationsLineChart extends StatefulWidget {
   final KpiHeadManagerModel kpi;
   const _ApplicationsLineChart({required this.kpi});
@@ -1785,9 +1808,8 @@ class _ApplicationsLineChartState extends State<_ApplicationsLineChart> {
                           interval: 1,
                           getTitlesWidget: (v, meta) {
                             final i = v.toInt();
-                            if (i < 0 || i >= points.length) {
+                            if (i < 0 || i >= points.length)
                               return const SizedBox.shrink();
-                            }
                             final isHovered = _hovered == i;
                             return SideTitleWidget(
                               axisSide: meta.axisSide,
@@ -1981,7 +2003,8 @@ class _LineTooltipCard extends StatelessWidget {
   final String fullLabel;
   final double avg;
   const _LineTooltipCard(
-      {required this.point,
+      {super.key,
+      required this.point,
       required this.prev,
       required this.fullLabel,
       required this.avg});
@@ -2316,6 +2339,7 @@ class _MonthLineDrillSheet extends StatelessWidget {
   }
 }
 
+// ── Revenue composition (interactive) ─────────────────────────────────────
 class _RevenueBreakdown extends StatefulWidget {
   final KpiHeadManagerModel kpi;
   const _RevenueBreakdown({required this.kpi});
@@ -2432,6 +2456,7 @@ class _RevenueBreakdownState extends State<_RevenueBreakdown> {
                             ),
                           ),
                         ),
+                        // Invisible hover split
                         Positioned.fill(
                           child: Row(
                             children: [
