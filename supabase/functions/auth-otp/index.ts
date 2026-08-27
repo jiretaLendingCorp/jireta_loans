@@ -283,7 +283,7 @@ async function handleSendOtp(req: Request) {
 
   await db.from('otp_codes').insert({
     phone_number: phone,
-    code: codeHash,
+    otp_hash: codeHash,
     expires_at: expiresAt,
     attempts: 0,
     used: false,
@@ -387,7 +387,8 @@ async function handleVerifyOtp(req: Request) {
     }
 
     const submittedHash = await hashOtpCode(otpCode, phone);
-    if (otpRow.code !== submittedHash) {
+    const storedHash = (otpRow as Record<string, unknown>).otp_hash as string;
+    if (storedHash !== submittedHash) {
       await db.from('otp_codes').update({ attempts: otpRow.attempts + 1 }).eq('id', otpRow.id);
       return recordFailure('Invalid OTP code');
     }

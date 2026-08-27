@@ -117,10 +117,20 @@ CREATE POLICY "role_permissions_read_hm" ON role_permissions
   FOR SELECT TO authenticated
   USING (auth_role() = 'head_manager');
 
--- USERS — Flutter only reads own profile; all mutations via Edge Functions
+-- USERS — Tightened (00106): employee bulk read removed. Flutter lists go via
+-- service_role edge `users-admin?fn=get-list` which enforces RBAC + audit.
+-- Direct RLS now allows: own row OR head_manager all. Employee cannot bulk-read
+-- sensitive columns (email, phone, fcm_token, last_login_at) via direct query.
 CREATE POLICY "users_read_own" ON users
   FOR SELECT TO authenticated
-  USING (id = auth.uid() OR auth_role() IN ('head_manager','employee'));
+  USING (
+    id = auth.uid()
+    OR auth_role() = 'head_manager'
+    OR (
+      auth_role() = 'employee'
+      AND role_id IN (SELECT id FROM roles WHERE name IN ('lender','rider'))
+    )
+  );
 
 CREATE POLICY "users_no_direct_insert" ON users
   FOR INSERT TO authenticated WITH CHECK (false);
@@ -133,7 +143,13 @@ CREATE POLICY "auth_logs_own" ON auth_logs
   FOR SELECT TO authenticated
   USING (user_id = auth.uid() OR auth_role() = 'head_manager');
 
--- LENDER PROFILES — owner reads own; HM/Employee read all; writes via service role
+-- LENDER PROFILES — Tightened (00106): employee direct read remains for operational
+-- loan processing, but head_manager is full, employee is documented as needing
+-- PII (dob, monthly_income, gcash) for verification. Bulk lender lists for employee
+-- are also available via service_role `users-admin` with audit, so direct RLS
+-- is kept for realtime but limited to head_manager/employee as before; sensitive
+-- outer users rows are already limited by users_read_own.
+-- See migration 00106 for alternative stricter option (head_manager only).
 CREATE POLICY "lender_profiles_read" ON lender_profiles
   FOR SELECT TO authenticated
   USING (
@@ -312,10 +328,17 @@ CREATE POLICY "payments_read" ON payments
     )
   );
 
--- NOTIFICATIONS — own only
+-- NOTIFICATIONS — own only for SELECT; UPDATE limited to is_read/read_at via trigger
+-- (see enforce_notifications_update_columns in 00002). Client may mark own
+-- notifications read; other columns are blocked by BEFORE UPDATE trigger.
 CREATE POLICY "notifications_own" ON notifications
   FOR SELECT TO authenticated
   USING (user_id = auth.uid());
+
+CREATE POLICY "notifications_update_own" ON notifications
+  FOR UPDATE TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 -- RIDER LOCATIONS — rider reads own; HM/Employee all; lender reads active
 -- riders assigned to them. Final version (00021)

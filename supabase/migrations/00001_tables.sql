@@ -601,7 +601,8 @@ CREATE TABLE emergency_contacts (
 );
 
 CREATE INDEX idx_emergency_lender_id ON emergency_contacts(lender_id);
-CREATE UNIQUE INDEX idx_emergency_lender_id_unique ON emergency_contacts(lender_id);
+-- NOTE: UNIQUE(lender_id) removed in 00105 — replaced by UNIQUE(lender_id, phone_number) for 1:N but no duplicate phone.
+CREATE UNIQUE INDEX uq_emergency_contacts_lender_phone ON emergency_contacts(lender_id, phone_number);
 
 -- account_upgrade_documents
 CREATE TABLE account_upgrade_documents (
@@ -623,7 +624,7 @@ CREATE TABLE account_upgrade_documents (
 CREATE INDEX idx_account_upgrade_docs_lender_id ON account_upgrade_documents(lender_id);
 CREATE INDEX idx_account_upgrade_docs_status    ON account_upgrade_documents(status);
 
--- loans
+-- loans — term_periods/installment_amount added in 00017, backfilled from schedule (00105)
 CREATE TABLE loans (
   id                       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   loan_number              VARCHAR(30)   NOT NULL UNIQUE,
@@ -633,6 +634,8 @@ CREATE TABLE loans (
   interest_rate            DECIMAL(5,2)  NOT NULL DEFAULT 20.00,
   payment_frequency        VARCHAR(10)   NOT NULL REFERENCES payment_frequencies(code),
   term_days                INT           NOT NULL CHECK (term_days > 0),
+  term_periods             INT           CHECK (term_periods > 0),
+  installment_amount       DECIMAL(12,2) CHECK (installment_amount > 0),
   purpose                  TEXT          NOT NULL,
   status                   VARCHAR(30)   NOT NULL DEFAULT 'pending'
                            REFERENCES loan_statuses(code),
@@ -703,7 +706,7 @@ CREATE TABLE loan_documents (
 
 CREATE INDEX idx_loan_docs_loan_id ON loan_documents(loan_id);
 
--- in_office_applications
+-- in_office_applications — loan_id dropped in 00105 (00099) to break circular FK with loans.in_office_application_id
 CREATE TABLE in_office_applications (
   id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   lender_id            UUID REFERENCES lender_profiles(id),
@@ -711,8 +714,7 @@ CREATE TABLE in_office_applications (
   wizard_step          INT         NOT NULL DEFAULT 1 CHECK (wizard_step BETWEEN 1 AND 5),
   status               VARCHAR(20) NOT NULL DEFAULT 'draft'
                        REFERENCES in_office_application_statuses(code),
-  loan_id              UUID REFERENCES loans(id) ON DELETE CASCADE,
-  borrower_signature   VARCHAR(255),
+  borrower_signature   TEXT,
   submitted_at         TIMESTAMPTZ,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -721,7 +723,8 @@ CREATE TABLE in_office_applications (
 CREATE INDEX idx_in_office_created_by ON in_office_applications(created_by);
 CREATE INDEX idx_in_office_status     ON in_office_applications(status);
 
--- Circular FK: loans.in_office_application_id -> in_office_applications(id)
+-- Canonical direction: loans.in_office_application_id -> in_office_applications(id)
+-- Reverse lookup: SELECT * FROM loans WHERE in_office_application_id = $app_id
 ALTER TABLE loans ADD CONSTRAINT fk_loans_in_office
   FOREIGN KEY (in_office_application_id) REFERENCES in_office_applications(id);
 
@@ -764,20 +767,22 @@ CREATE TABLE ci_documents (
 
 CREATE INDEX idx_ci_docs_ci_id ON ci_documents(ci_id);
 
--- collection_assignments
+-- collection_assignments — rider_id/assigned_by nullable for lender-requested 'requested' status (00018); collection_type added in 00019
 CREATE TABLE collection_assignments (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   loan_schedule_id    UUID          NOT NULL REFERENCES loan_schedules(id) ON DELETE CASCADE,
-  rider_id            UUID          NOT NULL REFERENCES rider_profiles(id),
-  assigned_by         UUID          NOT NULL REFERENCES users(id),
+  rider_id            UUID          REFERENCES rider_profiles(id),
+  assigned_by         UUID          REFERENCES users(id),
+  requested_by        UUID          REFERENCES users(id),
+  collection_type     VARCHAR(20)   NOT NULL DEFAULT 'rider' CHECK (collection_type IN ('rider','office')),
   collection_schedule TIMESTAMPTZ,
   status              VARCHAR(20)   NOT NULL DEFAULT 'assigned'
                       REFERENCES collection_assignment_statuses(code),
   amount_collected    DECIMAL(12,2) CHECK (amount_collected >= 0),
   collection_notes    TEXT,
-  proof_photo         VARCHAR(255),
-  borrower_signature  VARCHAR(255),
-  collection_photo    VARCHAR(255),
+  proof_photo         TEXT,
+  borrower_signature  TEXT,
+  collection_photo    TEXT,
   response_at         TIMESTAMPTZ,
   completed_at        TIMESTAMPTZ,
   created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
@@ -807,8 +812,8 @@ CREATE TABLE disbursements (
   rider_id            UUID REFERENCES rider_profiles(id),
   delivery_date       TIMESTAMPTZ,
   delivery_notes      TEXT,
-  delivery_proof      VARCHAR(255),
-  borrower_signature  VARCHAR(255),
+  delivery_proof      TEXT,
+  borrower_signature  TEXT,
   disbursed_at        TIMESTAMPTZ,
   created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
@@ -817,7 +822,7 @@ CREATE TABLE disbursements (
 CREATE INDEX idx_disbursements_loan_id ON disbursements(loan_id);
 CREATE INDEX idx_disbursements_status  ON disbursements(status);
 
--- payments
+-- payments — requires at least one FK (enforced by payments_context_check added in 00029 / 00105)
 CREATE TABLE payments (
   id                       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   loan_schedule_id         UUID REFERENCES loan_schedules(id) ON DELETE CASCADE,
@@ -833,30 +838,31 @@ CREATE TABLE payments (
   receipt_path             VARCHAR(255),
   notes                    TEXT,
   paid_at                  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  created_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+  created_at               TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  CONSTRAINT payments_context_check CHECK (loan_schedule_id IS NOT NULL OR collection_assignment_id IS NOT NULL)
 );
 
 CREATE INDEX idx_payments_status   ON payments(status);
 CREATE INDEX idx_payments_paid_at  ON payments(paid_at);
 CREATE INDEX idx_payments_idem_key ON payments(idempotency_key);
+CREATE INDEX idx_payments_loan_schedule_id ON payments(loan_schedule_id);
+CREATE INDEX idx_payments_collection_assignment_id ON payments(collection_assignment_id);
 
--- payment_reversals
+-- payment_reversals — one reversal per payment enforced by UNIQUE(payment_id) in 00105
 CREATE TABLE payment_reversals (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  payment_id  UUID        NOT NULL REFERENCES payments(id),
+  payment_id  UUID        NOT NULL UNIQUE REFERENCES payments(id),
   reversed_by UUID        NOT NULL REFERENCES users(id),
-  reason      TEXT        NOT NULL,
+  reason      TEXT        NOT NULL CHECK (char_length(btrim(reason)) > 0),
   reversed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_payment_reversals_payment_id ON payment_reversals(payment_id);
 
--- rider_locations
+-- rider_locations — active_assignment_id / assignment_type dropped in 00035 (dead polymorphic FK)
 CREATE TABLE rider_locations (
   id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   rider_id            UUID          NOT NULL UNIQUE REFERENCES rider_profiles(id),
-  active_assignment_id UUID,
-  assignment_type     VARCHAR(20)   CHECK (assignment_type IN ('collection','ci','disbursement')),
   latitude            DECIMAL(10,8) NOT NULL,
   longitude           DECIMAL(11,8) NOT NULL,
   accuracy            DECIMAL(8,2),
@@ -869,7 +875,7 @@ CREATE TABLE rider_locations (
 
 CREATE INDEX idx_rider_locations_rider_id ON rider_locations(rider_id);
 
--- notifications
+-- notifications — read_at added in 00011; client UPDATE restricted to is_read/read_at via trigger in 00105
 CREATE TABLE notifications (
   id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id        UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -880,6 +886,7 @@ CREATE TABLE notifications (
   reference_id   UUID,
   reference_type VARCHAR(50),
   is_read        BOOLEAN     NOT NULL DEFAULT FALSE,
+  read_at        TIMESTAMPTZ,
   fcm_sent       BOOLEAN     NOT NULL DEFAULT FALSE,
   sent_at        TIMESTAMPTZ,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -1006,12 +1013,13 @@ CREATE TABLE xendit_logs (
 CREATE INDEX idx_xendit_logs_loan_id ON xendit_logs(loan_id);
 CREATE INDEX idx_xendit_logs_type    ON xendit_logs(event_type);
 
--- otp_codes (rate-limited, expires)
+-- otp_codes (rate-limited, expires) — stores SHA-256 hex (64 chars) salted with phone, never plaintext
+-- NOTE: deprecated `code` alias was removed in 00106 — only `otp_hash` remains.
 CREATE TABLE otp_codes (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   phone_number VARCHAR(20)  NOT NULL,
-  code         VARCHAR(6)   NOT NULL,
-  attempts     INT          NOT NULL DEFAULT 0,
+  otp_hash     TEXT         NOT NULL CHECK (otp_hash ~ '^[0-9a-f]{64}$'),
+  attempts     INT          NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   expires_at   TIMESTAMPTZ  NOT NULL,
   used         BOOLEAN      NOT NULL DEFAULT FALSE,
   created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -1019,6 +1027,7 @@ CREATE TABLE otp_codes (
 
 CREATE INDEX idx_otp_phone    ON otp_codes(phone_number);
 CREATE INDEX idx_otp_expires  ON otp_codes(expires_at);
+CREATE INDEX idx_otp_phone_unused ON otp_codes(phone_number) WHERE used = FALSE;
 
 -- password_history (prevent reuse of last 5 passwords)
 CREATE TABLE password_history (
@@ -1178,7 +1187,7 @@ CREATE INDEX idx_app_documents_app_id ON application_documents(application_id);
 -- ─────────────────────────────────────────────────────────────────────
 CREATE TABLE loan_disbursement_preferences (
   loan_id     UUID PRIMARY KEY REFERENCES loans(id) ON DELETE CASCADE,
-  method      VARCHAR(20) CHECK (method IN ('gcash','office_cash','rider_delivery')),
+  method      VARCHAR(20) NOT NULL REFERENCES disbursement_methods(code),
   account     VARCHAR(255),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -434,6 +434,38 @@ RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$
 $$;
 
 -- ─────────────────────────────────────────────────────────────────────
+-- 8b) notifications column guard (00106: otp alias removed — only otp_hash remains)
+-- ─────────────────────────────────────────────────────────────────────
+
+-- notifications: only is_read / read_at may be mutated by client
+CREATE OR REPLACE FUNCTION enforce_notifications_update_columns()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.user_id        IS DISTINCT FROM OLD.user_id
+     OR NEW.triggered_by IS DISTINCT FROM OLD.triggered_by
+     OR NEW.title         IS DISTINCT FROM OLD.title
+     OR NEW.body          IS DISTINCT FROM OLD.body
+     OR NEW.type          IS DISTINCT FROM OLD.type
+     OR NEW.reference_id  IS DISTINCT FROM OLD.reference_id
+     OR NEW.reference_type IS DISTINCT FROM OLD.reference_type
+     OR NEW.fcm_sent      IS DISTINCT FROM OLD.fcm_sent
+     OR NEW.sent_at       IS DISTINCT FROM OLD.sent_at
+     OR NEW.created_at    IS DISTINCT FROM OLD.created_at
+     OR NEW.id            IS DISTINCT FROM OLD.id
+  THEN
+    RAISE EXCEPTION 'notifications: only is_read and read_at may be updated by client'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_notifications_update_columns ON notifications;
+CREATE TRIGGER trg_enforce_notifications_update_columns
+  BEFORE UPDATE ON notifications
+  FOR EACH ROW EXECUTE FUNCTION enforce_notifications_update_columns();
+
+-- ─────────────────────────────────────────────────────────────────────
 -- 9) Read-only views exposing derived financials (00021). Single source
 --    of truth: the base tables. Payment status is filtered to 'verified'
 --    so only settled amounts count toward principal/interest/penalties.

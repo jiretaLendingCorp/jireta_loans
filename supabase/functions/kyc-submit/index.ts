@@ -259,7 +259,7 @@ serve(async (req) => {
       }
     }
 
-    // Emergency contact (one per lender is sufficient for Account Upgrade).
+    // Emergency contact — 1:N (00105 dropped UNIQUE(lender_id); now dedupe by lender_id+phone).
     if (emergency_contact?.name && emergency_contact?.phone_number) {
       const { error: ecErr } = await db.from("emergency_contacts").upsert({
         lender_id: user.id,
@@ -269,7 +269,7 @@ serve(async (req) => {
         address: emergency_contact.address
           ? sanitizeString(emergency_contact.address)
           : null,
-      }, { onConflict: "lender_id" }).select("id").single();
+      }, { onConflict: "lender_id,phone_number" }).select("id").single();
       if (ecErr) {
         console.error("kyc-submit emergency contact error:", ecErr.message);
       }
