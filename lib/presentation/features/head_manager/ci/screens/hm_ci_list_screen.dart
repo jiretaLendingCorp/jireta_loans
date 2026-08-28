@@ -7,7 +7,6 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_ci_provider.dart';
 
@@ -228,6 +227,7 @@ class _CiCardState extends State<_CiCard> {
               : const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               width: 4,
@@ -239,14 +239,7 @@ class _CiCardState extends State<_CiCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(ci.loanNumber ?? 'CI Assignment', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                      ),
-                      StatusBadge(status: ci.status ?? 'pending'),
-                    ],
-                  ),
+                  Text(ci.loanNumber ?? 'CI Assignment', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 12,
@@ -271,17 +264,20 @@ class _CiCardState extends State<_CiCard> {
               ),
             ),
             const SizedBox(width: 12),
+            Text(
+              (ci.status ?? 'pending').toString().split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
+            ),
+            const SizedBox(width: 10),
             Tooltip(
               message: 'View',
               child: InkWell(
                 onTap: widget.onTap,
-                borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: AppColors.deepNavy.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,

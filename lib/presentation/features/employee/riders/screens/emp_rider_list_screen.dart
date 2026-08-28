@@ -171,25 +171,47 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
                 flex: 2,
                 child: Text(rider.plateNumber ?? '—',
                     style: const TextStyle(fontSize: 13))),
-            Expanded(flex: 2, child: _StatusBadge(status: rider.accountStatus)),
             Expanded(
-                flex: 2,
-                child: Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => context.go(RouteConstants.empRiderDetails
-                          .replaceFirst(':id', rider.id)),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.deepNavy,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          textStyle: const TextStyle(fontSize: 12),
-                          minimumSize: Size.zero),
-                      child: const Text('View'),
+              flex: 2,
+              child: Text(
+                rider.accountStatus == 'active'
+                    ? 'Active'
+                    : rider.accountStatus == 'archived'
+                        ? 'Archived'
+                        : 'Inactive',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: rider.accountStatus == 'active'
+                      ? AppColors.success
+                      : AppColors.error,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Row(
+                children: [
+                  Tooltip(
+                    message: 'View',
+                    child: InkWell(
+                      onTap: () => context.go(
+                          RouteConstants.empRiderDetails.replaceFirst(':id', rider.id)),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: const Icon(Icons.visibility_outlined,
+                            size: 16, color: AppColors.deepNavy),
+                      ),
                     ),
-                  ],
-                )),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -212,36 +234,4 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, __) => const ShimmerLoader(height: 56),
       );
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String status;
-  const _StatusBadge({required this.status});
-  bool get isActive => status == 'active';
-  String get label {
-    switch (status) {
-      case 'inactive':
-        return 'Inactive';
-      case 'archived':
-        return 'Archived';
-      default:
-        return status.isEmpty ? 'Inactive' : status;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isActive ? AppColors.successLight : AppColors.statusRejectedBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              color: isActive ? AppColors.success : AppColors.error,
-              fontSize: 11,
-              fontWeight: FontWeight.w600)),
-    );
-  }
 }

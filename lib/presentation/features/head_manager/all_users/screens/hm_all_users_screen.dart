@@ -29,7 +29,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(hmAllUsersProvider);
     return WebScaffold(
-      title: 'All Users',
+      title: 'All People',
       body: Column(
         children: [
           _filters(state),
@@ -150,21 +150,14 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
             ),
             Expanded(
               flex: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _roleColor(user.role).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+              child: Text(
+                _roleLabel(user.role),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: _roleColor(user.role),
                 ),
-                child: Text(
-                  _roleLabel(user.role),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _roleColor(user.role),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -186,22 +179,14 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
             ),
             Expanded(
               flex: 1,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? AppColors.successLight
-                      : AppColors.errorLight,
-                  borderRadius: BorderRadius.circular(12),
+              child: Text(
+                isActive ? 'Active' : _statusLabel(user.accountStatus),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isActive ? AppColors.success : AppColors.error,
                 ),
-                child: Text(
-                  isActive ? 'Active' : _statusLabel(user.accountStatus),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isActive ? AppColors.success : AppColors.error,
-                  ),
-                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -346,7 +331,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
             Icon(Icons.group_outlined,
                 size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
-            Text('No users found',
+            Text('No people found',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
           ],
         ),

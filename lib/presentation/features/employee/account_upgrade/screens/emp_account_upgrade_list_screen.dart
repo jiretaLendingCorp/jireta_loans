@@ -7,7 +7,6 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/emp_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -424,6 +423,7 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
               : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
                 width: 4,
@@ -432,13 +432,8 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(
-                      child: Text(doc.lenderName ?? 'Unknown Lender',
-                          style:
-                              const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
-                  StatusBadge(status: status),
-                ]),
+                Text(doc.lenderName ?? 'Unknown Lender',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                 const SizedBox(height: 3),
                 Row(children: [
                   Container(
@@ -455,72 +450,39 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
               ]),
             ),
             const SizedBox(width: 12),
-            if (MediaQuery.of(context).size.width >= 640) ...[
+            Text(
+              status[0].toUpperCase() + status.substring(1).replaceAll('_', ' '),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
+            ),
+            const SizedBox(width: 10),
+            Tooltip(
+              message: 'View',
+              child: InkWell(
+                onTap: widget.onTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                      SizedBox(width: 4),
+                      Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (MediaQuery.of(context).size.width >= 640 && status != 'verified') ...[
+              const SizedBox(width: 8),
               if (status != 'verified')
-                _ActionButton(
-                    icon: Icons.verified_rounded,
-                    label: 'Verify',
-                    color: AppColors.riderGreen,
-                    onPressed: widget.onVerify,
-                    primary: true),
+                _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: widget.onVerify, primary: true),
               if (status != 'verified' && status != 'rejected') const SizedBox(width: 8),
               if (status != 'verified' && status != 'rejected')
-                _ActionButton(
-                    icon: Icons.cancel_rounded,
-                    label: 'Reject',
-                    color: AppColors.error,
-                    onPressed: widget.onReject,
-                    primary: false),
-              const SizedBox(width: 10),
-              Tooltip(
-                message: 'View',
-                child: InkWell(
-                  onTap: widget.onTap,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: AppColors.deepNavy.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
-                        SizedBox(width: 4),
-                        Text('View',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ] else ...[
-              Tooltip(
-                message: 'View',
-                child: InkWell(
-                  onTap: widget.onTap,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: AppColors.deepNavy.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
-                        SizedBox(width: 4),
-                        Text('View',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+                _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: widget.onReject, primary: false),
             ],
           ],
         ),

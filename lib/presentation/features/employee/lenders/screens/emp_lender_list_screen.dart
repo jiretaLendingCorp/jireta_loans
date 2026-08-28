@@ -8,7 +8,6 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../providers/emp_lender_provider.dart';
 import '../widgets/emp_register_lender_modal.dart';
 
@@ -197,21 +196,32 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
             ),
             Expanded(
               flex: 2,
-              child: user.accountUpgradeStatus == null ||
-                      user.accountUpgradeStatus!.isEmpty
-                  ? const Text('—')
-                  : StatusBadge(
-                      status: user.accountUpgradeStatus!,
-                      small: true,
-                    ),
+              child: Text(
+                user.accountUpgradeStatus == null ||
+                        user.accountUpgradeStatus!.isEmpty
+                    ? '—'
+                    : _accountUpgradeLabel(user.accountUpgradeStatus!),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: user.accountUpgradeStatus == null ||
+                          user.accountUpgradeStatus!.isEmpty
+                      ? AppColors.textSecondary
+                      : _accountUpgradeColor(user.accountUpgradeStatus!),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             Expanded(
               flex: 1,
-              child: _StatusBadge(
-                label: isActive ? 'Active' : _statusLabel(user.accountStatus),
-                color: isActive ? AppColors.success : AppColors.error,
-                bgColor:
-                    isActive ? AppColors.successLight : AppColors.errorLight,
+              child: Text(
+                isActive ? 'Active' : _statusLabel(user.accountStatus),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isActive ? AppColors.success : AppColors.error,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -248,6 +258,41 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
     }
   }
 
+  String _accountUpgradeLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'Pending';
+      case 'under_review':
+        return 'Under Review';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'verified':
+        return 'Verified';
+      default:
+        return status.replaceAll('_', ' ');
+    }
+  }
+
+  Color _accountUpgradeColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'verified':
+      case 'whitelisted':
+        return AppColors.success;
+      case 'pending':
+      case 'under_review':
+      case 'requested':
+        return AppColors.warning;
+      case 'rejected':
+      case 'blacklisted':
+        return AppColors.error;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
   Widget _buildEmpty() => const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -277,34 +322,6 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color bgColor;
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-    required this.bgColor,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-}
-
 class _ActionBtn extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -316,15 +333,24 @@ class _ActionBtn extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-        message: tooltip,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Icon(icon, size: 18, color: AppColors.textSecondary),
+  Widget build(BuildContext context) {
+    final isView = tooltip == 'View Details';
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: isView ? Colors.white : Colors.transparent,
+            border: Border.all(
+                color: isView ? AppColors.border : Colors.transparent),
           ),
+          child: Icon(icon,
+              size: 16,
+              color: isView ? AppColors.deepNavy : AppColors.textSecondary),
         ),
-      );
+      ),
+    );
+  }
 }

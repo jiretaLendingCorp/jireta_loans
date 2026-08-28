@@ -7,7 +7,6 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/emp_collection_provider.dart';
 import '../widgets/emp_assign_rider_modal.dart';
@@ -339,8 +338,7 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
                 const SizedBox(height: 2),
                 Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—',
                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Wrap(spacing: 10, runSpacing: 4, children: [
+                  Wrap(spacing: 10, runSpacing: 4, children: [
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded,
                         size: 13, color: AppColors.textTertiary),
@@ -363,8 +361,7 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text('₱${widget.fmt.format(amount)}',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
-              const SizedBox(height: 4),
-              StatusBadge(status: col.status),
+
             ]),
             const SizedBox(width: 10),
             if (_canAssign)
@@ -385,17 +382,20 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
                 ),
               ),
             if (_canAssign) const SizedBox(width: 8),
+            Text(
+              col.status.toString().split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
+            ),
+            const SizedBox(width: 10),
             Tooltip(
               message: 'View',
               child: InkWell(
                 onTap: widget.onTap,
-                borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                   decoration: BoxDecoration(
-                    color: AppColors.deepNavy.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,

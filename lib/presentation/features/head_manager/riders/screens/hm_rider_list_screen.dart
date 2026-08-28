@@ -238,21 +238,14 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
             ),
             Expanded(
               flex: 1,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color:
-                      isActive ? AppColors.successLight : AppColors.errorLight,
-                  borderRadius: BorderRadius.circular(12),
+              child: Text(
+                isActive ? 'Active' : _statusLabel(user.accountStatus),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isActive ? AppColors.success : AppColors.error,
                 ),
-                child: Text(
-                  isActive ? 'Active' : _statusLabel(user.accountStatus),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isActive ? AppColors.success : AppColors.error,
-                  ),
-                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -355,18 +348,25 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
     }
   }
 
-  Widget _btn(IconData icon, String tip, Color color, VoidCallback onTap) =>
-      Tooltip(
-        message: tip,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Icon(icon, size: 18, color: color),
+  Widget _btn(IconData icon, String tip, Color color, VoidCallback onTap) {
+    final isView = tip == 'View';
+    return Tooltip(
+      message: tip,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: isView ? Colors.white : Colors.transparent,
+            border: Border.all(
+                color: isView ? AppColors.border : Colors.transparent),
           ),
+          child: Icon(icon,
+              size: 16, color: isView ? AppColors.deepNavy : color),
         ),
-      );
+      ),
+    );
+  }
 
   Widget _empty() => const Center(
         child: Column(

@@ -7,7 +7,6 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_collection_provider.dart';
 import '../widgets/assign_rider_collection_modal.dart';
@@ -247,6 +246,7 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
             boxShadow: _hover ? [BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6))] : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(width: 4, height: 56, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
               const SizedBox(width: 12),
@@ -263,8 +263,7 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
                   ]),
                   const SizedBox(height: 2),
                   Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Wrap(spacing: 10, runSpacing: 4, children: [
+                      Wrap(spacing: 10, runSpacing: 4, children: [
                     Row(mainAxisSize: MainAxisSize.min, children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 13, color: AppColors.textTertiary), const SizedBox(width: 4), Flexible(child: Text(isOffice ? 'Office visit payment' : col.riderName.isNotEmpty ? col.riderName : 'Unassigned', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
                     if (col.collectionSchedule != null)
                       Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.event_rounded, size: 12, color: AppColors.textTertiary), const SizedBox(width: 4), Text(DateFormat('MMM d, y').format(col.collectionSchedule!), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]),
@@ -274,8 +273,7 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text('₱${widget.fmt.format(amount)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
-                const SizedBox(height: 4),
-                StatusBadge(status: col.status),
+    
               ]),
               const SizedBox(width: 10),
               if (_canAssign)
@@ -293,13 +291,13 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
                 message: 'View',
                 child: InkWell(
                   onTap: widget.onTap,
-                  borderRadius: BorderRadius.circular(8),
+                  
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                     decoration: BoxDecoration(
-                      color: AppColors.deepNavy.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                      color: Colors.white,
+                      
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,

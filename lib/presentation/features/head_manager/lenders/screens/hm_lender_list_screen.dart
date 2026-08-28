@@ -8,7 +8,6 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_lender_provider.dart';
 import '../widgets/create_lender_modal.dart';
 
@@ -210,31 +209,32 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             ),
             Expanded(
               flex: 2,
-              child: user.accountUpgradeStatus == null ||
-                      user.accountUpgradeStatus!.isEmpty
-                  ? const Text('—')
-                  : StatusBadge(
-                      status: user.accountUpgradeStatus!,
-                      small: true,
-                    ),
+              child: Text(
+                user.accountUpgradeStatus == null ||
+                        user.accountUpgradeStatus!.isEmpty
+                    ? '—'
+                    : _accountUpgradeLabel(user.accountUpgradeStatus!),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: user.accountUpgradeStatus == null ||
+                          user.accountUpgradeStatus!.isEmpty
+                      ? AppColors.textSecondary
+                      : _accountUpgradeColor(user.accountUpgradeStatus!),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             Expanded(
               flex: 1,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color:
-                      isActive ? AppColors.successLight : AppColors.errorLight,
-                  borderRadius: BorderRadius.circular(12),
+              child: Text(
+                isActive ? 'Active' : _statusLabel(user.accountStatus),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isActive ? AppColors.success : AppColors.error,
                 ),
-                child: Text(
-                  isActive ? 'Active' : _statusLabel(user.accountStatus),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isActive ? AppColors.success : AppColors.error,
-                  ),
-                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -337,18 +337,60 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
     }
   }
 
-  Widget _btn(IconData icon, String tip, Color color, VoidCallback onTap) =>
-      Tooltip(
-        message: tip,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Icon(icon, size: 18, color: color),
+  String _accountUpgradeLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'Pending';
+      case 'under_review':
+        return 'Under Review';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      case 'verified':
+        return 'Verified';
+      default:
+        return status.replaceAll('_', ' ');
+    }
+  }
+
+  Color _accountUpgradeColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+      case 'verified':
+      case 'whitelisted':
+        return AppColors.success;
+      case 'pending':
+      case 'under_review':
+      case 'requested':
+        return AppColors.warning;
+      case 'rejected':
+      case 'blacklisted':
+        return AppColors.error;
+      default:
+        return AppColors.textSecondary;
+    }
+  }
+
+  Widget _btn(IconData icon, String tip, Color color, VoidCallback onTap) {
+    final isView = tip == 'View';
+    return Tooltip(
+      message: tip,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: isView ? Colors.white : Colors.transparent,
+            border: Border.all(
+                color: isView ? AppColors.border : Colors.transparent),
           ),
+          child: Icon(icon,
+              size: 16, color: isView ? AppColors.deepNavy : color),
         ),
-      );
+      ),
+    );
+  }
 
   Widget _empty() => const Center(
         child: Column(

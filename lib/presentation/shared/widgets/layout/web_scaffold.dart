@@ -1,4 +1,5 @@
 // lib/presentation/shared/widgets/layout/web_scaffold.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +25,15 @@ final _sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 /// to the top whenever you navigate — making it look like the nav "resets"
 /// after tapping an item near the bottom.
 final _sidebarScrollOffsetProvider = StateProvider<double>((ref) => 0);
+
+/// Tracks which expandable sidebar groups are currently expanded (by label).
+/// Persisted across route changes so manual toggle doesn't reset on navigation.
+final _sidebarExpandedGroupsProvider =
+    StateProvider<Set<String>>((ref) => <String>{});
+
+/// Flyout open state for People - persists across navigation so the 4 items
+/// stay visible when People is selected (click People -> show All Users etc.).
+final _peopleFlyoutOpenProvider = StateProvider<bool>((ref) => false);
 
 const double _desktopBreakpoint = 900;
 
@@ -445,15 +455,35 @@ class _SidebarState extends ConsumerState<_Sidebar> {
     super.dispose();
   }
 
+  bool _isActivePath(String path, String route) =>
+      route.isNotEmpty && (path == route || path.startsWith('$route/'));
+
+  bool _isGroupChildActive(String path, _NavItem group) =>
+      group.children.any((c) => _isActivePath(path, c.route));
+
+  void _toggleGroup(String label) {
+    final current = ref.read(_sidebarExpandedGroupsProvider);
+    final next = Set<String>.from(current);
+    if (next.contains(label)) {
+      next.remove(label);
+    } else {
+      next.add(label);
+    }
+    ref.read(_sidebarExpandedGroupsProvider.notifier).state = next;
+  }
+
   @override
   Widget build(BuildContext context) {
     final collapsed = widget.collapsed;
     final role = widget.role;
     final inDrawer = widget.inDrawer;
+    final effectiveCollapsed = inDrawer ? false : collapsed;
     final items = role == AppConstants.roleHeadManager
         ? _hmItems(context)
         : _empItems(context);
     final w = inDrawer ? double.infinity : (collapsed ? 68.0 : 240.0);
+    final path = GoRouterState.of(context).uri.path;
+    final expandedGroups = ref.watch(_sidebarExpandedGroupsProvider);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -467,17 +497,46 @@ class _SidebarState extends ConsumerState<_Sidebar> {
       ),
       child: Column(
         children: [
-          _SidebarHeader(collapsed: inDrawer ? false : collapsed),
+          _SidebarHeader(collapsed: effectiveCollapsed),
           Expanded(
             child: ListView(
               controller: _scrollCtrl,
               padding: const EdgeInsets.symmetric(vertical: 8),
-              children: items
-                  .map((item) => _SidebarItem(
-                        item: item,
-                        collapsed: inDrawer ? false : collapsed,
-                      ))
-                  .toList(),
+              children: items.map((item) {
+                if (item.isGroup) {
+                  if (inDrawer) {
+                    // Drawer (mobile): use inline accordion expandable.
+                    final childActive = _isGroupChildActive(path, item);
+                    final isExpanded =
+                        expandedGroups.contains(item.label) || childActive;
+                    return _SidebarGroup(
+                      item: item,
+                      collapsed: effectiveCollapsed,
+                      isExpanded: isExpanded,
+                      onToggle: () => _toggleGroup(item.label),
+                      onExpandSidebar: () {
+                        if (collapsed) {
+                          ref.read(_sidebarCollapsedProvider.notifier).state =
+                              false;
+                          if (!expandedGroups.contains(item.label)) {
+                            _toggleGroup(item.label);
+                          }
+                        }
+                      },
+                    );
+                  }
+                  // Desktop (both collapsed & expanded): Flyout menu.
+                  return _FlyoutNavGroup(
+                    item: item,
+                    collapsed: effectiveCollapsed,
+                    sidebarWidth: collapsed ? 68.0 : 240.0,
+                  );
+                }
+                return _SidebarItem(
+                  item: item,
+                  collapsed: effectiveCollapsed,
+                );
+              }).toList(),
             ),
           ),
         ],
@@ -488,14 +547,23 @@ class _SidebarState extends ConsumerState<_Sidebar> {
   List<_NavItem> _hmItems(BuildContext ctx) => [
         const _NavItem(
             Icons.dashboard_outlined, 'Dashboard', RouteConstants.hmDashboard),
+        // Flyout: "People" is grouping only (no route) - clicking shows box with 4,
+        // no child pre-selected. Must pick one, then box disappears.
         const _NavItem(
-            Icons.group_outlined, 'All Users', RouteConstants.hmAllUsers),
-        const _NavItem(
-            Icons.people_outline, 'Employees', RouteConstants.hmEmployees),
-        const _NavItem(
-            Icons.delivery_dining_outlined, 'Riders', RouteConstants.hmRiders),
-        const _NavItem(
-            Icons.person_outline, 'Lenders', RouteConstants.hmLenders),
+          Icons.groups_outlined,
+          'People',
+          '',
+          [
+            _NavItem(
+                Icons.group_outlined, 'All People', RouteConstants.hmAllUsers),
+            _NavItem(
+                Icons.badge_outlined, 'Employees', RouteConstants.hmEmployees),
+            _NavItem(Icons.delivery_dining_outlined, 'Riders',
+                RouteConstants.hmRiders),
+            _NavItem(
+                Icons.person_outline, 'Lenders', RouteConstants.hmLenders),
+          ],
+        ),
         const _NavItem(
           Icons.description_outlined,
           'Loan Records',
@@ -527,12 +595,18 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           'Dashboard',
           RouteConstants.empDashboard,
         ),
+        // Employee also gets the same nested People grouping for consistency
+        // (Lenders + Riders under People).
         const _NavItem(
-            Icons.person_outline, 'Lenders', RouteConstants.empLenders),
-        const _NavItem(
-          Icons.delivery_dining_outlined,
-          'Riders',
-          RouteConstants.empRiders,
+          Icons.groups_outlined,
+          'People',
+          '',
+          [
+            _NavItem(
+                Icons.person_outline, 'Lenders', RouteConstants.empLenders),
+            _NavItem(Icons.delivery_dining_outlined, 'Riders',
+                RouteConstants.empRiders),
+          ],
         ),
         const _NavItem(
           Icons.description_outlined,
@@ -620,16 +694,21 @@ class _NavItem {
   final IconData icon;
   final String label;
   final String route;
-  const _NavItem(this.icon, this.label, this.route);
+  final List<_NavItem> children;
+  const _NavItem(this.icon, this.label, this.route,
+      [this.children = const []]);
+
+  bool get isGroup => children.isNotEmpty;
 }
 
-class _SidebarItem extends StatelessWidget {
+class _SidebarItem extends ConsumerWidget {
   final _NavItem item;
   final bool collapsed;
   const _SidebarItem({required this.item, required this.collapsed});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isPeopleOpen = ref.watch(_peopleFlyoutOpenProvider);
     final path = GoRouterState.of(context).uri.path;
     // Loan Records (formerly Loan Applications) is the parent of Active Loans & In-Office — keep it
     // highlighted when the user is on those child routes (tabs moved into
@@ -645,9 +724,10 @@ class _SidebarItem extends StatelessWidget {
                 path.startsWith('${RouteConstants.empActiveLoans}/') ||
                 path == RouteConstants.empInOffice ||
                 path.startsWith('${RouteConstants.empInOffice}/')));
-    final isActive = isLoanApplicationsParent ||
+    final baseActive = isLoanApplicationsParent ||
         (item.route.isNotEmpty &&
             (path == item.route || path.startsWith('${item.route}/')));
+    final isActive = !isPeopleOpen && baseActive;
 
     return Tooltip(
       message: collapsed ? item.label : '',
@@ -701,3 +781,505 @@ class _SidebarItem extends StatelessWidget {
     );
   }
 }
+
+/// Expandable group tile for nested navigation (e.g. People -> Employees/Riders/Lenders).
+class _SidebarGroup extends StatelessWidget {
+  final _NavItem item;
+  final bool collapsed;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final VoidCallback onExpandSidebar;
+
+  const _SidebarGroup({
+    required this.item,
+    required this.collapsed,
+    required this.isExpanded,
+    required this.onToggle,
+    required this.onExpandSidebar,
+  });
+
+  bool _isActive(String path, String route) =>
+      route.isNotEmpty && (path == route || path.startsWith('$route/'));
+
+  @override
+  Widget build(BuildContext context) {
+    final path = GoRouterState.of(context).uri.path;
+    final childActive = item.children.any((c) => _isActive(path, c.route));
+    final parentActive = _isActive(path, item.route);
+    // Parent is considered active if itself active OR any child active (so the group stays highlighted).
+    final isActive = parentActive || childActive;
+
+    // Collapsed sidebar: show only parent icon, tap expands the sidebar.
+    if (collapsed) {
+      return Tooltip(
+        message: item.label,
+        preferBelow: false,
+        child: InkWell(
+          onTap: onExpandSidebar,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? AppColors.gold.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: isActive
+                  ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Icon(item.icon,
+                    size: 20,
+                    color: isActive ? AppColors.gold : Colors.white54),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // ── Parent row ──
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: isActive
+                  ? AppColors.gold.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: isActive
+                  ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
+                  : null,
+            ),
+            child: Row(
+              children: [
+                // Main tappable area navigates to the parent route (e.g. /hm/all-users).
+                Expanded(
+                  child: InkWell(
+                    onTap: item.route.isNotEmpty
+                        ? () => context.go(item.route)
+                        : onToggle,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      child: Row(
+                        children: [
+                          Icon(item.icon,
+                              size: 20,
+                              color: isActive
+                                  ? AppColors.gold
+                                  : Colors.white54),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              item.label,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isActive
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: isActive
+                                    ? AppColors.gold
+                                    : Colors.white70,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Expand / collapse chevron (does NOT navigate).
+                InkWell(
+                  onTap: onToggle,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: AnimatedRotation(
+                      turns: isExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(
+                        Icons.expand_more,
+                        size: 18,
+                        color: isActive ? AppColors.gold : Colors.white54,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+            ),
+          ),
+        ),
+        // ── Children ──
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: ClipRect(
+            child: isExpanded
+                ? Container(
+                    margin: const EdgeInsets.only(
+                        left: 16, right: 8, top: 2, bottom: 4),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        left: BorderSide(color: Colors.white12, width: 1),
+                      ),
+                    ),
+                    child: Column(
+                      children: item.children.map((child) {
+                        final childIsActive = _isActive(path, child.route);
+                        return Padding(
+                          padding: const EdgeInsets.only(left: 8, top: 2),
+                          child: InkWell(
+                            onTap: child.route.isNotEmpty
+                                ? () => context.go(child.route)
+                                : null,
+                            borderRadius: BorderRadius.circular(8),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 9),
+                              decoration: BoxDecoration(
+                                color: childIsActive
+                                    ? AppColors.gold.withValues(alpha: 0.12)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: childIsActive
+                                    ? Border.all(
+                                        color: AppColors.gold
+                                            .withValues(alpha: 0.25))
+                                    : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(child.icon,
+                                      size: 18,
+                                      color: childIsActive
+                                          ? AppColors.gold
+                                          : Colors.white54),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      child.label,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: childIsActive
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                        color: childIsActive
+                                            ? AppColors.gold
+                                            : Colors.white70,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (childIsActive)
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.gold,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  )
+                : const SizedBox(width: double.infinity, height: 0),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Flyout dropdown - click to open, shows the 4 People items.
+/// Clean blue panel like the sidebar (no white, no extra icons, no radius - box).
+class _FlyoutNavGroup extends ConsumerStatefulWidget {
+  final _NavItem item;
+  final bool collapsed;
+  final double sidebarWidth;
+  const _FlyoutNavGroup({
+    required this.item,
+    required this.collapsed,
+    required this.sidebarWidth,
+  });
+  @override
+  ConsumerState<_FlyoutNavGroup> createState() => _FlyoutNavGroupState();
+}
+
+class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
+  final GlobalKey _tileKey = GlobalKey();
+  OverlayEntry? _entry;
+  final Object _tapGroupId = Object();
+
+  bool _isActivePath(String path, String route) =>
+      route.isNotEmpty && (path == route || path.startsWith('$route/'));
+
+  void _showFlyout() {
+    if (_entry != null) return;
+    final box = _tileKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !mounted) return;
+    final overlay = Overlay.of(context);
+    final pos = box.localToGlobal(Offset.zero);
+    double left = widget.sidebarWidth + 6;
+    double top = pos.dy - 2;
+    const flyoutWidth = 200.0;
+    final flyoutHeight = widget.item.children.length * 42.0 + 16.0;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    if (top + flyoutHeight > screenHeight - 12) {
+      top = screenHeight - flyoutHeight - 12;
+      if (top < 8) top = 8;
+    }
+    if (left + flyoutWidth > screenWidth - 12) {
+      left = screenWidth - flyoutWidth - 12;
+    }
+    _entry = OverlayEntry(
+      builder: (_) {
+        final currentPath = GoRouterState.of(context).uri.path;
+        return Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              child: TapRegion(
+                groupId: _tapGroupId,
+                onTapOutside: (_) => _hideFlyout(),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: flyoutWidth,
+                    decoration: const BoxDecoration(
+                      color: AppColors.deepNavy,
+                      border: Border.fromBorderSide(BorderSide(color: Colors.white12)),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: widget.item.children.map((child) {
+                        final childActive = _isActivePath(currentPath, child.route);
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          child: InkWell(
+                            onTap: () {
+                              _hideFlyout();
+                              if (child.route.isNotEmpty) context.go(child.route);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                              decoration: BoxDecoration(
+                                color: childActive
+                                    ? AppColors.gold.withValues(alpha: 0.15)
+                                    : Colors.transparent,
+                                border: childActive
+                                    ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
+                                    : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(child.icon,
+                                      size: 18,
+                                      color: childActive ? AppColors.gold : Colors.white70),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      child.label,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: childActive ? FontWeight.w600 : FontWeight.w400,
+                                        color: childActive ? AppColors.gold : Colors.white70,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    overlay.insert(_entry!);
+    ref.read(_peopleFlyoutOpenProvider.notifier).state = true;
+    if (mounted) setState(() {});
+  }
+
+  void _hideFlyout() {
+    _entry?.remove();
+    _entry = null;
+    ref.read(_peopleFlyoutOpenProvider.notifier).state = false;
+    if (mounted) setState(() {});
+  }
+
+  void _toggleFlyout() {
+    final isCurrentlyOpen = _entry != null;
+    if (isCurrentlyOpen) {
+      _hideFlyout();
+    } else {
+      // Select People (navigate to All Users) and open the box with 4 items
+      if (widget.item.route.isNotEmpty) {
+        final currentPath = GoRouterState.of(context).uri.path;
+        if (currentPath != widget.item.route) {
+          context.go(widget.item.route);
+        }
+      }
+      _showFlyout();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final shouldOpen = ref.read(_peopleFlyoutOpenProvider);
+      if (shouldOpen && _entry == null) {
+        _showFlyout();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final path = GoRouterState.of(context).uri.path;
+    final isActive = _isActivePath(path, widget.item.route) ||
+        widget.item.children.any((c) => _isActivePath(path, c.route));
+    if (!isActive && _entry != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _entry != null) _hideFlyout();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _FlyoutNavGroup oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.collapsed != widget.collapsed && _entry != null) {
+      _hideFlyout();
+    }
+  }
+
+  @override
+  void deactivate() {
+    _entry?.remove();
+    _entry = null;
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _entry?.remove();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final path = GoRouterState.of(context).uri.path;
+    final isOpen = _entry != null || ref.watch(_peopleFlyoutOpenProvider);
+    final childActive = widget.item.children.any((c) => _isActivePath(path, c.route));
+    final parentActive = _isActivePath(path, widget.item.route);
+    final isActive = isOpen || parentActive || childActive;
+    if (widget.collapsed) {
+      return TapRegion(
+        groupId: _tapGroupId,
+        child: Container(
+          key: _tileKey,
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Tooltip(
+            message: widget.item.label,
+            preferBelow: false,
+            child: InkWell(
+              onTap: _toggleFlyout,
+              borderRadius: BorderRadius.circular(8),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.gold.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: isActive
+                      ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
+                      : null,
+                ),
+                child: Icon(widget.item.icon,
+                    size: 20, color: isActive ? AppColors.gold : Colors.white54),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return TapRegion(
+      groupId: _tapGroupId,
+      child: Container(
+        key: _tileKey,
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isActive ? Border.all(color: AppColors.gold.withValues(alpha: 0.3)) : null,
+        ),
+        child: InkWell(
+          onTap: _toggleFlyout,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(widget.item.icon,
+                    size: 20, color: isActive ? AppColors.gold : Colors.white54),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.item.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      color: isActive ? AppColors.gold : Colors.white70,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: isOpen ? 0.25 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(Icons.expand_more,
+                      size: 18, color: isActive ? AppColors.gold : Colors.white54),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
