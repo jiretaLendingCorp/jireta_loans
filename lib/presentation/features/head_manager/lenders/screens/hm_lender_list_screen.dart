@@ -90,7 +90,6 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                 DropdownMenuItem(value: 'all', child: Text('All')),
                 DropdownMenuItem(value: 'active', child: Text('Active')),
                 DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
-                DropdownMenuItem(value: 'archived', child: Text('Archived')),
               ],
               onChanged: (v) =>
                   ref.read(hmLenderProvider.notifier).setStatus(v!),

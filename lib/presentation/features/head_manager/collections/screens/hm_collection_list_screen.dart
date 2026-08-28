@@ -287,6 +287,11 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
                   ),
                 ),
               if (_canAssign) const SizedBox(width: 8),
+              Text(
+                status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
+              ),
+              const SizedBox(width: 10),
               Tooltip(
                 message: 'View',
                 child: InkWell(

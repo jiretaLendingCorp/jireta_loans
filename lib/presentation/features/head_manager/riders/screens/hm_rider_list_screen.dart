@@ -91,7 +91,6 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
                 DropdownMenuItem(value: 'all', child: Text('All Status')),
                 DropdownMenuItem(value: 'active', child: Text('Active')),
                 DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
-                DropdownMenuItem(value: 'archived', child: Text('Archived')),
               ],
               onChanged: (v) =>
                   ref.read(hmRiderProvider.notifier).setStatus(v!),

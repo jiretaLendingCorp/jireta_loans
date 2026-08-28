@@ -63,7 +63,10 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
         search: state.search.isEmpty ? null : state.search,
         page: state.page,
       );
-      state = state.copyWith(employees: list, isLoading: false);
+      final filtered = state.statusFilter == 'all'
+          ? list.where((u) => u.accountStatus != 'archived').toList()
+          : list;
+      state = state.copyWith(employees: filtered, isLoading: false);
     } catch (e) {
       if (silent) return;
       state = state.copyWith(

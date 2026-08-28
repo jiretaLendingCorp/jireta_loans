@@ -66,6 +66,7 @@ import '../../presentation/features/head_manager/reports/screens/hm_report_histo
 import '../../presentation/features/head_manager/reports/screens/hm_report_library_screen.dart';
 import '../../presentation/features/head_manager/riders/screens/hm_rider_details_screen.dart';
 import '../../presentation/features/head_manager/riders/screens/hm_rider_list_screen.dart';
+import '../../presentation/features/head_manager/archived/screens/hm_archived_screen.dart';
 import '../../presentation/features/head_manager/settings/screens/hm_settings_screen.dart';
 import '../../presentation/features/lender/collections/screens/lender_collection_details_screen.dart';
 import '../../presentation/features/lender/collections/screens/lender_collection_history_screen.dart';
@@ -397,6 +398,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmSettings,
           builder: (ctx, s) => const HmSettingsScreen()),
+      GoRoute(
+          path: RouteConstants.hmArchived,
+          builder: (ctx, s) => const HmArchivedScreen()),
       GoRoute(
           path: RouteConstants.hmProfile,
           builder: (ctx, s) => const HmProfileScreen()),

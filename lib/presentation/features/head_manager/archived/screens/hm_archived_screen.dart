@@ -1,4 +1,4 @@
-// lib/presentation/features/head_manager/all_users/screens/hm_all_users_screen.dart
+// lib/presentation/features/head_manager/archived/screens/hm_archived_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,16 +7,16 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../providers/hm_all_users_provider.dart';
+import '../providers/hm_archived_provider.dart';
 
-class HmAllUsersScreen extends ConsumerStatefulWidget {
-  const HmAllUsersScreen({super.key});
+class HmArchivedScreen extends ConsumerStatefulWidget {
+  const HmArchivedScreen({super.key});
 
   @override
-  ConsumerState<HmAllUsersScreen> createState() => _HmAllUsersScreenState();
+  ConsumerState<HmArchivedScreen> createState() => _HmArchivedScreenState();
 }
 
-class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
+class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
   final _searchCtrl = TextEditingController();
 
   @override
@@ -27,9 +27,9 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(hmAllUsersProvider);
+    final state = ref.watch(hmArchivedProvider);
     return WebScaffold(
-      title: 'All People',
+      title: 'Archived',
       body: Column(
         children: [
           _filters(state),
@@ -45,7 +45,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
     );
   }
 
-  Widget _filters(HmAllUsersState state) => Container(
+  Widget _filters(HmArchivedState state) => Container(
         color: Colors.white,
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -54,7 +54,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
               child: TextField(
                 controller: _searchCtrl,
                 decoration: InputDecoration(
-                  hintText: 'Search by name, email or phone...',
+                  hintText: 'Search archived by name, email or phone...',
                   prefixIcon: const Icon(Icons.search, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -63,7 +63,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 onChanged: (v) =>
-                    ref.read(hmAllUsersProvider.notifier).setSearch(v),
+                    ref.read(hmArchivedProvider.notifier).setSearch(v),
               ),
             ),
             const SizedBox(width: 12),
@@ -71,24 +71,36 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
               value: state.roleFilter,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All Roles')),
-                DropdownMenuItem(value: 'head_manager', child: Text('Head Manager')),
                 DropdownMenuItem(value: 'employee', child: Text('Employee')),
                 DropdownMenuItem(value: 'rider', child: Text('Rider')),
                 DropdownMenuItem(value: 'lender', child: Text('Lender')),
               ],
               onChanged: (v) =>
-                  ref.read(hmAllUsersProvider.notifier).setRole(v!),
+                  ref.read(hmArchivedProvider.notifier).setRole(v!),
             ),
             const SizedBox(width: 12),
-            DropdownButton<String>(
-              value: state.statusFilter,
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('All Status')),
-                DropdownMenuItem(value: 'active', child: Text('Active')),
-                DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
-              ],
-              onChanged: (v) =>
-                  ref.read(hmAllUsersProvider.notifier).setStatus(v!),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.archive_outlined,
+                      size: 16, color: AppColors.error),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${state.users.length} archived',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -129,88 +141,91 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
   );
 
   Widget _row(UserModel user, bool isEven) {
-    final isActive = user.accountStatus == 'active';
-    final isArchived = user.accountStatus == 'archived';
     return Container(
       key: ValueKey(user.id),
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: Text(
-                '${user.firstName} ${user.lastName}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
-              ),
+      color: isEven
+          ? Colors.white
+          : AppColors.surfaceVariant.withValues(alpha: 0.3),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              '${user.firstName} ${user.lastName}',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
             ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                _roleLabel(user.role),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _roleLabel(user.role),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: _roleColor(user.role),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.phoneNumber ?? '—',
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.email ?? '—',
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'Archived',
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: _roleColor(user.role),
+                    color: AppColors.error,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                _btn(
+                  Icons.visibility_outlined,
+                  'View',
+                  AppColors.textSecondary,
+                  () => _goToDetails(user),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.phoneNumber ?? '—',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.email ?? '—',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                isActive ? 'Active' : _statusLabel(user.accountStatus),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isActive ? AppColors.success : AppColors.error,
+                _btn(
+                  Icons.unarchive_outlined,
+                  'Restore',
+                  AppColors.success,
+                  () => _confirmRestore(user),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ),
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  _btn(
-                    Icons.visibility_outlined,
-                    'View',
-                    AppColors.textSecondary,
-                    () => _goToDetails(user),
-                  ),
-                  if (!isArchived && user.role != 'head_manager')
-                    _btn(
-                      Icons.archive_outlined,
-                      'Archive',
-                      AppColors.error,
-                      () => _confirmArchive(user),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
   }
 
   void _goToDetails(UserModel user) {
@@ -229,13 +244,13 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
     }
   }
 
-  void _confirmArchive(UserModel user) {
+  void _confirmRestore(UserModel user) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Archive ${_roleLabel(user.role)}?'),
+        title: const Text('Restore User?'),
         content: Text(
-          'This will archive ${user.firstName} ${user.lastName}. This action cannot be undone easily.',
+          'Restore ${user.firstName} ${user.lastName} to Active status? They will reappear in People lists.',
         ),
         actions: [
           TextButton(
@@ -243,26 +258,27 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await ref.read(hmAllUsersProvider.notifier).archive(user.id);
+                await ref.read(hmArchivedProvider.notifier).restore(user.id);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text('${_roleLabel(user.role)} archived successfully')),
+                        content: Text(
+                            '${_roleLabel(user.role)} restored successfully')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to archive: $e')),
+                    SnackBar(content: Text('Failed to restore: $e')),
                   );
                 }
               }
             },
-            child: const Text('Archive'),
+            child: const Text('Restore'),
           ),
         ],
       ),
@@ -277,8 +293,6 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         return AppColors.riderGreen;
       case 'lender':
         return AppColors.lenderBlue;
-      case 'head_manager':
-        return AppColors.gold;
       default:
         return AppColors.textSecondary;
     }
@@ -299,17 +313,6 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
     }
   }
 
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'inactive':
-        return 'Inactive';
-      case 'archived':
-        return 'Archived';
-      default:
-        return 'Inactive';
-    }
-  }
-
   Widget _btn(IconData icon, String tip, Color color, VoidCallback onTap) =>
       Tooltip(
         message: tip,
@@ -327,11 +330,14 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.group_outlined,
+            Icon(Icons.archive_outlined,
                 size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
-            Text('No people found',
+            Text('No archived users',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+            SizedBox(height: 8),
+            Text('Archived people will appear here',
+                style: TextStyle(color: AppColors.textTertiary, fontSize: 13)),
           ],
         ),
       );

@@ -53,7 +53,10 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
       );
-      state = state.copyWith(riders: list, isLoading: false);
+      final filtered = state.statusFilter == 'all'
+          ? list.where((u) => u.accountStatus != 'archived').toList()
+          : list;
+      state = state.copyWith(riders: filtered, isLoading: false);
     } catch (e) {
       if (silent) return;
       state = state.copyWith(

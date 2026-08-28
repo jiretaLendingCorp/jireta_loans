@@ -21,6 +21,7 @@ class RouteConstants {
   static const String hmRiderDetails = '/hm/riders/:id';
   static const String hmLenders = '/hm/lenders';
   static const String hmLenderDetails = '/hm/lenders/:id';
+  static const String hmArchived = '/hm/archived';
   static const String hmLoanApplications = '/hm/loan-applications';
   static const String hmLoanApplicationDetails = '/hm/loan-applications/:id';
   static const String hmLoans = '/hm/loans';

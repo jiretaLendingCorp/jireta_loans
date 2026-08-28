@@ -31,7 +31,7 @@ final _sidebarScrollOffsetProvider = StateProvider<double>((ref) => 0);
 final _sidebarExpandedGroupsProvider =
     StateProvider<Set<String>>((ref) => <String>{});
 
-/// Flyout open state for People - persists across navigation so the 4 items
+/// Flyout open state for People - persists across navigation so the 5 items
 /// stay visible when People is selected (click People -> show All Users etc.).
 final _peopleFlyoutOpenProvider = StateProvider<bool>((ref) => false);
 
@@ -547,7 +547,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
   List<_NavItem> _hmItems(BuildContext ctx) => [
         const _NavItem(
             Icons.dashboard_outlined, 'Dashboard', RouteConstants.hmDashboard),
-        // Flyout: "People" is grouping only (no route) - clicking shows box with 4,
+        // Flyout: "People" is grouping only (no route) - clicking shows box with 5,
         // no child pre-selected. Must pick one, then box disappears.
         const _NavItem(
           Icons.groups_outlined,
@@ -562,6 +562,8 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                 RouteConstants.hmRiders),
             _NavItem(
                 Icons.person_outline, 'Lenders', RouteConstants.hmLenders),
+            _NavItem(
+                Icons.archive_outlined, 'Archived', RouteConstants.hmArchived),
           ],
         ),
         const _NavItem(
@@ -596,7 +598,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           RouteConstants.empDashboard,
         ),
         // Employee also gets the same nested People grouping for consistency
-        // (Lenders + Riders under People).
+        // (Lenders + Riders under People). Archived is Head Manager only.
         const _NavItem(
           Icons.groups_outlined,
           'People',
@@ -1009,7 +1011,7 @@ class _SidebarGroup extends StatelessWidget {
   }
 }
 
-/// Flyout dropdown - click to open, shows the 4 People items.
+/// Flyout dropdown - click to open, shows the 5 People items.
 /// Clean blue panel like the sidebar (no white, no extra icons, no radius - box).
 class _FlyoutNavGroup extends ConsumerStatefulWidget {
   final _NavItem item;
@@ -1141,7 +1143,7 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
     if (isCurrentlyOpen) {
       _hideFlyout();
     } else {
-      // Select People (navigate to All Users) and open the box with 4 items
+      // Select People (navigate to All Users) and open the box with 5 items
       if (widget.item.route.isNotEmpty) {
         final currentPath = GoRouterState.of(context).uri.path;
         if (currentPath != widget.item.route) {
