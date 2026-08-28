@@ -42,6 +42,8 @@ class AppConstants {
   static const String roleEmployee = 'employee';
   static const String roleRider = 'rider';
   static const String roleLender = 'lender';
+  /// Borrower alias for [roleLender] — semantically borrower/client (DB VIEW borrower_profiles).
+  static const String roleBorrower = roleLender;
 
   static const String loanStatusPending = 'pending';
   static const String loanStatusUnderReview = 'under_review';

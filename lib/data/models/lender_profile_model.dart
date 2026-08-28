@@ -28,20 +28,31 @@ class LenderProfileModel {
     required this.updatedAt,
   });
 
+  // Forward-compat: varchar deprecated, uuid *_id canonical (trigger-synced).
+  static String? _resolveNullableCode(Map<String, dynamic> json, String codeKey, String idKey, String joinKey) {
+    final code = json[codeKey];
+    if (code is String && code.isNotEmpty) return code;
+    final join = json[joinKey];
+    if (join is Map && join['code'] is String && (join['code'] as String).isNotEmpty) return join['code'] as String;
+    final id = json[idKey];
+    if (id is String && id.isNotEmpty) return id;
+    return null;
+  }
+
   factory LenderProfileModel.fromJson(Map<String, dynamic> json) {
     return LenderProfileModel(
       id: json['id'] ?? '',
       userId: json['user_id'] ?? '',
-      gender: json['gender'],
-      civilStatus: json['civil_status'],
+      gender: _resolveNullableCode(json, 'gender', 'gender_id', 'gender_types'),
+      civilStatus: _resolveNullableCode(json, 'civil_status', 'civil_status_id', 'civil_statuses'),
       dateOfBirth: json['date_of_birth'] != null
           ? DateTime.parse(json['date_of_birth'])
           : null,
-      employmentType: json['employment_type'],
+      employmentType: _resolveNullableCode(json, 'employment_type', 'employment_type_id', 'employment_types'),
       employerName: json['employer_name'],
       monthlyIncome: (json['monthly_income'] as num?)?.toDouble(),
       gcashNumber: json['gcash_number'],
-      accountUpgradeStatus: json['account_upgrade_status'] ?? 'not_submitted',
+      accountUpgradeStatus: _resolveNullableCode(json, 'account_upgrade_status', 'account_upgrade_status_id', 'account_upgrade_statuses') ?? 'not_submitted',
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'])
           : DateTime.now(),

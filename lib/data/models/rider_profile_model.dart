@@ -29,11 +29,22 @@ class RiderProfileModel {
     required this.createdAt,
   });
 
+  // Forward-compat: vehicle_type varchar is deprecated alias for vehicle_type_id uuid.
+  static String? _resolveNullableCode(Map<String, dynamic> json, String codeKey, String idKey, String joinKey) {
+    final code = json[codeKey];
+    if (code is String && code.isNotEmpty) return code;
+    final join = json[joinKey];
+    if (join is Map && join['code'] is String && (join['code'] as String).isNotEmpty) return join['code'] as String;
+    final id = json[idKey];
+    if (id is String && id.isNotEmpty) return id;
+    return null;
+  }
+
   factory RiderProfileModel.fromJson(Map<String, dynamic> json) {
     return RiderProfileModel(
       id: json['id'] ?? '',
       userId: json['user_id'] ?? '',
-      vehicleType: json['vehicle_type'],
+      vehicleType: _resolveNullableCode(json, 'vehicle_type', 'vehicle_type_id', 'vehicle_types'),
       plateNumber: json['plate_number'],
       driversLicenseNumber: json['drivers_license_number'],
       driversLicenseExpiry: json['drivers_license_expiry'] != null

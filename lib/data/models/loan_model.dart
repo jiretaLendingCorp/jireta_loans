@@ -48,6 +48,22 @@ class LoanModel extends LoanEntity {
     double installmentAmount = 0,
   }) : _installmentAmount = installmentAmount;
 
+  // Forward-compat: canonical DB columns are payment_frequency_id + status_id (uuid FK -> lookup.id).
+  // Edge still sends varchar `payment_frequency`/`status` (deprecated alias, trigger-synced),
+  // but after v2 drop the canonical views v_loans_canonical will JOIN code for display.
+  // This factory therefore reads varchar first, then joined lookup object, then uuid fallback.
+  static String _resolveCode(Map<String, dynamic> json, String codeKey, String idKey, String joinKey) {
+    final code = json[codeKey];
+    if (code is String && code.isNotEmpty) return code;
+    final join = json[joinKey];
+    if (join is Map && join['code'] is String && (join['code'] as String).isNotEmpty) {
+      return join['code'] as String;
+    }
+    final id = json[idKey];
+    if (id is String && id.isNotEmpty) return id; // uuid fallback (v2 raw select); UI should map via lookup if needed
+    return '';
+  }
+
   factory LoanModel.fromJson(Map<String, dynamic> json) {
     return LoanModel(
       id: json['id'],
@@ -59,7 +75,9 @@ class LoanModel extends LoanEntity {
       interestAmount: _toDouble(json['interest_amount']),
       totalPayable: _toDouble(json['total_payable']),
       outstandingBalance: _toDouble(json['outstanding_balance']),
-      frequency: json['frequency'] ?? 'monthly',
+      frequency: _resolveCode(json, 'payment_frequency', 'payment_frequency_id', 'payment_frequencies').isNotEmpty
+          ? _resolveCode(json, 'payment_frequency', 'payment_frequency_id', 'payment_frequencies')
+          : (json['frequency'] as String? ?? 'monthly'),
       termDays: (json['term_days'] as num?)?.toInt() ?? 0,
       termPeriods: (json['term_periods'] as num?)?.toInt() ?? 0,
       releaseDate: json['release_date'] != null
@@ -67,7 +85,9 @@ class LoanModel extends LoanEntity {
           : null,
       dueDate:
           json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
-      status: json['status'] ?? 'pending',
+      status: _resolveCode(json, 'status', 'status_id', 'loan_statuses').isNotEmpty
+          ? _resolveCode(json, 'status', 'status_id', 'loan_statuses')
+          : 'pending',
       rejectionReason: json['rejection_reason'],
       penaltyApplied: parseBool(json['penalty_applied'], fallback: false),
       disbursementMethod: json['disbursement_method'],

@@ -36,13 +36,28 @@ class DisbursementModel {
     this.rider,
   });
 
+  // Forward-compat: canonical columns are method_id + status_id (uuid FK -> lookup.id).
+  static String _resolveCode(Map<String, dynamic> json, String codeKey, String idKey, String joinKey) {
+    final code = json[codeKey];
+    if (code is String && code.isNotEmpty) return code;
+    final join = json[joinKey];
+    if (join is Map && join['code'] is String && (join['code'] as String).isNotEmpty) return join['code'] as String;
+    final id = json[idKey];
+    if (id is String && id.isNotEmpty) return id;
+    return '';
+  }
+
   factory DisbursementModel.fromJson(Map<String, dynamic> json) =>
       DisbursementModel(
         id: json['id'] ?? '',
         loanId: json['loan_id'] ?? '',
-        method: json['method'] ?? 'gcash',
+        method: _resolveCode(json, 'method', 'method_id', 'disbursement_methods').isNotEmpty
+            ? _resolveCode(json, 'method', 'method_id', 'disbursement_methods')
+            : 'gcash',
         amount: (json['amount'] as num?)?.toDouble() ?? 0,
-        status: json['status'] ?? 'pending',
+        status: _resolveCode(json, 'status', 'status_id', 'disbursement_statuses').isNotEmpty
+            ? _resolveCode(json, 'status', 'status_id', 'disbursement_statuses')
+            : 'pending',
         xenditDisbursementId: json['xendit_disbursement_id'],
         xenditStatus: json['xendit_status'],
         gcashNumber: json['gcash_number'],

@@ -64,6 +64,18 @@ class UserModel extends UserEntity {
 
   String get phone => phoneNumber ?? '';
 
+  // Forward-compat helper: varchar `code` is deprecated alias for uuid *_id.
+  // Reads code first (still sent by Edge), then joined lookup, then uuid fallback.
+  static String? _resolveNullableCode(Map<String, dynamic> json, String codeKey, String idKey, String joinKey) {
+    final code = json[codeKey];
+    if (code is String && code.isNotEmpty) return code;
+    final join = json[joinKey];
+    if (join is Map && join['code'] is String && (join['code'] as String).isNotEmpty) return join['code'] as String;
+    final id = json[idKey];
+    if (id is String && id.isNotEmpty) return id;
+    return null;
+  }
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'],
@@ -74,7 +86,7 @@ class UserModel extends UserEntity {
       middleName: json['middle_name'],
       lastName: json['last_name'] ?? '',
       suffix: json['suffix'],
-      accountStatus: json['account_status'] ?? 'active',
+      accountStatus: _resolveNullableCode(json, 'account_status', 'account_status_id', 'user_account_statuses') ?? 'active',
       forcePasswordChange: parseBool(json['force_password_change'], fallback: false),
       profilePhotoUrl: json['profile_photo_url'],
       lastLoginAt: json['last_login_at'] != null
@@ -85,20 +97,20 @@ class UserModel extends UserEntity {
           : DateTime.now(),
       department: json['department'],
       position: json['position'],
-      gender: json['gender'],
-      civilStatus: json['civil_status'],
+      gender: _resolveNullableCode(json, 'gender', 'gender_id', 'gender_types'),
+      civilStatus: _resolveNullableCode(json, 'civil_status', 'civil_status_id', 'civil_statuses'),
       plateNumber: json['plate_number'],
       driversLicenseNumber:
           json['drivers_license_number'] ?? json['license_number'],
       vehicleBrand: json['vehicle_brand'],
-      vehicleType: json['vehicle_type'],
-      employmentType: json['employment_type'],
+      vehicleType: _resolveNullableCode(json, 'vehicle_type', 'vehicle_type_id', 'vehicle_types'),
+      employmentType: _resolveNullableCode(json, 'employment_type', 'employment_type_id', 'employment_types'),
       employerName: json['employer_name'],
       monthlyIncome: json['monthly_income'] != null
           ? (json['monthly_income'] as num).toDouble()
           : null,
       gcashNumber: json['gcash_number'],
-      accountUpgradeStatus: json['account_upgrade_status'],
+      accountUpgradeStatus: _resolveNullableCode(json, 'account_upgrade_status', 'account_upgrade_status_id', 'account_upgrade_statuses'),
       dateOfBirth: json['date_of_birth'] != null
           ? DateTime.tryParse(json['date_of_birth'])
           : null,

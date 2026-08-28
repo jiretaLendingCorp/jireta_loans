@@ -36,13 +36,29 @@ class PaymentModel {
     this.recordedByUser,
   });
 
+  // Forward-compat: canonical columns are payment_method_id + status_id (uuid FK).
+  // Reads varchar `payment_method`/`status` first (deprecated alias), then joined lookup, then uuid fallback.
+  static String _resolveCode(Map<String, dynamic> json, String codeKey, String idKey, String joinKey) {
+    final code = json[codeKey];
+    if (code is String && code.isNotEmpty) return code;
+    final join = json[joinKey];
+    if (join is Map && join['code'] is String && (join['code'] as String).isNotEmpty) return join['code'] as String;
+    final id = json[idKey];
+    if (id is String && id.isNotEmpty) return id;
+    return '';
+  }
+
   factory PaymentModel.fromJson(Map<String, dynamic> json) => PaymentModel(
         id: json['id'] ?? '',
         loanId: json['loan_id'] ?? '',
         loanScheduleId: json['loan_schedule_id'],
         amount: (json['amount'] as num?)?.toDouble() ?? 0,
-        method: json['payment_method'] ?? json['method'] ?? 'office_cash',
-        status: json['status'] ?? 'pending',
+        method: _resolveCode(json, 'payment_method', 'payment_method_id', 'payment_methods').isNotEmpty
+            ? _resolveCode(json, 'payment_method', 'payment_method_id', 'payment_methods')
+            : (json['method'] as String? ?? 'office_cash'),
+        status: _resolveCode(json, 'status', 'status_id', 'payment_statuses').isNotEmpty
+            ? _resolveCode(json, 'status', 'status_id', 'payment_statuses')
+            : 'pending',
         referenceNumber: json['reference_number'],
         xenditPaymentId: json['xendit_payment_id'],
         xenditInvoiceUrl: json['xendit_invoice_url'],
