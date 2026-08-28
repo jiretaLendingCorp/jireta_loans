@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/reports/screens/hm_report_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -83,7 +84,7 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
                 child: TextField(
                   onChanged: (v) => setState(() => _search = v),
                   decoration: InputDecoration(
-                    hintText: 'Search by template or report name…',
+                    hintText: 'Search',
                     hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
                     prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textTertiary),
                     filled: true,
@@ -218,14 +219,12 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
         margin: const EdgeInsets.all(24),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-        child: Column(
+        child: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 80, height: 80, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.deepNavy.withValues(alpha: 0.08), AppColors.gold.withValues(alpha: 0.12)]), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.history_rounded, size: 40, color: AppColors.deepNavy)),
-            const SizedBox(height: 18),
-            const Text('No Reports Generated', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-            const SizedBox(height: 6),
-            const Text('Generate a report from the Report Library first.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13), textAlign: TextAlign.center),
+            Text('No Reports Generated', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            SizedBox(height: 6),
+            Text('Generate a report from the Report Library first.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -252,7 +251,6 @@ class _ReportHistoryCardState extends State<_ReportHistoryCard> {
     final xlsxUrl = report['xlsx_url'] as String?;
     final parameters = report['parameters'] as Map<String, dynamic>? ?? {};
     final color = _colorForKey(templateKey);
-    final icon = _iconForKey(templateKey);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -271,41 +269,17 @@ class _ReportHistoryCardState extends State<_ReportHistoryCard> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))],
-                ),
-                child: Icon(icon, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(child: Text(_labelForKey(templateKey), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                          child: Text(templateKey.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color, letterSpacing: 0.4)),
-                        ),
-                      ],
-                    ),
+                    Text(_labelForKey(templateKey), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.textTertiary),
-                        const SizedBox(width: 4),
                         Text(createdAt != null ? DateTime.parse(createdAt).toDisplay() : '–', style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
                         if (parameters['date_range'] != null) ...[
                           const SizedBox(width: 12),
-                          const Icon(Icons.date_range_rounded, size: 12, color: AppColors.textTertiary),
-                          const SizedBox(width: 4),
                           Text(parameters['date_range'].toString(), style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
                         ],
                       ],
@@ -321,17 +295,6 @@ class _ReportHistoryCardState extends State<_ReportHistoryCard> {
                   _DownloadButton(label: 'Excel', icon: Icons.table_chart_rounded, color: AppColors.riderGreen, hasUrl: xlsxUrl != null),
                 ],
               ),
-              const SizedBox(width: 8),
-              AnimatedOpacity(
-                opacity: _hover ? 1 : 0.5,
-                duration: const Duration(milliseconds: 150),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textSecondary),
-                ),
-              ),
             ],
           ),
         ),
@@ -345,7 +308,7 @@ class _ReportHistoryCardState extends State<_ReportHistoryCard> {
     if (key.contains('collection')) return Icons.delivery_dining_rounded;
     if (key.contains('borrower') || key.contains('lender')) return Icons.people_rounded;
     if (key.contains('rider')) return Icons.delivery_dining_rounded;
-    if (key.contains('financial') || key.contains('revenue')) return Icons.bar_chart_rounded;
+    if (key.contains('financial') || key.contains('revenue')) return LucideIcons.philippinePeso;
     if (key.contains('audit')) return Icons.history_rounded;
     if (key.contains('ci')) return Icons.search_rounded;
     return Icons.description_rounded;

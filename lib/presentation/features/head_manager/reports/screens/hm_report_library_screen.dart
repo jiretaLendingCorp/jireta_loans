@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:printing/printing.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
@@ -123,17 +125,13 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                     _buildSearchAndFilters(state),
                     const SizedBox(height: 20),
                     _buildSectionTitle(
-                      icon: Icons.grid_view_rounded,
                       title: 'Report Templates',
-                      subtitle: 'Choose a template and export instantly',
                     ),
                     const SizedBox(height: 16),
                     _buildTemplateGrid(context, state),
                     const SizedBox(height: 32),
                     _buildSectionTitle(
-                      icon: Icons.history_rounded,
                       title: 'Generated Reports History',
-                      subtitle: 'Recent exports — download again anytime',
                       trailing: state.history.isNotEmpty
                           ? TextButton.icon(
                               onPressed: () {},
@@ -168,7 +166,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                 child: TextField(
                   onChanged: (v) => setState(() => _search = v),
                   decoration: InputDecoration(
-                    hintText: 'Search reports — try “loan”, “collection”, “audit”...',
+                    hintText: 'Search',
                     hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
                     prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppColors.textTertiary),
                     filled: true,
@@ -221,27 +219,10 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     );
   }
 
-  Widget _buildSectionTitle({required IconData icon, required String title, required String subtitle, Widget? trailing}) => Row(
+  Widget _buildSectionTitle({required String title, Widget? trailing}) => Row(
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [AppColors.gold, AppColors.goldDark]),
-              borderRadius: BorderRadius.circular(11),
-              boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 3))],
-            ),
-            child: Icon(icon, size: 18, color: Colors.white),
-          ),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
-              ],
-            ),
+            child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
           ),
           if (trailing != null) trailing,
           const SizedBox(width: 8),
@@ -275,7 +256,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
             crossAxisCount: cross,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: cross == 1 ? 2.2 : 1.55,
+            mainAxisExtent: 98,
           ),
           itemCount: templates.length,
           itemBuilder: (ctx, i) => _Entrance(
@@ -283,7 +264,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
             child: _PremiumTemplateCard(
               data: templates[i],
               generating: state.isGenerating,
-              onGenerate: () => _showGenerateDialog(context, templates[i]),
+              onGenerate: (fmt) => _showGenerateDialog(context, templates[i], initialFormat: fmt),
             ),
           ),
         );
@@ -296,18 +277,11 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-        child: Column(
+        child: const Column(
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(16)),
-              child: const Icon(Icons.history_rounded, size: 36, color: AppColors.textTertiary),
-            ),
-            const SizedBox(height: 16),
-            const Text('No reports generated yet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-            const SizedBox(height: 6),
-            const Text('Choose a template above to create your first export.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13), textAlign: TextAlign.center),
+            Text('No reports generated yet', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            SizedBox(height: 6),
+            Text('Choose a template above to create your first export.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13), textAlign: TextAlign.center),
           ],
         ),
       );
@@ -326,35 +300,13 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [_colorForKey(r['template_key']?.toString() ?? r['report_name']?.toString() ?? ''), _colorForKey(r['template_key']?.toString() ?? '').withValues(alpha: 0.7)]),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(_iconForKey(r['template_key']?.toString() ?? r['report_name']?.toString() ?? ''), size: 20, color: Colors.white),
-                ),
-                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(r['report_name'] as String? ?? 'Generated Report', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                       const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
-                          const SizedBox(width: 4),
-                          Text(_formatDate(r['created_at']), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                          const SizedBox(width: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)),
-                            child: Text((r['template_key'] ?? 'custom').toString().replaceAll('_', ' '), style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                          ),
-                        ],
-                      ),
+                      Text(_formatDate(r['created_at']), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                     ],
                   ),
                 ),
@@ -386,7 +338,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
         {'key': 'lender_report', 'name': 'Lender Report', 'description': 'All registered lenders and their status', 'icon': Icons.people_rounded, 'has_pdf': true, 'has_excel': true, 'accent': AppColors.lenderBlue, 'category': 'Users'},
         {'key': 'rider_report', 'name': 'Rider Report', 'description': 'Rider performance and assignment history', 'icon': Icons.delivery_dining_rounded, 'has_pdf': true, 'has_excel': true, 'accent': const Color(0xFF4A6572), 'category': 'Operations'},
         {'key': 'employee_report', 'name': 'Employee Report', 'description': 'Employee activity and processing history', 'icon': Icons.badge_rounded, 'has_pdf': true, 'has_excel': true, 'accent': const Color(0xFF5D4037), 'category': 'Users'},
-        {'key': 'financial_report', 'name': 'Financial Report', 'description': 'Revenue, interest, and penalty totals', 'icon': Icons.monetization_on_rounded, 'has_pdf': true, 'has_excel': true, 'accent': const Color(0xFF6A1B9A), 'category': 'Financial'},
+        {'key': 'financial_report', 'name': 'Financial Report', 'description': 'Revenue, interest, and penalty totals', 'icon': LucideIcons.philippinePeso, 'has_pdf': true, 'has_excel': true, 'accent': const Color(0xFF6A1B9A), 'category': 'Financial'},
         {'key': 'overdue_report', 'name': 'Overdue Loans Report', 'description': 'Loans with delayed payments', 'icon': Icons.warning_rounded, 'has_pdf': true, 'has_excel': true, 'accent': AppColors.error, 'category': 'Loans'},
         {'key': 'audit_report', 'name': 'Audit Report', 'description': 'System activity and audit trail', 'icon': Icons.history_rounded, 'has_pdf': true, 'has_excel': true, 'accent': const Color(0xFF00838F), 'category': 'Operations'},
         {'key': 'ci_report', 'name': 'CI Report', 'description': 'Credit investigation assignments and outcomes', 'icon': Icons.search_rounded, 'has_pdf': true, 'has_excel': true, 'accent': AppColors.lenderBlueDark, 'category': 'Operations'},
@@ -394,24 +346,14 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
         {'key': 'disbursement_report', 'name': 'Disbursement Report', 'description': 'Loan disbursements by method and amount', 'icon': Icons.account_balance_rounded, 'has_pdf': true, 'has_excel': true, 'accent': AppColors.navyLight, 'category': 'Financial'},
       ];
 
-  Future<void> _showGenerateDialog(BuildContext context, Map<String, dynamic> template) async {
+  Future<void> _showGenerateDialog(BuildContext context, Map<String, dynamic> template, {String initialFormat = 'pdf'}) async {
     DateTimeRange? range;
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                child: Icon(template['icon'] as IconData? ?? Icons.assessment_rounded, color: AppColors.goldDark, size: 20),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Generate: ${template['name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
-            ],
-          ),
+          title: Text('Generate: ${template['name']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           content: SizedBox(
             width: 420,
             child: Column(
@@ -453,17 +395,33 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
               onPressed: range == null
                   ? null
                   : () async {
+                      final selected = range!;
+                      debugPrint('[DEBUG] Proceed tapped template=${template['name']} range=$selected format=$initialFormat');
                       Navigator.pop(ctx);
-                      final result = await ref.read(_reportProvider.notifier).generate(template['key'] as String, {'date_from': range!.start.toIso8601String(), 'date_to': range!.end.toIso8601String()});
+                      await Future.delayed(const Duration(milliseconds: 250));
                       if (!context.mounted) return;
-                      if (result != null) {
-                        await _showDownloadDialog(context, template['name'] as String? ?? 'Report', result['data']);
-                      } else {
-                        context.showSnackBarAsToast(const SnackBar(content: Text('Failed to generate report'), backgroundColor: AppColors.error));
+                      try {
+                        final result = await ref.read(_reportProvider.notifier).generate(template['key'] as String, {
+                          'date_from': DateFormat('yyyy-MM-dd').format(selected.start),
+                          'date_to': DateFormat('yyyy-MM-dd').format(selected.end),
+                        });
+                        if (!context.mounted) return;
+                        dynamic rawData;
+                        if (result != null) {
+                          rawData = result['data'] ?? result['rows'] ?? result['records'] ?? result;
+                          if (rawData is Map && rawData.containsKey('data')) rawData = rawData['data'];
+                        }
+                        debugPrint('[DEBUG] Generate result rawData: $rawData');
+                        final dataForPreview = rawData ?? [];
+                        await _showDownloadDialog(context, template['name'] as String? ?? 'Report', dataForPreview, dateRange: selected, initialFormat: initialFormat);
+                      } catch (e) {
+                        debugPrint('[DEBUG] Generate error: $e');
+                        if (!context.mounted) return;
+                        await _showDownloadDialog(context, template['name'] as String? ?? 'Report', [], dateRange: selected, initialFormat: initialFormat);
                       }
                     },
-              icon: const Icon(Icons.bolt_rounded, size: 16),
-              label: const Text('Generate'),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: const Text('Proceed'),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
             ),
           ],
@@ -472,32 +430,195 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     );
   }
 
-  Future<void> _showDownloadDialog(BuildContext context, String title, dynamic data) async {
+  Future<void> _showDownloadDialog(BuildContext context, String title, dynamic data, {DateTimeRange? dateRange, String? initialFormat}) async {
     final rows = _normalizeRows(data);
+    final columns = _columnsOf(rows);
+    debugPrint('Preview rows: ${rows.length} columns: $columns firstRow: ${rows.isNotEmpty ? rows.first : 'empty'}');
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(children: [Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.check_circle_rounded, color: AppColors.success)), const SizedBox(width: 10), const Text('Report Ready', style: TextStyle(fontWeight: FontWeight.w800))]),
-        content: SizedBox(
-          width: 380,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              Text('${rows.length} record${rows.length == 1 ? '' : 's'} retrieved. Choose a format to download.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-            ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 920, maxHeight: 680),
+          child: Container(
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+                  decoration: const BoxDecoration(
+                    border: Border(bottom: BorderSide(color: AppColors.divider)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.description_rounded, color: AppColors.success, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                            Text(
+                              dateRange == null
+                                  ? '${rows.length} record${rows.length == 1 ? '' : 's'} • Template preview'
+                                  : '${DateFormat('MMM dd, yyyy').format(dateRange.start)} – ${DateFormat('MMM dd, yyyy').format(dateRange.end)} • Template preview',
+                              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                // Preview table - Template
+                Expanded(
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          // Template header inside preview
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+                            child: Column(
+                              children: [
+                                const Text('Jireta Loans & Credit Corp', style: TextStyle(fontSize: 10, color: AppColors.textSecondary, letterSpacing: 0.4)),
+                                const SizedBox(height: 4),
+                                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary), textAlign: TextAlign.center),
+                                if (dateRange != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text('${DateFormat('MMM dd, yyyy').format(dateRange.start)} – ${DateFormat('MMM dd, yyyy').format(dateRange.end)}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: initialFormat == 'xlsx' ? AppColors.riderGreen.withValues(alpha: 0.1) : AppColors.error.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: initialFormat == 'xlsx' ? AppColors.riderGreen.withValues(alpha: 0.18) : AppColors.error.withValues(alpha: 0.18)),
+                                ),
+                                child: Text(initialFormat == 'xlsx' ? 'Excel Layout' : 'PDF Layout', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: initialFormat == 'xlsx' ? AppColors.riderGreen : AppColors.error, letterSpacing: 0.4)),
+                              ),
+                              const SizedBox(height: 8),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: DataTable(
+                                  headingRowColor: WidgetStateProperty.all(initialFormat == 'xlsx' ? AppColors.riderGreen : AppColors.deepNavy),
+                                  headingTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 11),
+                                  dataRowMinHeight: 32,
+                                  dataRowMaxHeight: 36,
+                                  headingRowHeight: 36,
+                                  columnSpacing: 16,
+                                  horizontalMargin: 12,
+                                  border: TableBorder.all(color: AppColors.border, width: 0.6),
+                                  columns: [for (final c in columns) DataColumn(label: Text(c, style: const TextStyle(fontSize: 11)))],
+                                  rows: rows.isEmpty
+                                      ? [
+                                          DataRow(cells: [for (final _ in columns) const DataCell(Text('—', style: TextStyle(fontSize: 11, color: AppColors.textTertiary)))]),
+                                        ]
+                                      : [
+                                          for (final r in rows.take(200))
+                                            DataRow(cells: [for (final c in columns) DataCell(Text(r[c]?.toString() ?? '', style: const TextStyle(fontSize: 11)))]),
+                                        ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (rows.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text('No records for selected period — template preview', style: TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (rows.length > 200)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: AppColors.surfaceVariant,
+                    child: Text('Showing first 200 of ${rows.length} records. Download to see all.', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center),
+                  ),
+                // Actions
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.divider))),
+                  child: Row(
+                    children: [
+                      TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                      const Spacer(),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          try {
+                            final bytes = await buildPdf(title: title, rows: rows);
+                            await Printing.layoutPdf(onLayout: (_) async => bytes);
+                          } catch (_) {
+                            if (ctx.mounted) ctx.showSnackBarAsToast(const SnackBar(content: Text('Print failed'), backgroundColor: AppColors.error));
+                          }
+                        },
+                        icon: const Icon(Icons.print_rounded, size: 16),
+                        label: const Text('Print'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          if (!context.mounted) return;
+                          await _downloadExcel(context, title, rows);
+                        },
+                        icon: const Icon(Icons.table_chart_rounded, color: AppColors.riderGreen, size: 16),
+                        label: const Text('Excel', style: TextStyle(color: AppColors.riderGreen)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          if (!context.mounted) return;
+                          await _downloadPdf(context, title, rows);
+                        },
+                        icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                        label: const Text('Download PDF'),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-          OutlinedButton.icon(onPressed: () async { Navigator.pop(ctx); if (!context.mounted) return; await _downloadExcel(context, title, rows); }, icon: const Icon(Icons.table_chart_rounded, color: AppColors.riderGreen), label: const Text('Excel', style: TextStyle(color: AppColors.riderGreen))),
-          ElevatedButton.icon(onPressed: () async { Navigator.pop(ctx); if (!context.mounted) return; await _downloadPdf(context, title, rows); }, icon: const Icon(Icons.picture_as_pdf_rounded, size: 16), label: const Text('Download PDF'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white)),
-        ],
       ),
     );
+  }
+
+  List<String> _columnsOf(List<Map<String, dynamic>> rows) {
+    final cols = <String>[];
+    for (final r in rows) {
+      for (final k in r.keys) {
+        if (!cols.contains(k)) cols.add(k);
+      }
+    }
+    if (cols.isEmpty) cols.add('No Data');
+    return cols;
   }
 
   Future<void> _downloadPdf(BuildContext context, String title, List<Map<String, dynamic>> rows) async {
@@ -531,9 +652,23 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   }
 
   List<Map<String, dynamic>> _normalizeRows(dynamic data) {
-    if (data is! List) return const [];
+    List<dynamic>? list;
+    if (data is List) {
+      list = data;
+    } else if (data is Map) {
+      final inner = data['data'] ?? data['rows'] ?? data['records'] ?? data['items'];
+      if (inner is List) {
+        list = inner;
+      } else if (inner is Map && inner['data'] is List) {
+        list = inner['data'] as List;
+      } else if (!data.containsKey('data')) {
+        // Single row map case — wrap it
+        list = [data];
+      }
+    }
+    if (list == null) return const [];
     final out = <Map<String, dynamic>>[];
-    for (final item in data) {
+    for (final item in list) {
       if (item is Map) {
         out.add(item.map((k, v) => MapEntry(k.toString(), _flatten(v))));
       }
@@ -571,7 +706,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     if (key.contains('loan')) return Icons.account_balance_wallet_rounded;
     if (key.contains('payment')) return Icons.payments_rounded;
     if (key.contains('collection')) return Icons.delivery_dining_rounded;
-    if (key.contains('financial')) return Icons.monetization_on_rounded;
+    if (key.contains('financial')) return LucideIcons.philippinePeso;
     if (key.contains('audit')) return Icons.history_rounded;
     if (key.contains('ci')) return Icons.search_rounded;
     return Icons.description_rounded;
@@ -586,9 +721,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 1.6),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 16, mainAxisExtent: 98),
               itemCount: 6,
-              itemBuilder: (_, __) => const ShimmerLoader(height: 140),
+              itemBuilder: (_, __) => const ShimmerLoader(height: 98),
             ),
           ],
         ),
@@ -621,7 +756,7 @@ class _FilterPill extends StatelessWidget {
 class _PremiumTemplateCard extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool generating;
-  final VoidCallback onGenerate;
+  final void Function(String format) onGenerate;
   const _PremiumTemplateCard({required this.data, required this.generating, required this.onGenerate});
   @override
   State<_PremiumTemplateCard> createState() => _PremiumTemplateCardState();
@@ -656,54 +791,30 @@ class _PremiumTemplateCardState extends State<_PremiumTemplateCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Builder(builder: (_) {
+                      final raw = widget.data['name'] as String? ?? '';
+                      final display = raw.replaceAll(RegExp(r'\s*Report\s*', caseSensitive: false), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+                      return Text(display.isEmpty ? raw : display, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary));
+                    }),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                            borderRadius: BorderRadius.circular(11),
-                            boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: widget.generating ? null : () => widget.onGenerate('pdf'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.error.withValues(alpha: 0.18))),
+                            child: const Text('PDF', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.error)),
                           ),
-                          child: Icon(widget.data['icon'] as IconData? ?? Icons.assessment_rounded, size: 22, color: Colors.white),
                         ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: accent.withValues(alpha: 0.15))),
-                          child: Text(widget.data['category'] as String? ?? 'General', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: accent, letterSpacing: 0.4)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(widget.data['name'] as String? ?? 'Report', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary)),
-                    const SizedBox(height: 4),
-                    Text(widget.data['description'] as String? ?? '', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _FormatBadge(icon: Icons.picture_as_pdf_rounded, color: AppColors.error, enabled: widget.data['has_pdf'] == true),
                         const SizedBox(width: 6),
-                        _FormatBadge(icon: Icons.table_chart_rounded, color: AppColors.riderGreen, enabled: widget.data['has_excel'] == true),
-                        const Spacer(),
-                        AnimatedScale(
-                          scale: _hover ? 1.02 : 1.0,
-                          duration: const Duration(milliseconds: 150),
-                          child: ElevatedButton.icon(
-                            onPressed: widget.generating ? null : widget.onGenerate,
-                            icon: widget.generating
-                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Icon(Icons.bolt_rounded, size: 14, color: Colors.white),
-                            label: Text(widget.generating ? 'Generating...' : 'Generate', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: accent,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              minimumSize: Size.zero,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              elevation: 0,
-                            ),
+                        GestureDetector(
+                          onTap: widget.generating ? null : () => widget.onGenerate('xlsx'),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(color: AppColors.riderGreen.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.18))),
+                            child: const Text('Excel', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.riderGreen)),
                           ),
                         ),
                       ],

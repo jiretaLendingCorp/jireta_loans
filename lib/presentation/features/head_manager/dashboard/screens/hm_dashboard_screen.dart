@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
@@ -239,7 +240,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
         const SizedBox(height: 12),
         _buildGridRow([
           _KpiCard(label: 'Penalties Collected', value: kpi.totalPenaltiesCollected, icon: Icons.gavel_rounded, color: AppColors.error, isCurrency: true),
-          _KpiCard(label: 'Total Revenue', value: kpi.totalRevenue, icon: Icons.monetization_on_rounded, color: AppColors.riderGreen, isCurrency: true),
+          _KpiCard(label: 'Total Revenue', value: kpi.totalRevenue, icon: LucideIcons.philippinePeso, color: AppColors.riderGreen, isCurrency: true),
         ]),
       ],
     );
