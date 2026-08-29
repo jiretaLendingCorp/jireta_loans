@@ -20,7 +20,7 @@ class RiderLiveTrackingScreen extends ConsumerStatefulWidget {
 }
 
 class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   GoogleMapController? _mapCtrl;
   bool _didInitialFit = false;
   bool _showRoutes = true;
@@ -49,6 +49,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))
       ..addListener(_onAnimTick);
     _pulseCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))
@@ -65,6 +66,15 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
       }
       _resolveSelectedDestination();
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When user switches to system Settings to flip the location toggle and
+    // then returns, detected instantly without waiting for the next timer tick.
+    if (state == AppLifecycleState.resumed) {
+      ref.read(riderLocationProvider.notifier).onAppResumed();
+    }
   }
 
   void _onAnimTick() {
@@ -167,7 +177,9 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
       list.add({'type': 'Delivery', 'label': label, 'subtitle': d.loanNumber, 'address': addr, 'status': d.status, 'raw': d});
     }
     for (final ci in dash.todayCiTasks) {
-      list.add({'type': 'CI', 'label': ci.borrowerName.isEmpty ? 'Lender' : ci.borrowerName, 'subtitle': ci.loanNumber, 'address': ci.borrowerAddress, 'status': ci.statusLabel, 'raw': ci});
+      final rawCiLabel = ci.borrowerName.isEmpty ? 'Lender' : ci.borrowerName;
+      final ciLabel = _formatLenderLabel(rawCiLabel, 'LENDER');
+      list.add({'type': 'CI', 'label': ciLabel, 'subtitle': ci.loanNumber, 'address': ci.borrowerAddress, 'status': ci.statusLabel, 'raw': ci});
     }
     // filter
     if (_filter == 'Collections') return list.where((e) => e['type'] == 'Collection').toList();
@@ -235,6 +247,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animCtrl.removeListener(_onAnimTick);
     _animCtrl.dispose();
     _pulseCtrl.dispose();
@@ -406,6 +419,56 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                 ),
             ]),
           ),
+          // ── GPS off / permission banner — appears instantly when the rider
+          // flips the system location toggle (serviceStatusStream) or denies
+          // permission. "Turn On" jumps to system settings.
+          if (loc.error != null)
+            Positioned(
+              top: 44,
+              left: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: loc.error!.contains('permanently denied')
+                      ? AppColors.error.withValues(alpha: 0.95)
+                      : const Color(0xFFE53E3E),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.location_off, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        loc.error!,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                        maxLines: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        if (loc.error!.contains('permanently denied')) {
+                          ref.read(riderLocationProvider.notifier).openAppSettings();
+                        } else {
+                          ref.read(riderLocationProvider.notifier).openLocationSettings();
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                        child: Text(
+                          loc.error!.contains('permanently denied') ? 'Open Settings' : 'Turn On',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: loc.error!.contains('permanently denied') ? AppColors.error : const Color(0xFFE53E3E)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           // Tracking controls (top-left)
           Positioned(
             top: 56,
@@ -460,8 +523,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Builder(builder: (context) {
                           final raw = selectedTask['label'] as String;
-                          final isCI = selectedTask['type'] == 'CI';
-                          final displayLabel = isCI ? raw : (raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw');
+                          final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
                           return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800));
                         }),
                         Container(
@@ -558,8 +620,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                                     const SizedBox(width: 4),
                                     Expanded(child: Builder(builder: (context) {
                                       final raw = t['label'] as String;
-                                      final isCI = t['type'] == 'CI';
-                                      final displayLabel = isCI ? raw : (raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw');
+                                      final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
                                       return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700));
                                     })),
                                   ]),
@@ -581,17 +642,32 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                 Row(children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                    child: const Text('All Systems Operational', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
+                    decoration: BoxDecoration(
+                        color: loc.error != null ? AppColors.error.withValues(alpha: 0.12) : AppColors.successLight,
+                        borderRadius: BorderRadius.circular(20)),
+                    child: Text(loc.error != null ? 'GPS Signal Lost' : 'All Systems Operational',
+                        style: TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.w700, color: loc.error != null ? AppColors.error : AppColors.success)),
                   ),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+                    decoration: BoxDecoration(
+                        color: loc.error != null ? AppColors.error.withValues(alpha: 0.12) : AppColors.surfaceVariant,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: loc.error != null ? AppColors.error.withValues(alpha: 0.3) : AppColors.border)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+                      Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                              color: loc.error != null ? AppColors.error : AppColors.success, shape: BoxShape.circle)),
                       const SizedBox(width: 4),
-                      Text(loc.isTracking ? 'GPS Online' : 'GPS Off', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: loc.isTracking ? AppColors.success : AppColors.textSecondary)),
+                      Text(loc.error != null ? 'GPS Off' : (loc.isTracking ? 'GPS Online' : 'GPS Off'),
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: loc.error != null ? AppColors.error : (loc.isTracking ? AppColors.success : AppColors.textSecondary))),
                     ]),
                   ),
                   const Spacer(),

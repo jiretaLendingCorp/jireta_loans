@@ -73,18 +73,27 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
         _kpiDs.getRiderKpis(),
         _collDs.getCollectionList(status: 'assigned', page: 1),
         _collDs.getCollectionList(status: 'accepted', page: 1),
-        _ciDs.getCiList(status: 'accepted', page: 1),
+        // CI: keep visible until completed (assigned + accepted + in_progress)
+        _ciDs.getCiList(status: 'assigned', page: 1, limit: 50),
+        _ciDs.getCiList(status: 'accepted', page: 1, limit: 50),
+        _ciDs.getCiList(status: 'in_progress', page: 1, limit: 50),
         _disbDs.getDisbursementList(
             method: 'rider_delivery', status: 'pending'),
       ]);
+      // Merge assigned/accepted/in_progress and sort by deadline/createdAt desc
+      final ciMerged = <CreditInvestigationModel>[
+        ...results[3] as List<CreditInvestigationModel>,
+        ...results[4] as List<CreditInvestigationModel>,
+        ...results[5] as List<CreditInvestigationModel>,
+      ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       state = state.copyWith(
         kpi: results[0] as KpiRiderModel,
         todayCollections: [
           ...results[1] as List<CollectionAssignmentModel>,
           ...results[2] as List<CollectionAssignmentModel>,
         ],
-        todayCiTasks: results[3] as List<CreditInvestigationModel>,
-        todayDeliveries: results[4] as List<DisbursementModel>,
+        todayCiTasks: ciMerged,
+        todayDeliveries: results[6] as List<DisbursementModel>,
         isLoading: false,
       );
     } catch (e) {

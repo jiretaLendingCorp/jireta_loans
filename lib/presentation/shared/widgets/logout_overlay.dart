@@ -82,17 +82,6 @@ class LogoutOverlay extends ConsumerWidget {
                         color: AppColors.deepNavy,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Please wait while we sign you out securely.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.textSecondary
-                            .withValues(alpha: 0.9),
-                        height: 1.4,
-                      ),
-                    ),
                   ],
                 ),
               ),

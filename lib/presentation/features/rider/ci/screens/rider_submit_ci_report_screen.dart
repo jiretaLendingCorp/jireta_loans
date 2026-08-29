@@ -74,10 +74,9 @@ class _RiderSubmitCiReportScreenState
 
     final confirmed = await showConfirmationDialog(
       context,
-      title: 'Submit CI Report',
-      message:
-          'Once submitted, the report will be forwarded to the Head Manager and Employee. Are you sure you want to submit?',
-      confirmLabel: 'Submit Report',
+      title: 'Submit Report',
+      message: 'Are you sure you want to submit?',
+      confirmLabel: 'Submit',
       confirmColor: AppColors.riderGreen,
     );
     if (confirmed != true) return;
@@ -255,7 +254,7 @@ class _RiderSubmitCiReportScreenState
                         height: 22,
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
-                    : const Text('Submit Report',
+                    : const Text('Submit',
                         style: TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w600)),
               ),

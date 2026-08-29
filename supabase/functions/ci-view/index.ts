@@ -51,6 +51,9 @@ async function handleCiGetList(req: Request) {
   const ciId = url.searchParams.get('ci_id');
   const offset = (page - 1) * limit;
   const db = getAdminClient();
+  // Expire overdue assignments before listing so rider sees them disappear
+  // immediately (cron is only every 10m). Errors are non-fatal.
+  try { await (db as any).rpc('expire_overdue_assignments'); } catch (_) {}
   let query = db.from('credit_investigations')
     .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at,
       loan_id,
@@ -79,8 +82,12 @@ async function handleCiGetList(req: Request) {
       const lenderId = loan?.lender_id ?? null;
 
       const rawDocs = Array.isArray(r.ci_documents) ? r.ci_documents : [];
+      // DEBUG FIX: Staff (HM/Employee) must NOT see docs/report until Review→Submit (status completed).
+      // Rider sees his own docs immediately; staff sees empty until completed. This enforces wizard step 4 visibility.
+      const isStaffViewer = user.role === ROLES.HEAD_MANAGER || user.role === ROLES.EMPLOYEE;
+      const effectiveRawDocs = isStaffViewer && r.status !== 'completed' ? [] : rawDocs;
       const ciDocs = [];
-      for (const doc of rawDocs) {
+      for (const doc of effectiveRawDocs) {
         let fileUrl: string | null = null;
         if (doc.file_path) {
           const { data: signedUrl } = await db.storage
@@ -95,8 +102,11 @@ async function handleCiGetList(req: Request) {
         });
       }
 
+      // Ensure staff cannot see report before wizard Review→Submit (status completed)
+      const effectiveReport = isStaffViewer && r.status !== 'completed' ? null : r.report_summary;
       return {
         ...r,
+        report_summary: effectiveReport,
         loans: loan
           ? {
               ...loan,

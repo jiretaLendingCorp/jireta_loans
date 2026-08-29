@@ -80,14 +80,20 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
   void setFilter(String status) => setTab(status);
 
   Future<void> loadDetails(String ciId) async {
+    state = state.copyWith(isLoading: true, error: null);
     try {
       final detail = await _ds.getCiDetails(ciId);
-      state = state.copyWith(
-        selectedCi:
-            detail == null ? null : CreditInvestigationModel.fromJson(detail),
+      // Directly construct new state to allow explicit null for selectedCi (not found)
+      state = RiderCiState(
+        ciList: state.ciList,
+        selectedCi: detail == null ? null : CreditInvestigationModel.fromJson(detail),
+        isLoading: false,
+        activeTab: state.activeTab,
+        isSubmitting: false,
+        error: null,
       );
     } catch (e) {
-      state = state.copyWith(error: ErrorHandler.handle(e).message);
+      state = state.copyWith(isLoading: false, error: ErrorHandler.handle(e).message);
     }
   }
 

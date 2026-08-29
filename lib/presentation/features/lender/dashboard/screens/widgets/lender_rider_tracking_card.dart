@@ -170,7 +170,7 @@ class _LenderRiderTrackingCardState extends ConsumerState<LenderRiderTrackingCar
           flat: true,
           anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(
-            title: rider.riderName.isEmpty ? 'Rider' : rider.riderName,
+            title: _displayRiderName(rider.riderName),
             snippet: '${_typeLabel(rider.assignmentType)} · ${rider.loanNumber}',
           ),
           onTap: () => _openRider(rider.riderId),
@@ -224,6 +224,13 @@ class _LenderRiderTrackingCardState extends ConsumerState<LenderRiderTrackingCar
 
   void _openRider(String riderId) {
     context.push(RouteConstants.lenderTrackRider.replaceFirst(':id', riderId));
+  }
+
+  String _displayRiderName(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return 'RIDER';
+    if (t.toUpperCase().startsWith('RIDER:')) return t;
+    return 'RIDER: $t';
   }
 
   String _relativeTime(DateTime? updated) {
@@ -511,16 +518,22 @@ class _RiderStatusTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      rider.riderName.isEmpty ? 'Rider' : rider.riderName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    Builder(builder: (context) {
+                      final raw = rider.riderName.trim();
+                      final display = raw.isEmpty
+                          ? 'RIDER'
+                          : (raw.toUpperCase().startsWith('RIDER:') ? raw : 'RIDER: $raw');
+                      return Text(
+                        display,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
+                      );
+                    }),
                     const SizedBox(height: 2),
                     Text(
                       '$typeLabel · Loan #${rider.loanNumber}',

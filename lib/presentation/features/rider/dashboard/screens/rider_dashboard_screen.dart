@@ -329,14 +329,15 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     }
     return Column(
       children: state.todayCiTasks.take(5).map<Widget>((ci) {
+        final displayStatus = ci.status == 'accepted' ? 'in_progress' : ci.status;
         return _buildTaskCard(
           context,
           title: 'CI Task #${ci.id.substring(0, 8).toUpperCase()}',
           subtitle: ci.deadline != null
               ? 'Due: ${ci.deadline!.toDateString()}'
               : 'No deadline',
-          status: ci.status,
-          statusColor: _ciStatusColor(ci.status),
+          status: displayStatus,
+          statusColor: _ciStatusColor(displayStatus),
           icon: Icons.search_outlined,
           iconColor: AppColors.info,
           onTap: () => context.push('${RouteConstants.riderCi}/${ci.id}'),

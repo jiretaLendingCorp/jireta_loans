@@ -282,6 +282,13 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
         _ => 'Collection',
       };
 
+  String _displayRiderName(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return 'RIDER';
+    if (t.toUpperCase().startsWith('RIDER:')) return t;
+    return 'RIDER: $t';
+  }
+
   String _relative(DateTime? dt) {
     if (dt == null) return 'Waiting';
     final d = DateTime.now().difference(dt);
@@ -390,7 +397,7 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
         flat: true,
         anchor: const Offset(0.5, 0.5),
         zIndexInt: isSelected ? 2 : 1,
-        infoWindow: InfoWindow(title: r.riderName.isEmpty ? 'Rider' : r.riderName, snippet: '${_typeLabel(r.assignmentType)} • ${r.loanNumber}'),
+        infoWindow: InfoWindow(title: _displayRiderName(r.riderName), snippet: '${_typeLabel(r.assignmentType)} • ${r.loanNumber}'),
         onTap: () => _selectRider(r.riderId),
       ));
     }
@@ -487,37 +494,26 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
                 Positioned(
                   top: 12,
                   left: 12,
-                  right: 12,
-                  child: Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        AnimatedBuilder(
-                          animation: _pulseCtrl,
-                          builder: (_, __) {
-                            final s = 0.85 + 0.25 * _pulseCtrl.value;
-                            return Stack(alignment: Alignment.center, children: [
-                              Opacity(
-                                  opacity: (1 - _pulseCtrl.value) * 0.45,
-                                  child: Container(width: 10 * s, height: 10 * s, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle))),
-                              Container(width: 7, height: 7, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
-                            ]);
-                          },
-                        ),
-                        const SizedBox(width: 6),
-                        const Text('Live', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.success)),
-                        const SizedBox(width: 6),
-                        const Text('Real-time rider location', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                      ]),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: AppColors.lenderBlue, borderRadius: BorderRadius.circular(20)),
-                      child: Text('$active active', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
-                    ),
-                  ]),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      AnimatedBuilder(
+                        animation: _pulseCtrl,
+                        builder: (_, __) {
+                          final s = 0.85 + 0.25 * _pulseCtrl.value;
+                          return Stack(alignment: Alignment.center, children: [
+                            Opacity(
+                                opacity: (1 - _pulseCtrl.value) * 0.45,
+                                child: Container(width: 10 * s, height: 10 * s, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle))),
+                            Container(width: 7, height: 7, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+                          ]);
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('Live', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.success)),
+                    ]),
+                  ),
                 ),
                 // Tracking Controls (top-left card)
                 Positioned(
@@ -578,7 +574,7 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(selected.riderName.isEmpty ? 'Rider' : selected.riderName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                              Text(_displayRiderName(selected.riderName), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
@@ -617,97 +613,16 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
                         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)]),
                         child: Text(
                             selectedDistText != null && selectedEtaText != null
-                                ? 'Rider: ${selected.riderName.isEmpty ? 'Rider' : selected.riderName}  •  ETA: $selectedEtaText  •  $selectedDistText'
-                                : 'Rider: ${selected.riderName.isEmpty ? 'Rider' : selected.riderName}  •  Locating…',
+                                ? '${_displayRiderName(selected.riderName)}  •  ETA: $selectedEtaText  •  $selectedDistText'
+                                : '${_displayRiderName(selected.riderName)}  •  Locating…',
                             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                       ),
                     ),
                   ),
-                // Bottom Active Riders carousel
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                    decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)]),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Text('Active Riders ($active)', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () {},
-                          child: const Row(children: [Text('View All Riders', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.lenderBlue)), SizedBox(width: 4), Icon(Icons.arrow_forward, size: 14, color: AppColors.lenderBlue)]),
-                        ),
-                      ]),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        height: 96,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: riders.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
-                          itemBuilder: (ctx, i) {
-                            final r = riders[i];
-                            final isSel = r.riderId == _selectedRiderId;
-                            final initials = r.riderName.isEmpty ? 'R' : r.riderName.trim().split(' ').take(2).map((e) => e.isEmpty ? '' : e[0].toUpperCase()).join();
-                            return GestureDetector(
-                              onTap: () => _selectRider(r.riderId),
-                              child: Container(
-                                width: 160,
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: isSel ? AppColors.lenderBlue : AppColors.border, width: isSel ? 1.5 : 1),
-                                  boxShadow: isSel ? [BoxShadow(color: AppColors.lenderBlue.withValues(alpha: 0.15), blurRadius: 8)] : null,
-                                ),
-                                child: Row(children: [
-                                  CircleAvatar(radius: 18, backgroundColor: AppColors.lenderBlue.withValues(alpha: 0.1), child: Text(initials, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.lenderBlue))),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Text(r.riderName.isEmpty ? 'Rider' : r.riderName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                        decoration: BoxDecoration(color: r.isStale ? AppColors.warningLight : AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                                        child: Text(r.isStale ? 'Paused' : 'On Delivery', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: r.isStale ? AppColors.warning : AppColors.success)),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(r.riderId == _selectedRiderId && selectedEtaText != null ? 'ETA: $selectedEtaText' : 'ETA: —', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                                      Text(r.riderId == _selectedRiderId && selectedDistText != null ? selectedDistText! : 'Tap to view', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                                      Row(children: [const Icon(Icons.speed, size: 10, color: AppColors.textTertiary), const SizedBox(width: 2), Text(formatSpeedKmh(r.validatedSpeedKmh ?? _riderSpeedsKmh[r.riderId]), style: const TextStyle(fontSize: 10, color: AppColors.textTertiary))]),
-                                    ]),
-                                  ),
-                                ]),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                          child: const Text('All Systems Operational', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-                          child: const Row(mainAxisSize: MainAxisSize.min, children: [Text('GPS Service', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)), SizedBox(width: 6), Text('Online', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success))]),
-                        ),
-                        const Spacer(),
-                        Text(selected != null && selected.locationUpdatedAt != null ? 'Updated: ${_relative(selected.locationUpdatedAt)}' : 'Last update: Just now', style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
-                      ]),
-                    ]),
-                  ),
-                ),
                 // Map controls right
                 Positioned(
                   right: 12,
-                  bottom: 140,
+                  bottom: 16,
                   child: Column(children: [
                     _MapBtn(icon: Icons.add, onTap: () => _mapCtrl?.animateCamera(CameraUpdate.zoomIn())),
                     const SizedBox(height: 8),

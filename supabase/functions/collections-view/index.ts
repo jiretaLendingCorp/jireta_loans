@@ -120,6 +120,9 @@ async function handleCollectionGetList(req: Request) {
   const riderId = url.searchParams.get('rider_id');
   const offset = (page - 1) * limit;
   const db = getAdminClient();
+  // Auto-expire overdue before listing so overdue assignments disappear
+  // from rider's active tabs and a overdue notification is inserted.
+  try { await (db as any).rpc('expire_overdue_assignments'); } catch (_) {}
   let query = db.from('collection_assignments')
     .select(COLLECTION_SELECT, { count: 'exact' });
   query = scopeQueryToUser(query, user, riderId);

@@ -55,6 +55,8 @@ async function handleGetList(req: Request) {
   const offset = (page - 1) * limit;
 
   const db = getAdminClient();
+  // Expire overdue rider deliveries before returning list
+  try { await (db as any).rpc('expire_overdue_assignments'); } catch (_) {}
   let query = db.from('disbursements').select(
     `id, loan_id, method, amount, status,
      xendit_disbursement_id:xendit_id, xendit_reference, xendit_status,

@@ -46,7 +46,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
         route: RouteConstants.riderProfile),
   ];
 
-  final _tabs = ['Assigned', 'Accepted', 'In Progress', 'Completed'];
+  final _tabs = ['Assigned', 'In Progress', 'Completed'];
 
   @override
   void initState() {
@@ -57,7 +57,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    final statusMap = ['assigned', 'accepted', 'in_progress', 'completed'];
+    final statusMap = ['assigned', 'in_progress', 'completed'];
     ref
         .read(riderCiProvider.notifier)
         .setFilter(statusMap[_tabController.index]);
@@ -186,7 +186,7 @@ class _CiCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                StatusBadge(status: ci.status),
+                StatusBadge(status: ci.status == 'accepted' ? 'in_progress' : ci.status),
               ],
             ),
             const SizedBox(height: 12),
