@@ -188,9 +188,11 @@ async function handleArchive(req: Request) {
   }
   if (target.account_status === 'archived') return errorResponse('User already archived', 400, 'INVALID_STATUS');
 
-  const { count: activeLoans } = await db.from('loans').select('*', { count: 'exact', head: true })
-    .eq('lender_id', user_id).in('status', ['pending', 'under_review', 'ci_assigned', 'ci_completed', 'active', 'overdue']);
-  if ((activeLoans ?? 0) > 0) return errorResponse('Cannot archive user with active loans', 400, 'ACTIVE_LOAN_EXISTS');
+  // NOTE: Active loans are PRESERVED — archiving is soft non-destructive.
+  // Requirement: "kahit may active loan pa ma-archive pa rin, basta hindi mawawala lahat
+  // ng active loan etc. ... maibabalik account kapag unarchived ng walang nadedelete"
+  // → We only flip account_status to 'archived', NO delete/cascade. All loans,
+  // collections, CIs, disbursements, payments remain intact and auto-resume on unarchive.
 
   await db.from('users').update({ account_status: 'archived' }).eq('id', user_id);
   await writeAuditLog({ performedBy: user.id, action: 'archive_user', tableName: 'users', recordId: user_id, ipAddress: ip });
