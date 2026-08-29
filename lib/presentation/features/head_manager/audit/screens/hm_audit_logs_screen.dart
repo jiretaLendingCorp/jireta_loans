@@ -248,9 +248,10 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
     final user = rawUser is Map<String, dynamic> ? rawUser : null;
     // Webhook/system entries (performed_by NULL) and broken joins must not
     // render as a blank performer — label them explicitly.
-    final performerName = user == null
-        ? 'System'
-        : '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
+    // Robust fallback: if first_name/last_name are empty (e.g. Dashboard
+    // Add User head_manager before 00116 had '' names), fall back to email,
+    // phone, role label, or truncated UUID so the cell is never blank/?.
+    final performerName = _resolvePerformerName(user, log['performed_by'] as String?);
     final isExpanded = _expandedLog?['id'] == log['id'];
     return Column(
       key: ValueKey(log['id']),
@@ -473,11 +474,81 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   }
 
   String _initials(Map<String, dynamic>? user) {
-    if (user == null) return 'S';
+    if (user == null) {
+      return 'S';
+    }
     final f = (user['first_name'] as String? ?? '').trim();
     final l = (user['last_name'] as String? ?? '').trim();
     final initials =
         '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}';
-    return initials.isEmpty ? '?' : initials.toUpperCase();
+    if (initials.isNotEmpty) {
+      return initials.toUpperCase();
+    }
+    // Fallback when names are empty (Dashboard Add User before 00116):
+    // use email initial, phone initial, or role initial.
+    final email = (user['email'] as String? ?? '').trim();
+    if (email.isNotEmpty) {
+      return email[0].toUpperCase();
+    }
+    final phone = (user['phone_number'] as String? ?? '').trim();
+    if (phone.isNotEmpty) {
+      return phone[0].toUpperCase();
+    }
+    final roles = user['roles'];
+    String? roleName;
+    if (roles is Map) {
+      roleName = roles['name'] as String?;
+    } else if (roles is List && roles.isNotEmpty) {
+      final first = roles.first;
+      if (first is Map) {
+        roleName = first['name'] as String?;
+      }
+    }
+    if (roleName != null && roleName.isNotEmpty) {
+      return roleName[0].toUpperCase();
+    }
+    return 'U';
+  }
+
+  String _resolvePerformerName(Map<String, dynamic>? user, String? performedById) {
+    if (user == null) {
+      return 'System';
+    }
+    final f = (user['first_name'] as String? ?? '').trim();
+    final l = (user['last_name'] as String? ?? '').trim();
+    final full = '$f $l'.trim();
+    if (full.isNotEmpty) {
+      return full;
+    }
+    final email = (user['email'] as String? ?? '').trim();
+    if (email.isNotEmpty) {
+      return email;
+    }
+    final phone = (user['phone_number'] as String? ?? '').trim();
+    if (phone.isNotEmpty) {
+      return phone;
+    }
+    final roles = user['roles'];
+    String? roleName;
+    if (roles is Map) {
+      roleName = roles['name'] as String?;
+    } else if (roles is List && roles.isNotEmpty) {
+      final first = roles.first;
+      if (first is Map) {
+        roleName = first['name'] as String?;
+      }
+    }
+    if (roleName != null && roleName.isNotEmpty) {
+      final label = roleName
+          .split('_')
+          .where((w) => w.isNotEmpty)
+          .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+          .join(' ');
+      return label;
+    }
+    if (performedById != null && performedById.isNotEmpty) {
+      return 'User ${performedById.substring(0, 8)}';
+    }
+    return 'Unknown';
   }
 }

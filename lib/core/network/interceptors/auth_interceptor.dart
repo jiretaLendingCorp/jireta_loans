@@ -145,6 +145,19 @@ class AuthInterceptor extends Interceptor {
       final errObj = respData['error'];
       if (errObj is Map) serverCode = errObj['code']?.toString();
     }
+    // ── Archived account or archived role → immediate hard logout ──────────
+    // Requirement: "KAPAG NAKA ARCHIVED UNG ROLE OR USER DAPAT HINDI MAGAGAMIT
+    // NI USER UNG ACCOUNT NIYA" — any authenticated request after archiving
+    // must force logout so the user cannot continue using the app.
+    // ROLE_ARCHIVED = role disabled, ACCOUNT_ARCHIVED = user disabled.
+    // Both clear storage and emit sessionExpired so router redirects to login.
+    if (err.response?.statusCode == 403 &&
+        (serverCode == 'ACCOUNT_ARCHIVED' ||
+            serverCode == 'ROLE_ARCHIVED' ||
+            serverCode == 'ACCOUNT_INACTIVE')) {
+      await _dropDeadSession();
+      return handler.next(err);
+    }
     if (serverCode == 'UNAUTHORIZED_ANON_TOKEN' ||
         serverCode == 'UNAUTHORIZED_USER_NOT_FOUND' ||
         serverCode == 'UNAUTHORIZED_MISSING_HEADER' ||

@@ -5,6 +5,8 @@ class ApiEndpoints {
   // Auth
   static const String authLogin = 'auth-login?fn=login';
   static const String authRegister = 'auth-register?fn=register';
+  static const String authRegisterSendOtp = 'auth-register?fn=send-otp';
+  static const String authRegisterVerifyOtp = 'auth-register?fn=verify-otp';
   static const String authSendOtp = 'auth-otp?fn=send-otp';
   static const String authVerifyOtp = 'auth-otp?fn=verify-otp';
   static const String authForceChangePassword =
@@ -26,6 +28,12 @@ class ApiEndpoints {
   static const String usersGetProfile = 'users-manage?fn=get-profile';
   static const String usersGetList = 'users-admin?fn=get-list';
   static const String usersArchive = 'users-admin?fn=archive';
+  static const String usersUnarchive = 'users-admin?fn=unarchive';
+  static const String usersRestore = 'users-admin?fn=unarchive'; // alias for restore
+  // Roles — archived role = all users with that role blocked; unarchived = restored
+  static const String rolesArchive = 'users-admin?fn=archive-role';
+  static const String rolesUnarchive = 'users-admin?fn=unarchive-role';
+  static const String rolesGetList = 'users-admin?fn=get-roles';
 
   // Account Upgrade
   static const String accountUpgradeSubmit = 'kyc-submit?fn=submit';

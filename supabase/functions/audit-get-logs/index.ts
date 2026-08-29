@@ -37,9 +37,9 @@ serve(async (req) => {
       .from('audit_logs')
       .select(
         `id, action, table_name, record_id, old_values, new_values,
-         ip_address, created_at,
+         ip_address, created_at, performed_by,
          performed_by_user:users!audit_logs_performed_by_fkey(
-           id, first_name, last_name, roles(name)
+           id, first_name, last_name, email, phone_number, roles(name)
          )`,
         { count: 'exact' }
       )
@@ -61,7 +61,7 @@ serve(async (req) => {
       const { data: matchingUsers, error: usersErr } = await db
         .from('users')
         .select('id')
-        .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`);
+        .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%,phone_number.ilike.%${q}%`);
       if (usersErr) {
         console.error('audit-get-logs name search users query failed:', usersErr.message);
         return errorResponse('Failed to search audit logs by name', 500, 'DB_ERROR');

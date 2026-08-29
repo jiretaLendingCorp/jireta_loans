@@ -49,4 +49,19 @@ class UserRepositoryImpl implements IUserRepository {
 
   @override
   Future<void> archive(String userId) => _ds.archive(userId);
+
+  @override
+  Future<void> unarchive(String userId) => _ds.unarchive(userId);
+
+  @override
+  Future<void> restore(String userId) => _ds.restore(userId);
+
+  @override
+  Future<void> archiveRole(String roleName) => _ds.archiveRole(roleName);
+
+  @override
+  Future<void> unarchiveRole(String roleName) => _ds.unarchiveRole(roleName);
+
+  @override
+  Future<List<Map<String, dynamic>>> getRoles() => _ds.getRoles();
 }

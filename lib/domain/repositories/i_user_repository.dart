@@ -16,4 +16,9 @@ abstract class IUserRepository {
   Future<void> createLender(Map<String, dynamic> data);
   Future<void> updateProfile(String userId, Map<String, dynamic> data);
   Future<void> archive(String userId);
+  Future<void> unarchive(String userId);
+  Future<void> restore(String userId);
+  Future<void> archiveRole(String roleName);
+  Future<void> unarchiveRole(String roleName);
+  Future<List<Map<String, dynamic>>> getRoles();
 }

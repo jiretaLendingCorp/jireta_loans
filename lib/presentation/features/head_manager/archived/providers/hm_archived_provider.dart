@@ -74,10 +74,15 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
   }
 
   Future<void> restore(String userId) async {
-    await _ds.updateProfile({
-      'user_id': userId,
-      'account_status': 'active',
-    });
+    try {
+      await _ds.unarchive(userId);
+    } catch (_) {
+      // Fallback for older backend or if unarchive endpoint not yet deployed
+      await _ds.updateProfile({
+        'user_id': userId,
+        'account_status': 'active',
+      });
+    }
     await load();
   }
 }

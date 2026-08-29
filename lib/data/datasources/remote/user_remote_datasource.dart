@@ -74,6 +74,33 @@ class UserRemoteDataSource {
     await _client.patch(ApiEndpoints.usersArchive, data: {'user_id': userId});
   }
 
+  /// Restore an archived user — sets account_status back to 'active'.
+  /// Requirement: "KAPAG NA UNARCHIVED NA THEN MA RERESTORE NA UNG ACCOUNT
+  /// MAGAGAMIT NA NI USER" — archived = blocked, unarchived = usable again.
+  Future<void> unarchive(String userId) async {
+    await _client.patch(ApiEndpoints.usersUnarchive, data: {'user_id': userId});
+  }
+
+  // Alias for restore (used by Archived screen)
+  Future<void> restore(String userId) => unarchive(userId);
+
+  // ── Role archiving — archived role = ALL users with that role blocked ──
+  Future<void> archiveRole(String roleName) async {
+    await _client.patch(ApiEndpoints.rolesArchive, data: {'role': roleName});
+  }
+
+  Future<void> unarchiveRole(String roleName) async {
+    await _client.patch(ApiEndpoints.rolesUnarchive, data: {'role': roleName});
+  }
+
+  Future<void> restoreRole(String roleName) => unarchiveRole(roleName);
+
+  Future<List<Map<String, dynamic>>> getRoles() async {
+    final res = await _client.get(ApiEndpoints.rolesGetList);
+    final list = (res.data['roles'] as List?) ?? (res.data['data'] as List?) ?? [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
   Future<Map<String, dynamic>> getList({
     String? role,
     String? status,

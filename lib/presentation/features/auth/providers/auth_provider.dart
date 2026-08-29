@@ -84,6 +84,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     required String password,
     String? gender,
     String? civilStatus,
+    required String otp,
   }) async {
     state = const AsyncLoading();
     try {
@@ -95,7 +96,36 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         password: password,
         gender: gender,
         civilStatus: civilStatus,
+        otp: otp,
       );
+      state = const AsyncData(null);
+      return null;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return extractErrorMessage(e);
+    }
+  }
+
+  Future<String?> sendRegisterOtp({
+    required String email,
+    String? firstName,
+    String? lastName,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.sendRegisterOtp(email: email, firstName: firstName, lastName: lastName);
+      state = const AsyncData(null);
+      return null;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return extractErrorMessage(e);
+    }
+  }
+
+  Future<String?> verifyRegisterOtp({required String email, required String otp}) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.verifyRegisterOtp(email: email, otp: otp);
       state = const AsyncData(null);
       return null;
     } catch (e, s) {
