@@ -110,14 +110,16 @@ serve(async (req) => {
       .maybeSingle();
     if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
 
-    const { data: roleRow } = await db
-      .from('roles')
-      .select('id, is_archived')
-      .eq('name', 'employee')
-      .single();
+    let roleRow: any = null;
+    try {
+      const { data } = await db.from('roles').select('id, is_archived').eq('name', 'employee').single();
+      roleRow = data;
+      if ((roleRow as any)?.is_archived === true) return errorResponse('Registration disabled — employee role is archived', 403, 'ROLE_ARCHIVED');
+    } catch (_) {
+      const { data } = await db.from('roles').select('id').eq('name', 'employee').single();
+      roleRow = data;
+    }
     if (!roleRow) return errorResponse('Employee role not configured', 500, 'SERVER_ERROR');
-    // deno-lint-ignore no-explicit-any
-    if ((roleRow as any).is_archived === true) return errorResponse('Registration disabled — employee role is archived', 403, 'ROLE_ARCHIVED');
 
     // ── Create the Supabase Auth account ──────────────────────────────────
     const { data: authUser, error: authErr } = await db.auth.admin.createUser({

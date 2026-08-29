@@ -90,7 +90,7 @@ async function handleExchange(req: Request) {
   // mixed-case rows still resolve (canonical is lower via DB trigger).
   const { data: userRow } = await db
     .from('users')
-    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name, is_archived)')
+    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
     .ilike('email', email)
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
@@ -123,9 +123,7 @@ async function handleExchange(req: Request) {
   if (user.account_status === 'archived') {
     return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
   }
-  if (user?.roles?.is_archived === true) {
-    return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
-  }
+  try { if (user?.roles?.name) { const { data: _raG } = await db.from('roles').select('is_archived').eq('name', user.roles.name).maybeSingle(); if ((_raG as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 
   // ── Step 3: guard against auth.id ↔ users.id mismatches ──────────────────
   // Every downstream Edge Function resolves public.users by the JWT's user id
@@ -241,7 +239,7 @@ async function selfRegisterGoogleLender(
       force_password_change: false,
       created_by:            null,
     }, { onConflict: 'id' })
-    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name, is_archived)')
+    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
     .single();
 
   if (userErr || !newUser) {

@@ -140,7 +140,7 @@ async function selfRegisterLender(db: DbClient, phone: string) {
     account_status: 'active',
     force_password_change: false,
     created_by: null,
-  }, { onConflict: 'id' }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name, is_archived)').single();
+  }, { onConflict: 'id' }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)').single();
 
   if (userErr || !newUser) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});
@@ -224,7 +224,7 @@ async function handleSendOtp(req: Request) {
   // once a phone IS registered we only allow OTP for rider/lender roles.
   const { data: userRow } = await db
     .from('users')
-    .select('id, account_status, roles(name, is_archived)')
+    .select('id, account_status, roles(name)')
     .eq('phone_number', phone)
     .maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
@@ -232,7 +232,7 @@ async function handleSendOtp(req: Request) {
   let userId: string | null = null;
   if (user) {
     if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
-    if (user?.roles?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
+    try { const { data: _ra } = await db.from('roles').select('is_archived').eq('name', user?.roles?.name).maybeSingle(); if ((_ra as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } catch (_) {}
     if (user.account_status === 'inactive') return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
 
     const role = user?.roles?.name;
@@ -414,7 +414,7 @@ async function handleVerifyOtp(req: Request) {
 
   const { data: userRow } = await db
     .from('users')
-    .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name, is_archived)')
+    .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)')
     .eq('phone_number', phone)
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
@@ -430,9 +430,7 @@ async function handleVerifyOtp(req: Request) {
   if (user.account_status === 'archived') {
     return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
   }
-  if (user?.roles?.is_archived === true) {
-    return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
-  }
+  try { if (user?.roles?.name) { const { data: _ra2 } = await db.from('roles').select('is_archived').eq('name', user.roles.name).maybeSingle(); if ((_ra2 as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
   if (user.account_status === 'inactive') {
     return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
   }

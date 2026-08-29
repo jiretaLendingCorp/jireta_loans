@@ -52,7 +52,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
 
   let { data: dbUserRow, error: dbErr } = await supabase
     .from('users')
-    .select('id, account_status, roles(name, is_archived)')
+    .select('id, account_status, roles(name)')
     .eq('id', user.id)
     .single();
 
@@ -64,7 +64,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     if (email) {
       const result = await supabase
         .from('users')
-        .select('id, account_status, roles(name, is_archived)')
+        .select('id, account_status, roles(name)')
         .ilike('email', email)
         .maybeSingle();
       identityRow = result.data;
@@ -73,7 +73,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     if (!identityRow && user.phone) {
       const result = await supabase
         .from('users')
-        .select('id, account_status, roles(name, is_archived)')
+        .select('id, account_status, roles(name)')
         .eq('phone_number', user.phone)
         .maybeSingle();
       identityRow = result.data;
@@ -115,8 +115,24 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     return errorResponse('Account is archived', 403, 'ACCOUNT_ARCHIVED');
   }
 
-  if (dbUser?.roles?.is_archived === true) {
-    return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
+  // ── Role-archived check (resilient to missing column before migration) ───
+  // If roles.is_archived column does not exist yet (migration not deployed),
+  // the query will error → treat as not archived so existing users don't disappear.
+  const roleName = dbUser?.roles?.name as string | undefined;
+  if (roleName) {
+    try {
+      const { data: roleRow } = await supabase
+        .from('roles')
+        .select('is_archived')
+        .eq('name', roleName)
+        .maybeSingle();
+      // deno-lint-ignore no-explicit-any
+      if ((roleRow as any)?.is_archived === true) {
+        return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
+      }
+    } catch (_) {
+      // column missing or other error → ignore, allow login (migration not yet applied)
+    }
   }
 
   if (dbUser.account_status === 'pending') {

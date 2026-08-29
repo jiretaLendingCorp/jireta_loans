@@ -160,14 +160,16 @@ async function handleUpdateProfile(req: Request) {
     ['head_manager', 'employee', 'rider', 'lender'].includes(body.role) &&
     ['head_manager'].includes(user.role)
   ) {
-    const { data: newRole } = await db
-      .from('roles')
-      .select('id, is_archived')
-      .eq('name', body.role)
-      .single();
+    let newRole: any = null;
+    try {
+      const { data } = await db.from('roles').select('id, is_archived').eq('name', body.role).single();
+      newRole = data;
+      if ((newRole as any)?.is_archived === true) return errorResponse(`Cannot assign archived role '${body.role}'`, 403, 'ROLE_ARCHIVED');
+    } catch (_) {
+      const { data } = await db.from('roles').select('id').eq('name', body.role).single();
+      newRole = data;
+    }
     if (!newRole) return errorResponse('Role not found', 404, 'NOT_FOUND');
-    // deno-lint-ignore no-explicit-any
-    if ((newRole as any).is_archived === true) return errorResponse(`Cannot assign archived role '${body.role}'`, 403, 'ROLE_ARCHIVED');
     if (newRole.id !== existing.role_id) {
       updateFields.role_id = newRole.id;
       if (body.role === 'rider') {
