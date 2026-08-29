@@ -10,6 +10,7 @@ import '../../../../../core/extensions/string_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/profile_avatar_upload.dart';
+import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../providers/lender_profile_provider.dart';
 import 'widgets/legal_info_sheet.dart';
@@ -740,6 +741,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   }
 
   Widget _buildLogoutButton() {
+    final isLoggingOut =
+        ref.watch(authStateProvider.select((s) => s.isLoggingOut));
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
@@ -750,34 +753,45 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
-        icon: const Icon(Icons.logout),
-        label: const Text('Log Out',
-            style: TextStyle(fontWeight: FontWeight.w600)),
-        onPressed: () async {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Log Out'),
-              content: const Text('Do you want to logout?'),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('No')),
-                ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Yes'),
-                ),
-              ],
-            ),
-          );
-          if (confirmed != true) return;
-          await ref.read(authProvider.notifier).logout();
-          if (mounted && context.mounted) {
-            context.go(RouteConstants.mobileLogin);
-          }
-        },
+        icon: isLoggingOut
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.error),
+              )
+            : const Icon(Icons.logout),
+        label: Text(isLoggingOut ? 'Logging out...' : 'Log Out',
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        onPressed: isLoggingOut
+            ? null
+            : () async {
+                if (ref.read(authStateProvider).isLoggingOut) return;
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Log Out'),
+                    content: const Text('Do you want to logout?'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('No')),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.error),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Yes'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed != true) return;
+                // Global LogoutOverlay appears via authStateProvider.isLoggingOut
+                await ref.read(authProvider.notifier).logout();
+                if (mounted && context.mounted) {
+                  context.go(RouteConstants.mobileLogin);
+                }
+              },
       ),
     );
   }

@@ -55,7 +55,7 @@ async function handleSendOtp(req: Request) {
 
   if (!phone || !otp) return errorResponse('phone and otp are required', 400, 'MISSING_FIELDS');
 
-  const message = `Your Jireta Loans OTP is: ${otp}. Valid for 5 minutes. Do not share this code.`;
+  const message = `Your Jireta Loans OTP is: ${otp}. Valid for 1 minute. Do not share this code.`;
 
   const result = await sendSms({ to: phone, message });
   if (!result) return errorResponse('Failed to send OTP SMS', 500, 'SMS_ERROR');

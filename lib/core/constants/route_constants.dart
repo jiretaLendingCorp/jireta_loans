@@ -85,6 +85,7 @@ class RouteConstants {
   static const String riderNavigateToBorrowerCi = '/rider/ci/:id/navigate';
   static const String riderUploadCiDocuments = '/rider/ci/:id/upload';
   static const String riderSubmitCiReport = '/rider/ci/:id/submit';
+  static const String riderLiveTracking = '/rider/live-tracking';
   static const String riderNotifications = '/rider/notifications';
   static const String riderProfile = '/rider/profile';
   static const String riderEditProfile = '/rider/profile/edit';
@@ -106,6 +107,7 @@ class RouteConstants {
   static const String lenderPaymentReceipt = '/lender/receipt/:id';
   static const String lenderCollections = '/lender/collections';
   static const String lenderCollectionDetails = '/lender/collections/:id';
+  static const String lenderLiveTracking = '/lender/live-tracking';
   static const String lenderTrackRider = '/lender/track-rider/:id';
   static const String lenderDocuments = '/lender/documents';
   static const String lenderUploadDocument = '/lender/documents/upload';

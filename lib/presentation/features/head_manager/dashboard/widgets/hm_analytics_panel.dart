@@ -1149,8 +1149,9 @@ class _MonthlyBarChartState extends State<_MonthlyBarChart> {
                           reservedSize: 22,
                           getTitlesWidget: (v, meta) {
                             final i = v.toInt();
-                            if (i < 0 || i >= points.length)
+                            if (i < 0 || i >= points.length) {
                               return const SizedBox.shrink();
+                            }
                             final isHovered = _hovered == i;
                             return SideTitleWidget(
                               axisSide: meta.axisSide,
@@ -1306,8 +1307,7 @@ class _BarTooltipCard extends StatelessWidget {
   final MonthlyKpiPoint? prev;
   final String fullLabel;
   const _BarTooltipCard(
-      {super.key,
-      required this.point,
+      {required this.point,
       required this.prev,
       required this.fullLabel});
 
@@ -1808,8 +1808,9 @@ class _ApplicationsLineChartState extends State<_ApplicationsLineChart> {
                           interval: 1,
                           getTitlesWidget: (v, meta) {
                             final i = v.toInt();
-                            if (i < 0 || i >= points.length)
+                            if (i < 0 || i >= points.length) {
                               return const SizedBox.shrink();
+                            }
                             final isHovered = _hovered == i;
                             return SideTitleWidget(
                               axisSide: meta.axisSide,
@@ -2003,8 +2004,7 @@ class _LineTooltipCard extends StatelessWidget {
   final String fullLabel;
   final double avg;
   const _LineTooltipCard(
-      {super.key,
-      required this.point,
+      {required this.point,
       required this.prev,
       required this.fullLabel,
       required this.avg});

@@ -431,18 +431,24 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }
 
   Future<void> logout() async {
+    // Expose loading via AsyncValue so LogoutOverlay can also react to
+    // authProvider.isLoading if some callers watch that provider.
+    state = const AsyncLoading();
     try {
-      await _ds.logout();
-    } catch (_) {}
-    // SECURITY: also destroy the local supabase session (used by realtime,
-    // storage, and Google OAuth). Without this the client-side session
-    // survives logout and can still access RLS-protected resources.
-    try {
-      await Supabase.instance.client.auth.signOut();
-    } catch (_) {}
-    await RealtimeService.instance.disconnect();
-    await _authState.logout();
-    state = const AsyncData(null);
+      try {
+        await _ds.logout();
+      } catch (_) {}
+      // SECURITY: also destroy the local supabase session (used by realtime,
+      // storage, and Google OAuth). Without this the client-side session
+      // survives logout and can still access RLS-protected resources.
+      try {
+        await Supabase.instance.client.auth.signOut();
+      } catch (_) {}
+      await RealtimeService.instance.disconnect();
+      await _authState.logout();
+    } finally {
+      state = const AsyncData(null);
+    }
   }
 
   String? extractErrorMessage(Object error) {

@@ -10,10 +10,18 @@ class LocationRemoteDataSource {
   Future<void> updateRiderLocation({
     required double lat,
     required double lng,
+    double? speedKmh,
+    double? accuracy,
   }) async {
+    final payload = <String, dynamic>{'latitude': lat, 'longitude': lng};
+    if (speedKmh != null && speedKmh.isFinite) {
+      payload['speed_kmh'] = speedKmh;
+      payload['speed'] = speedKmh / 3.6;
+    }
+    if (accuracy != null && accuracy.isFinite) payload['accuracy'] = accuracy;
     await _client.post(
       ApiEndpoints.locationUpdateRider,
-      data: {'latitude': lat, 'longitude': lng},
+      data: payload,
     );
   }
 

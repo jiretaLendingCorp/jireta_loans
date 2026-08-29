@@ -230,7 +230,7 @@ function buildLoginOtpHtml(otp: string, recipientName?: string): string {
             <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f1f3c;">Your login verification code</h2>
             <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">${greeting}</p>
             <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">
-              Use the code below to verify your mobile login to Jireta Loans. This code expires in <strong>10 minutes</strong> and can only be used once.
+              Use the code below to verify your mobile login to Jireta Loans. This code expires in <strong>1 minute</strong> and can only be used once.
             </p>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
               <tr>
@@ -270,7 +270,7 @@ We received a login request for your Jireta Loans account. Use the code below to
 
 ${otp}
 
-This code expires in 10 minutes and can only be used once. If you didn't request this, you can safely ignore this email.
+This code expires in 1 minute and can only be used once. If you didn't request this, you can safely ignore this email.
 
 — Jireta Loans & Credit Corp 1966`;
 }

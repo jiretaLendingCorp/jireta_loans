@@ -21,7 +21,7 @@ import { sanitizeIpAddress } from '../_shared/audit.ts';
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 10;
 const OTP_WINDOW_MINUTES = 10;
-const OTP_EXPIRY_MINUTES = 10;
+const OTP_EXPIRY_MINUTES = 1;
 
 // Abuse detection: 10 OTP requests per phone per 10 minutes (the stored
 // otp_codes count above) PLUS an IP-scoped guard so one IP cannot spray OTP

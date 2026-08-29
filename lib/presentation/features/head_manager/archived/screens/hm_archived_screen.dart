@@ -88,7 +88,7 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.archive_outlined,
+                  const Icon(Icons.archive_outlined,
                       size: 16, color: AppColors.error),
                   const SizedBox(width: 6),
                   Text(

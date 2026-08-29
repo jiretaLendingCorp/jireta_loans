@@ -12,6 +12,7 @@ import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar_upload.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../../shared/providers/auth_state_provider.dart';
 import '../providers/rider_profile_provider.dart';
 
 class RiderProfileScreen extends ConsumerStatefulWidget {
@@ -50,6 +51,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
   void _openEditProfile() => context.push(RouteConstants.riderEditProfile);
 
   Future<void> _logout() async {
+    if (ref.read(authStateProvider).isLoggingOut) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -68,7 +70,12 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       ),
     );
     if (confirmed == true) {
+      // Global [LogoutOverlay] shows "Logging out..." automatically via
+      // authStateProvider.isLoggingOut; keeps rider UX consistent with web.
       await ref.read(authProvider.notifier).logout();
+      if (mounted && context.mounted) {
+        context.go(RouteConstants.mobileLogin);
+      }
     }
   }
 
@@ -119,17 +126,29 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _logout,
-                    icon: const Icon(Icons.logout, color: AppColors.error),
-                    label: const Text('Log Out',
-                        style: TextStyle(color: AppColors.error)),
-                    style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.error),
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12))),
-                  ),
+                  Consumer(builder: (context, ref, _) {
+                    final isLoggingOut =
+                        ref.watch(authStateProvider.select((s) => s.isLoggingOut));
+                    return OutlinedButton.icon(
+                      onPressed: isLoggingOut ? null : _logout,
+                      icon: isLoggingOut
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.error),
+                            )
+                          : const Icon(Icons.logout, color: AppColors.error),
+                      label: Text(
+                          isLoggingOut ? 'Logging out...' : 'Log Out',
+                          style: const TextStyle(color: AppColors.error)),
+                      style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.error),
+                          minimumSize: const Size(double.infinity, 48),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12))),
+                    );
+                  }),
                   const SizedBox(height: 24),
                 ],
               ),

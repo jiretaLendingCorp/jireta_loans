@@ -341,6 +341,8 @@ class _UserAvatar extends ConsumerWidget {
             context.go(RouteConstants.empProfile);
           }
         } else if (val == 'logout') {
+          // Prevent double-tap while logout overlay is visible.
+          if (ref.read(authStateProvider).isLoggingOut) return;
           final confirmed = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -360,6 +362,8 @@ class _UserAvatar extends ConsumerWidget {
             ),
           );
           if (confirmed != true) return;
+          // Global [LogoutOverlay] appears automatically via
+          // authStateProvider.isLoggingOut — no manual dialog needed.
           await ref.read(authProvider.notifier).logout();
           if (context.mounted) context.go(RouteConstants.webLogin);
         }

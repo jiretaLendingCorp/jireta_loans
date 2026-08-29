@@ -409,7 +409,6 @@ class _SidebarGroupTile extends StatefulWidget {
   final String activeRoute;
   final VoidCallback onToggle;
   final Function(String) onNavigate;
-  final VoidCallback? onExpandSidebar;
 
   const _SidebarGroupTile({
     required this.item,
@@ -419,7 +418,6 @@ class _SidebarGroupTile extends StatefulWidget {
     required this.activeRoute,
     required this.onToggle,
     required this.onNavigate,
-    this.onExpandSidebar,
   });
 
   @override
@@ -448,7 +446,7 @@ class _SidebarGroupTileState extends State<_SidebarGroupTile> {
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: GestureDetector(
-          onTap: widget.onExpandSidebar ?? widget.onToggle,
+          onTap: widget.onToggle,
           child: Tooltip(
             message: widget.item.label,
             child: AnimatedContainer(

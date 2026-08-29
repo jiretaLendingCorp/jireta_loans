@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/config/env_config.dart';
 import '../../../../../core/services/route_service.dart';
+import '../../../../shared/widgets/map/map_anim_utils.dart';
 import '../providers/rider_location_provider.dart';
 import 'map_zoom_gesture.dart';
 import 'rider_trip_map.dart';
@@ -49,7 +50,7 @@ class RiderTripFullscreenMap extends ConsumerStatefulWidget {
     this.lenderLat,
     this.lenderLng,
     this.lenderTitle = 'You (Lender)',
-    this.lenderSnippet = 'Your live location',
+    this.lenderSnippet = '',
     this.lenderHue = BitmapDescriptor.hueBlue,
   });
 
@@ -59,7 +60,8 @@ class RiderTripFullscreenMap extends ConsumerStatefulWidget {
 }
 
 class _RiderTripFullscreenMapState
-    extends ConsumerState<RiderTripFullscreenMap> {
+    extends ConsumerState<RiderTripFullscreenMap>
+    with TickerProviderStateMixin {
   GoogleMapController? _mapController;
   bool _didInitialFit = false;
   int _lastFitCount = 0;
@@ -69,8 +71,14 @@ class _RiderTripFullscreenMapState
   double? _resolvedLng;
 
   bool _followRider = true;
-  LatLng? _lastCenteredRider;
   bool _isAutoMoving = false;
+
+  // Animated marker
+  late final AnimationController _markerAnimCtrl;
+  LatLng? _displayOrigin;
+  LatLng? _animStartOrigin;
+  LatLng? _animTargetOrigin;
+  double _originBearing = 0;
 
   List<LatLng>? _routePoints;
   LatLng? _lastRouteOrigin;
@@ -114,11 +122,56 @@ class _RiderTripFullscreenMapState
     return true;
   }
 
+  void _onMarkerTick() {
+    final start = _animStartOrigin;
+    final target = _animTargetOrigin;
+    if (start == null || target == null) return;
+    final t = easeInOutCubic(_markerAnimCtrl.value);
+    _displayOrigin = lerpLatLng(start, target, t);
+    if (_followRider && _didInitialFit && _mapController != null && _displayOrigin != null) {
+      _isAutoMoving = true;
+      _mapController!.moveCamera(CameraUpdate.newLatLng(_displayOrigin!));
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _animateToNewOrigin(double lat, double lng) {
+    final newPos = LatLng(lat, lng);
+    if (_displayOrigin == null) {
+      _displayOrigin = newPos;
+      _animStartOrigin = newPos;
+      _animTargetOrigin = newPos;
+      if (mounted) setState(() {});
+      return;
+    }
+    final target = _animTargetOrigin;
+    if (target != null &&
+        (target.latitude - newPos.latitude).abs() < 0.00001 &&
+        (target.longitude - newPos.longitude).abs() < 0.00001) {
+      return;
+    }
+    _animStartOrigin = _displayOrigin;
+    _animTargetOrigin = newPos;
+    _originBearing = bearingBetween(_animStartOrigin!, newPos);
+    _markerAnimCtrl.forward(from: 0);
+  }
+
   @override
   void initState() {
     super.initState();
     if (widget.autofitBoth) {
       _followRider = false;
+    }
+    _markerAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..addListener(_onMarkerTick);
+    final initLat = widget.originLat;
+    final initLng = widget.originLng;
+    if (initLat != null && initLng != null) {
+      _displayOrigin = LatLng(initLat, initLng);
+      _animStartOrigin = _displayOrigin;
+      _animTargetOrigin = _displayOrigin;
     }
     _maybeGeocodeDestination();
   }
@@ -147,6 +200,8 @@ class _RiderTripFullscreenMapState
 
   @override
   void dispose() {
+    _markerAnimCtrl.removeListener(_onMarkerTick);
+    _markerAnimCtrl.dispose();
     _mapController?.dispose();
     super.dispose();
   }
@@ -160,42 +215,47 @@ class _RiderTripFullscreenMapState
     final changed =
         oldWidget.originLat != oLat || oldWidget.originLng != oLng;
     if (!changed) return;
-    if (_followRider && _didInitialFit) {
-      final controller = _mapController;
-      if (controller != null) {
-        final movedEnough = _lastCenteredRider == null ||
-            (_lastCenteredRider!.latitude - oLat).abs() > 0.0009 ||
-            (_lastCenteredRider!.longitude - oLng).abs() > 0.0009;
-        if (movedEnough) {
-          _lastCenteredRider = LatLng(oLat, oLng);
-          _isAutoMoving = true;
-          controller.animateCamera(
-              CameraUpdate.newLatLngZoom(LatLng(oLat, oLng), 16));
-        }
-      }
-    }
+    _animateToNewOrigin(oLat, oLng);
     _fetchRoute(riderLat: oLat, riderLng: oLng);
   }
 
   void _recenterOnRider() {
-    final rLat = _originLat;
-    final rLng = _originLng;
+    final rLat = _displayOrigin?.latitude ?? _originLat;
+    final rLng = _displayOrigin?.longitude ?? _originLng;
     final controller = _mapController;
     if (rLat == null || rLng == null || controller == null) return;
     _followRider = true;
-    _lastCenteredRider = LatLng(rLat, rLng);
     _isAutoMoving = true;
     controller.animateCamera(CameraUpdate.newLatLngZoom(LatLng(rLat, rLng), 16));
   }
 
+  Set<Circle> _buildCircles() {
+    if (_displayOrigin == null) return const {};
+    return {
+      Circle(
+        circleId: const CircleId('rider_halo'),
+        center: _displayOrigin!,
+        radius: 22,
+        strokeWidth: 1,
+        strokeColor: AppColors.riderGreen.withValues(alpha: 0.25),
+        fillColor: AppColors.riderGreen.withValues(alpha: 0.07),
+      ),
+    };
+  }
+
   Set<Marker> _buildMarkers({double? riderLat, double? riderLng}) {
     final markers = <Marker>{};
-    if (riderLat != null && riderLng != null) {
+    final effectiveRiderPos = _displayOrigin ??
+        (riderLat != null && riderLng != null ? LatLng(riderLat, riderLng) : null);
+    if (effectiveRiderPos != null) {
       markers.add(
         Marker(
           markerId: const MarkerId('rider'),
-          position: LatLng(riderLat, riderLng),
+          position: effectiveRiderPos,
           icon: BitmapDescriptor.defaultMarkerWithHue(widget.originHue),
+          rotation: _originBearing,
+          flat: true,
+          anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(
             title: widget.originTitle,
             snippet: widget.originSnippet,
@@ -389,8 +449,18 @@ class _RiderTripFullscreenMapState
     final hasDestination = _effectiveLat != null && _effectiveLng != null;
     final originLat = _originLat;
     final originLng = _originLng;
+    // Seed display from provider if needed.
+    if (_displayOrigin == null && originLat != null && originLng != null) {
+      _displayOrigin = LatLng(originLat, originLng);
+      _animStartOrigin = _displayOrigin;
+      _animTargetOrigin = _displayOrigin;
+    }
     final markers = _buildMarkers(riderLat: originLat, riderLng: originLng);
-    final polylines = _buildPolylines(riderLat: originLat, riderLng: originLng);
+    final polylines = _buildPolylines(
+      riderLat: _displayOrigin?.latitude ?? originLat,
+      riderLng: _displayOrigin?.longitude ?? originLng,
+    );
+    final circles = _buildCircles();
 
     if (_routePoints == null && hasDestination) {
       if (originLat != null && originLng != null) {
@@ -399,24 +469,23 @@ class _RiderTripFullscreenMapState
         });
       }
     }
-    // Follow the rider: keep the camera centered on their live position so
-    // their movement is always visible. Disabled when the user pans/zooms.
+    // Animated follow: glide marker between GPS fixes.
     ref.listen(riderLocationProvider, (prev, next) {
-      if (_hasExternalOrigin || !mounted || !_followRider || !_didInitialFit) {
-        return;
-      }
+      if (_hasExternalOrigin || !mounted) return;
       final rLat = next.lastLat;
       final rLng = next.lastLng;
-      final controller = _mapController;
-      if (rLat == null || rLng == null || controller == null) return;
-      final movedEnough = _lastCenteredRider == null ||
-          (_lastCenteredRider!.latitude - rLat).abs() > 0.0009 ||
-          (_lastCenteredRider!.longitude - rLng).abs() > 0.0009;
-      if (!movedEnough) return;
-      _lastCenteredRider = LatLng(rLat, rLng);
-      _isAutoMoving = true;
-      controller.animateCamera(
-          CameraUpdate.newLatLngZoom(LatLng(rLat, rLng), 16));
+      if (rLat == null || rLng == null) return;
+      if (_displayOrigin == null) {
+        _displayOrigin = LatLng(rLat, rLng);
+        _animStartOrigin = _displayOrigin;
+        _animTargetOrigin = _displayOrigin;
+        if (mounted) setState(() {});
+        if (_effectiveLat != null && _effectiveLng != null) {
+          _fetchRoute(riderLat: rLat, riderLng: rLng);
+        }
+        return;
+      }
+      _animateToNewOrigin(rLat, rLng);
       if (_effectiveLat != null && _effectiveLng != null) {
         _fetchRoute(riderLat: rLat, riderLng: rLng);
       }
@@ -462,6 +531,7 @@ class _RiderTripFullscreenMapState
               },
               markers: markers,
               polylines: polylines,
+              circles: circles,
               myLocationEnabled: _hasValidMapsKey,
               myLocationButtonEnabled: _hasValidMapsKey,
               zoomControlsEnabled: true,

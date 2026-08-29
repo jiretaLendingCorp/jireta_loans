@@ -633,29 +633,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                                     ],
                                                   ),
                                                 ),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.deepNavy,
-                                                    borderRadius: BorderRadius.circular(20),
-                                                  ),
-                                                  child: const Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Icon(Icons.alternate_email_rounded, size: 10, color: Colors.white),
-                                                      SizedBox(width: 4),
-                                                      Text(
-                                                        '& Gmail',
-                                                        style: TextStyle(
-                                                          fontSize: 10,
-                                                          fontWeight: FontWeight.w700,
-                                                          color: Colors.white,
-                                                          letterSpacing: 0.3,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
+
                                               ],
                                             ),
                                           ),
@@ -835,7 +813,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                               Icon(Icons.schedule_rounded, size: 11, color: AppColors.textTertiary.withValues(alpha: 0.9)),
                                               const SizedBox(width: 4),
                                               Text(
-                                                'Code expires in 5 minutes',
+                                                'Code expires in 1 minute',
                                                 style: TextStyle(
                                                   fontSize: 11.5,
                                                   color: AppColors.textTertiary.withValues(alpha: 0.95),

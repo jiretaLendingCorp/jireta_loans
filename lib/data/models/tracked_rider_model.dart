@@ -20,6 +20,7 @@ class TrackedRiderModel {
   final double? latitude;
   final double? longitude;
   final double? accuracy;
+  final double? speedKmh;
   final DateTime? locationUpdatedAt;
   final bool isStale;
 
@@ -34,13 +35,33 @@ class TrackedRiderModel {
     this.latitude,
     this.longitude,
     this.accuracy,
+    this.speedKmh,
     this.locationUpdatedAt,
     this.isStale = false,
   });
 
   bool get hasLocation => latitude != null && longitude != null;
 
+  /// Validated GPS speed: null if missing/invalid, otherwise km/h.
+  double? get validatedSpeedKmh {
+    final v = speedKmh;
+    if (v == null || !v.isFinite || v < 0 || v > 120) return null;
+    return v;
+  }
+
   factory TrackedRiderModel.fromJson(Map<String, dynamic> json) {
+    double? parseSpeed() {
+      final raw = json['speed_kmh'] ?? json['speed'] ?? json['speed_mps'];
+      if (raw == null) return null;
+      final n = (raw as num?)?.toDouble();
+      if (n == null || !n.isFinite) return null;
+      // Heuristic: if value < 70 assume m/s -> convert; else km/h.
+      // Prefer explicit keys: speed_mps or speed.
+      if (json['speed_mps'] != null) return n * 3.6;
+      if (json['speed'] != null && n < 70) return n * 3.6;
+      return n;
+    }
+
     return TrackedRiderModel(
       riderId: json['rider_id'] ?? '',
       riderName: json['rider_name'] ?? '',
@@ -52,9 +73,12 @@ class TrackedRiderModel {
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
       accuracy: (json['accuracy'] as num?)?.toDouble(),
+      speedKmh: parseSpeed(),
       locationUpdatedAt: json['location_updated_at'] != null
           ? DateTime.tryParse(json['location_updated_at'])
-          : null,
+          : json['updated_at'] != null
+              ? DateTime.tryParse(json['updated_at'])
+              : null,
       isStale: parseBool(json['is_stale'], fallback: false),
     );
   }

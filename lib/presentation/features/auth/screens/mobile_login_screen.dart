@@ -556,7 +556,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                               ),
                                               const SizedBox(width: 6),
                                               Text(
-                                                'SECURE LOGIN',
+                                                'LOGIN',
                                                 style: TextStyle(
                                                   fontSize: 10,
                                                   fontWeight: FontWeight.w700,
@@ -647,39 +647,6 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                         letterSpacing: 2.4,
                                       ),
                                     ),
-                                    const SizedBox(height: 10),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.10)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.verified_user_rounded,
-                                              size: 12,
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.85)),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'Trusted  •  Fast  •  Secure',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.85),
-                                              letterSpacing: 0.6,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
                                     const SizedBox(height: 28),
                                   ],
                                 ),
@@ -755,35 +722,18 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                               ),
                                               const SizedBox(width: 12),
                                               const Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      'Welcome back',
-                                                      style: TextStyle(
-                                                        fontFamily:
-                                                            'PlayfairDisplay',
-                                                        fontSize: 20,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color:
-                                                            AppColors.deepNavy,
-                                                        height: 1.1,
-                                                      ),
-                                                    ),
-                                                    SizedBox(height: 2),
-                                                    Text(
-                                                      'Sign in to continue',
-                                                      style: TextStyle(
-                                                        fontSize: 12.5,
-                                                        color: AppColors
-                                                            .textSecondary,
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ],
+                                                child: Text(
+                                                  'Login',
+                                                  style: TextStyle(
+                                                    fontFamily:
+                                                        'PlayfairDisplay',
+                                                    fontSize: 20,
+                                                    fontWeight:
+                                                        FontWeight.w700,
+                                                    color:
+                                                        AppColors.deepNavy,
+                                                    height: 1.1,
+                                                  ),
                                                 ),
                                               ),
                                             ],

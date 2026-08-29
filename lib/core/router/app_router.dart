@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jireta_loans/presentation/features/lender/profile/screens/lender_edit_profile_screen.dart'
     as lender_edit_profile;
+import '../../presentation/features/lender/live_tracking/screens/lender_live_tracking_screen.dart';
+import '../../presentation/features/rider/live_tracking/screens/rider_live_tracking_screen.dart';
 
 import '../../presentation/features/auth/screens/force_change_password_screen.dart';
 import '../../presentation/features/auth/screens/forgot_password_screen.dart';
@@ -480,6 +482,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.riderDashboard,
           builder: (ctx, s) => const RiderDashboardScreen()),
       GoRoute(
+          path: RouteConstants.riderLiveTracking,
+          builder: (ctx, s) => const RiderLiveTrackingScreen()),
+      GoRoute(
           path: RouteConstants.riderDisbursements,
           builder: (ctx, s) => const RiderDisbursementListScreen()),
       GoRoute(
@@ -547,6 +552,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.lenderDashboard,
           builder: (ctx, s) => const LenderDashboardScreen()),
+      GoRoute(
+          path: RouteConstants.lenderLiveTracking,
+          builder: (ctx, s) => const LenderLiveTrackingScreen()),
       GoRoute(
           path: RouteConstants.lenderAccountUpgrade,
           builder: (ctx, s) => const LenderAccountUpgradeSubmitScreen()),

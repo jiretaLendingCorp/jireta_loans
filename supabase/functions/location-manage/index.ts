@@ -88,7 +88,20 @@ async function handleUpdateRider(req: Request) {
     if (limited.allowed === false) return errorResponse('Rate limit exceeded. One update per 30s.', 429, 'RATE_LIMIT');
 
     const body = await req.json();
-    const { latitude, longitude, accuracy } = body;
+    const { latitude, longitude, accuracy, speed, speed_kmh, speed_mps } = body;
+    // Accept speed in any unit: prefer speed_kmh, else speed (m/s), else speed_mps
+    let speedKmh: number | null = null;
+    if (typeof speed_kmh === 'number' && Number.isFinite(speed_kmh)) {
+      speedKmh = speed_kmh;
+    } else if (typeof speed === 'number' && Number.isFinite(speed)) {
+      // heuristic: values <70 are likely m/s
+      speedKmh = speed < 70 ? speed * 3.6 : speed;
+    } else if (typeof speed_mps === 'number' && Number.isFinite(speed_mps)) {
+      speedKmh = speed_mps * 3.6;
+    }
+    if (speedKmh !== null && (!Number.isFinite(speedKmh) || speedKmh < 0 || speedKmh > 120)) {
+      speedKmh = null;
+    }
 
     if (
       typeof latitude !== 'number' ||
@@ -119,20 +132,30 @@ async function handleUpdateRider(req: Request) {
       }
     }
 
-    const { error } = await db.from('rider_locations').upsert(
-      {
-        rider_id: authResult.id,
-        latitude,
-        longitude,
-        accuracy: accuracy ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'rider_id' }
-    );
+    // Try to store speed if column exists; fallback gracefully if schema hasn't migrated yet.
+    const upsertPayload: Record<string, unknown> = {
+      rider_id: authResult.id,
+      latitude,
+      longitude,
+      accuracy: accuracy ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    // Only include speed_kmh if we have a valid value; DB may not have column yet.
+    if (speedKmh !== null) (upsertPayload as Record<string, unknown>)['speed_kmh'] = speedKmh;
+
+    let { error } = await db.from('rider_locations').upsert(upsertPayload, { onConflict: 'rider_id' });
+
+    // If error is due to missing column, retry without speed_kmh
+    if (error && (error.message?.includes('speed_kmh') || error.message?.includes('column'))) {
+      console.warn('speed_kmh column missing, retrying without it:', error.message);
+      delete (upsertPayload as Record<string, unknown>)['speed_kmh'];
+      const retry = await db.from('rider_locations').upsert(upsertPayload, { onConflict: 'rider_id' });
+      error = retry.error;
+    }
 
     if (error) return errorResponse('Failed to update location', 500, 'DB_ERROR');
 
-    return jsonResponse({ success: true, latitude, longitude });
+    return jsonResponse({ success: true, latitude, longitude, speed_kmh: speedKmh });
   } catch (err) {
     console.error('location-update-rider error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');
@@ -291,11 +314,24 @@ async function handleGetRider(req: Request) {
 
     const { data, error } = await db
       .from('rider_locations')
-      .select('rider_id, latitude, longitude, accuracy, updated_at')
+      .select('rider_id, latitude, longitude, accuracy, updated_at, speed_kmh')
       .eq('rider_id', riderId)
       .single();
 
-    if (error || !data) {
+    // If speed_kmh column missing, retry without it
+    let riderData: Record<string, unknown> | null = data as unknown as Record<string, unknown> | null;
+    let riderErr = error as unknown as { message?: string } | null;
+    if (riderErr && riderErr.message?.includes('speed_kmh')) {
+      const fallback = await db
+        .from('rider_locations')
+        .select('rider_id, latitude, longitude, accuracy, updated_at')
+        .eq('rider_id', riderId)
+        .single();
+      riderData = fallback.data as unknown as Record<string, unknown> | null;
+      riderErr = fallback.error as unknown as { message?: string } | null;
+    }
+
+    if (riderErr || !riderData) {
       // For the lender, still return the destination so the tracking map can
       // show where the rider is heading even before the first GPS fix. Other
       // roles keep the 404 (no fix yet).
@@ -305,7 +341,10 @@ async function handleGetRider(req: Request) {
           latitude: null,
           longitude: null,
           accuracy: null,
+          speed_kmh: null,
+          speed: null,
           updated_at: null,
+          location_updated_at: null,
           is_stale: true,
           assignment_type: assignmentType,
           assignment_status: assignmentStatus,
@@ -318,13 +357,18 @@ async function handleGetRider(req: Request) {
       return errorResponse('Rider location not found', 404, 'NOT_FOUND');
     }
 
-    const staleSecs = (Date.now() - new Date(data.updated_at).getTime()) / 1000;
+    const staleSecs = (Date.now() - new Date((riderData as Record<string, unknown>).updated_at as string).getTime()) / 1000;
+    const rd = riderData as Record<string, unknown>;
+    const speedVal = (rd.speed_kmh as number | null) ?? null;
     return jsonResponse({
-      rider_id: data.rider_id,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      accuracy: data.accuracy,
-      updated_at: data.updated_at,
+      rider_id: rd.rider_id,
+      latitude: rd.latitude,
+      longitude: rd.longitude,
+      accuracy: rd.accuracy,
+      speed_kmh: speedVal,
+      speed: speedVal != null ? speedVal / 3.6 : null,
+      updated_at: rd.updated_at,
+      location_updated_at: rd.updated_at,
       is_stale: staleSecs > 120,
       assignment_type: assignmentType,
       assignment_status: assignmentStatus,
@@ -483,10 +527,24 @@ async function handleListTracked(req: Request) {
 
     // ── Step 2: batch-load the latest GPS fix for every tracked rider ───────
     const riderIds = Array.from(new Set(assignments.map((a) => a.riderId)));
-    const { data: locRows, error: locErr } = await db
-      .from('rider_locations')
-      .select('rider_id, latitude, longitude, accuracy, updated_at')
-      .in('rider_id', riderIds);
+    let locRows: Record<string, unknown>[] | null = null;
+    let locErr: { message?: string } | null = null;
+    {
+      const res = await db
+        .from('rider_locations')
+        .select('rider_id, latitude, longitude, accuracy, updated_at, speed_kmh')
+        .in('rider_id', riderIds) as unknown as { data: Record<string, unknown>[] | null; error: { message?: string } | null };
+      locRows = res.data;
+      locErr = res.error;
+      if (locErr && locErr.message?.includes('speed_kmh')) {
+        const fallback = await db
+          .from('rider_locations')
+          .select('rider_id, latitude, longitude, accuracy, updated_at')
+          .in('rider_id', riderIds) as unknown as { data: Record<string, unknown>[] | null; error: { message?: string } | null };
+        locRows = fallback.data;
+        locErr = fallback.error;
+      }
+    }
 
     if (locErr) {
       return errorResponse('Failed to load rider locations', 500, 'DB_ERROR');
@@ -496,14 +554,18 @@ async function handleListTracked(req: Request) {
       latitude: number;
       longitude: number;
       accuracy: number | null;
+      speedKmh: number | null;
       updated_at: string;
     }>();
     for (const row of (locRows ?? [])) {
-      locations.set(row.rider_id as string, {
-        latitude: Number(row.latitude),
-        longitude: Number(row.longitude),
-        accuracy: row.accuracy != null ? Number(row.accuracy) : null,
-        updated_at: row.updated_at as string,
+      const r = row as Record<string, unknown>;
+      const s = r.speed_kmh != null ? Number(r.speed_kmh) : null;
+      locations.set(r.rider_id as string, {
+        latitude: Number(r.latitude),
+        longitude: Number(r.longitude),
+        accuracy: r.accuracy != null ? Number(r.accuracy as number) : null,
+        speedKmh: s != null && Number.isFinite(s) && s >= 0 && s <= 120 ? s : null,
+        updated_at: r.updated_at as string,
       });
     }
 
@@ -528,7 +590,10 @@ async function handleListTracked(req: Request) {
         latitude: loc?.latitude ?? null,
         longitude: loc?.longitude ?? null,
         accuracy: loc?.accuracy ?? null,
+        speed_kmh: loc?.speedKmh ?? null,
+        speed: loc?.speedKmh != null ? loc.speedKmh / 3.6 : null,
         location_updated_at: updatedAt,
+        updated_at: updatedAt,
         is_stale: isStale,
       };
     });

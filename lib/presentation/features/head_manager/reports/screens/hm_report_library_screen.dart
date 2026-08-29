@@ -693,24 +693,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     }
   }
 
-  Color _colorForKey(String key) {
-    if (key.contains('loan') || key.contains('overdue')) return AppColors.deepNavy;
-    if (key.contains('payment')) return AppColors.goldDark;
-    if (key.contains('collection')) return AppColors.riderGreen;
-    if (key.contains('financial') || key.contains('revenue')) return const Color(0xFF6A1B9A);
-    if (key.contains('audit')) return const Color(0xFF00838F);
-    return AppColors.lenderBlue;
-  }
 
-  IconData _iconForKey(String key) {
-    if (key.contains('loan')) return Icons.account_balance_wallet_rounded;
-    if (key.contains('payment')) return Icons.payments_rounded;
-    if (key.contains('collection')) return Icons.delivery_dining_rounded;
-    if (key.contains('financial')) return LucideIcons.philippinePeso;
-    if (key.contains('audit')) return Icons.history_rounded;
-    if (key.contains('ci')) return Icons.search_rounded;
-    return Icons.description_rounded;
-  }
 
   Widget _buildShimmer() => SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -826,26 +809,6 @@ class _PremiumTemplateCardState extends State<_PremiumTemplateCard> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _FormatBadge extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final bool enabled;
-  const _FormatBadge({required this.icon, required this.color, required this.enabled});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 26,
-      height: 26,
-      decoration: BoxDecoration(
-        color: enabled ? color.withValues(alpha: 0.12) : AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: enabled ? color.withValues(alpha: 0.2) : AppColors.border),
-      ),
-      child: Icon(icon, size: 14, color: enabled ? color : AppColors.textTertiary),
     );
   }
 }

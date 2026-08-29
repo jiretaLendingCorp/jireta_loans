@@ -241,7 +241,7 @@ class _SmsTemplatesTabState extends State<_SmsTemplatesTab> {
       'key': 'otp',
       'name': 'OTP Verification',
       'content':
-          'Your Jireta Loans OTP is: {otp}. Valid for 5 minutes. Do not share this code.',
+          'Your Jireta Loans OTP is: {otp}. Valid for 1 minute. Do not share this code.',
     },
     {
       'key': 'loan_approved',
@@ -638,7 +638,7 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
     {
       'key': 'otp_expiry_minutes',
       'label': 'OTP Expiry (minutes)',
-      'value': '5',
+      'value': '1',
       'type': 'number',
     },
     {

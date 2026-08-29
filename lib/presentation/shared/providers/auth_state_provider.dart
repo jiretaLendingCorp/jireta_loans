@@ -17,12 +17,14 @@ import '../../../data/models/user_model.dart';
 class AuthState {
   final bool isAuthenticated;
   final bool isLoading;
+  final bool isLoggingOut;
   final UserModel? user;
   final String? error;
 
   const AuthState({
     this.isAuthenticated = false,
     this.isLoading = false,
+    this.isLoggingOut = false,
     this.user,
     this.error,
   });
@@ -33,12 +35,14 @@ class AuthState {
   AuthState copyWith({
     bool? isAuthenticated,
     bool? isLoading,
+    bool? isLoggingOut,
     UserModel? user,
     String? error,
   }) =>
       AuthState(
         isAuthenticated: isAuthenticated ?? this.isAuthenticated,
         isLoading: isLoading ?? this.isLoading,
+        isLoggingOut: isLoggingOut ?? this.isLoggingOut,
         user: user ?? this.user,
         error: error,
       );
@@ -219,20 +223,29 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _authRevision++;
     _expiryTimer?.cancel();
     _isRefreshing = false;
-    try {
-      await RealtimeService.instance.disconnect();
-    } catch (_) {}
-    try {
-      await Supabase.instance.client.auth.signOut();
-    } catch (_) {}
-    await SecureStorage.clearAll();
+    // Show global logout loading immediately — visible across web + mobile.
     if (mounted) {
-      state = const AuthState(isAuthenticated: false);
+      state = state.copyWith(isLoggingOut: true);
     } else {
-      state = const AuthState(isAuthenticated: false);
+      state = state.copyWith(isLoggingOut: true);
     }
-    AppLogger.debug('[JWT] logout complete → will redirect to login (re-login enabled)');
-    if (kDebugMode) debugPrint('[AuthState] logout: session cleared, ready for re-login');
+    try {
+      try {
+        await RealtimeService.instance.disconnect();
+      } catch (_) {}
+      try {
+        await Supabase.instance.client.auth.signOut();
+      } catch (_) {}
+      await SecureStorage.clearAll();
+    } finally {
+      if (mounted) {
+        state = const AuthState(isAuthenticated: false, isLoggingOut: false);
+      } else {
+        state = const AuthState(isAuthenticated: false, isLoggingOut: false);
+      }
+      AppLogger.debug('[JWT] logout complete → will redirect to login (re-login enabled)');
+      if (kDebugMode) debugPrint('[AuthState] logout: session cleared, ready for re-login');
+    }
   }
 
   /// Schedules hard logout at absolute 1-hour expiry.

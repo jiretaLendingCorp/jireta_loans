@@ -7,7 +7,10 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/errors/failure.dart';
 import '../../../../../core/services/location_service.dart';
+import '../../../../../core/services/realtime_service.dart';
+import '../../../../../core/services/route_service.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/map/map_anim_utils.dart';
 import '../../../rider/location/widgets/rider_trip_map.dart';
 import '../providers/lender_collection_provider.dart';
 import '../../../../../core/constants/route_constants.dart';
@@ -46,6 +49,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
 
   double? _riderLat;
   double? _riderLng;
+  double? _riderSpeedKmh;
   double? _destLat;
   double? _destLng;
   String? _destAddress;
@@ -57,13 +61,29 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
   double? _lenderLat;
   double? _lenderLng;
 
+  // Dynamic tracking metrics (recalculated on every GPS push)
+  double? _distanceKm;
+  int? _routeDurationSecs;
+  List<LatLng>? _lastRoutePoints;
+  LatLng? _lastRouteOrigin;
+  LatLng? _lastRouteDest;
+  bool _fetchingRoute = false;
+  void Function()? _realtimeHandler;
+
   @override
   void initState() {
     super.initState();
     _fetchLocation();
     _fetchLenderLocation();
+    // Real-time: instant push when rider_locations changes (via Supabase Realtime).
+    _realtimeHandler = () {
+      if (mounted) _fetchLocation();
+    };
+    // ignore: discarded_futures
+    RealtimeService.instance.subscribe('rider_locations', _realtimeHandler!);
+    // Fallback polling every 60s (reduced from 30s since realtime is primary)
     _pollTimer =
-        Timer.periodic(const Duration(seconds: 30), (_) => _fetchLocation());
+        Timer.periodic(const Duration(seconds: 60), (_) => _fetchLocation());
     _lenderGpsTimer = Timer.periodic(
         const Duration(seconds: 15), (_) => _fetchLenderLocation());
   }
@@ -72,6 +92,9 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
   void dispose() {
     _pollTimer?.cancel();
     _lenderGpsTimer?.cancel();
+    if (_realtimeHandler != null) {
+      RealtimeService.instance.unsubscribe('rider_locations', _realtimeHandler!);
+    }
     super.dispose();
   }
 
@@ -93,6 +116,46 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
     });
   }
 
+  Future<void> _updateRouteIfNeeded() async {
+    if (_riderLat == null || _riderLng == null || _destLat == null || _destLng == null) return;
+    if (_fetchingRoute) return;
+    final origin = LatLng(_riderLat!, _riderLng!);
+    final dest = LatLng(_destLat!, _destLng!);
+    final originMoved = _lastRouteOrigin == null ||
+        (_lastRouteOrigin!.latitude - origin.latitude).abs() > 0.0045 ||
+        (_lastRouteOrigin!.longitude - origin.longitude).abs() > 0.0045;
+    final destMoved = _lastRouteDest == null ||
+        (_lastRouteDest!.latitude - dest.latitude).abs() > 0.0001 ||
+        (_lastRouteDest!.longitude - dest.longitude).abs() > 0.0001;
+    if (!originMoved && !destMoved && _lastRoutePoints != null) {
+      // Keep distance live with haversine until route moves significantly
+      final live = haversineKm(origin, dest);
+      if (_distanceKm != null && (live - _distanceKm!).abs() < 0.2) return;
+    }
+    if (!originMoved && !destMoved && _lastRoutePoints != null) return;
+    _fetchingRoute = true;
+    final result = await RouteService.fetchRoute(origin, dest);
+    _fetchingRoute = false;
+    if (!mounted) return;
+    if (result != null && result.points.isNotEmpty) {
+      setState(() {
+        _lastRoutePoints = result.points;
+        _distanceKm = result.distanceKm;
+        _routeDurationSecs = result.durationSecs;
+        _lastRouteOrigin = origin;
+        _lastRouteDest = dest;
+      });
+    } else {
+      setState(() {
+        _distanceKm = haversineKm(origin, dest);
+        _routeDurationSecs = null;
+        _lastRoutePoints = null;
+        _lastRouteOrigin = origin;
+        _lastRouteDest = dest;
+      });
+    }
+  }
+
   Future<void> _fetchLocation() async {
     try {
       final data = await ref
@@ -109,6 +172,17 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
           ? rawAddr.trim()
           : null;
 
+      // Speed: expect m/s*3.6 handling; accept speed_kmh, speed, speed_mps
+      double? speedKmh;
+      final rawSpeedKmh = (data?['speed_kmh'] as num?)?.toDouble();
+      final rawSpeedMps = (data?['speed'] as num?)?.toDouble() ?? (data?['speed_mps'] as num?)?.toDouble();
+      if (rawSpeedKmh != null && rawSpeedKmh.isFinite && rawSpeedKmh >= 0 && rawSpeedKmh <= 120) {
+        speedKmh = rawSpeedKmh;
+      } else if (rawSpeedMps != null && rawSpeedMps.isFinite && rawSpeedMps >= 0 && rawSpeedMps < 70) {
+        final kmh = rawSpeedMps * 3.6;
+        if (kmh >= 0 && kmh <= 120) speedKmh = kmh;
+      }
+
       // ── Stale detection: rider's GPS is considered OFF if backend says
       // is_stale or if updated_at is older than 120s. In that case we hide
       // the rider pin (set to null) so the map doesn't show a stale ghost.
@@ -123,9 +197,11 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
       // If stale, hide the rider pin entirely — don't show ghost location.
       final lat = isStale ? null : rawLat;
       final lng = isStale ? null : rawLng;
+      final wasSamePos = lat == _riderLat && lng == _riderLng && speedKmh == _riderSpeedKmh;
       setState(() {
         _riderLat = lat;
         _riderLng = lng;
+        _riderSpeedKmh = speedKmh;
         _destLat = dLat;
         _destLng = dLng;
         _destAddress = destAddress;
@@ -136,13 +212,18 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
         _lastUpdated = DateTime.now();
         _riderUpdatedAt = riderUpdatedAt;
         _isRiderStale = isStale && rawLat != null;
+        // Update distance immediately (haversine) until route arrives
+        if (_riderLat != null && _riderLng != null && _destLat != null && _destLng != null) {
+          _distanceKm = haversineKm(LatLng(_riderLat!, _riderLng!), LatLng(_destLat!, _destLng!));
+        }
       });
+      if (!wasSamePos) _updateRouteIfNeeded();
     } catch (e) {
       if (!mounted) return;
       final failure = ErrorHandler.handle(e);
       if (failure is NotFoundFailure) {
         // Rider hasn't shared a live location yet — keep the idle "not
-        // available" state and keep polling so it appears automatically.
+        // available" state and keep listening so it appears automatically via realtime.
         setState(() {
           _isLoading = false;
           _error = null;
@@ -154,6 +235,47 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
         });
       }
     }
+  }
+
+  Widget _buildTrackingHeader() {
+    final hasRider = _riderLat != null && !_isRiderStale && _destLat != null && _destLng != null;
+    String distText = '--';
+    String etaText = '--';
+    String speedText = formatSpeedKmh(_riderSpeedKmh);
+    if (hasRider && _distanceKm != null) {
+      distText = formatDistanceKm(_distanceKm!);
+      if (_routeDurationSecs != null && _routeDurationSecs! > 0) {
+        etaText = formatEtaFromDuration(_routeDurationSecs!);
+      } else {
+        etaText = formatEta(_distanceKm!, speedKmh: _riderSpeedKmh, fallbackToEstimate: true);
+      }
+    }
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _MetricChip(icon: Icons.route_outlined, label: 'Distance', value: distText, color: AppColors.lenderBlue),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _MetricChip(icon: Icons.timer_outlined, label: 'ETA', value: hasRider ? 'Arriving in $etaText' : etaText, color: AppColors.success),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _MetricChip(icon: Icons.speed, label: 'Speed', value: speedText, color: AppColors.warning),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildBody() {
@@ -271,7 +393,9 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            _buildTrackingHeader(),
+            const SizedBox(height: 8),
             Expanded(
               child: RiderTripMap(
                 originLat: null,
@@ -299,23 +423,31 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      child: RiderTripMap(
-        originLat: _riderLat,
-        originLng: _riderLng,
-        originTitle: 'Rider',
-        originSnippet: 'Live location',
-        originHue: BitmapDescriptor.hueViolet,
-        destinationLat: _destLat,
-        destinationLng: _destLng,
-        destinationTitle: 'Your Location',
-        destinationSnippet: destSnippet,
-        destinationAddress: _destAddress,
-        lenderLat: _lenderLat,
-        lenderLng: _lenderLng,
-        lenderTitle: 'You (Lender)',
-        lenderSnippet: 'Your live GPS',
-        lenderHue: BitmapDescriptor.hueBlue,
-        height: double.infinity,
+      child: Column(
+        children: [
+          _buildTrackingHeader(),
+          const SizedBox(height: 8),
+          Expanded(
+            child: RiderTripMap(
+              originLat: _riderLat,
+              originLng: _riderLng,
+              originTitle: 'Rider',
+              originSnippet: 'Live location',
+              originHue: BitmapDescriptor.hueViolet,
+              destinationLat: _destLat,
+              destinationLng: _destLng,
+              destinationTitle: 'Your Location',
+              destinationSnippet: destSnippet,
+              destinationAddress: _destAddress,
+              lenderLat: _lenderLat,
+              lenderLng: _lenderLng,
+              lenderTitle: 'You (Lender)',
+              lenderSnippet: 'Your live GPS',
+              lenderHue: BitmapDescriptor.hueBlue,
+              height: double.infinity,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -364,7 +496,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '$statusLabel · ${assignmentLabel ?? 'Tracking'} — Last updated: ${_lastUpdated!.hour}:${_lastUpdated!.minute.toString().padLeft(2, '0')} · Auto-refreshes every 30s',
+                        '$statusLabel · ${assignmentLabel ?? 'Tracking'} — Last updated: ${_lastUpdated!.hour}:${_lastUpdated!.minute.toString().padLeft(2, '0')} · Live via Realtime',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textSecondary),
                       ),
@@ -421,6 +553,36 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  const _MetricChip({required this.icon, required this.label, required this.value, required this.color});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+          ]),
+          const SizedBox(height: 2),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
         ],
       ),
     );

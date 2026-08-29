@@ -1,7 +1,6 @@
 // lib/presentation/features/head_manager/reports/screens/hm_report_history_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -300,18 +299,6 @@ class _ReportHistoryCardState extends State<_ReportHistoryCard> {
         ),
       ),
     );
-  }
-
-  IconData _iconForKey(String key) {
-    if (key.contains('loan')) return Icons.account_balance_wallet_rounded;
-    if (key.contains('payment')) return Icons.payments_rounded;
-    if (key.contains('collection')) return Icons.delivery_dining_rounded;
-    if (key.contains('borrower') || key.contains('lender')) return Icons.people_rounded;
-    if (key.contains('rider')) return Icons.delivery_dining_rounded;
-    if (key.contains('financial') || key.contains('revenue')) return LucideIcons.philippinePeso;
-    if (key.contains('audit')) return Icons.history_rounded;
-    if (key.contains('ci')) return Icons.search_rounded;
-    return Icons.description_rounded;
   }
 
   Color _colorForKey(String key) {

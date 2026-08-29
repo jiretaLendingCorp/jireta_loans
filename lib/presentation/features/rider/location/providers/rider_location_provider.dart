@@ -14,6 +14,7 @@ class RiderLocationState {
   final bool isTracking;
   final double? lastLat;
   final double? lastLng;
+  final double? lastSpeedKmh;
   final String? error;
   final DateTime? lastUpdated;
 
@@ -21,6 +22,7 @@ class RiderLocationState {
     this.isTracking = false,
     this.lastLat,
     this.lastLng,
+    this.lastSpeedKmh,
     this.error,
     this.lastUpdated,
   });
@@ -29,21 +31,29 @@ class RiderLocationState {
     bool? isTracking,
     double? lastLat,
     double? lastLng,
-    String? error,
+    Object? lastSpeedKmh = _sentinel,
+    Object? error = _sentinel,
     DateTime? lastUpdated,
-  }) =>
-      RiderLocationState(
-        isTracking: isTracking ?? this.isTracking,
-        lastLat: lastLat ?? this.lastLat,
-        lastLng: lastLng ?? this.lastLng,
-        error: error,
-        lastUpdated: lastUpdated ?? this.lastUpdated,
-      );
+  }) {
+    return RiderLocationState(
+      isTracking: isTracking ?? this.isTracking,
+      lastLat: lastLat ?? this.lastLat,
+      lastLng: lastLng ?? this.lastLng,
+      lastSpeedKmh: identical(lastSpeedKmh, _sentinel)
+          ? this.lastSpeedKmh
+          : lastSpeedKmh as double?,
+      error: identical(error, _sentinel) ? this.error : error as String?,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+
+  static const _sentinel = Object();
 }
 
 class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
   final LocationRemoteDataSource _ds;
   Timer? _timer;
+  final List<double> _speedHistory = [];
 
   RiderLocationNotifier(this._ds) : super(const RiderLocationState());
 
@@ -91,10 +101,60 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
         if (kDebugMode) debugPrint('[RiderLocation] $msg');
         return;
       }
-      await _ds.updateRiderLocation(lat: pos.latitude, lng: pos.longitude);
+      // Validate and convert GPS speed: m/s -> km/h (3.6).
+      // Handle invalid: speed <0, speedAccuracy unavailable/high, or NaN.
+      double? rawSpeedKmh;
+      final rawSpeedMs = pos.speed;
+      final speedAcc = pos.speedAccuracy;
+      final isSpeedValid = rawSpeedMs.isFinite &&
+          rawSpeedMs >= 0 &&
+          rawSpeedMs < 70 && // ~252 km/h max sanity
+          speedAcc.isFinite &&
+          speedAcc >= 0 &&
+          speedAcc < 20; // high inaccuracy -> unreliable
+      if (isSpeedValid) {
+        rawSpeedKmh = rawSpeedMs * 3.6;
+        // Clamp absurd jumps; moving average will smooth.
+        if (rawSpeedKmh > 120) rawSpeedKmh = null;
+      }
+      double? smoothedKmh;
+      if (rawSpeedKmh != null) {
+        _speedHistory.add(rawSpeedKmh);
+        if (_speedHistory.length > 5) _speedHistory.removeAt(0);
+        final sum = _speedHistory.reduce((a, b) => a + b);
+        smoothedKmh = sum / _speedHistory.length;
+      } else {
+        // No valid speed fix: keep decay but don't feed bad value.
+        // If we have history, reuse last smoothed; else null -> UI shows --.
+        if (_speedHistory.isNotEmpty) {
+          final sum = _speedHistory.reduce((a, b) => a + b);
+          smoothedKmh = sum / _speedHistory.length;
+          // Decay slowly if GPS keeps failing: drop oldest after 3 fails
+          if (_speedHistory.length > 3) _speedHistory.removeAt(0);
+        } else {
+          smoothedKmh = null;
+        }
+        // If speed shows 0 while moving below threshold, treat as stopped
+        if (rawSpeedMs == 0 && smoothedKmh != null && smoothedKmh < 2) {
+          smoothedKmh = 0;
+        }
+      }
+      // Send to backend: include speed (km/h) and accuracy for lender display.
+      try {
+        await _ds.updateRiderLocation(
+          lat: pos.latitude,
+          lng: pos.longitude,
+          speedKmh: smoothedKmh,
+          accuracy: pos.accuracy,
+        );
+      } catch (_) {
+        // Still update local state even if backend fails
+        await _ds.updateRiderLocation(lat: pos.latitude, lng: pos.longitude);
+      }
       state = state.copyWith(
         lastLat: pos.latitude,
         lastLng: pos.longitude,
+        lastSpeedKmh: smoothedKmh,
         lastUpdated: DateTime.now(),
         error: null,
       );

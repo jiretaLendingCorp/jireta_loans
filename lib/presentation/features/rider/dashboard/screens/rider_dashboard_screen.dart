@@ -15,6 +15,7 @@ import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../dashboard/providers/rider_dashboard_provider.dart';
 import '../../profile/providers/rider_profile_provider.dart';
+import 'widgets/rider_live_tracking_card.dart';
 
 class RiderDashboardScreen extends ConsumerStatefulWidget {
   const RiderDashboardScreen({super.key});
@@ -88,6 +89,11 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                     _Entrance(
                       delay: 80,
                       child: _EnterpriseAmountHero(state: state),
+                    ),
+                    const SizedBox(height: 22),
+                    const _Entrance(
+                      delay: 120,
+                      child: RiderLiveTrackingCard(),
                     ),
                     const SizedBox(height: 22),
                     _Entrance(
@@ -540,7 +546,7 @@ class _EnterpriseHeader extends StatelessWidget {
       greetingIcon = Icons.nights_stay_rounded;
       greetingColor = const Color(0xFF4A5A78);
     }
-    final subText = taskCount == 0 ? 'No tasks queued ΓÇö enjoy the calm' : taskCount == 1 ? 'You have 1 active task today' : 'You have $taskCount active tasks today';
+    const subText = '';
     final initials = riderName.trim().isEmpty ? 'R' : riderName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).take(2).map((p) => p[0].toUpperCase()).join();
     // NO CARD ΓÇö text only, profile left, hi right, logo left upper, visible borders
     return Padding(
