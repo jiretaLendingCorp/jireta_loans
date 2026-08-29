@@ -51,13 +51,14 @@ async function handleRefreshSession(req: Request) {
 
   const { data: dbUserRow } = await db
     .from('users')
-    .select('id, account_status, force_password_change, last_login_at, roles(name)')
+    .select('id, account_status, force_password_change, last_login_at, roles(name, is_archived)')
     .eq('id', data.user!.id)
     .single();
   const dbUser = singleWithObjectEmbeds(dbUserRow);
 
   if (!dbUser) return errorResponse('User not found', 401, 'UNAUTHORIZED');
   if (dbUser.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+  if (dbUser?.roles?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
 
   // ── 1-hour absolute session: hard expiry, no infinite refresh ──────────
   // After 1 hour from last_login_at, refresh is rejected and user must re-login

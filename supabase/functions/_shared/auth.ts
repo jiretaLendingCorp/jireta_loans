@@ -52,7 +52,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
 
   let { data: dbUserRow, error: dbErr } = await supabase
     .from('users')
-    .select('id, account_status, roles(name)')
+    .select('id, account_status, roles(name, is_archived)')
     .eq('id', user.id)
     .single();
 
@@ -64,7 +64,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     if (email) {
       const result = await supabase
         .from('users')
-        .select('id, account_status, roles(name)')
+        .select('id, account_status, roles(name, is_archived)')
         .ilike('email', email)
         .maybeSingle();
       identityRow = result.data;
@@ -73,7 +73,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     if (!identityRow && user.phone) {
       const result = await supabase
         .from('users')
-        .select('id, account_status, roles(name)')
+        .select('id, account_status, roles(name, is_archived)')
         .eq('phone_number', user.phone)
         .maybeSingle();
       identityRow = result.data;
@@ -113,6 +113,10 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
 
   if (dbUser.account_status === 'archived') {
     return errorResponse('Account is archived', 403, 'ACCOUNT_ARCHIVED');
+  }
+
+  if (dbUser?.roles?.is_archived === true) {
+    return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
   }
 
   if (dbUser.account_status === 'pending') {

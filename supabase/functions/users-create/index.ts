@@ -123,8 +123,10 @@ async function handleCreateEmployee(req: Request) {
     .maybeSingle();
   if (dupPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
 
-  const { data: roleRow } = await db.from('roles').select('id').eq('name', 'employee').single();
+  const { data: roleRow } = await db.from('roles').select('id, is_archived').eq('name', 'employee').single();
   if (!roleRow) return errorResponse('Employee role not found', 500, 'SERVER_ERROR');
+  // deno-lint-ignore no-explicit-any
+  if ((roleRow as any).is_archived === true) return errorResponse('Cannot create user — employee role is archived', 403, 'ROLE_ARCHIVED');
 
   const { data: authUser, error: createErr } = await db.auth.admin.createUser({
     email: cleanEmail,
@@ -222,6 +224,12 @@ async function handleCreateRider(req: Request) {
   const { data: existingPhone } = await db.from('users').select('id').eq('phone_number', phone.trim()).maybeSingle();
   if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
 
+  // ── Guard: rider role archived → block creation (before orphan auth user)
+  const { data: roleData } = await db.from('roles').select('id, is_archived').eq('name', 'rider').single();
+  if (!roleData) return errorResponse('Rider role not found', 500, 'SERVER_ERROR');
+  // deno-lint-ignore no-explicit-any
+  if ((roleData as any).is_archived === true) return errorResponse('Cannot create user — rider role is archived', 403, 'ROLE_ARCHIVED');
+
   const { data: authUser, error: authErr } = await db.auth.admin.createUser({
     phone: toE164(phone.trim()),
     password: riderDefaultPassword,
@@ -232,9 +240,6 @@ async function handleCreateRider(req: Request) {
     console.error('[users-create] rider auth user creation failed:', authErr?.message);
     return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
   }
-
-  const { data: roleData } = await db.from('roles').select('id').eq('name', 'rider').single();
-  if (!roleData) return errorResponse('Rider role not found', 500, 'SERVER_ERROR');
 
   const { data: newUser, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,
@@ -307,6 +312,12 @@ async function handleCreateLender(req: Request) {
   const { data: existingPhone } = await db.from('users').select('id').eq('phone_number', phone.trim()).maybeSingle();
   if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
 
+  // ── Guard: lender role archived → block creation
+  const { data: roleData } = await db.from('roles').select('id, is_archived').eq('name', 'lender').single();
+  if (!roleData) return errorResponse('Lender role not found', 500, 'SERVER_ERROR');
+  // deno-lint-ignore no-explicit-any
+  if ((roleData as any).is_archived === true) return errorResponse('Cannot create user — lender role is archived', 403, 'ROLE_ARCHIVED');
+
   const { data: authUser, error: authErr } = await db.auth.admin.createUser({
     phone: lenderToE164(phone.trim()),
     password: lenderDefaultPassword,
@@ -317,9 +328,6 @@ async function handleCreateLender(req: Request) {
     console.error('[users-create] lender auth user creation failed:', authErr?.message);
     return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
   }
-
-  const { data: roleData } = await db.from('roles').select('id').eq('name', 'lender').single();
-  if (!roleData) return errorResponse('Lender role not found', 500, 'SERVER_ERROR');
 
   const { data: newUser, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,

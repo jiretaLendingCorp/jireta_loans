@@ -151,7 +151,7 @@ serve(async (req) => {
     // 00006_bootstrap_head_manager.sql migration script.
    const { data: userRow, error: userErr } = await db
   .from('users')
-  .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
+  .select('id, email, first_name, last_name, account_status, force_password_change, roles(name, is_archived)')
   .eq('email', cleanEmail)
   .single();
   const user = singleWithObjectEmbeds(userRow);
@@ -173,6 +173,10 @@ serve(async (req) => {
     // ── Step 4: account status ────────────────────────────────────────────
     if (user.account_status === 'archived') {
       return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+    }
+
+    if (user?.roles?.is_archived === true) {
+      return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
     }
 
     if (user.account_status === 'pending') {

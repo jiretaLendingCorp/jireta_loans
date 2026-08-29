@@ -109,8 +109,10 @@ function toE164(phone: string): string {
 
 // ── [moved from auth-verify-otp] ────────────────────────────────────────────
 async function selfRegisterLender(db: DbClient, phone: string) {
-  const { data: roleData } = await db.from('roles').select('id').eq('name', 'lender').single();
+  const { data: roleData } = await db.from('roles').select('id, is_archived').eq('name', 'lender').single();
   if (!roleData) return null;
+  // deno-lint-ignore no-explicit-any
+  if ((roleData as any).is_archived === true) return null;
 
   // Lenders are identified by PHONE only — public.users.email stays NULL and
   // no synthetic email is ever shown to the app. The temp email below is an
@@ -138,7 +140,7 @@ async function selfRegisterLender(db: DbClient, phone: string) {
     account_status: 'active',
     force_password_change: false,
     created_by: null,
-  }, { onConflict: 'id' }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)').single();
+  }, { onConflict: 'id' }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name, is_archived)').single();
 
   if (userErr || !newUser) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});
@@ -222,7 +224,7 @@ async function handleSendOtp(req: Request) {
   // once a phone IS registered we only allow OTP for rider/lender roles.
   const { data: userRow } = await db
     .from('users')
-    .select('id, account_status, roles(name)')
+    .select('id, account_status, roles(name, is_archived)')
     .eq('phone_number', phone)
     .maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
@@ -230,11 +232,19 @@ async function handleSendOtp(req: Request) {
   let userId: string | null = null;
   if (user) {
     if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+    if (user?.roles?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
     if (user.account_status === 'inactive') return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
 
     const role = user?.roles?.name;
     if (!['rider', 'lender'].includes(role)) return errorResponse('OTP login not available for this role', 403, 'FORBIDDEN');
     userId = user.id;
+  } else {
+    // Unregistered phone would self-register as lender on verify — block if lender role archived
+    const { data: lenderRole } = await db.from('roles').select('is_archived').eq('name', 'lender').maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    if ((lenderRole as any)?.is_archived === true) {
+      return errorResponse('Registration disabled — lender role is archived', 403, 'ROLE_ARCHIVED');
+    }
   }
 
   const windowStart = new Date(Date.now() - OTP_WINDOW_MINUTES * 60000).toISOString();
@@ -404,7 +414,7 @@ async function handleVerifyOtp(req: Request) {
 
   const { data: userRow } = await db
     .from('users')
-    .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)')
+    .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name, is_archived)')
     .eq('phone_number', phone)
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
@@ -414,6 +424,17 @@ async function handleVerifyOtp(req: Request) {
   if (!user) {
     user = singleWithObjectEmbeds(await selfRegisterLender(db, phone));
     if (!user) return errorResponse('Failed to create account', 500, 'SERVER_ERROR');
+  }
+
+  // ── Block archived user / archived role BEFORE issuing session ────────────
+  if (user.account_status === 'archived') {
+    return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+  }
+  if (user?.roles?.is_archived === true) {
+    return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
+  }
+  if (user.account_status === 'inactive') {
+    return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
   }
 
   // Build the session using PHONE + password — never a synthetic email in

@@ -139,13 +139,13 @@ async function handleForgotPassword(req: Request) {
   }
 
   const db = getAdminClient();
-  const { data: userRow } = await db.from("users").select("id, account_status, first_name, last_name, roles!inner(name)").eq("email", cleanEmail).maybeSingle();
+  const { data: userRow } = await db.from("users").select("id, account_status, first_name, last_name, roles!inner(name, is_archived)").eq("email", cleanEmail).maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
 
   if (!user || !["head_manager", "employee"].includes(user?.roles?.name)) {
     return jsonResponse({ message: "If an account exists, we'll send a reset code." });
   }
-  if (user.account_status !== "active") {
+  if (user.account_status !== "active" || (user as unknown as { roles?: { is_archived?: boolean } })?.roles?.is_archived === true) {
     return jsonResponse({ message: "If an account exists, we'll send a reset code." });
   }
 

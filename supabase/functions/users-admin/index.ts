@@ -5,6 +5,18 @@
 //
 //   users-get-list        →  ?fn=get-list
 //   users-archive          →  ?fn=archive
+//   users-unarchive        →  ?fn=unarchive         (restore archived user)
+//   roles-archive          →  ?fn=archive-role      (archive entire role)
+//   roles-unarchive        →  ?fn=unarchive-role    (restore archived role)
+//   roles-get-list         →  ?fn=get-roles         (list roles with archived state)
+//
+// Requirement: "KAPAG NAKA ARCHIVED UNG ROLE OR USER DAPAT HINDI MAGAGAMIT
+// NI USER UNG ACCOUNT NIYA PERO KAPAG NA UNARCHIVED NA THEN MA RERESTORE NA
+// UNG ACCOUNT MAGAGAMIT NA NI USER"
+//   → archived user OR archived role = login blocked (email/OTP/Google/refresh + any auth)
+//   → unarchived = instantly restored, usable again.
+//   Edge checks are in _shared/auth.ts + auth-* entry points; DB enforces
+//   via roles.is_archived and auth_role() RLS helper.
 //
 // The original per-action logic is preserved verbatim below; each handler is
 // only wrapped so it can live in a single `serve()`.
@@ -34,6 +46,16 @@ serve(async (req) => {
       case 'archive':
         // ── [moved from functions/users-archive/index.ts] ───────────────
         return await handleArchive(req);
+      case 'unarchive':
+      case 'restore':
+        return await handleUnarchive(req);
+      case 'archive-role':
+        return await handleArchiveRole(req);
+      case 'unarchive-role':
+      case 'restore-role':
+        return await handleUnarchiveRole(req);
+      case 'get-roles':
+        return await handleGetRoles(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -155,7 +177,8 @@ async function handleArchive(req: Request) {
 
   const { data: target } = await db.from('users').select('id, account_status, roles!users_role_id_fkey(name)').eq('id', user_id).single();
   if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
-  const targetRole = embedAsObject((target as Record<string, unknown>)['roles'])?.name as string | undefined;
+  // deno-lint-ignore no-explicit-any
+  const targetRole = (embedAsObject((target as Record<string, unknown>)['roles']) as any)?.name as string | undefined;
   if (targetRole === 'head_manager') return errorResponse('Cannot archive a Head Manager', 400, 'FORBIDDEN');
   if (user.role === ROLES.EMPLOYEE && targetRole === 'employee') {
     return errorResponse('Employees cannot archive other employees', 403, 'FORBIDDEN');
@@ -173,4 +196,147 @@ async function handleArchive(req: Request) {
   await writeAuditLog({ performedBy: user.id, action: 'archive_user', tableName: 'users', recordId: user_id, ipAddress: ip });
 
   return jsonResponse({ message: 'User archived successfully' });
+}
+
+// ── UNARCHIVE / RESTORE USER ───────────────────────────────────────────
+// Restores an archived user to active so they can log in again.
+// Requirement: "KAPAG NA UNARCHIVED NA THEN MA RERESTORE NA UNG ACCOUNT
+// MAGAGAMIT NA NI USER" — archived = blocked, unarchived = usable.
+// Only Head Manager can restore (employees limited to rider/lender).
+async function handleUnarchive(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
+  if (roleCheck) return roleCheck;
+
+  const { user_id } = await req.json();
+  if (!user_id) return errorResponse('user_id is required', 400, 'VALIDATION_ERROR');
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: target } = await db.from('users').select('id, account_status, roles!users_role_id_fkey(name)').eq('id', user_id).single();
+  if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
+  // deno-lint-ignore no-explicit-any
+  const targetRole = (embedAsObject((target as Record<string, unknown>)['roles']) as any)?.name as string | undefined;
+  if (user.role === ROLES.EMPLOYEE && targetRole === 'employee') {
+    return errorResponse('Employees cannot restore other employees', 403, 'FORBIDDEN');
+  }
+  if (user.role === ROLES.EMPLOYEE && targetRole && !['rider', 'lender'].includes(targetRole)) {
+    return errorResponse('Employees can only restore riders and lenders', 403, 'FORBIDDEN');
+  }
+  if (target.account_status !== 'archived') return errorResponse('User is not archived', 400, 'INVALID_STATUS');
+
+  // Also check if the user's role itself is archived — restoring user alone
+  // will still leave them blocked until role is unarchived. Allow it but inform.
+  let roleArchived = false;
+  if (targetRole) {
+    const { data: roleRow } = await db.from('roles').select('is_archived').eq('name', targetRole).maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    roleArchived = (roleRow as any)?.is_archived === true;
+  }
+
+  const { error: updErr } = await db.from('users').update({ account_status: 'active' }).eq('id', user_id);
+  if (updErr) return errorResponse('Failed to restore user', 500, 'SERVER_ERROR');
+
+  await writeAuditLog({ performedBy: user.id, action: 'unarchive_user', tableName: 'users', recordId: user_id, ipAddress: ip });
+
+  if (roleArchived) {
+    return jsonResponse({ message: 'User restored but role is still archived — user will remain blocked until role is unarchived', warning: 'ROLE_ARCHIVED' });
+  }
+  return jsonResponse({ message: 'User restored successfully — account is now active' });
+}
+
+// ── ARCHIVE ROLE ───────────────────────────────────────────────────────
+// Blocks ALL users with this role from login/use. Only HEAD_MANAGER.
+async function handleArchiveRole(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
+  if (roleCheck) return roleCheck;
+
+  const { role, role_name } = await req.json() as { role?: string; role_name?: string };
+  const targetRole = (role ?? role_name ?? '').trim().toLowerCase();
+  if (!targetRole) return errorResponse('role is required', 400, 'VALIDATION_ERROR');
+  if (targetRole === 'head_manager') return errorResponse('Cannot archive head_manager role', 403, 'FORBIDDEN');
+  if (!['employee', 'rider', 'lender'].includes(targetRole)) {
+    return errorResponse('Invalid role. Allowed: employee, rider, lender', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: roleRow } = await db.from('roles').select('id, is_archived').eq('name', targetRole).single();
+  if (!roleRow) return errorResponse('Role not found', 404, 'NOT_FOUND');
+  // deno-lint-ignore no-explicit-any
+  if ((roleRow as any).is_archived === true) return errorResponse('Role already archived', 400, 'INVALID_STATUS');
+
+  const { error: updErr } = await db.from('roles').update({ is_archived: true, archived_at: new Date().toISOString(), archived_by: user.id }).eq('id', (roleRow as { id: string }).id);
+  if (updErr) return errorResponse(`Failed to archive role: ${updErr.message}`, 500, 'SERVER_ERROR');
+
+  await writeAuditLog({ performedBy: user.id, action: 'archive_role', tableName: 'roles', recordId: (roleRow as { id: string }).id, newValues: { role: targetRole, is_archived: true }, ipAddress: ip });
+
+  return jsonResponse({ message: `Role '${targetRole}' archived — all ${targetRole} accounts are now blocked` });
+}
+
+// ── UNARCHIVE / RESTORE ROLE ───────────────────────────────────────────
+async function handleUnarchiveRole(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
+  if (roleCheck) return roleCheck;
+
+  const { role, role_name } = await req.json() as { role?: string; role_name?: string };
+  const targetRole = (role ?? role_name ?? '').trim().toLowerCase();
+  if (!targetRole) return errorResponse('role is required', 400, 'VALIDATION_ERROR');
+  if (!['employee', 'rider', 'lender', 'head_manager'].includes(targetRole)) {
+    return errorResponse('Invalid role', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: roleRow } = await db.from('roles').select('id, is_archived').eq('name', targetRole).single();
+  if (!roleRow) return errorResponse('Role not found', 404, 'NOT_FOUND');
+  // deno-lint-ignore no-explicit-any
+  if ((roleRow as any).is_archived !== true) return errorResponse('Role is not archived', 400, 'INVALID_STATUS');
+
+  const { error: updErr } = await db.from('roles').update({ is_archived: false, archived_at: null, archived_by: null }).eq('id', (roleRow as { id: string }).id);
+  if (updErr) return errorResponse(`Failed to restore role: ${updErr.message}`, 500, 'SERVER_ERROR');
+
+  await writeAuditLog({ performedBy: user.id, action: 'unarchive_role', tableName: 'roles', recordId: (roleRow as { id: string }).id, newValues: { role: targetRole, is_archived: false }, ipAddress: ip });
+
+  return jsonResponse({ message: `Role '${targetRole}' restored — all ${targetRole} accounts are now usable again` });
+}
+
+// ── GET ROLES (with archived state) ────────────────────────────────────
+async function handleGetRoles(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+
+  // Any authenticated user can view roles, but limit to staff for management
+  const db = getAdminClient();
+  const { data, error } = await db.from('roles').select('id, name, description, is_archived, archived_at, created_at').order('name');
+  if (error) return errorResponse('Failed to fetch roles', 500, 'SERVER_ERROR');
+
+  // Count users per role for convenience (blocked vs active)
+  const counts: Record<string, number> = {};
+  try {
+    const { data: userCounts } = await db.from('users').select('role_id');
+    if (userCounts) {
+      const roleMap: Record<string, string> = {};
+      (data ?? []).forEach((r: { id: string; name: string }) => { roleMap[r.id] = r.name; });
+      // Fallback if join not available — just count via role_id grouping client side
+      // For now, we don't need exact counts; frontend can query users-admin?fn=get-list per role.
+    }
+    void counts;
+  } catch (_) { /* ignore */ }
+
+  return jsonResponse({ roles: data ?? [] });
 }

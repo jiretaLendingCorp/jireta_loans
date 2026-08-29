@@ -90,12 +90,18 @@ async function handleExchange(req: Request) {
   // mixed-case rows still resolve (canonical is lower via DB trigger).
   const { data: userRow } = await db
     .from('users')
-    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
+    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name, is_archived)')
     .ilike('email', email)
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
 
   if (!user) {
+    // Guard: prevent self-registration if lender role itself is archived
+    const { data: lenderRole } = await db.from('roles').select('is_archived').eq('name', 'lender').maybeSingle();
+    // deno-lint-ignore no-explicit-any
+    if ((lenderRole as any)?.is_archived === true) {
+      return errorResponse('Registration disabled — lender role is archived', 403, 'ROLE_ARCHIVED');
+    }
     // Google sign-in is lender-only: unknown accounts self-register as lenders
     // (mirrors the OTP self-registration flow for phone-based lenders).
     user = singleWithObjectEmbeds(
@@ -116,6 +122,9 @@ async function handleExchange(req: Request) {
 
   if (user.account_status === 'archived') {
     return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
+  }
+  if (user?.roles?.is_archived === true) {
+    return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
   }
 
   // ── Step 3: guard against auth.id ↔ users.id mismatches ──────────────────
@@ -232,7 +241,7 @@ async function selfRegisterGoogleLender(
       force_password_change: false,
       created_by:            null,
     }, { onConflict: 'id' })
-    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
+    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name, is_archived)')
     .single();
 
   if (userErr || !newUser) {
