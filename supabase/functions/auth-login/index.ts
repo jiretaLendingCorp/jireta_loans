@@ -175,17 +175,8 @@ serve(async (req) => {
       return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
     }
 
-    // ── Resilient role-archived check (works even before migration) ──
-    try {
-      const roleNameTmp = user?.roles?.name as string | undefined;
-      if (roleNameTmp) {
-        const { data: roleArchRow } = await db.from('roles').select('is_archived').eq('name', roleNameTmp).maybeSingle();
-        // deno-lint-ignore no-explicit-any
-        if ((roleArchRow as any)?.is_archived === true) {
-          return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
-        }
-      }
-    } catch (_) { /* column missing before migration → ignore */ }
+    // TEMP HOTFIX: role-archived check disabled
+    // try { const roleNameTmp = user?.roles?.name as string | undefined; if (roleNameTmp) { const { data: roleArchRow } = await db.from('roles').select('is_archived').eq('name', roleNameTmp).maybeSingle(); if ((roleArchRow as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 
     if (user.account_status === 'pending') {
       return errorResponse(

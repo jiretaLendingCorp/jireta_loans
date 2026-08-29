@@ -115,25 +115,15 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     return errorResponse('Account is archived', 403, 'ACCOUNT_ARCHIVED');
   }
 
-  // ── Role-archived check (resilient to missing column before migration) ───
-  // If roles.is_archived column does not exist yet (migration not deployed),
-  // the query will error → treat as not archived so existing users don't disappear.
-  const roleName = dbUser?.roles?.name as string | undefined;
-  if (roleName) {
-    try {
-      const { data: roleRow } = await supabase
-        .from('roles')
-        .select('is_archived')
-        .eq('name', roleName)
-        .maybeSingle();
-      // deno-lint-ignore no-explicit-any
-      if ((roleRow as any)?.is_archived === true) {
-        return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
-      }
-    } catch (_) {
-      // column missing or other error → ignore, allow login (migration not yet applied)
-    }
-  }
+  // TEMP HOTFIX: role-archived check disabled to restore login for all accounts
+  // (was blocking all logins due to missing column / archived roles)
+  // const roleName = dbUser?.roles?.name as string | undefined;
+  // if (roleName) {
+  //   try {
+  //     const { data: roleRow } = await supabase.from('roles').select('is_archived').eq('name', roleName).maybeSingle();
+  //     if ((roleRow as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED');
+  //   } catch (_) {}
+  // }
 
   if (dbUser.account_status === 'pending') {
     return errorResponse(

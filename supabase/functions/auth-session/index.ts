@@ -58,7 +58,8 @@ async function handleRefreshSession(req: Request) {
 
   if (!dbUser) return errorResponse('User not found', 401, 'UNAUTHORIZED');
   if (dbUser.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
-  try { const rName = dbUser?.roles?.name as string | undefined; if (rName) { const { data: _raS } = await db.from('roles').select('is_archived').eq('name', rName).maybeSingle(); if ((_raS as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
+  // TEMP HOTFIX: role check disabled
+  // try { const rName = dbUser?.roles?.name as string | undefined; if (rName) { const { data: _raS } = await db.from('roles').select('is_archived').eq('name', rName).maybeSingle(); if ((_raS as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 
   // ── 1-hour absolute session: hard expiry, no infinite refresh ──────────
   // After 1 hour from last_login_at, refresh is rejected and user must re-login

@@ -232,7 +232,8 @@ async function handleSendOtp(req: Request) {
   let userId: string | null = null;
   if (user) {
     if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
-    try { const { data: _ra } = await db.from('roles').select('is_archived').eq('name', user?.roles?.name).maybeSingle(); if ((_ra as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } catch (_) {}
+// TEMP HOTFIX: role check disabled
+    // try { const { data: _ra } = await db.from('roles').select('is_archived').eq('name', user?.roles?.name).maybeSingle(); if ((_ra as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } catch (_) {}
     if (user.account_status === 'inactive') return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
 
     const role = user?.roles?.name;
@@ -240,11 +241,9 @@ async function handleSendOtp(req: Request) {
     userId = user.id;
   } else {
     // Unregistered phone would self-register as lender on verify — block if lender role archived
-    const { data: lenderRole } = await db.from('roles').select('is_archived').eq('name', 'lender').maybeSingle();
-    // deno-lint-ignore no-explicit-any
-    if ((lenderRole as any)?.is_archived === true) {
-      return errorResponse('Registration disabled — lender role is archived', 403, 'ROLE_ARCHIVED');
-    }
+    // TEMP HOTFIX: lender role check disabled
+    // const { data: lenderRole } = await db.from('roles').select('is_archived').eq('name', 'lender').maybeSingle();
+    // if ((lenderRole as any)?.is_archived === true) return errorResponse('Registration disabled — lender role is archived', 403, 'ROLE_ARCHIVED');
   }
 
   const windowStart = new Date(Date.now() - OTP_WINDOW_MINUTES * 60000).toISOString();
@@ -430,7 +429,8 @@ async function handleVerifyOtp(req: Request) {
   if (user.account_status === 'archived') {
     return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
   }
-  try { if (user?.roles?.name) { const { data: _ra2 } = await db.from('roles').select('is_archived').eq('name', user.roles.name).maybeSingle(); if ((_ra2 as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
+  // TEMP HOTFIX: role check disabled
+  // try { if (user?.roles?.name) { const { data: _ra2 } = await db.from('roles').select('is_archived').eq('name', user.roles.name).maybeSingle(); if ((_ra2 as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
   if (user.account_status === 'inactive') {
     return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
   }

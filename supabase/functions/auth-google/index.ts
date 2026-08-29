@@ -97,11 +97,9 @@ async function handleExchange(req: Request) {
 
   if (!user) {
     // Guard: prevent self-registration if lender role itself is archived
-    const { data: lenderRole } = await db.from('roles').select('is_archived').eq('name', 'lender').maybeSingle();
-    // deno-lint-ignore no-explicit-any
-    if ((lenderRole as any)?.is_archived === true) {
-      return errorResponse('Registration disabled — lender role is archived', 403, 'ROLE_ARCHIVED');
-    }
+    // TEMP HOTFIX: lender role check disabled
+    // const { data: lenderRole } = await db.from('roles').select('is_archived').eq('name', 'lender').maybeSingle();
+    // if ((lenderRole as any)?.is_archived === true) return errorResponse('Registration disabled — lender role is archived', 403, 'ROLE_ARCHIVED');
     // Google sign-in is lender-only: unknown accounts self-register as lenders
     // (mirrors the OTP self-registration flow for phone-based lenders).
     user = singleWithObjectEmbeds(
@@ -123,7 +121,8 @@ async function handleExchange(req: Request) {
   if (user.account_status === 'archived') {
     return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
   }
-  try { if (user?.roles?.name) { const { data: _raG } = await db.from('roles').select('is_archived').eq('name', user.roles.name).maybeSingle(); if ((_raG as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
+  // TEMP HOTFIX: role check disabled
+  // try { if (user?.roles?.name) { const { data: _raG } = await db.from('roles').select('is_archived').eq('name', user.roles.name).maybeSingle(); if ((_raG as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 
   // ── Step 3: guard against auth.id ↔ users.id mismatches ──────────────────
   // Every downstream Edge Function resolves public.users by the JWT's user id
