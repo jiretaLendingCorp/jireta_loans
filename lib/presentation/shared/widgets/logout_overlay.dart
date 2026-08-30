@@ -45,6 +45,7 @@ class LogoutOverlay extends ConsumerWidget {
           const Positioned.fill(child: AbsorbPointer(child: SizedBox.expand())),
           Positioned.fill(
             child: Center(
+              // ignore: prefer_const_constructors
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 320),
                 margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -61,9 +62,9 @@ class LogoutOverlay extends ConsumerWidget {
                     ),
                   ],
                 ),
-                child: Column(
+                child: const Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
+                  children: [
                     SizedBox(
                       width: 36,
                       height: 36,

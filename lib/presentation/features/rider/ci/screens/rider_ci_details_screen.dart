@@ -1037,10 +1037,10 @@ class _ReportStep extends StatelessWidget {
               style: const TextStyle(fontSize: 14, height: 1.5),
               decoration: const InputDecoration(
                 hintText: 'Enter report',
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                     fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(14),
+                contentPadding: EdgeInsets.all(14),
                 counterText: '',
               ),
               buildCounter: (context,
@@ -1264,10 +1264,10 @@ class _UploadReportStep extends StatelessWidget {
               style: const TextStyle(fontSize: 14, height: 1.5),
               decoration: const InputDecoration(
                 hintText: 'Enter report',
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                     fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(14),
+                contentPadding: EdgeInsets.all(14),
                 counterText: '',
               ),
               buildCounter: (context,

@@ -394,14 +394,19 @@ async function handleGetProfile(req: Request) {
   }
 
   const db = getAdminClient();
-  let { data, error } = await db
-    .from('users')
-    .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
+  // Unified select string — explicit FK hint on roles required after 00115
+  // (roles.archived_by -> users.id creates a second users<->roles path, so
+  // plain `roles(id,name)` throws PGRST "more than one relationship").
+  // lender_profiles has single path, plain is fine.
+  const PROFILE_SELECT = `id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
       force_password_change, last_login_at, created_at, profile_photo_url,
-      roles(id, name),
+      roles!users_role_id_fkey(id, name),
       employee_profiles(department, position, hired_at, gender, civil_status),
       rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
-      lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
+      lender_profiles(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`;
+  let { data, error } = await db
+    .from('users')
+    .select(PROFILE_SELECT)
     .eq('id', targetId)
     .maybeSingle();
 
@@ -423,12 +428,7 @@ async function handleGetProfile(req: Request) {
       for (const cand of [...new Set([localPhone, e164Phone, rawPhone])]) {
         const res = await db
           .from('users')
-          .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
-            force_password_change, last_login_at, created_at, profile_photo_url,
-            roles(id, name),
-            employee_profiles(department, position, hired_at, gender, civil_status),
-            rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
-            lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
+          .select(PROFILE_SELECT)
           .eq('phone_number', cand)
           .maybeSingle();
         if (res.data) {
@@ -445,12 +445,7 @@ async function handleGetProfile(req: Request) {
         for (const pat of [`%${last9}`, `%${last10}`]) {
           const res = await db
             .from('users')
-            .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
-              force_password_change, last_login_at, created_at, profile_photo_url,
-              roles(id, name),
-              employee_profiles(department, position, hired_at, gender, civil_status),
-              rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
-              lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
+            .select(PROFILE_SELECT)
             .ilike('phone_number', pat)
             .maybeSingle();
           if (res.data) {
@@ -463,19 +458,24 @@ async function handleGetProfile(req: Request) {
       }
     }
     if (!fallbackData && user.email) {
-      const res = await db
-        .from('users')
-        .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
-          force_password_change, last_login_at, created_at, profile_photo_url,
-          roles(id, name),
-          employee_profiles(department, position, hired_at, gender, civil_status),
-          rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
-          lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
-        .ilike('email', String(user.email).trim().toLowerCase())
-        .maybeSingle();
-      if (res.data) {
-        fallbackData = res.data;
-        fallbackError = res.error;
+      const rawEmail = String(user.email).trim().toLowerCase();
+      // Synthetic jireta.temp emails are GoTrue-only; public.users stores NULL for lenders.
+      // Skip email fallback for those to avoid false miss.
+      const isSynthetic = rawEmail.endsWith('@jireta.temp');
+      if (!isSynthetic) {
+        const res = await db
+          .from('users')
+          .select(PROFILE_SELECT)
+          .ilike('email', rawEmail)
+          .maybeSingle();
+        if (res.data) {
+          fallbackData = res.data;
+          fallbackError = res.error;
+        } else {
+          fallbackError = res.error;
+        }
+      } else {
+        console.warn('[users-manage] skipped synthetic email fallback', { rawEmail });
       }
     }
     if (fallbackData) {
@@ -503,12 +503,14 @@ async function handleGetProfile(req: Request) {
     );
   }
 
+  // After fallback, the canonical id lives in `data.id` — use it, not the stale `targetId`.
+  const canonicalId = (data as { id: string }).id;
   const { data: emergencyContacts } = await db
     .from('emergency_contacts')
     .select('id, name, relationship, phone_number, address')
-    .eq('lender_id', targetId);
+    .eq('lender_id', canonicalId);
 
-  const address = await getLenderAddress(db, targetId);
+  const address = await getLenderAddress(db, canonicalId);
 
   // Flatten nested profile rows onto the user so the mobile/web models can
   // read department, position, plate_number, etc. straight off the object.

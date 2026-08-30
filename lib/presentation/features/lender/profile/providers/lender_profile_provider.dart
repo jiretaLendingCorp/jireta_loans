@@ -79,7 +79,7 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
               final supa = Supabase.instance.client;
               final raw = await supa
                   .from('users')
-                  .select('id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!inner(name), lender_profiles(account_upgrade_status, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, source_of_funds, gcash_number)')
+                  .select('id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!users_role_id_fkey!inner(name), lender_profiles(account_upgrade_status, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, source_of_funds, gcash_number)')
                   .eq('id', storedId)
                   .maybeSingle();
               if (raw != null) {

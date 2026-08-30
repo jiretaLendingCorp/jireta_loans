@@ -83,7 +83,7 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
               final supa = Supabase.instance.client;
               final raw = await supa
                   .from('users')
-                  .select('id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!inner(name), rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available)')
+                  .select('id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!users_role_id_fkey!inner(name), rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available)')
                   .eq('id', storedId)
                   .maybeSingle();
               if (raw != null) {
