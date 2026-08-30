@@ -68,6 +68,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   @override
   void initState() {
     super.initState();
+    _purposeCtrl.addListener(_onPurposeChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(lenderAccountUpgradeProvider.notifier).loadStatus();
       ref.read(lenderLoanProvider.notifier).loadLoans();
@@ -75,10 +76,51 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     });
   }
 
+  void _onPurposeChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Validation for Next button ──
+  bool _isLoanDetailsValid() => _purposeCtrl.text.trim().isNotEmpty;
+
+  bool _isCoMakerValid() {
+    final m = _coMaker;
+    if (m == null) return false;
+    bool notEmpty(String k) => (m[k]?.toString().trim().isNotEmpty ?? false);
+    final phone = m['phone_number']?.toString().trim() ?? '';
+    final phoneOk = phone.length == 11 &&
+        phone.startsWith('09') &&
+        RegExp(r'^\d{11}$').hasMatch(phone);
+    final dob = m['date_of_birth']?.toString().trim() ?? '';
+    return notEmpty('first_name') &&
+        notEmpty('last_name') &&
+        phoneOk &&
+        notEmpty('relationship') &&
+        notEmpty('address') &&
+        dob.isNotEmpty;
+  }
+
+  bool _isSignatureValid() =>
+      _coMakerSignature != null && _coMakerSignature!.isNotEmpty;
+
+  bool get _canGoNext {
+    if (_step == 0) return _isLoanDetailsValid();
+    if (_step == 1) return _isCoMakerValid();
+    if (_step == 2) return _isSignatureValid();
+    // Review step (3) – enable Submit only if all previous are valid
+    if (_step == 3) {
+      return _isLoanDetailsValid() &&
+          _isCoMakerValid() &&
+          _isSignatureValid();
+    }
+    return true;
   }
 
   Future<void> _refreshPreview() async {
@@ -539,6 +581,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   Widget _buildWizardBar(LenderLoanState state) {
     final isLast = _step == 3;
+    final canProceed = _canGoNext && !state.isSubmitting;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: const BoxDecoration(
@@ -568,7 +611,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               icon: isLast ? Icons.send : Icons.arrow_forward,
               color: AppColors.lenderBlue,
               isLoading: state.isSubmitting,
-              onTap: isLast ? _submit : _goNext,
+              onTap: canProceed ? (isLast ? _submit : _goNext) : null,
             ),
           ),
         ],
@@ -1426,42 +1469,49 @@ class _AccountUpgradeGate extends StatelessWidget {
       onAction = () => context.push(RouteConstants.lenderAccountUpgrade);
     }
 
+    final isDefaultGate = !isSubmitted && !isRejected;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: fg.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+            // Icon + title/subtitle are hidden for the default unverified state
+            // per request: remove icon and texts "Verify your identity..." /
+            // "Complete Your Account Upgrade". Only the action button remains
+            // for that state; submitted/rejected keep their info.
+            if (!isDefaultGate) ...[
+              Container(
+                width: 84,
+                height: 84,
+                decoration: BoxDecoration(
+                  color: fg.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: fg, size: 42),
               ),
-              child: Icon(icon, color: fg, size: 42),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+              const SizedBox(height: 20),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-                height: 1.4,
+              const SizedBox(height: 10),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
               ),
-            ),
-            const SizedBox(height: 28),
+              const SizedBox(height: 28),
+            ],
             AppButton(
               label: actionLabel,
               onPressed: onAction,

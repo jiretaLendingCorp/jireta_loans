@@ -59,11 +59,11 @@ class _LenderAccountUpgradeSubmitScreenState
     ),
   ];
 
+  // Merged to 3 steps per request: Residence is now part of step 2 (final)
   static const _steps = [
     'Personal Info',
     'Financial Info',
-    'Residence',
-    'Docs & Submit'
+    'Residence & Docs',
   ];
 
   final Map<String, PlatformFile?> _selectedFiles = {
@@ -102,6 +102,8 @@ class _LenderAccountUpgradeSubmitScreenState
   final _emailCtrl = TextEditingController();
   final _employerCtrl = TextEditingController();
   final _incomeCtrl = TextEditingController();
+  final _employmentOtherCtrl = TextEditingController();
+  final _sourceOtherCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
   final _barangayCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
@@ -129,6 +131,8 @@ class _LenderAccountUpgradeSubmitScreenState
     'OFW',
     'Freelancer',
     'Unemployed',
+    'Student',
+    'Other',
   ];
   static const _sourceOfFundsOptions = [
     'Salary',
@@ -149,7 +153,48 @@ class _LenderAccountUpgradeSubmitScreenState
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _firstNameCtrl.addListener(_onFieldChanged);
+    _middleNameCtrl.addListener(_onFieldChanged);
+    _lastNameCtrl.addListener(_onFieldChanged);
+    _suffixCtrl.addListener(_onFieldChanged);
+    _emailCtrl.addListener(_onFieldChanged);
+    _employerCtrl.addListener(_onFieldChanged);
+    _incomeCtrl.addListener(_onFieldChanged);
+    _employmentOtherCtrl.addListener(_onFieldChanged);
+    _sourceOtherCtrl.addListener(_onFieldChanged);
+    _streetCtrl.addListener(_onFieldChanged);
+    _barangayCtrl.addListener(_onFieldChanged);
+    _cityCtrl.addListener(_onFieldChanged);
+    _provinceCtrl.addListener(_onFieldChanged);
+    _zipCtrl.addListener(_onFieldChanged);
+    _ecNameCtrl.addListener(_onFieldChanged);
+    _ecPhoneCtrl.addListener(_onFieldChanged);
+  }
+
+  void _onFieldChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _firstNameCtrl.removeListener(_onFieldChanged);
+    _middleNameCtrl.removeListener(_onFieldChanged);
+    _lastNameCtrl.removeListener(_onFieldChanged);
+    _suffixCtrl.removeListener(_onFieldChanged);
+    _emailCtrl.removeListener(_onFieldChanged);
+    _employerCtrl.removeListener(_onFieldChanged);
+    _incomeCtrl.removeListener(_onFieldChanged);
+    _employmentOtherCtrl.removeListener(_onFieldChanged);
+    _sourceOtherCtrl.removeListener(_onFieldChanged);
+    _streetCtrl.removeListener(_onFieldChanged);
+    _barangayCtrl.removeListener(_onFieldChanged);
+    _cityCtrl.removeListener(_onFieldChanged);
+    _provinceCtrl.removeListener(_onFieldChanged);
+    _zipCtrl.removeListener(_onFieldChanged);
+    _ecNameCtrl.removeListener(_onFieldChanged);
+    _ecPhoneCtrl.removeListener(_onFieldChanged);
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
@@ -157,6 +202,8 @@ class _LenderAccountUpgradeSubmitScreenState
     _emailCtrl.dispose();
     _employerCtrl.dispose();
     _incomeCtrl.dispose();
+    _employmentOtherCtrl.dispose();
+    _sourceOtherCtrl.dispose();
     _streetCtrl.dispose();
     _barangayCtrl.dispose();
     _cityCtrl.dispose();
@@ -274,6 +321,75 @@ class _LenderAccountUpgradeSubmitScreenState
     return age >= 18;
   }
 
+  // ── Helpers for peso formatting ──
+  double? _parseIncome() {
+    final raw = _incomeCtrl.text.replaceAll(RegExp(r'[₱,\s]'), '').trim();
+    if (raw.isEmpty) return null;
+    return double.tryParse(raw);
+  }
+
+  // ── Validation for Next button (live, disables Next until required filled) ──
+  bool _isPersonalInfoValid() {
+    if (_firstNameCtrl.text.trim().isEmpty) return false;
+    if (_lastNameCtrl.text.trim().isEmpty) return false;
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty ||
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) return false;
+    if (_gender == null) return false;
+    if (_civilStatus == null) return false;
+    if (_dob == null) return false;
+    if (!_isAdult(_dob!)) return false;
+    return true;
+  }
+
+  bool _isFinancialInfoValid() {
+    if (_employmentType == null) return false;
+    if (_employmentType == 'Other' &&
+        _employmentOtherCtrl.text.trim().isEmpty) return false;
+    if (_employerCtrl.text.trim().isEmpty) return false;
+    final inc = _parseIncome();
+    if (inc == null || inc <= 0) return false;
+    if (_sourceOfFunds == null) return false;
+    if (_sourceOfFunds == 'Other' &&
+        _sourceOtherCtrl.text.trim().isEmpty) return false;
+    return true;
+  }
+
+  bool _isResidenceValid() {
+    if (_streetCtrl.text.trim().isEmpty) return false;
+    if (_barangayCtrl.text.trim().isEmpty) return false;
+    if (_cityCtrl.text.trim().isEmpty) return false;
+    if (_provinceCtrl.text.trim().isEmpty) return false;
+    final zip = _zipCtrl.text.trim();
+    if (zip.length != 4 || int.tryParse(zip) == null) return false;
+    return true;
+  }
+
+  bool _isEmergencyAndDocsValid() {
+    if (_ecNameCtrl.text.trim().isEmpty) return false;
+    if (_ecRelationship == null) return false;
+    final phone = _ecPhoneCtrl.text.trim();
+    if (phone.length != 11 ||
+        !phone.startsWith('09') ||
+        int.tryParse(phone) == null) return false;
+    // all 4 docs must be uploaded
+    if (_selectedFiles.values.any((f) => f == null)) return false;
+    return true;
+  }
+
+  bool get _canGoNext {
+    // 3-step flow: 0 Personal, 1 Financial, 2 Residence & Docs
+    if (_step == 0) return _isPersonalInfoValid();
+    if (_step == 1) return _isFinancialInfoValid();
+    if (_step == 2) {
+      return _isPersonalInfoValid() &&
+          _isFinancialInfoValid() &&
+          _isResidenceValid() &&
+          _isEmergencyAndDocsValid();
+    }
+    return false;
+  }
+
   void _goNext() {
     if (!_formKey.currentState!.validate()) return;
     if (_step == 0) {
@@ -308,6 +424,17 @@ class _LenderAccountUpgradeSubmitScreenState
     if (missing.isNotEmpty) {
       context.showSnackBarAsToast(
           SnackBar(content: Text('Please upload: ${missing.join(', ')}')));
+      return;
+    }
+    // Full validation across all 3 steps (since final Form only holds residence+emergency)
+    if (!_isPersonalInfoValid() ||
+        !_isFinancialInfoValid() ||
+        !_isResidenceValid() ||
+        !_isEmergencyAndDocsValid()) {
+      context.showSnackBarAsToast(const SnackBar(
+        content: Text('Please complete all required fields in each step.'),
+        backgroundColor: AppColors.error,
+      ));
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -353,6 +480,12 @@ class _LenderAccountUpgradeSubmitScreenState
 
       // Everything the lender fills in the account upgrade lives on their
       // profile — the profile screen only displays these details afterwards.
+      final resolvedEmploymentType = _employmentType == 'Other'
+          ? _employmentOtherCtrl.text.trim()
+          : _employmentType!;
+      final resolvedSourceOfFunds = _sourceOfFunds == 'Other'
+          ? _sourceOtherCtrl.text.trim()
+          : _sourceOfFunds!;
       final payload = <String, dynamic>{
         'profile': {
           'first_name': _firstNameCtrl.text.trim(),
@@ -365,9 +498,12 @@ class _LenderAccountUpgradeSubmitScreenState
           'gender': _toDbEnum(_gender!),
           'civil_status': _toDbEnum(_civilStatus!),
           'dob': DateFormat('yyyy-MM-dd').format(_dob!),
-          'employment_type': _toDbEnum(_employmentType!),
+          'employment_type': _toDbEnum(resolvedEmploymentType),
+          // When Other, also send the raw reason for debugging/audit
+          if (_employmentType == 'Other')
+            'employment_type_other': _employmentOtherCtrl.text.trim(),
           'employer_name': _employerCtrl.text.trim(),
-          'monthly_income': double.tryParse(_incomeCtrl.text.trim()),
+          'monthly_income': _parseIncome(),
         },
         'address_info': {
           'street_address': _streetCtrl.text.trim(),
@@ -376,7 +512,9 @@ class _LenderAccountUpgradeSubmitScreenState
           'province': _provinceCtrl.text.trim(),
           'zip_code': _zipCtrl.text.trim(),
         },
-        'source_of_funds': _toDbEnum(_sourceOfFunds!),
+        'source_of_funds': _toDbEnum(resolvedSourceOfFunds),
+        if (_sourceOfFunds == 'Other')
+          'source_of_funds_other': _sourceOtherCtrl.text.trim(),
         'emergency_contact': {
           'name': _ecNameCtrl.text.trim(),
           'relationship': _ecRelationship,
@@ -515,11 +653,58 @@ class _LenderAccountUpgradeSubmitScreenState
         return _buildPersonalInformation();
       case 1:
         return _buildFinancialInformation();
-      case 2:
-        return _buildResidenceAddress();
       default:
-        return _buildEmergencyAndDocuments();
+        // Step 2 (last) = Residence + Emergency + Docs merged per request
+        return _buildResidenceAndDocsStep();
     }
+  }
+
+  Widget _buildResidenceAndDocsStep() {
+    // Single Form for the merged final step to avoid duplicate GlobalKey.
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildResidenceAddress(wrapForm: false),
+          const SizedBox(height: 16),
+          _buildEmergencyAndDocuments(wrapForm: false, includeDocs: false),
+          const SizedBox(height: 16),
+          _buildDocumentsSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Required Documents',
+          style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Tap each document to capture with your camera or choose from your gallery. Files must be JPG, PNG, or PDF under 5MB.',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 20),
+        ..._selectedFiles.entries.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _DocUploadCard(
+                label: _docLabels[e.key]!,
+                hint: _docHints[e.key]!,
+                icon: _docIcons[e.key]!,
+                file: e.value,
+                onPick: () => _pickFile(e.key),
+              ),
+            )),
+      ],
+    );
   }
 
   Widget _buildPersonalInformation() {
@@ -614,8 +799,20 @@ class _LenderAccountUpgradeSubmitScreenState
             value: _employmentType,
             items: _employmentOptions,
             validator: (v) => v == null ? 'Employment type is required' : null,
-            onChanged: (v) => setState(() => _employmentType = v),
+            onChanged: (v) => setState(() {
+              _employmentType = v;
+              if (v != 'Other') _employmentOtherCtrl.clear();
+            }),
           ),
+          if (_employmentType == 'Other') ...[
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'Please specify employment type *',
+              controller: _employmentOtherCtrl,
+              maxLength: 100,
+              validator: _required('Employment type (Other)'),
+            ),
+          ],
           const SizedBox(height: 12),
           AppTextField(
             label: 'Employer / Business Name *',
@@ -628,15 +825,16 @@ class _LenderAccountUpgradeSubmitScreenState
             label: 'Monthly Income (₱) *',
             controller: _incomeCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            maxLength: 12,
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              _PesoCurrencyFormatter(),
             ],
             validator: (v) {
               if (v == null || v.trim().isEmpty) {
                 return 'Monthly income is required';
               }
-              final d = double.tryParse(v.trim());
+              final cleaned = v.replaceAll(RegExp(r'[₱,\s]'), '').trim();
+              final d = double.tryParse(cleaned);
               if (d == null || d <= 0) {
                 return 'Enter a valid amount greater than 0';
               }
@@ -649,160 +847,156 @@ class _LenderAccountUpgradeSubmitScreenState
             value: _sourceOfFunds,
             items: _sourceOfFundsOptions,
             validator: (v) => v == null ? 'Source of funds is required' : null,
-            onChanged: (v) => setState(() => _sourceOfFunds = v),
+            onChanged: (v) => setState(() {
+              _sourceOfFunds = v;
+              if (v != 'Other') _sourceOtherCtrl.clear();
+            }),
           ),
+          if (_sourceOfFunds == 'Other') ...[
+            const SizedBox(height: 12),
+            AppTextField(
+              label: 'Please specify source of funds *',
+              controller: _sourceOtherCtrl,
+              maxLength: 100,
+              validator: _required('Source of funds (Other)'),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildResidenceAddress() {
-    return Form(
-      key: _formKey,
-      child: _buildSectionCard(
-        'Residence Address',
-        Icons.location_on_outlined,
-        [
-          AppTextField(
-            label: 'Street Address *',
-            controller: _streetCtrl,
-            maxLength: 100,
-            validator: _required('Street address'),
-          ),
-          const SizedBox(height: 12),
-          AppTextField(
-            label: 'Barangay *',
-            controller: _barangayCtrl,
-            maxLength: 100,
-            validator: _required('Barangay'),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: AppTextField(
-                  label: 'City / Municipality *',
-                  controller: _cityCtrl,
-                  maxLength: 100,
-                  validator: _required('City / municipality'),
-                ),
+  Widget _buildResidenceAddress({bool wrapForm = true}) {
+    final card = _buildSectionCard(
+      'Residence Address',
+      Icons.location_on_outlined,
+      [
+        AppTextField(
+          label: 'Street Address *',
+          controller: _streetCtrl,
+          maxLength: 100,
+          validator: _required('Street address'),
+        ),
+        const SizedBox(height: 12),
+        AppTextField(
+          label: 'Barangay *',
+          controller: _barangayCtrl,
+          maxLength: 100,
+          validator: _required('Barangay'),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: AppTextField(
+                label: 'City / Municipality *',
+                controller: _cityCtrl,
+                maxLength: 100,
+                validator: _required('City / municipality'),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: AppTextField(
-                  label: 'Province *',
-                  controller: _provinceCtrl,
-                  maxLength: 100,
-                  validator: _required('Province'),
-                ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: AppTextField(
+                label: 'Province *',
+                controller: _provinceCtrl,
+                maxLength: 100,
+                validator: _required('Province'),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          AppTextField(
-            label: 'ZIP Code *',
-            controller: _zipCtrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(4),
-            ],
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) {
-                return 'ZIP code is required';
-              }
-              if (v.trim().length != 4) {
-                return 'ZIP code must be 4 digits';
-              }
-              return null;
-            },
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        AppTextField(
+          label: 'ZIP Code *',
+          controller: _zipCtrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(4),
+          ],
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) {
+              return 'ZIP code is required';
+            }
+            if (v.trim().length != 4) {
+              return 'ZIP code must be 4 digits';
+            }
+            return null;
+          },
+        ),
+      ],
     );
+    if (!wrapForm) return card;
+    return Form(key: _formKey, child: card);
   }
 
-  Widget _buildEmergencyAndDocuments() {
+  Widget _buildEmergencyAndDocuments(
+      {bool wrapForm = true, bool includeDocs = true}) {
+    final emergencyCard = _buildSectionCard(
+      'Emergency Contact',
+      Icons.emergency_outlined,
+      [
+        const Text(
+          'In case we need to reach someone related to you.',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        AppTextField(
+          label: 'Contact Name *',
+          controller: _ecNameCtrl,
+          maxLength: 100,
+          validator: _required('Contact name'),
+        ),
+        const SizedBox(height: 12),
+        _buildDropdown(
+          label: 'Relationship *',
+          value: _ecRelationship,
+          items: _relationshipOptions,
+          validator: (v) => v == null ? 'Relationship is required' : null,
+          onChanged: (v) => setState(() => _ecRelationship = v),
+        ),
+        const SizedBox(height: 12),
+        AppTextField(
+          label: 'Contact Phone Number *',
+          controller: _ecPhoneCtrl,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(11),
+          ],
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) {
+              return 'Phone number is required';
+            }
+            if (v.length != 11 || !v.startsWith('09')) {
+              return 'Must be an 11-digit number starting with 09';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+
+    final emergency = wrapForm
+        ? Form(key: _formKey, child: emergencyCard)
+        : emergencyCard;
+
+    if (!includeDocs) return emergency;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Form(
-          key: _formKey,
-          child: _buildSectionCard(
-            'Emergency Contact',
-            Icons.emergency_outlined,
-            [
-              const Text(
-                'In case we need to reach someone related to you.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Contact Name *',
-                controller: _ecNameCtrl,
-                maxLength: 100,
-                validator: _required('Contact name'),
-              ),
-              const SizedBox(height: 12),
-              _buildDropdown(
-                label: 'Relationship *',
-                value: _ecRelationship,
-                items: _relationshipOptions,
-                validator: (v) => v == null ? 'Relationship is required' : null,
-                onChanged: (v) => setState(() => _ecRelationship = v),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Contact Phone Number *',
-                controller: _ecPhoneCtrl,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(11),
-                ],
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Phone number is required';
-                  }
-                  if (v.length != 11 || !v.startsWith('09')) {
-                    return 'Must be an 11-digit number starting with 09';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
+        emergency,
         const SizedBox(height: 16),
-        const Text(
-          'Required Documents',
-          style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Tap each document to capture with your camera or choose from your gallery. Files must be JPG, PNG, or PDF under 5MB.',
-          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 20),
-        ..._selectedFiles.entries.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _DocUploadCard(
-                label: _docLabels[e.key]!,
-                hint: _docHints[e.key]!,
-                icon: _docIcons[e.key]!,
-                file: e.value,
-                onPick: () => _pickFile(e.key),
-              ),
-            )),
+        _buildDocumentsSection(),
       ],
     );
   }
 
   Widget _buildWizardBar(LenderAccountUpgradeState state) {
-    final isLast = _step == 3;
+    final isLast = _step == 2;
+    final canProceed = _canGoNext && !_isSubmitting && !state.isLoading;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: const BoxDecoration(
@@ -836,7 +1030,7 @@ class _LenderAccountUpgradeSubmitScreenState
               icon: isLast ? Icons.send : Icons.arrow_forward,
               color: AppColors.lenderBlue,
               isLoading: _isSubmitting,
-              onTap: isLast ? _submit : _goNext,
+              onTap: canProceed ? (isLast ? _submit : _goNext) : null,
             ),
           ),
         ],
@@ -1016,10 +1210,9 @@ class _LenderAccountUpgradeSubmitScreenState
             'Account upgrade rejected. Please resubmit.';
         break;
       default:
-        bgColor = AppColors.infoLight;
-        textColor = AppColors.info;
-        icon = Icons.info_outline;
-        message = 'Complete Account Upgrade to apply for a loan';
+        // Per request: remove icon + text "Complete Account Upgrade to apply for a loan"
+        // for the default/unverified state – hide the banner entirely.
+        return const SizedBox.shrink();
     }
 
     return Container(
@@ -1039,6 +1232,34 @@ class _LenderAccountUpgradeSubmitScreenState
                       fontWeight: FontWeight.w600))),
         ],
       ),
+    );
+  }
+}
+
+class _PesoCurrencyFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final text = newValue.text;
+    if (text.isEmpty) return newValue;
+    // Strip peso sign and commas for parsing, keep digits and dot
+    final cleaned = text.replaceAll(RegExp(r'[₱,\s]'), '');
+    if (cleaned.isEmpty) {
+      return const TextEditingValue(
+          text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+    if (cleaned == '.') return newValue;
+    // Prevent multiple dots
+    if (cleaned.split('.').length > 2) return oldValue;
+    // If user is in the middle of typing decimal (ends with dot), don't format yet
+    if (cleaned.endsWith('.')) return newValue;
+    final value = double.tryParse(cleaned);
+    if (value == null) return oldValue;
+    final fmt = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+    final formatted = fmt.format(value);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
