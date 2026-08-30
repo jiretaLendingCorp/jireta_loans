@@ -25,16 +25,14 @@ class SessionRefresher {
   }
 
   static Future<SessionRefreshResult> _refreshOnce() async {
-    // Absolute 1-hour hard expiry: never refresh if absolute session already expired.
-    // This enforces "after 1 hour must re-login" even if refresh token is still technically valid.
-    // Grace +30s to avoid clock-skew false positives right after login.
+    // Idle 10-minute hard expiry: never refresh if idle session already expired.
+    // This enforces "after 10 min without activity must re-login".
+    // Grace +10s to avoid clock-skew false positives.
     try {
-      final isExpired = await SecureStorage.isAbsoluteSessionExpired();
+      final isExpired = await SecureStorage.isIdleExpired();
       if (isExpired) {
-        // Double-check: if we have no startedAt (legacy) we already returned false above,
-        // so this is a real 1h expiry. Confirm remaining to avoid false logout on web storage lag.
-        final remaining = await SecureStorage.getRemainingSessionTime();
-        // If remaining is null (legacy) -> not expired (handled in isAbsolute...), but be safe
+        // Confirm remaining to avoid false logout on web storage lag.
+        final remaining = await SecureStorage.getRemainingIdleTime();
         if (remaining != null) return SessionRefreshResult.authRejected;
       }
     } catch (_) {

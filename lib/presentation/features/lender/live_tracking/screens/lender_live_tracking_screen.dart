@@ -352,7 +352,7 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
       if (_selectedDest != null && _displayPos[selected.riderId] != null) {
         final liveDist = haversineKm(_displayPos[selected.riderId]!, _selectedDest!);
         // If we have a route, blend? Use route distance when recent, else live.
-        if (distKm == null) distKm = liveDist;
+        distKm ??= liveDist;
         // If route is stale (rider moved significantly since last fetch), show live until refetch.
         if (_lastRouteOrigin != null) {
           final moved = (_lastRouteOrigin!.latitude - _displayPos[selected.riderId]!.latitude).abs() > 0.004 ||
@@ -663,8 +663,7 @@ class _DetailRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final bool hasBar;
-  const _DetailRow({required this.icon, required this.label, required this.value, this.hasBar = false});
+  const _DetailRow({required this.icon, required this.label, required this.value});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -674,7 +673,7 @@ class _DetailRow extends StatelessWidget {
         const SizedBox(width: 6),
         Text('$label:', style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
         const SizedBox(width: 6),
-        Expanded(child: hasBar ? Row(children: [Expanded(child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600))), const SizedBox(width: 6), Container(width: 40, height: 6, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)), child: FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: 0.78, child: Container(decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(6)))))] ) : Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
       ]),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/router/app_router.dart';
+import 'core/security/session_idle_detector.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/shared/widgets/connectivity_overlay.dart';
 import 'presentation/shared/widgets/logout_overlay.dart';
@@ -22,8 +23,10 @@ class JiretaApp extends ConsumerWidget {
       // Logout is outermost so its full-screen "Logging out..." blocks
       // everything even while offline dim is active. Both are role-agnostic
       // and sit above every route.
-      builder: (context, child) => LogoutOverlay(
-        child: ConnectivityOverlay(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => SessionIdleDetector(
+        child: LogoutOverlay(
+          child: ConnectivityOverlay(child: child ?? const SizedBox.shrink()),
+        ),
       ),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

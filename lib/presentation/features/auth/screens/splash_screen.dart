@@ -360,41 +360,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                       height: 1.0,
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  // Elegant thin gold divider (premium minimal)
-                                  Container(
-                                    width: 38,
-                                    height: 1.2,
-                                    decoration: BoxDecoration(
-                                      color:
-                                          AppColors.gold.withValues(alpha: 0.55),
-                                      borderRadius: BorderRadius.circular(99),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  const Text(
-                                    'LOANS & CREDIT CORP.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                      letterSpacing: 3.2,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Trusted • Secured • Professional',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                      color:
-                                          Colors.white.withValues(alpha: 0.48),
-                                      letterSpacing: 1.6,
-                                    ),
-                                  ),
                                   const SizedBox(height: 42),
                                   // Premium progress capsule
                                   Column(
@@ -508,60 +473,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
             ),
 
-            // ── Bottom footer — premium minimal ────────────────────────
-            SafeArea(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (!isOnline)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 14),
-                          child: OfflineToast(),
-                        ),
-                      // Divider
-                      Container(
-                        height: 1,
-                        margin: const EdgeInsets.only(bottom: 14),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              Colors.white.withValues(alpha: 0.08),
-                              Colors.transparent,
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '© 1966–2026 JIRETA Loans & Credit Corp. All rights reserved.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.white.withValues(alpha: 0.32),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'v1.0.0  •  Secure & Encrypted',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white.withValues(alpha: 0.28),
-                          letterSpacing: 0.9,
-                        ),
-                      ),
-                    ],
+            // ── Minimal offline indicator (no extra footer texts)
+            if (!isOnline)
+              const SafeArea(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(24, 0, 24, 18),
+                    child: OfflineToast(),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

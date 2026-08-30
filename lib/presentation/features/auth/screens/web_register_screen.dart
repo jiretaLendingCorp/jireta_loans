@@ -394,21 +394,6 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Create Staff Account',
-          style: TextStyle(
-            fontFamily: 'PlayfairDisplay',
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: AppColors.deepNavy,
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Register as an employee. We\'ll send a verification code to your email.',
-          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 28),
         Form(
           key: _formKey,
           child: Column(
@@ -418,7 +403,12 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _firstNameCtrl,
-                      maxLength: 100,
+                      maxLength: 50,
+                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                        LengthLimitingTextInputFormatter(50),
+                      ],
                       decoration: const InputDecoration(
                         labelText: 'First Name',
                         prefixIcon: Icon(Icons.person_outlined),
@@ -431,7 +421,12 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _lastNameCtrl,
-                      maxLength: 100,
+                      maxLength: 50,
+                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                        LengthLimitingTextInputFormatter(50),
+                      ],
                       decoration: const InputDecoration(
                         labelText: 'Last Name',
                         counterText: '',
@@ -446,6 +441,8 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                 controller: _emailCtrl,
                 keyboardType: TextInputType.emailAddress,
                 maxLength: 254,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                inputFormatters: [LengthLimitingTextInputFormatter(254)],
                 onChanged: (_) {
                   if (_emailDuplicationError != null) setState(() => _emailDuplicationError = null);
                 },
@@ -465,7 +462,12 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
               TextFormField(
                 controller: _phoneCtrl,
                 keyboardType: TextInputType.phone,
-                maxLength: 20,
+                maxLength: 11,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
                 onChanged: (_) {
                   if (_phoneDuplicationError != null) setState(() => _phoneDuplicationError = null);
                 },
@@ -473,6 +475,7 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                   labelText: 'Phone Number',
                   prefixIcon: Icon(Icons.phone_outlined),
                   counterText: '',
+                  hintText: '09xxxxxxxxx',
                 ),
                 validator: (v) {
                   if (_phoneDuplicationError != null) return _phoneDuplicationError;
@@ -507,7 +510,9 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
               TextFormField(
                 controller: _passwordCtrl,
                 obscureText: _obscure,
-                maxLength: 128,
+                maxLength: 64,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                inputFormatters: [LengthLimitingTextInputFormatter(64)],
                 decoration: InputDecoration(
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock_outlined),
@@ -523,7 +528,9 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
               TextFormField(
                 controller: _confirmPasswordCtrl,
                 obscureText: _obscureConfirm,
-                maxLength: 128,
+                maxLength: 64,
+                maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                inputFormatters: [LengthLimitingTextInputFormatter(64)],
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
                   prefixIcon: const Icon(Icons.lock_outline),
@@ -544,7 +551,7 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                   style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   child: isLoading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Send Verification Code', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      : const Text('Register', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(height: 12),

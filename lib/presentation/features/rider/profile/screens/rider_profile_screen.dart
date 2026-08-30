@@ -87,9 +87,46 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       title: 'My Profile',
       accentColor: AppColors.riderGreen,
       navItems: _navItems,
-      body: state.isLoading
+      body: state.isLoading && state.user == null
           ? const ShimmerLoader()
-          : SingleChildScrollView(
+          : state.error != null && state.user == null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                        const SizedBox(height: 12),
+                        Text(state.error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppColors.textSecondary)),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.riderGreen),
+                              onPressed: () => ref.read(riderProfileProvider.notifier).loadProfile(),
+                              icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                              label: const Text('Retry', style: TextStyle(color: Colors.white)),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                await ref.read(authProvider.notifier).logout();
+                                if (context.mounted) context.go(RouteConstants.mobileLogin);
+                              },
+                              icon: const Icon(Icons.logout, size: 18),
+                              label: const Text('Re-login'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

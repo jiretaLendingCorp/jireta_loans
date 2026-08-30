@@ -24,14 +24,20 @@ class AppConstants {
   static const String userIdKey = 'user_id';
   static const String userRoleKey = 'user_role';
   static const String sessionStartedAtKey = 'session_started_at';
+  static const String lastActivityKey = 'last_activity_at';
 
   static const String authRefreshPath = 'auth-session?fn=refresh-session';
 
-  /// Absolute session lifetime: 1 hour hard expiry.
-  /// After 1 hour user MUST re-login and gets a new 1-hour session.
-  static const Duration sessionDuration = Duration(hours: 1);
-  static const int sessionDurationMs = 3600000;
-  static const int sessionDurationSeconds = 3600;
+  /// Idle session timeout: 10 minutes of inactivity → auto logout.
+  /// Any user interaction (tap, scroll, typing) or authenticated API call
+  /// bumps the idle deadline forward by 10 minutes.
+  static const Duration sessionDuration = Duration(minutes: 10);
+  static const int sessionDurationMs = 600000;
+  static const int sessionDurationSeconds = 600;
+
+  /// Legacy 1-hour constant kept for migration only (old installs may still
+  /// have a JWT-derived startedAt without last_activity_at).
+  static const Duration legacySessionDuration = Duration(hours: 1);
 
   /// Deep link Supabase redirects to after Google OAuth completes on mobile.
   /// Must match the Android intent-filter scheme and the iOS URL scheme.

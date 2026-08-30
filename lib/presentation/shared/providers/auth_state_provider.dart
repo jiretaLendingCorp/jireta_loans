@@ -59,6 +59,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   Timer? _expiryTimer;
   bool _isRefreshing = false;
   int _authRevision = 0;
+  DateTime? _lastActivityPush;
 
   @override
   void dispose() {
@@ -67,12 +68,29 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     super.dispose();
   }
 
+  /// Called by [SessionIdleDetector] and [AuthInterceptor] on any user
+  /// gesture or authenticated API call.  Throttled to once per 10s and
+  /// bumps `last_activity_at` forward, resetting the 10-minute idle window.
+  Future<void> notifyActivity() async {
+    if (!state.isAuthenticated) return;
+    final now = DateTime.now().toUtc();
+    if (_lastActivityPush != null &&
+        now.difference(_lastActivityPush!).inSeconds < 10) {
+      return;
+    }
+    _lastActivityPush = now;
+    try {
+      await SecureStorage.saveLastActivity(now);
+    } catch (_) {}
+    _scheduleExpiryCheck();
+  }
+
   Future<void> initialize() async {
     final revision = _authRevision;
     state = state.copyWith(isLoading: true);
     try {
-      // ── 1-hour absolute session check ──────────────────────────────────
-      // hasValidSession now checks both token existence AND absolute expiry.
+      // ── 10-minute idle session check ───────────────────────────────────
+      // hasValidSession now checks both token existence AND idle expiry.
       final hasSession = await SecureStorage.hasValidSession();
       if (revision != _authRevision || !mounted) return;
       if (hasSession) {
@@ -82,13 +100,12 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         if (userId != null &&
             role != null &&
             RoleConstants.allRoles.contains(role)) {
-          // ── Absolute 1-hour check before auto-login ────────────────────
-          // Use same 30s grace as SecureStorage.isAbsoluteSessionExpired to avoid
-          // false logout due to clock skew or timer precision right after login.
-          final remaining = await SecureStorage.getRemainingSessionTime();
-          if (remaining != null && remaining.inSeconds <= -30) {
-            if (kDebugMode) debugPrint('[JWT] initialize: absolute session expired (1h) → hard logout, require re-login');
-            AppLogger.debug('[JWT] initialize: absolute 1h expired → clear for re-login');
+          // ── Idle check before auto-login ───────────────────────────────
+          // 10s grace to avoid clock-skew false logout right after login.
+          final remaining = await SecureStorage.getRemainingIdleTime();
+          if (remaining != null && remaining.inSeconds <= -10) {
+            if (kDebugMode) debugPrint('[JWT] initialize: idle 10m expired → hard logout, require re-login');
+            AppLogger.debug('[JWT] initialize: idle 10m expired → clear for re-login');
             await SecureStorage.clearAll();
             try {
               await Supabase.instance.client.auth.signOut();
@@ -98,22 +115,19 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
             return;
           }
 
-          // Legacy migration: if no startedAt but token exists, infer from JWT
+          // Legacy migration: if no idle timestamp but token exists, infer from JWT
           if (remaining == null) {
             final accessToken = await SecureStorage.getAccessToken();
             final exp = JwtParser.expiry(accessToken);
             if (exp != null) {
-              // Infer startedAt = exp - 1h (JWT lifetime)
+              // Infer lastActivity = exp - 10m (idle window) so remaining makes sense
               final inferredStart = exp.subtract(AppConstants.sessionDuration);
               final now = DateTime.now().toUtc();
-              // Only migrate if JWT still has time left; otherwise treat as expired
               if (now.isBefore(exp)) {
                 await SecureStorage.saveSessionStartedAt(inferredStart);
-                if (kDebugMode) debugPrint('[JWT] initialize: migrated legacy session startedAt=$inferredStart exp=$exp');
+                await SecureStorage.saveLastActivity(inferredStart);
+                if (kDebugMode) debugPrint('[JWT] initialize: migrated legacy session lastActivity=$inferredStart exp=$exp');
               } else {
-                // JWT already expired and no absolute timestamp → try soft refresh
-                // within absolute window not possible, so treat as expired if JWT also expired
-                // Attempt one soft refresh before logout to handle clock skew
                 if (kDebugMode) debugPrint('[JWT] initialize: legacy JWT expired, trying soft refresh');
                 AppLogger.debug('[JWT] initialize: legacy JWT expired, pre-refresh');
                 final preResult = await _tryRefreshSession();
@@ -125,21 +139,18 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
                   state = const AuthState(isAuthenticated: false);
                   return;
                 } else if (preResult == SessionRefreshResult.success) {
-                  // After successful refresh we now have fresh JWT, set new absolute start
-                  await SecureStorage.saveSessionStartedAt(DateTime.now().toUtc());
+                  await SecureStorage.saveLastActivity(DateTime.now().toUtc());
                 } else {
                   // offline → keep session, timer will retry
                 }
               }
             }
           } else {
-            // Absolute still valid but JWT may be soft-expired (e.g. reopened tab after 59m)
-            // Try soft refresh to keep JWT valid until absolute expiry, without extending absolute.
+            // Idle still valid but JWT may be soft-expired
             final accessToken = await SecureStorage.getAccessToken();
             if (JwtParser.isExpired(accessToken) || JwtParser.isExpiringSoon(accessToken, within: const Duration(seconds: 60))) {
-              // Only soft-refresh if absolute still has meaningful time (>30s to avoid last-second churn)
               if (remaining.inSeconds > 30) {
-                if (kDebugMode) debugPrint('[JWT] initialize: JWT soft-expired but absolute valid (${remaining.inSeconds}s left) → soft refresh');
+                if (kDebugMode) debugPrint('[JWT] initialize: JWT soft-expired but idle valid (${remaining.inSeconds}s left) → soft refresh');
                 AppLogger.debug('[JWT] initialize: soft JWT expired, pre-refresh');
                 final preResult = await _tryRefreshSession();
                 if (revision != _authRevision || !mounted) return;
@@ -157,11 +168,11 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
                     break;
                   case SessionRefreshResult.success:
                     if (kDebugMode) debugPrint('[JWT] initialize: soft refresh success, continue');
+                    // Refresh does not extend idle; lastActivity stays as-is
                     break;
                 }
               } else {
-                // Absolute is about to expire anyway (<10s) → hard expire shortly
-                if (kDebugMode) debugPrint('[JWT] initialize: JWT expired and absolute almost expired (${remaining.inSeconds}s) → will hard logout');
+                if (kDebugMode) debugPrint('[JWT] initialize: JWT expired and idle almost done (${remaining.inSeconds}s) → will hard logout');
               }
             }
           }
@@ -178,7 +189,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
               createdAt: DateTime.now(),
             ),
           );
-          // Schedule hard 1h expiry (or soft JWT refresh if JWT sooner)
+          // Schedule idle 10m expiry (or soft JWT refresh if JWT sooner)
           _scheduleExpiryCheck();
           return;
         }
@@ -248,9 +259,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Schedules hard logout at absolute 1-hour expiry.
-  /// Within the 1-hour window, if JWT soft-expires before absolute, we do a
-  /// soft refresh that does NOT extend the absolute 1h deadline.
+  /// Schedules idle logout at 10-minute inactivity expiry.
+  /// Within the 10-minute window, if JWT soft-expires before idle, we do a
+  /// soft refresh that does NOT extend the idle deadline.
   void _scheduleExpiryCheck() {
     _expiryTimer?.cancel();
     _checkTokenExpiry();
@@ -258,15 +269,15 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
 
   Future<void> _checkTokenExpiry() async {
     try {
-      final remaining = await SecureStorage.getRemainingSessionTime();
+      final remaining = await SecureStorage.getRemainingIdleTime();
       final accessToken = await SecureStorage.getAccessToken();
       final jwtExp = JwtParser.expiry(accessToken);
       final now = DateTime.now().toUtc();
 
-      // ── Case 1: No absolute timestamp (legacy) → fallback to JWT ────────
+      // ── Case 1: No idle timestamp (legacy) → fallback to JWT ────────────
       if (remaining == null) {
         if (jwtExp == null) {
-          if (kDebugMode) debugPrint('[JWT] no absolute & no exp claim → skip timer (legacy, wait for user action)');
+          if (kDebugMode) debugPrint('[JWT] no idle & no exp claim → skip timer (legacy, wait for user action)');
           return;
         }
         final delay = jwtExp.difference(now) - const Duration(seconds: 4);
@@ -281,46 +292,44 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         return;
       }
 
-      // ── Case 2: Absolute session already expired → hard logout ─────────
-      // 30s grace prevents immediate logout due to clock skew right after login.
-      if (remaining.inSeconds <= -30) {
-        if (kDebugMode) debugPrint('[JWT] absolute 1h expired → hard logout immediately');
-        AppLogger.debug('[JWT] absolute 1h expired, hard logout');
-        _onAbsoluteSessionExpired();
+      // ── Case 2: Idle session already expired → hard logout ─────────────
+      // 10s grace prevents immediate logout due to event-loop lag.
+      if (remaining.inSeconds <= -10) {
+        if (kDebugMode) debugPrint('[JWT] idle 10m expired → hard logout immediately');
+        AppLogger.debug('[JWT] idle 10m expired, hard logout');
+        _onIdleExpired();
         return;
       }
 
-      final absoluteExpiry = now.add(remaining);
-      if (kDebugMode) debugPrint('[JWT] absolute remaining=${remaining.inSeconds}s expiry=$absoluteExpiry');
+      final idleExpiry = now.add(remaining);
+      if (kDebugMode) debugPrint('[JWT] idle remaining=${remaining.inSeconds}s expiry=$idleExpiry');
 
-      // ── Case 3: Absolute valid, check JWT soft expiry ──────────────────
+      // ── Case 3: Idle valid, check JWT soft expiry ──────────────────────
       if (jwtExp != null) {
         final jwtRemaining = jwtExp.difference(now);
         final jwtDelay = jwtRemaining - const Duration(seconds: 4);
-        if (kDebugMode) debugPrint('[JWT] jwtExp=$jwtExp jwtRemaining=${jwtRemaining.inSeconds}s jwtDelay=${jwtDelay.inSeconds}s absoluteRemaining=${remaining.inSeconds}s');
+        if (kDebugMode) debugPrint('[JWT] jwtExp=$jwtExp jwtRemaining=${jwtRemaining.inSeconds}s jwtDelay=${jwtDelay.inSeconds}s idleRemaining=${remaining.inSeconds}s');
 
-        // JWT soft-expired but absolute still has time → soft refresh (no extension of absolute)
+        // JWT soft-expired but idle still has time → soft refresh (no extension of idle)
         if (jwtDelay.isNegative) {
           if (remaining.inSeconds > 10) {
-            if (kDebugMode) debugPrint('[JWT] JWT soft-expired but absolute valid (${remaining.inSeconds}s left) → soft refresh now');
+            if (kDebugMode) debugPrint('[JWT] JWT soft-expired but idle valid (${remaining.inSeconds}s left) → soft refresh now');
             _onSoftTokenExpired();
           } else {
-            // Absolute about to expire (<10s) → just wait for hard expiry
-            if (kDebugMode) debugPrint('[JWT] JWT expired and absolute almost done (${remaining.inSeconds}s) → schedule hard logout');
-            _expiryTimer = Timer(remaining, _onAbsoluteSessionExpired);
+            // Idle about to expire (<10s) → just wait for idle logout
+            if (kDebugMode) debugPrint('[JWT] JWT expired and idle almost done (${remaining.inSeconds}s) → schedule idle logout');
+            _expiryTimer = Timer(remaining, _onIdleExpired);
           }
           return;
         }
 
         // Both valid: schedule timer for whichever comes first
-        // Optimization: if JWT soft expiry is within 10s of hard expiry, skip soft refresh and go straight to hard logout
-        // (avoids wasteful refresh 4s before the 1h hard logout)
+        // If JWT soft expiry is within 10s of idle expiry, skip refresh and go straight to idle logout
         final Duration nextDelay;
         final bool isJwtSooner;
         if (jwtDelay < remaining) {
           final gap = remaining - jwtDelay;
           if (gap.inSeconds <= 10 || remaining.inSeconds < 60) {
-            // Too close to hard expiry — just schedule hard logout
             nextDelay = remaining;
             isJwtSooner = false;
           } else {
@@ -332,39 +341,38 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           isJwtSooner = false;
         }
 
-        if (kDebugMode) debugPrint('[JWT] next timer in ${nextDelay.inSeconds}s → ${isJwtSooner ? "soft JWT refresh" : "hard 1h logout"}');
+        if (kDebugMode) debugPrint('[JWT] next timer in ${nextDelay.inSeconds}s → ${isJwtSooner ? "soft JWT refresh" : "idle 10m logout"}');
         AppLogger.debug('[JWT] schedule next in ${nextDelay.inSeconds}s isJwtSooner=$isJwtSooner');
 
         if (isJwtSooner) {
           _expiryTimer = Timer(nextDelay, _onSoftTokenExpired);
         } else {
-          _expiryTimer = Timer(nextDelay, _onAbsoluteSessionExpired);
+          _expiryTimer = Timer(nextDelay, _onIdleExpired);
         }
       } else {
-        // No JWT exp claim → just schedule hard absolute expiry
-        if (kDebugMode) debugPrint('[JWT] no JWT exp, schedule hard absolute in ${remaining.inSeconds}s');
-        _expiryTimer = Timer(remaining, _onAbsoluteSessionExpired);
+        // No JWT exp claim → just schedule idle expiry
+        if (kDebugMode) debugPrint('[JWT] no JWT exp, schedule idle in ${remaining.inSeconds}s');
+        _expiryTimer = Timer(remaining, _onIdleExpired);
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[JWT] _checkTokenExpiry error: $e');
     }
   }
 
-  /// Hard 1-hour expiry: session MUST end, require re-login, new 1h starts.
-  Future<void> _onAbsoluteSessionExpired() async {
-    if (kDebugMode) debugPrint('[JWT] absolute 1h session expired → hard logout, require re-login');
-    AppLogger.debug('[JWT] absolute 1h expired → hard logout');
-    // No refresh — 1 hour is absolute. User must login again to get new 1h.
+  /// Idle 10-minute expiry: session MUST end, require re-login.
+  Future<void> _onIdleExpired() async {
+    if (kDebugMode) debugPrint('[JWT] idle 10m session expired → hard logout, require re-login');
+    AppLogger.debug('[JWT] idle 10m expired → hard logout');
     await _onSessionExpired();
   }
 
-  /// Soft JWT expiry within the 1h window: try refresh WITHOUT extending absolute 1h.
+  /// Soft JWT expiry within the 10m window: try refresh WITHOUT extending idle.
   Future<void> _onSoftTokenExpired() async {
-    // If absolute already expired (with grace), hard logout instead of soft refresh
-    final remaining = await SecureStorage.getRemainingSessionTime();
-    if (remaining != null && remaining.inSeconds <= -30) {
-      if (kDebugMode) debugPrint('[JWT] _onSoftTokenExpired but absolute already expired → hard logout');
-      await _onAbsoluteSessionExpired();
+    // If idle already expired (with grace), hard logout instead of soft refresh
+    final remaining = await SecureStorage.getRemainingIdleTime();
+    if (remaining != null && remaining.inSeconds <= -10) {
+      if (kDebugMode) debugPrint('[JWT] _onSoftTokenExpired but idle already expired → hard logout');
+      await _onIdleExpired();
       return;
     }
 
@@ -373,8 +381,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       return;
     }
     _isRefreshing = true;
-    if (kDebugMode) debugPrint('[JWT] JWT soft expired → attempting soft refresh (absolute ${remaining?.inSeconds}s left)...');
-    AppLogger.debug('[JWT] soft JWT expired, attempting refresh within 1h window');
+    if (kDebugMode) debugPrint('[JWT] JWT soft expired → attempting soft refresh (idle ${remaining?.inSeconds}s left)...');
+    AppLogger.debug('[JWT] soft JWT expired, attempting refresh within 10m idle window');
     try {
       final result = await _tryRefreshSession();
       if (!mounted) return;
@@ -417,10 +425,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
     // ── Stale event guard for multiple logins ───────────────────────────
     // If a sessionExpired event was emitted for an OLD session (e.g. first
-    // login's 1h timer) but the user has already logged in again (second
+    // login's 10m timer) but the user has already logged in again (second
     // login) and the new session is still valid, ignore the stale event.
-    // This fixes "second login expired immediately".
-    final remaining = await SecureStorage.getRemainingSessionTime();
+    final remaining = await SecureStorage.getRemainingIdleTime();
     if (remaining != null && remaining.inSeconds > 10) {
       // New session still has >10s left → stale event, don't logout.
       if (kDebugMode) debugPrint('[JWT] _onSessionExpired ignored stale event, remaining ${remaining.inSeconds}s (second login still valid)');

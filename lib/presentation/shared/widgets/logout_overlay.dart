@@ -50,21 +50,21 @@ class LogoutOverlay extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12),
+                      color: Color(0x1F000000),
                       blurRadius: 24,
-                      offset: const Offset(0, 8),
+                      offset: Offset(0, 8),
                     ),
                   ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
+                  children: const [
+                    SizedBox(
                       width: 36,
                       height: 36,
                       child: CircularProgressIndicator(
@@ -73,8 +73,8 @@ class LogoutOverlay extends ConsumerWidget {
                             AlwaysStoppedAnimation<Color>(AppColors.deepNavy),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
+                    SizedBox(height: 16),
+                    Text(
                       'Logging out...',
                       style: TextStyle(
                         fontSize: 15,

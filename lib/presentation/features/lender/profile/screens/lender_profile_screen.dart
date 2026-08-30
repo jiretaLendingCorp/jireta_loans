@@ -62,8 +62,40 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           ? const Center(child: CircularProgressIndicator())
           : profileState.user == null
               ? Center(
-                  child: Text(profileState.error ?? 'Unable to load profile',
-                      style: const TextStyle(color: AppColors.textSecondary)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                        const SizedBox(height: 12),
+                        Text(profileState.error ?? 'Unable to load profile',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppColors.textSecondary)),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.lenderBlue),
+                              onPressed: () => ref.read(lenderProfileProvider.notifier).loadProfile(),
+                              icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                              label: const Text('Retry', style: TextStyle(color: Colors.white)),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                await ref.read(authProvider.notifier).logout();
+                                if (context.mounted) context.go(RouteConstants.mobileLogin);
+                              },
+                              icon: const Icon(Icons.logout, size: 18),
+                              label: const Text('Re-login'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 )
               : _buildProfile(profileState.user!),
     );

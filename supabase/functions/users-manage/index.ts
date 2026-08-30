@@ -394,7 +394,7 @@ async function handleGetProfile(req: Request) {
   }
 
   const db = getAdminClient();
-  const { data, error } = await db
+  let { data, error } = await db
     .from('users')
     .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
       force_password_change, last_login_at, created_at, profile_photo_url,
@@ -403,9 +403,105 @@ async function handleGetProfile(req: Request) {
       rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
       lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
     .eq('id', targetId)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return errorResponse('User not found', 404, 'NOT_FOUND');
+  // Fallback for legacy mismatched auth/public IDs (common for mobile OTP accounts):
+  // if id lookup fails, try phone/email from the verified token. This ensures
+  // riders/lenders who were created via self-register or old scripts still see
+  // their profile instead of "User not found" (404).
+  // NOTE: Always尝试 fallback even when user_id was explicitly supplied,
+  // because the supplied id (e.g. stale SecureStorage id 21fc2fcb...) may itself
+  // be the mismatched auth id that does not exist in public.users (see Log 1).
+  if (error || !data) {
+    let fallbackData: typeof data | null = null;
+    let fallbackError: typeof error | null = null;
+    if (user.phone) {
+      const rawPhone = String(user.phone ?? '').trim();
+      const digits = rawPhone.replace(/\D/g, '');
+      const localPhone = digits.startsWith('63') ? '0' + digits.slice(2) : rawPhone;
+      const e164Phone = digits.startsWith('63') ? `+${digits}` : digits.startsWith('0') ? `+63${digits.slice(1)}` : `+63${digits}`;
+      for (const cand of [...new Set([localPhone, e164Phone, rawPhone])]) {
+        const res = await db
+          .from('users')
+          .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
+            force_password_change, last_login_at, created_at, profile_photo_url,
+            roles(id, name),
+            employee_profiles(department, position, hired_at, gender, civil_status),
+            rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
+            lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
+          .eq('phone_number', cand)
+          .maybeSingle();
+        if (res.data) {
+          fallbackData = res.data;
+          fallbackError = res.error;
+          break;
+        }
+        fallbackError = res.error;
+      }
+      // Fuzzy fallback: try last 9/10 digits with ilike (handles spaces/dashes in DB)
+      if (!fallbackData) {
+        const last9 = digits.slice(-9);
+        const last10 = digits.slice(-10);
+        for (const pat of [`%${last9}`, `%${last10}`]) {
+          const res = await db
+            .from('users')
+            .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
+              force_password_change, last_login_at, created_at, profile_photo_url,
+              roles(id, name),
+              employee_profiles(department, position, hired_at, gender, civil_status),
+              rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
+              lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
+            .ilike('phone_number', pat)
+            .maybeSingle();
+          if (res.data) {
+            fallbackData = res.data;
+            fallbackError = res.error;
+            console.warn('[users-manage] get-profile recovered via fuzzy phone', { pattern: pat, recoveredId: (res.data as { id?: string })?.id });
+            break;
+          }
+        }
+      }
+    }
+    if (!fallbackData && user.email) {
+      const res = await db
+        .from('users')
+        .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
+          force_password_change, last_login_at, created_at, profile_photo_url,
+          roles(id, name),
+          employee_profiles(department, position, hired_at, gender, civil_status),
+          rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
+          lender_profiles!lender_profiles_id_fkey(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`)
+        .ilike('email', String(user.email).trim().toLowerCase())
+        .maybeSingle();
+      if (res.data) {
+        fallbackData = res.data;
+        fallbackError = res.error;
+      }
+    }
+    if (fallbackData) {
+      console.warn('[users-manage] get-profile id miss, recovered via phone/email fallback', { targetId, recoveredId: (fallbackData as { id?: string })?.id });
+      data = fallbackData;
+      error = fallbackError as typeof error;
+    }
+  }
+
+  if (error || !data) {
+    console.error('[users-manage] get-profile still not found', {
+      targetId,
+      authId: user.id,
+      authPhone: user.phone,
+      authEmail: user.email,
+      authRole: user.role,
+      dbError: error?.message ?? null,
+      fallbackTried: true,
+    });
+    return errorResponse(
+      `User not found (id=${targetId} phone=${user.phone ?? 'null'} email=${user.email ?? 'null'} role=${user.role})`,
+      404,
+      'NOT_FOUND',
+      { targetId, authId: user.id, phone: user.phone, email: user.email, role: user.role },
+    );
+  }
 
   const { data: emergencyContacts } = await db
     .from('emergency_contacts')

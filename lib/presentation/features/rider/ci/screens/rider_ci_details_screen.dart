@@ -1035,12 +1035,12 @@ class _ReportStep extends StatelessWidget {
               maxLengthEnforcement: MaxLengthEnforcement.enforced,
               enabled: !isCompleted,
               style: const TextStyle(fontSize: 14, height: 1.5),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Enter report',
-                hintStyle: TextStyle(
+                hintStyle: const TextStyle(
                     fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
+                contentPadding: const EdgeInsets.all(14),
                 counterText: '',
               ),
               buildCounter: (context,
@@ -1262,12 +1262,12 @@ class _UploadReportStep extends StatelessWidget {
               maxLengthEnforcement: MaxLengthEnforcement.enforced,
               enabled: !isCompleted,
               style: const TextStyle(fontSize: 14, height: 1.5),
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Enter report',
-                hintStyle: TextStyle(
+                hintStyle: const TextStyle(
                     fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.all(14),
+                contentPadding: const EdgeInsets.all(14),
                 counterText: '',
               ),
               buildCounter: (context,

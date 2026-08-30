@@ -56,6 +56,7 @@ class SecureStorage {
     AppConstants.userIdKey,
     AppConstants.userRoleKey,
     AppConstants.sessionStartedAtKey,
+    AppConstants.lastActivityKey,
   ];
 
   static Future<void> saveTokens({
@@ -122,10 +123,17 @@ class SecureStorage {
   static Future<void> saveSessionStartedAt(DateTime time) =>
       _withQueue(() async {
         try {
-          await _storage.write(
-            key: AppConstants.sessionStartedAtKey,
-            value: time.toUtc().millisecondsSinceEpoch.toString(),
-          );
+          await Future.wait([
+            _storage.write(
+              key: AppConstants.sessionStartedAtKey,
+              value: time.toUtc().millisecondsSinceEpoch.toString(),
+            ),
+            // Keep idle timer in sync: login/start counts as activity.
+            _storage.write(
+              key: AppConstants.lastActivityKey,
+              value: time.toUtc().millisecondsSinceEpoch.toString(),
+            ),
+          ]);
         } catch (_) {}
       });
 
@@ -141,29 +149,62 @@ class SecureStorage {
     }
   }
 
-  static Future<Duration?> getRemainingSessionTime() async {
-    final startedAt = await getSessionStartedAt();
-    if (startedAt == null) return null;
-    final expiry = startedAt.add(AppConstants.sessionDuration);
-    final remaining = expiry.difference(DateTime.now().toUtc());
-    return remaining;
+  // ── Idle-tracking (10-minute inactivity) ─────────────────────────────────
+  static Future<void> saveLastActivity(DateTime time) => _withQueue(() async {
+        try {
+          await _storage.write(
+            key: AppConstants.lastActivityKey,
+            value: time.toUtc().millisecondsSinceEpoch.toString(),
+          );
+        } catch (_) {}
+      });
+
+  /// Fire-and-forget bump that never blocks the caller (used by the idle
+  /// detector and Dio interceptor on every user gesture / API call).
+  /// Throttled by caller; storage queue already serialises writes.
+  static Future<void> bumpActivity() async {
+    try {
+      await saveLastActivity(DateTime.now().toUtc());
+    } catch (_) {}
   }
 
-  static Future<bool> isAbsoluteSessionExpired() async {
-    final remaining = await getRemainingSessionTime();
+  static Future<DateTime?> getLastActivity() async {
+    try {
+      final raw = await _storage.read(key: AppConstants.lastActivityKey);
+      if (raw == null || raw.isEmpty) return null;
+      final ms = int.tryParse(raw);
+      if (ms == null) return null;
+      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Remaining time before idle expiry (10 min). Prefers lastActivity; falls
+  /// back to sessionStartedAt for fresh logins before first bump.
+  static Future<Duration?> getRemainingIdleTime() async {
+    DateTime? last = await getLastActivity();
+    last ??= await getSessionStartedAt();
+    if (last == null) return null;
+    final expiry = last.add(AppConstants.sessionDuration);
+    return expiry.difference(DateTime.now().toUtc());
+  }
+
+  static Future<bool> isIdleExpired() async {
+    final remaining = await getRemainingIdleTime();
     if (remaining == null) {
-      // No timestamp stored (legacy session or corrupted):
-      // fallback to JWT existence — if JWT missing treat as expired, otherwise
-      // allow session to avoid immediate logout for existing users until they
-      // re-login and get a timestamp.
       final token = await getAccessToken();
       if (token == null || token.isEmpty) return true;
       return false;
     }
-    // Grace 30s to tolerate minor clock skew / timer precision; session is
-    // considered expired only when remaining is solidly negative.
-    return remaining.inSeconds <= -30;
+    // 10s grace to avoid false logout due to event loop lag; idle is
+    // intentionally stricter than the old 30s absolute grace.
+    return remaining.inSeconds <= -10;
   }
+
+  // ── Backwards-compat shims (old callers still invoke these) ───────────────
+  static Future<Duration?> getRemainingSessionTime() => getRemainingIdleTime();
+  static Future<bool> isAbsoluteSessionExpired() => isIdleExpired();
 
   static Future<void> clearAll() => _withQueue(() async {
         // On web, deleteAll wipes ENTIRE localStorage (including Supabase's
@@ -187,8 +228,8 @@ class SecureStorage {
     try {
       final token = await getAccessToken();
       if (token == null || token.isEmpty) return false;
-      // Absolute 1-hour check: if startedAt exists and expired → no valid session
-      final remaining = await getRemainingSessionTime();
+      // Idle 10-minute check: if last activity expired → no valid session
+      final remaining = await getRemainingIdleTime();
       if (remaining != null && (remaining.isNegative || remaining.inSeconds <= 0)) {
         return false;
       }

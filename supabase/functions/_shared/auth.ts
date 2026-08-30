@@ -71,13 +71,38 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
       identityErr = result.error;
     }
     if (!identityRow && user.phone) {
-      const result = await supabase
-        .from('users')
-        .select('id, account_status, roles!users_role_id_fkey(name)')
-        .eq('phone_number', user.phone)
-        .maybeSingle();
-      identityRow = result.data;
-      identityErr = result.error;
+      // Phone in auth.users is E.164 (+639...), but public.users stores local 09... format.
+      // Try both canonical forms so legacy mismatched accounts are still resolvable.
+      const rawPhone = String(user.phone ?? '').trim();
+      const digits = rawPhone.replace(/\D/g, '');
+      let localPhone = rawPhone;
+      if (digits.startsWith('63')) {
+        localPhone = '0' + digits.slice(2);
+      } else if (digits.startsWith('0')) {
+        localPhone = digits;
+      }
+      const e164Phone = digits.startsWith('63')
+        ? `+${digits}`
+        : digits.startsWith('0')
+          ? `+63${digits.slice(1)}`
+          : `+63${digits}`;
+      const candidates = [localPhone, e164Phone, rawPhone].filter(Boolean);
+      // Deduplicate
+      const uniq = [...new Set(candidates)];
+      for (const cand of uniq) {
+        const result = await supabase
+          .from('users')
+          .select('id, account_status, roles!users_role_id_fkey(name)')
+          .eq('phone_number', cand)
+          .maybeSingle();
+        if (result.data) {
+          identityRow = result.data;
+          identityErr = result.error;
+          break;
+        }
+        // Keep last error for logging, but continue trying next candidate
+        identityErr = result.error;
+      }
     }
 
     if (identityRow && !identityErr) {
@@ -132,6 +157,17 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
       'ACCOUNT_PENDING',
     );
   }
+
+  // ── 10-minute idle tracking: bump last_login_at on every authenticated request ──
+  // Fire-and-forget so the API response is not delayed. Ensures the server-side
+  // 10m idle window in auth-session stays in sync with client idle detector.
+  try {
+    supabase
+      .from('users')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('id', dbUser.id)
+      .then(() => {}, () => {});
+  } catch (_) {}
 
   return {
     id: dbUser.id,

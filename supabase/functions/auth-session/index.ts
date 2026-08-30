@@ -61,17 +61,19 @@ async function handleRefreshSession(req: Request) {
   // TEMP HOTFIX: role check disabled
   // try { const rName = dbUser?.roles?.name as string | undefined; if (rName) { const { data: _raS } = await db.from('roles').select('is_archived').eq('name', rName).maybeSingle(); if ((_raS as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 
-  // ── 1-hour absolute session: hard expiry, no infinite refresh ──────────
-  // After 1 hour from last_login_at, refresh is rejected and user must re-login
-  // to get a new 1-hour session. This enforces the required 1h session lifetime.
-  // Grace +5m to avoid immediate expiry on clock skew for second login.
+  // ── 10-minute idle session: hard expiry on inactivity ──────────────────
+  // After 10 minutes of no activity (no authenticated API call), refresh is
+  // rejected and user must re-login. Note: client bumps last_login_at on every
+  // authenticated request via the idle detector + AuthInterceptor, so this
+  // check effectively enforces the same 10m idle window server-side.
+  // Grace +30s to avoid immediate expiry on clock skew for second login.
   if (dbUser.last_login_at) {
     const elapsed = Date.now() - new Date(dbUser.last_login_at).getTime();
-    const ONE_HOUR_MS = 3600 * 1000;
-    const GRACE_MS = 5 * 60 * 1000;
+    const TEN_MIN_MS = 10 * 60 * 1000;
+    const GRACE_MS = 30 * 1000;
     console.log(`[auth-session] refresh check user=${dbUser.id} elapsed=${Math.floor(elapsed/1000)}s last_login_at=${dbUser.last_login_at}`);
-    if (elapsed > ONE_HOUR_MS + GRACE_MS) {
-      return errorResponse('Session expired after 1 hour, please login again', 401, 'SESSION_EXPIRED');
+    if (elapsed > TEN_MIN_MS + GRACE_MS) {
+      return errorResponse('Session expired after 10 minutes of inactivity, please login again', 401, 'SESSION_EXPIRED');
     }
   }
 

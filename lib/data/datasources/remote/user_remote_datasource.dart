@@ -1,6 +1,8 @@
 // lib/data/datasources/remote/user_remote_datasource.dart
+import 'package:dio/dio.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/utils/logger.dart';
 import '../../models/user_model.dart';
 
 class UserRemoteDataSource {
@@ -26,21 +28,46 @@ class UserRemoteDataSource {
   }
 
   Future<UserModel> getProfile({String? userId}) async {
-    final res = await _client.get(
-      ApiEndpoints.usersGetProfile,
-      queryParams: userId != null ? {'user_id': userId} : null,
-    );
-    final data = (res.data as Map<String, dynamic>)['user'];
-    return UserModel.fromJson(data as Map<String, dynamic>);
+    try {
+      final res = await _client.get(
+        ApiEndpoints.usersGetProfile,
+        queryParams: userId != null ? {'user_id': userId} : null,
+      );
+      final raw = res.data;
+      if (raw is! Map<String, dynamic>) {
+        AppLogger.e('[UserRemote] getProfile unexpected raw type: ${raw.runtimeType} $raw');
+        throw DioException(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), message: 'Invalid profile response');
+      }
+      final data = raw['user'];
+      if (data == null) {
+        AppLogger.e('[UserRemote] getProfile user is null, raw=$raw userId=$userId');
+        throw DioException(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), message: 'User not found', response: Response(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), statusCode: 404, data: raw));
+      }
+      return UserModel.fromJson(data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final body = e.response?.data;
+      AppLogger.e('[UserRemote] getProfile failed userId=$userId status=$status body=$body path=${e.requestOptions.path} q=${e.requestOptions.queryParameters}');
+      rethrow;
+    } catch (e, s) {
+      AppLogger.e('[UserRemote] getProfile unexpected error userId=$userId $e', e, s);
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> getProfileMap({String? userId}) async {
-    final res = await _client.get(
-      ApiEndpoints.usersGetProfile,
-      queryParams: userId != null ? {'user_id': userId} : null,
-    );
-    final data = (res.data as Map<String, dynamic>)['user'];
-    return data as Map<String, dynamic>;
+    try {
+      final res = await _client.get(
+        ApiEndpoints.usersGetProfile,
+        queryParams: userId != null ? {'user_id': userId} : null,
+      );
+      final data = (res.data as Map<String, dynamic>)['user'];
+      if (data == null) throw Exception('User not found');
+      return data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      AppLogger.e('[UserRemote] getProfileMap failed userId=$userId status=${e.response?.statusCode} body=${e.response?.data}');
+      rethrow;
+    }
   }
 
   Future<List<UserModel>> getUsers({

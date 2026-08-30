@@ -51,11 +51,14 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         userId: userData['id'],
         role: userData['role'],
       );
-      // ── 1-hour absolute session: store login start time ─────────────────
+      // ── 10-minute idle session: store login start time ─────────────────
       // Use JWT iat/exp (server time) instead of client now to avoid clock-skew
       // causing immediate "expired" on web when device clock is off.
+      // saveSessionStartedAt also sets last_activity_at so idle window starts now.
       final sessionStart = JwtParser.sessionStartFromToken(token);
       await SecureStorage.saveSessionStartedAt(sessionStart);
+      // Explicit bump to "now" so idle countdown is exactly 10m from this login
+      await SecureStorage.saveLastActivity(DateTime.now().toUtc());
       final user = UserModel(
         id: userData['id'],
         role: userData['role'],
@@ -177,6 +180,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         role: userData['role'],
       );
       await SecureStorage.saveSessionStartedAt(JwtParser.sessionStartFromToken(token));
+      await SecureStorage.saveLastActivity(DateTime.now().toUtc());
       final user = UserModel(
         id: userData['id'],
         role: userData['role'],
@@ -273,6 +277,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         role: userData['role'],
       );
       await SecureStorage.saveSessionStartedAt(JwtParser.sessionStartFromToken(token));
+      await SecureStorage.saveLastActivity(DateTime.now().toUtc());
       final user = UserModel(
         id: userData['id'],
         role: userData['role'],

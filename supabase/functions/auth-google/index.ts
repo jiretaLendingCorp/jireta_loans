@@ -176,7 +176,7 @@ async function handleExchange(req: Request) {
     console.error('[auth-google] auth_log insert failed', err);
   }
 
-  // Update absolute 1h session anchor so refresh checks use fresh server time.
+  // Update 10m idle anchor so refresh checks use fresh server time.
   // Without this, a lender who last logged in days ago would have an immediate
   // SESSION_EXPIRED on the next refresh even though they just logged in.
   try {
