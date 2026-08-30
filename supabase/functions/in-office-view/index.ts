@@ -370,7 +370,7 @@ async function handleGetList(req: Request) {
          first_name, last_name, phone_number
        ),
        created_by_user:users!in_office_applications_created_by_fkey(
-         id, first_name, last_name, roles(name)
+         id, first_name, last_name, roles!users_role_id_fkey(name)
        ),
        loans:loans!fk_loans_in_office(id, loan_number, principal_amount, status)`,
       { count: 'exact' }

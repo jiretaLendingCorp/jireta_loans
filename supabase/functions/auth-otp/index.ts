@@ -140,7 +140,7 @@ async function selfRegisterLender(db: DbClient, phone: string) {
     account_status: 'active',
     force_password_change: false,
     created_by: null,
-  }, { onConflict: 'id' }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)').single();
+  }, { onConflict: 'id' }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles!users_role_id_fkey(name)').single();
 
   if (userErr || !newUser) {
     await db.auth.admin.deleteUser(authUser.user.id).catch(() => {});
@@ -224,7 +224,7 @@ async function handleSendOtp(req: Request) {
   // once a phone IS registered we only allow OTP for rider/lender roles.
   const { data: userRow } = await db
     .from('users')
-    .select('id, account_status, roles(name)')
+    .select('id, account_status, roles!users_role_id_fkey(name)')
     .eq('phone_number', phone)
     .maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
@@ -413,7 +413,7 @@ async function handleVerifyOtp(req: Request) {
 
   const { data: userRow } = await db
     .from('users')
-    .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles(name)')
+    .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles!users_role_id_fkey(name)')
     .eq('phone_number', phone)
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);

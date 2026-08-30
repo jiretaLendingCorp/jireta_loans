@@ -385,7 +385,7 @@ async function handleGetProfile(req: Request) {
     }
     if (user.role === ROLES.EMPLOYEE) {
       const db = getAdminClient();
-      const { data: targetUser } = await db.from('users').select('roles(name)').eq('id', targetId).single();
+      const { data: targetUser } = await db.from('users').select('roles!users_role_id_fkey(name)').eq('id', targetId).single();
       const targetRole = embedAsObject(targetUser?.roles)?.name;
       if (!['rider', 'lender'].includes(targetRole)) {
         return errorResponse('Access denied', 403, 'FORBIDDEN');

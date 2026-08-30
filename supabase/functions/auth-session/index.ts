@@ -51,7 +51,7 @@ async function handleRefreshSession(req: Request) {
 
   const { data: dbUserRow } = await db
     .from('users')
-    .select('id, account_status, force_password_change, last_login_at, roles(name)')
+    .select('id, account_status, force_password_change, last_login_at, roles!users_role_id_fkey(name)')
     .eq('id', data.user!.id)
     .single();
   const dbUser = singleWithObjectEmbeds(dbUserRow);

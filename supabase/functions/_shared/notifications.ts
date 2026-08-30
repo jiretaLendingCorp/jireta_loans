@@ -68,7 +68,7 @@ export async function notifyStaff(params: {
     const db = getAdminClient();
     const { data: users } = await db
       .from('users')
-      .select('id, roles(name)')
+      .select('id, roles!users_role_id_fkey(name)')
       .eq('account_status', 'active');
 
     const staff = (rowsWithObjectEmbeds(users) ?? []).filter(

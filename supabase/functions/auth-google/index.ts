@@ -90,7 +90,7 @@ async function handleExchange(req: Request) {
   // mixed-case rows still resolve (canonical is lower via DB trigger).
   const { data: userRow } = await db
     .from('users')
-    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
+    .select('id, email, first_name, last_name, account_status, force_password_change, roles!users_role_id_fkey(name)')
     .ilike('email', email)
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
@@ -238,7 +238,7 @@ async function selfRegisterGoogleLender(
       force_password_change: false,
       created_by:            null,
     }, { onConflict: 'id' })
-    .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
+    .select('id, email, first_name, last_name, account_status, force_password_change, roles!users_role_id_fkey(name)')
     .single();
 
   if (userErr || !newUser) {

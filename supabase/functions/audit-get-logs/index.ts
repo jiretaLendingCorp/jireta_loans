@@ -39,7 +39,7 @@ serve(async (req) => {
         `id, action, table_name, record_id, old_values, new_values,
          ip_address, created_at, performed_by,
          performed_by_user:users!audit_logs_performed_by_fkey(
-           id, first_name, last_name, email, phone_number, roles(name)
+           id, first_name, last_name, email, phone_number, roles!users_role_id_fkey(name)
          )`,
         { count: 'exact' }
       )

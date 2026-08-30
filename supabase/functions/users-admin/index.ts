@@ -90,7 +90,7 @@ async function handleGetList(req: Request) {
   const db = getAdminClient();
 
   // Resolve role name -> id ONCE so we can filter the parent `users` rows
-  // directly by role_id. Filtering on the bare `roles(name)` embed does NOT
+  // directly by role_id. Filtering on the bare `roles!users_role_id_fkey(name)` embed does NOT
   // restrict the parent rows (too-many embed), which let every role list show
   // all users mixed together.
   let roleIds: string[] | null = null;

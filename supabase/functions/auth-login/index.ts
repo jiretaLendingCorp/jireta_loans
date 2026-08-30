@@ -151,7 +151,7 @@ serve(async (req) => {
     // 00006_bootstrap_head_manager.sql migration script.
    const { data: userRow, error: userErr } = await db
   .from('users')
-  .select('id, email, first_name, last_name, account_status, force_password_change, roles(name)')
+  .select('id, email, first_name, last_name, account_status, force_password_change, roles!users_role_id_fkey(name)')
   .eq('email', cleanEmail)
   .single();
   const user = singleWithObjectEmbeds(userRow);
@@ -190,11 +190,11 @@ serve(async (req) => {
     const role = user?.roles?.name as string | undefined;
 
     if (!role) {
-      // roles(name) join returned null → role_id FK is broken or roles table
+      // roles!users_role_id_fkey(name) join returned null → role_id FK is broken or roles table
       // has no matching row for this user's role_id.
       console.error('[auth-login] step=role_lookup FAILED', {
         user_id: user.id,
-        hint: 'roles(name) join returned null. Check that public.roles contains the role referenced by this user.',
+        hint: 'roles!users_role_id_fkey(name) join returned null. Check that public.roles contains the role referenced by this user.',
       });
       return errorResponse('User role not configured', 500, 'SERVER_ERROR');
     }

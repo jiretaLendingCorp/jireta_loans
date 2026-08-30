@@ -52,7 +52,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
 
   let { data: dbUserRow, error: dbErr } = await supabase
     .from('users')
-    .select('id, account_status, roles(name)')
+    .select('id, account_status, roles!users_role_id_fkey(name)')
     .eq('id', user.id)
     .single();
 
@@ -64,7 +64,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     if (email) {
       const result = await supabase
         .from('users')
-        .select('id, account_status, roles(name)')
+        .select('id, account_status, roles!users_role_id_fkey(name)')
         .ilike('email', email)
         .maybeSingle();
       identityRow = result.data;
@@ -73,7 +73,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     if (!identityRow && user.phone) {
       const result = await supabase
         .from('users')
-        .select('id, account_status, roles(name)')
+        .select('id, account_status, roles!users_role_id_fkey(name)')
         .eq('phone_number', user.phone)
         .maybeSingle();
       identityRow = result.data;

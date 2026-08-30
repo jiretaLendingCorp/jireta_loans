@@ -73,9 +73,9 @@ async function handleHeadManager(req: Request) {
     { count: totalPendingAccountUpgrade },
     { count: totalCollectionTx },
   ] = await Promise.all([
-    db.from('users').select('*, roles!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'),
-    db.from('users').select('*, roles!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'rider').neq('account_status', 'archived'),
-    db.from('users').select('*, roles!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'lender').neq('account_status', 'archived'),
+    db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'),
+    db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'rider').neq('account_status', 'archived'),
+    db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'lender').neq('account_status', 'archived'),
     db.from('loans').select('*', { count: 'exact', head: true }),
     db.from('loans').select('*', { count: 'exact', head: true }).in('status', ['approved', 'active', 'completed']),
     db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),

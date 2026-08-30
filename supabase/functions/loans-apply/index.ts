@@ -176,7 +176,7 @@ serve(async (req) => {
 
     const { data: staffUsers } = await db
       .from('users')
-      .select('id, roles!inner(name)')
+      .select('id, roles!users_role_id_fkey!inner(name)')
       .or('roles.name.eq.head_manager,roles.name.eq.employee')
       .eq('account_status', 'active');
 

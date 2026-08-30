@@ -139,7 +139,7 @@ async function handleForgotPassword(req: Request) {
   }
 
   const db = getAdminClient();
-  const { data: userRow } = await db.from("users").select("id, account_status, first_name, last_name, roles!inner(name, is_archived)").eq("email", cleanEmail).maybeSingle();
+  const { data: userRow } = await db.from("users").select("id, account_status, first_name, last_name, roles!users_role_id_fkey!inner(name, is_archived)").eq("email", cleanEmail).maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
 
   if (!user || !["head_manager", "employee"].includes(user?.roles?.name)) {
