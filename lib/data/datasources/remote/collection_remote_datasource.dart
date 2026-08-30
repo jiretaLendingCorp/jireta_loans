@@ -98,15 +98,21 @@ class CollectionRemoteDataSource {
 
   /// Lender requests a rider to collect their installment at home, or an
   /// office visit to pay at the office (`type` = 'rider' | 'office').
-  /// Returns server response body so callers can detect idempotent
-  /// "already pending" (200 with message) vs. real success (201).
+  /// If [amount] is provided, it is the flexible payment amount the lender
+  /// wishes to pay (must be >0 and <= outstanding balance). System will
+  /// allocate it across unpaid installments (partial/advance supported).
   Future<Map<String, dynamic>> requestRiderCollection({
     required String loanScheduleId,
     String type = 'rider',
+    double? amount,
   }) async {
     final res = await _client.post(
       ApiEndpoints.collectionsRequest,
-      data: {'loan_schedule_id': loanScheduleId, 'type': type},
+      data: {
+        'loan_schedule_id': loanScheduleId,
+        'type': type,
+        if (amount != null) 'amount': amount,
+      },
     );
     final data = res.data;
     if (data is Map<String, dynamic>) return data;

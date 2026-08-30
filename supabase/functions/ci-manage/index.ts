@@ -38,6 +38,12 @@ serve(async (req) => {
       case 'decline':
         // ── [moved from functions/ci-decline/index.ts] ──────────────────
         return await handleCiDecline(req);
+      case 'approve-report':
+      case 'approve':
+        return await handleCiApproveReport(req);
+      case 'reject-report':
+      case 'reject':
+        return await handleCiRejectReport(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -168,4 +174,90 @@ async function handleCiDecline(req: Request) {
   await writeAuditLog({ performedBy: user.id, action: 'ci_decline', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
   if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'CI Declined', body: 'The rider has declined the CI assignment. Please reassign.', type: 'ci_declined', referenceId: ci_id });
   return jsonResponse({ message: 'CI declined' });
+}
+
+// ── CI Report Approval (Head Manager / Employee) ───────────────────────
+// NEW: After rider submits report (status = completed), a staff member must
+// explicitly approve it before the loan can be approved and disbursement
+// method selected by the lender.
+async function handleCiApproveReport(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
+  if (roleCheck) return roleCheck;
+  const { ci_id, review_notes } = await req.json();
+  if (!ci_id) return errorResponse('ci_id is required', 400, 'VALIDATION_ERROR');
+  if (!validateUUID(ci_id)) return errorResponse('Invalid CI id format', 400, 'VALIDATION_ERROR');
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+  const { data: ci } = await db.from('credit_investigations').select('id, status, loan_id, rider_id, assigned_by').eq('id', ci_id).single();
+  if (!ci) return errorResponse('CI not found', 404, 'NOT_FOUND');
+  if (ci.status !== 'completed') return errorResponse('CI report must be in completed (submitted) status to approve. Current: ' + ci.status, 400, 'INVALID_STATUS');
+  const now = new Date().toISOString();
+  // Mark CI as approved
+  await db.from('credit_investigations').update({
+    status: 'approved',
+    reviewed_by: user.id,
+    reviewed_at: now,
+    review_decision: 'approved',
+    review_notes: review_notes ? sanitizeString(review_notes) : null,
+  }).eq('id', ci_id);
+  // Loan stays ci_completed but now is "CI approved" — ready for final loan approval
+  // Keep loan status as ci_completed; loans-manage approve will check CI is approved.
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'ci_approve_report',
+    tableName: 'credit_investigations',
+    recordId: ci_id,
+    newValues: { status: 'approved', reviewed_by: user.id },
+    ipAddress: ip,
+  });
+  // Notify rider and lender
+  if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'CI Report Approved', body: 'Your investigation report has been approved by management. Thank you!', type: 'ci_approved', referenceId: ci_id });
+  // Notify lender via loan
+  const { data: loan } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
+  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Approved', body: 'Your loan credit investigation has been approved. Your application is now ready for final approval.', type: 'ci_approved', referenceId: ci.loan_id });
+  return jsonResponse({ message: 'CI report approved. Loan is now ready for final approval.' });
+}
+
+async function handleCiRejectReport(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
+  if (roleCheck) return roleCheck;
+  const { ci_id, rejection_reason, review_notes } = await req.json();
+  if (!ci_id) return errorResponse('ci_id is required', 400, 'VALIDATION_ERROR');
+  if (!validateUUID(ci_id)) return errorResponse('Invalid CI id format', 400, 'VALIDATION_ERROR');
+  const reason = sanitizeString(rejection_reason ?? review_notes ?? '');
+  if (!reason || reason.length < 10) return errorResponse('Rejection reason must be at least 10 characters', 400, 'VALIDATION_ERROR');
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+  const { data: ci } = await db.from('credit_investigations').select('id, status, loan_id, rider_id').eq('id', ci_id).single();
+  if (!ci) return errorResponse('CI not found', 404, 'NOT_FOUND');
+  if (ci.status !== 'completed') return errorResponse('CI report must be in completed status to reject. Current: ' + ci.status, 400, 'INVALID_STATUS');
+  const now = new Date().toISOString();
+  await db.from('credit_investigations').update({
+    status: 'rejected',
+    reviewed_by: user.id,
+    reviewed_at: now,
+    review_decision: 'rejected',
+    review_notes: reason,
+  }).eq('id', ci_id);
+  // Return loan to under_review so it can be re-assigned or re-evaluated
+  await db.from('loans').update({ status: 'under_review' }).eq('id', ci.loan_id);
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'ci_reject_report',
+    tableName: 'credit_investigations',
+    recordId: ci_id,
+    oldValues: { status: 'completed' },
+    newValues: { status: 'rejected', reason },
+    ipAddress: ip,
+  });
+  if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'CI Report Needs Revision', body: `Your report was not approved: ${reason}. Please contact management.`, type: 'ci_rejected', referenceId: ci_id });
+  const { data: loan } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
+  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Update', body: 'Your loan credit investigation requires additional review. Our team will contact you.', type: 'ci_rejected', referenceId: ci.loan_id });
+  return jsonResponse({ message: 'CI report rejected. Loan returned to review.' });
 }

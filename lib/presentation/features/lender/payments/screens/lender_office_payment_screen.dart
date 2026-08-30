@@ -20,10 +20,16 @@ const _lenderNavItems = [
       label: 'Home',
       route: RouteConstants.lenderDashboard),
   MobileNavItem(
-      icon: Icons.payment_outlined,
-      activeIcon: Icons.payment,
+      icon: Icons.payments_outlined,
+      activeIcon: Icons.payments,
       label: 'Payments',
       route: RouteConstants.lenderPayments),
+  MobileNavItem(
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'History',
+      route: RouteConstants.lenderPaymentHistory),
+
   MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
@@ -45,6 +51,9 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
   late String _scheduleId;
   late double _amount;
   late String _dueDate;
+  final _amountCtrl = TextEditingController();
+  double? _outstandingBalance;
+  String? _amountError;
 
   @override
   void initState() {
@@ -52,7 +61,45 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     _scheduleId = widget.extra['schedule_id'] as String? ?? '';
     _amount = (widget.extra['amount'] as num?)?.toDouble() ?? 0.0;
     _dueDate = widget.extra['due_date'] as String? ?? '';
+    _amountCtrl.text = _amount > 0 ? _amount.toStringAsFixed(2) : '';
     if (_scheduleId.isEmpty) Future.microtask(_resolveSchedule);
+    Future.microtask(_loadOutstanding);
+  }
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadOutstanding() async {
+    final loanId = widget.extra['loan_id'] as String? ?? '';
+    if (loanId.isEmpty) return;
+    try {
+      await ref.read(lenderLoanProvider.notifier).loadLoanDetails(loanId);
+      final bal = ref.read(lenderLoanProvider).selectedLoan?.outstandingBalance ?? 0;
+      if (mounted) setState(() => _outstandingBalance = bal);
+    } catch (_) {}
+  }
+
+  double? get _customAmount {
+    final v = double.tryParse(_amountCtrl.text.trim());
+    if (v == null || v <= 0) return null;
+    return v;
+  }
+
+  bool _validateAmount() {
+    final v = double.tryParse(_amountCtrl.text.trim());
+    if (v == null || v <= 0) {
+      setState(() => _amountError = 'Enter a valid amount (> 0)');
+      return false;
+    }
+    if (_outstandingBalance != null && v > _outstandingBalance! + 0.01) {
+      setState(() => _amountError = 'Exceeds outstanding ${_outstandingBalance!.toCurrency}');
+      return false;
+    }
+    setState(() => _amountError = null);
+    return true;
   }
 
   Future<void> _resolveSchedule() async {
@@ -72,9 +119,11 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     target ??= schedules.isEmpty ? null : schedules.first;
     final resolved = target;
     if (resolved != null && mounted) {
+      final amt = (resolved['amount_due'] as num?)?.toDouble() ?? _amount;
       setState(() {
         _scheduleId = resolved['id'] as String? ?? _scheduleId;
-        _amount = (resolved['amount_due'] as num?)?.toDouble() ?? _amount;
+        _amount = amt;
+        _amountCtrl.text = amt > 0 ? amt.toStringAsFixed(2) : _amountCtrl.text;
         _dueDate = resolved['due_date'] as String? ?? _dueDate;
       });
     }
@@ -146,6 +195,7 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
       _showInfo('Missing installment information. Please return to Payment Schedule and tap Pay again.');
       return;
     }
+    if (!_validateAmount()) return;
     if (_hasPendingLocally()) {
       AppLogger.d('[OfficePayment] _hasPendingLocally true for $_scheduleId — skipping server call');
       await _showPendingDialog();
@@ -171,13 +221,14 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    AppLogger.d('[OfficePayment] User confirmed office visit schedule=$_scheduleId loan=${widget.extra['loan_id']}');
+    final customAmt = _customAmount;
+    AppLogger.d('[OfficePayment] User confirmed office visit schedule=$_scheduleId loan=${widget.extra['loan_id']} amount=$customAmt');
     setState(() => _requesting = true);
     bool ok = false;
     try {
       ok = await ref
           .read(lenderPaymentProvider.notifier)
-          .requestOfficePayment(loanScheduleId: _scheduleId);
+          .requestOfficePayment(loanScheduleId: _scheduleId, amount: customAmt);
     } catch (e, st) {
       AppLogger.e('[OfficePayment] requestOfficePayment threw', e, st);
       if (kDebugMode) debugPrint('[OfficePayment] exception: $e');
@@ -277,14 +328,61 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
             style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 24),
-          if (_amount > 0)
-            _StepRow(
-                icon: Icons.attach_money,
-                text: 'Prepare the amount of ${_amount.toCurrency}'),
-          if (_dueDate.isNotEmpty)
-            _StepRow(
-                icon: Icons.event_outlined,
-                text: 'Due date: $_dueDate'),
+          // Flexible amount – lender chooses how much to pay
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _amountError != null ? AppColors.error : AppColors.border),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(children: [
+                  Icon(Icons.payments_rounded, size: 16, color: AppColors.lenderBlue),
+                  SizedBox(width: 6),
+                  Text('Amount to Pay', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
+                ]),
+                const SizedBox(height: 6),
+                Text(
+                  _outstandingBalance != null
+                      ? 'Outstanding: ${_outstandingBalance!.toCurrency} • Installment: ${_amount.toCurrency}'
+                      : 'Installment: ${_amount.toCurrency}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                const Text('Enter any amount – partial or advance supported. System allocates across installments.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    prefixText: '₱ ',
+                    hintText: 'e.g. ${_amount.toStringAsFixed(2)}',
+                    errorText: _amountError,
+                    filled: true,
+                    fillColor: AppColors.surfaceVariant,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _amountError != null ? AppColors.error : AppColors.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.lenderBlue, width: 1.5)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                  onChanged: (_) => setState(() => _amountError = null),
+                ),
+                if (_dueDate.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    const Icon(Icons.event_outlined, size: 14, color: AppColors.textTertiary),
+                    const SizedBox(width: 6),
+                    Text('Due: $_dueDate', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  ]),
+                ],
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           const _StepRow(
               icon: Icons.location_on_outlined,

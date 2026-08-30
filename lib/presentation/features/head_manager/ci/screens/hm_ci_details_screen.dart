@@ -11,6 +11,7 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../providers/hm_ci_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 final _ciDetailProvider =
@@ -95,6 +96,16 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
             const SizedBox(height: 16),
             _buildDocumentsCard(ci),
           ],
+          // CI approval workflow: after rider submits (completed = pending approval)
+          // manager must approve before loan disbursement & lender selection
+          if (status == 'completed') ...[
+            const SizedBox(height: 16),
+            _buildApprovalSection(context, ci),
+          ],
+          if (status == 'approved' || status == 'rejected') ...[
+            const SizedBox(height: 16),
+            _buildReviewInfoCard(ci),
+          ],
           if (status == 'pending' || status == 'declined') ...[
             const SizedBox(height: 16),
             _buildAssignRiderSection(context, ci),
@@ -107,7 +118,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
   Widget _buildPremiumHeader(CreditInvestigationModel model, String status, Map<String, dynamic> ci) {
     final accent = _accentForStatus(status);
     final deadline = ci['deadline'] != null ? DateTime.tryParse(ci['deadline'].toString()) : null;
-    final isOverdue = deadline != null && deadline.isBefore(DateTime.now()) && status != 'completed';
+    final isOverdue = deadline != null && deadline.isBefore(DateTime.now()) && !['completed','approved'].contains(status);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -158,13 +169,19 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
   }
 
   Widget _buildTimeline(String status, Map<String, dynamic> ci) {
+    final isApproved = status == 'approved';
+    final isRejected = status == 'rejected';
+    final isCompletedPending = status == 'completed';
     final steps = [
       ('Assigned', ci['created_at'] != null, Icons.assignment_turned_in_rounded),
       ('Accepted', ci['response_at'] != null, Icons.handshake_rounded),
-      ('In Progress', status == 'in_progress' || status == 'completed', Icons.timelapse_rounded),
-      ('Completed', ci['completed_at'] != null, Icons.verified_rounded),
+      ('In Progress', status == 'in_progress' || isCompletedPending || isApproved || isRejected, Icons.timelapse_rounded),
+      ('Submitted', ci['completed_at'] != null, Icons.rate_review_rounded),
+      ('Approved', isApproved, Icons.verified_rounded),
     ];
     final activeIndex = () {
+      if (isApproved) return 4;
+      if (isRejected) return 3; // shows up to submitted but rejected
       if (ci['completed_at'] != null) return 3;
       if (status == 'in_progress') return 2;
       if (ci['response_at'] != null) return 1;
@@ -363,12 +380,192 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
       case 'in_progress':
         return AppColors.warning;
       case 'completed':
-        return AppColors.riderGreen;
+        return AppColors.warning; // pending approval — amber
+      case 'approved':
+        return AppColors.success;
+      case 'rejected':
+        return AppColors.error;
       case 'declined':
         return AppColors.error;
       default:
         return AppColors.textSecondary;
     }
+  }
+
+  Widget _buildApprovalSection(BuildContext context, Map<String, dynamic> ci) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+        boxShadow: [BoxShadow(color: AppColors.warning.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.08), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+            child: Row(children: [
+              Container(width: 36, height: 36, decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.warning, Color(0xFFE65100)]), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.rate_review_rounded, color: Colors.white, size: 18)),
+              const SizedBox(width: 10),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('CI Report — Awaiting Your Approval', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                Text('Review the investigation report and evidence, then approve or reject. Lender can choose disbursement method only after approval.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              ])),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Consumer(builder: (cntx, ref, _) {
+              return Row(children: [
+                Expanded(child: _ApprovalButton(
+                  label: 'Reject',
+                  icon: Icons.close_rounded,
+                  color: AppColors.error,
+                  onTap: () => _showRejectDialog(cntx, ref, ci),
+                )),
+                const SizedBox(width: 12),
+                Expanded(child: _ApprovalButton(
+                  label: 'Approve',
+                  icon: Icons.check_rounded,
+                  color: AppColors.success,
+                  onTap: () => _showApproveDialog(cntx, ref, ci),
+                )),
+              ]);
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewInfoCard(Map<String, dynamic> ci) {
+    final status = (ci['status'] as String? ?? '').toLowerCase();
+    final isApproved = status == 'approved';
+    final reviewer = ci['reviewer'] as Map<String, dynamic>?;
+    final reviewerName = reviewer != null ? '${reviewer['first_name'] ?? ''} ${reviewer['last_name'] ?? ''}'.trim() : '—';
+    final reviewedAt = ci['reviewed_at'] != null ? _dateFmt.format(DateTime.parse(ci['reviewed_at'].toString())) : '—';
+    final notes = ci['review_notes'] as String? ?? (ci['review_decision'] as String? ?? '');
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isApproved ? AppColors.success.withValues(alpha: 0.35) : AppColors.error.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isApproved ? AppColors.success.withValues(alpha: 0.08) : AppColors.error.withValues(alpha: 0.08),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            ),
+            child: Row(children: [
+              Container(width: 36, height: 36, decoration: BoxDecoration(color: isApproved ? AppColors.success : AppColors.error, borderRadius: BorderRadius.circular(9)), child: Icon(isApproved ? Icons.verified_rounded : Icons.block_rounded, color: Colors.white, size: 18)),
+              const SizedBox(width: 10),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(isApproved ? 'CI Approved' : 'CI Rejected', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: isApproved ? AppColors.success : AppColors.error)),
+                Text('Reviewed by $reviewerName • $reviewedAt', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              ]),
+            ]),
+          ),
+          if (notes.isNotEmpty) Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
+              child: Text(notes, style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.textPrimary)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showApproveDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> ci) {
+    final notesCtrl = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Approve CI Report'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Are you sure you want to approve this investigation? Lender will be able to choose disbursement method after your approval and the loan can then be approved.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: notesCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(hintText: 'Optional review notes (visible to rider/lender)', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+            onPressed: () async {
+              Navigator.pop(context);
+              final ok = await ref.read(hmCiProvider.notifier).approveReport(ciId: ci['id'] as String, notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim());
+              if (ok && context.mounted) {
+                context.showSnackBarAsToast(const SnackBar(content: Text('CI approved — loan ready for final approval'), backgroundColor: AppColors.success));
+                ref.invalidate(_ciDetailProvider(ci['id'] as String));
+              } else if (context.mounted) {
+                context.showSnackBarAsToast(SnackBar(content: Text('Failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: AppColors.error));
+              }
+            },
+            child: const Text('Approve', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> ci) {
+    final reasonCtrl = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reject CI Report'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Provide a reason for rejection (min 10 chars). Loan will return to review and a new CI can be assigned.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              maxLines: 4,
+              decoration: const InputDecoration(hintText: 'Rejection reason — be specific', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () async {
+              final reason = reasonCtrl.text.trim();
+              if (reason.length < 10) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reason must be at least 10 characters')));
+                return;
+              }
+              Navigator.pop(context);
+              final ok = await ref.read(hmCiProvider.notifier).rejectReport(ciId: ci['id'] as String, reason: reason);
+              if (ok && context.mounted) {
+                context.showSnackBarAsToast(const SnackBar(content: Text('CI rejected — loan returned to review'), backgroundColor: AppColors.error));
+                ref.invalidate(_ciDetailProvider(ci['id'] as String));
+              } else if (context.mounted) {
+                context.showSnackBarAsToast(SnackBar(content: Text('Failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: AppColors.error));
+              }
+            },
+            child: const Text('Reject', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
 }
@@ -573,6 +770,29 @@ class _InfoRow extends StatelessWidget {
         SizedBox(width: 120, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
         Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
       ]),
+    );
+  }
+}
+
+class _ApprovalButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _ApprovalButton({required this.label, required this.icon, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
     );
   }
 }

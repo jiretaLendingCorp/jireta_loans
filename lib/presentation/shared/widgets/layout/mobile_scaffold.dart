@@ -417,6 +417,12 @@ List<MobileNavItem> lenderNavItems() => [
         route: RouteConstants.lenderPayments,
       ),
       const MobileNavItem(
+        icon: Icons.receipt_long_outlined,
+        activeIcon: Icons.receipt_long,
+        label: 'History',
+        route: RouteConstants.lenderPaymentHistory,
+      ),
+      const MobileNavItem(
         icon: Icons.person_outlined,
         activeIcon: Icons.person,
         label: 'Profile',

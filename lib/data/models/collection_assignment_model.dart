@@ -7,6 +7,7 @@ class CollectionAssignmentModel {
   final String status;
   final String collectionType;
   final double? amountCollected;
+  final double? requestedAmount;
   final String? notes;
   final DateTime? collectionSchedule;
   final DateTime? responseAt;
@@ -36,6 +37,7 @@ class CollectionAssignmentModel {
     required this.status,
     this.collectionType = 'rider',
     this.amountCollected,
+    this.requestedAmount,
     this.notes,
     this.collectionSchedule,
     this.responseAt,
@@ -67,6 +69,7 @@ class CollectionAssignmentModel {
         status: json['status'] ?? 'pending',
         collectionType: json['collection_type'] ?? 'rider',
         amountCollected: (json['amount_collected'] as num?)?.toDouble(),
+        requestedAmount: (json['requested_amount'] as num?)?.toDouble(),
         notes: json['notes'],
         collectionSchedule: json['collection_schedule'] != null
             ? DateTime.parse(json['collection_schedule'])

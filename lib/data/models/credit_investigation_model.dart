@@ -10,6 +10,11 @@ class CreditInvestigationModel {
   final DateTime? deadline;
   final DateTime? responseAt;
   final DateTime? completedAt;
+  final DateTime? reviewedAt;
+  final String? reviewedBy;
+  final String? reviewNotes;
+  final String? reviewDecision;
+  final Map<String, dynamic>? reviewer;
   final DateTime createdAt;
   final Map<String, dynamic>? loan;
   final Map<String, dynamic>? rider;
@@ -27,6 +32,11 @@ class CreditInvestigationModel {
     this.deadline,
     this.responseAt,
     this.completedAt,
+    this.reviewedAt,
+    this.reviewedBy,
+    this.reviewNotes,
+    this.reviewDecision,
+    this.reviewer,
     required this.createdAt,
     this.loan,
     this.rider,
@@ -51,6 +61,14 @@ class CreditInvestigationModel {
         completedAt: json['completed_at'] != null
             ? DateTime.parse(json['completed_at'])
             : null,
+        reviewedAt: json['reviewed_at'] != null
+            ? DateTime.parse(json['reviewed_at'])
+            : null,
+        reviewedBy: json['reviewed_by'] as String?,
+        reviewNotes: json['review_notes'] as String?,
+        reviewDecision: json['review_decision'] as String?,
+        reviewer: json['reviewer'] as Map<String, dynamic>? ??
+            json['reviewer_user'] as Map<String, dynamic>?,
         createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'])
             : DateTime.now(),
@@ -140,6 +158,15 @@ class CreditInvestigationModel {
         .trim();
   }
 
+  String get reviewerName {
+    if (reviewer == null) return '';
+    return '${reviewer!['first_name'] ?? ''} ${reviewer!['last_name'] ?? ''}'.trim();
+  }
+
+  bool get isPendingApproval => status == 'completed';
+  bool get isApproved => status == 'approved';
+  bool get isRejected => status == 'rejected';
+
   String get statusLabel {
     switch (status) {
       case 'pending':
@@ -151,7 +178,11 @@ class CreditInvestigationModel {
       case 'in_progress':
         return 'In Progress';
       case 'completed':
-        return 'Completed';
+        return 'Pending Approval';
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
       default:
         return status;
     }

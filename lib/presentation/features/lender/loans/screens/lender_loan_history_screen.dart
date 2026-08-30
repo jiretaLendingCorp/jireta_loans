@@ -18,10 +18,15 @@ const _lenderNavItems = [
       label: 'Home',
       route: RouteConstants.lenderDashboard),
   MobileNavItem(
-      icon: Icons.payment_outlined,
-      activeIcon: Icons.payment,
+      icon: Icons.payments_outlined,
+      activeIcon: Icons.payments,
       label: 'Payments',
       route: RouteConstants.lenderPayments),
+  MobileNavItem(
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'History',
+      route: RouteConstants.lenderPaymentHistory),
   MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
@@ -48,7 +53,7 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
     final state = ref.watch(lenderLoanProvider);
 
     return MobileScaffold(
-      title: 'Loan History',
+      title: 'Recent Transactions',
       accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
@@ -65,13 +70,17 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.history_outlined,
+                      Icon(Icons.receipt_long_outlined,
                           size: 64,
                           color: AppColors.textTertiary.withValues(alpha: 0.5)),
                       const SizedBox(height: 16),
-                      const Text('No loan history yet',
+                      const Text('No transactions yet',
                           style: TextStyle(
                               color: AppColors.textSecondary, fontSize: 15)),
+                      const SizedBox(height: 6),
+                      const Text('Your loan transactions will appear here',
+                          style: TextStyle(
+                              color: AppColors.textTertiary, fontSize: 12)),
                     ],
                   ),
                 )
@@ -100,81 +109,97 @@ class _LoanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = (loan.status ?? '').toString().toLowerCase();
+    final isActive = status == 'active';
+    final isApproved = status == 'approved';
+    final isRejected = status == 'rejected';
+    final isPending = ['pending', 'under_review', 'ci_required', 'ci_assigned', 'ci_completed'].contains(status);
+
+    final Color accent;
+    final IconData icon;
+    final String txnLabel;
+    if (isActive) {
+      accent = AppColors.lenderBlue;
+      icon = Icons.account_balance_wallet_rounded;
+      txnLabel = 'Active Loan';
+    } else if (isApproved) {
+      accent = AppColors.success;
+      icon = Icons.check_circle_rounded;
+      txnLabel = 'Approved';
+    } else if (isRejected) {
+      accent = AppColors.error;
+      icon = Icons.cancel_rounded;
+      txnLabel = 'Rejected';
+    } else if (isPending) {
+      accent = AppColors.warning;
+      icon = Icons.hourglass_top_rounded;
+      txnLabel = 'Pending';
+    } else {
+      accent = AppColors.textTertiary;
+      icon = Icons.receipt_long_rounded;
+      txnLabel = (loan.status ?? '').toString().replaceAll('_', ' ').toUpperCase();
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accent.withValues(alpha: 0.12)),
           boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(loan.loanNumber ?? '',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: AppColors.textPrimary)),
-                StatusBadge(status: loan.status ?? ''),
-              ],
-            ),
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: AppColors.divider),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _InfoItem('Principal',
-                    (loan.principalAmount as num?)?.toCurrency ?? '₱0'),
-                _InfoItem('Total Payable',
-                    (loan.totalPayable as num?)?.toCurrency ?? '₱0'),
-                _InfoItem(
-                    'Frequency', (loan.paymentFrequency ?? '').toUpperCase()),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              loan.createdAt != null
-                  ? 'Applied: ${(loan.createdAt as DateTime).toDateString()}'
-                  : '',
-              style:
-                  const TextStyle(fontSize: 11, color: AppColors.textTertiary),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: accent.withValues(alpha: 0.15)),
+                ),
+                child: Icon(icon, color: accent, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(loan.loanNumber ?? 'Loan',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text(txnLabel,
+                        style: TextStyle(fontSize: 11, color: accent, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(
+                      loan.createdAt != null ? (loan.createdAt as DateTime).toDateString() : '',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text((loan.principalAmount as num?)?.toCurrency ?? '₱0',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text((loan.paymentFrequency ?? '').toString().toUpperCase(),
+                      style: const TextStyle(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                    StatusBadge(status: loan.status ?? ''),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-class _InfoItem extends StatelessWidget {
-  final String label, value;
-  const _InfoItem(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 10, color: AppColors.textSecondary)),
-          const SizedBox(height: 3),
-          Text(value,
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary)),
-        ],
-      );
 }

@@ -55,11 +55,12 @@ async function handleCiGetList(req: Request) {
   // immediately (cron is only every 10m). Errors are non-fatal.
   try { await (db as any).rpc('expire_overdue_assignments'); } catch (_) {}
   let query = db.from('credit_investigations')
-    .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at,
+    .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at, reviewed_by, reviewed_at, review_notes, review_decision,
       loan_id,
       loans(id, loan_number, lender_id, principal_amount, lender_profiles!loans_lender_id_fkey(id, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, gcash_number, source_of_funds, account_upgrade_status, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email, addresses:addresses(address_type, street, barangay, city, province, latitude, longitude)), emergency_contacts(id, name, relationship, phone_number, address))),
       rider:rider_profiles(users!rider_profiles_id_fkey(id, first_name, last_name)),
       assigner:users(id, first_name, last_name),
+      reviewer:users!credit_investigations_reviewed_by_fkey(id, first_name, last_name),
       ci_documents:ci_documents(id, document_type, file_path, file_name, mime_type, notes, uploaded_at)`, { count: 'exact' });
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
   else if (riderId) query = query.eq('rider_id', riderId);
@@ -82,10 +83,10 @@ async function handleCiGetList(req: Request) {
       const lenderId = loan?.lender_id ?? null;
 
       const rawDocs = Array.isArray(r.ci_documents) ? r.ci_documents : [];
-      // DEBUG FIX: Staff (HM/Employee) must NOT see docs/report until Review→Submit (status completed).
-      // Rider sees his own docs immediately; staff sees empty until completed. This enforces wizard step 4 visibility.
+      // Staff sees docs/report once rider has submitted (completed) and thereafter (approved/rejected)
       const isStaffViewer = user.role === ROLES.HEAD_MANAGER || user.role === ROLES.EMPLOYEE;
-      const effectiveRawDocs = isStaffViewer && r.status !== 'completed' ? [] : rawDocs;
+      const isSubmittedStatus = ['completed', 'approved', 'rejected'].includes(r.status);
+      const effectiveRawDocs = isStaffViewer && !isSubmittedStatus ? [] : rawDocs;
       const ciDocs = [];
       for (const doc of effectiveRawDocs) {
         let fileUrl: string | null = null;
@@ -102,8 +103,8 @@ async function handleCiGetList(req: Request) {
         });
       }
 
-      // Ensure staff cannot see report before wizard Review→Submit (status completed)
-      const effectiveReport = isStaffViewer && r.status !== 'completed' ? null : r.report_summary;
+      // Ensure staff cannot see report before rider submits (completed/approved/rejected)
+      const effectiveReport = isStaffViewer && !isSubmittedStatus ? null : r.report_summary;
       return {
         ...r,
         report_summary: effectiveReport,

@@ -32,22 +32,31 @@ class LenderAccountUpgradeSubmitScreen extends ConsumerStatefulWidget {
 
 class _LenderAccountUpgradeSubmitScreenState
     extends ConsumerState<LenderAccountUpgradeSubmitScreen> {
-  static const _navItems = [
+    static const _navItems = [
     MobileNavItem(
-        icon: Icons.home_outlined,
-        activeIcon: Icons.home,
-        label: 'Home',
-        route: RouteConstants.lenderDashboard),
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home,
+      label: 'Home',
+      route: RouteConstants.lenderDashboard,
+    ),
     MobileNavItem(
-        icon: Icons.payment_outlined,
-        activeIcon: Icons.payment,
-        label: 'Payments',
-        route: RouteConstants.lenderPayments),
+      icon: Icons.payments_outlined,
+      activeIcon: Icons.payments,
+      label: 'Payments',
+      route: RouteConstants.lenderPayments,
+    ),
     MobileNavItem(
-        icon: Icons.person_outline,
-        activeIcon: Icons.person,
-        label: 'Profile',
-        route: RouteConstants.lenderProfile),
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'History',
+      route: RouteConstants.lenderPaymentHistory,
+    ),
+    MobileNavItem(
+      icon: Icons.person_outline,
+      activeIcon: Icons.person,
+      label: 'Profile',
+      route: RouteConstants.lenderProfile,
+    ),
   ];
 
   static const _steps = [

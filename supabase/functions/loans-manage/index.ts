@@ -84,6 +84,34 @@ async function handleApprove(req: Request) {
       return errorResponse(`Loan cannot be approved from ${loan.status} status`, 400, 'INVALID_STATUS');
     }
 
+    // NEW BUSINESS RULE: If a CI was requested/assigned for this loan,
+    // the investigation must be MANAGER-APPROVED before the loan itself can be approved.
+    // Rider submit -> CI status 'completed' (pending review). Manager must set to 'approved'.
+    if (['ci_required', 'ci_assigned', 'ci_completed'].includes(loan.status)) {
+      const { data: cis } = await db.from('credit_investigations').select('id, status').eq('loan_id', loan_id).order('created_at', { ascending: false }).limit(1);
+      const latestCi = cis && cis.length > 0 ? cis[0] : null;
+      if (latestCi) {
+        // If CI exists but is not yet approved:
+        // - 'completed' means report submitted but not yet reviewed -> block
+        // - 'rejected' means report was rejected -> block until re-investigated
+        // - 'assigned','accepted','in_progress' -> investigation still ongoing -> block
+        // Only 'approved' allows loan approval. Also allow 'declined' (?) rider declined -> not blocking if loan status not ci_required? But for safety, require approved when CI exists in these loan statuses.
+        if (latestCi.status !== 'approved') {
+          if (latestCi.status === 'completed') {
+            return errorResponse('CI report has been submitted but is awaiting manager approval. Please review and approve the CI investigation before approving the loan.', 400, 'CI_NOT_APPROVED');
+          }
+          if (latestCi.status === 'rejected') {
+            return errorResponse('CI investigation was rejected. Please re-assign or request a new CI before approving.', 400, 'CI_REJECTED');
+          }
+          return errorResponse(`Loan has an active CI investigation in '${latestCi.status}' status. CI must be completed and manager-approved before loan approval.`, 400, 'CI_NOT_APPROVED');
+        }
+      } else if (loan.status === 'ci_required' || loan.status === 'ci_assigned' || loan.status === 'ci_completed') {
+        // Loan flagged as needing CI but no CI record — let manager know
+        // (ci_completed without a CI row is inconsistent; treat as needing approval)
+        return errorResponse('Loan is flagged for Credit Investigation but no CI record found. Please assign a rider and complete the investigation.', 400, 'CI_NOT_FOUND');
+      }
+    }
+
     const lp = embedAsObject(loan?.lender_profiles);
     if (lp?.account_upgrade_status !== 'verified') return errorResponse('Lender Account Upgrade must be completed', 400, 'ACCOUNT_UPGRADE_NOT_VERIFIED');
 

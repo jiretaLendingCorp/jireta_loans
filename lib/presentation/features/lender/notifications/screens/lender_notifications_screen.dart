@@ -16,10 +16,16 @@ const _lenderNavItems = [
       label: 'Home',
       route: RouteConstants.lenderDashboard),
   MobileNavItem(
-      icon: Icons.payment_outlined,
-      activeIcon: Icons.payment,
+      icon: Icons.payments_outlined,
+      activeIcon: Icons.payments,
       label: 'Payments',
       route: RouteConstants.lenderPayments),
+  MobileNavItem(
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'History',
+      route: RouteConstants.lenderPaymentHistory),
+
   MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
@@ -109,7 +115,7 @@ class _NotifTile extends StatelessWidget {
       case 'loan_rejected':
         return Icons.cancel_outlined;
       case 'payment_due':
-        return Icons.payment_outlined;
+        return Icons.payments_outlined;
       case 'payment_confirmed':
         return Icons.done_all_outlined;
       case 'disbursement':

@@ -38,10 +38,16 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
       route: RouteConstants.lenderDashboard,
     ),
     MobileNavItem(
-      icon: Icons.payment_outlined,
-      activeIcon: Icons.payment,
+      icon: Icons.payments_outlined,
+      activeIcon: Icons.payments,
       label: 'Payments',
       route: RouteConstants.lenderPayments,
+    ),
+    MobileNavItem(
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'History',
+      route: RouteConstants.lenderPaymentHistory,
     ),
     MobileNavItem(
       icon: Icons.person_outline,
@@ -72,6 +78,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     'ci_required',
     'ci_assigned',
     'ci_completed',
+    'ci_approved',
   };
 
   LoanModel? _approvedUnreleased(List<LoanModel> loans) {
@@ -489,54 +496,109 @@ class _PendingLoanCard extends StatelessWidget {
   final LoanModel loan;
   const _PendingLoanCard({required this.loan});
 
+  String _titleForStatus(String status, String? ciStatus) {
+    switch (status) {
+      case 'ci_required':
+        return 'CI Required';
+      case 'ci_assigned':
+        if (ciStatus == 'assigned') return 'Rider Assigned for CI';
+        if (ciStatus == 'in_progress' || ciStatus == 'accepted') return 'CI In Progress';
+        return 'Credit Investigation';
+      case 'ci_completed':
+        if (ciStatus == 'completed') return 'CI Submitted — Awaiting Approval';
+        if (ciStatus == 'approved') return 'CI Approved';
+        if (ciStatus == 'rejected') return 'CI Needs Review';
+        return 'CI Completed';
+      default:
+        return 'Loan #${loan.loanNumber} Under Review';
+    }
+  }
+
+  String _subtitleForStatus(String status, String? ciStatus) {
+    switch (status) {
+      case 'pending':
+        return 'Your application has been submitted. Track its progress here.';
+      case 'under_review':
+        return 'Our team is reviewing your application.';
+      case 'ci_required':
+        return 'A credit investigation is required. A rider will be assigned soon.';
+      case 'ci_assigned':
+        if (ciStatus == 'assigned') return 'A rider has been assigned and will visit your address for verification.';
+        if (ciStatus == 'in_progress' || ciStatus == 'accepted') return 'Rider is conducting the investigation. Please be available at your address.';
+        return 'Credit investigation is in progress.';
+      case 'ci_completed':
+        if (ciStatus == 'completed') return 'Rider submitted the report. Manager is reviewing it before approval & disbursement.';
+        if (ciStatus == 'approved') return 'Investigation approved! Awaiting final loan approval. You\'ll choose disbursement method after approval.';
+        if (ciStatus == 'rejected') return 'Investigation needs additional review. Our team will contact you.';
+        return 'Investigation completed. Awaiting manager approval.';
+      default:
+        return 'Track the progress of your loan application.';
+    }
+  }
+
+  IconData _iconForStatus(String status, String? ciStatus) {
+    switch (status) {
+      case 'ci_assigned':
+        return Icons.delivery_dining_rounded;
+      case 'ci_completed':
+        if (ciStatus == 'completed') return Icons.rate_review_rounded;
+        if (ciStatus == 'approved') return Icons.verified_rounded;
+        if (ciStatus == 'rejected') return Icons.report_problem_rounded;
+        return Icons.assignment_turned_in_rounded;
+      case 'ci_required':
+        return Icons.search_rounded;
+      default:
+        return Icons.hourglass_top;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final title = _titleForStatus(loan.status, loan.ciStatus);
+    final subtitle = _subtitleForStatus(loan.status, loan.ciStatus);
+    final icon = _iconForStatus(loan.status, loan.ciStatus);
+    final isAwaitingApproval = loan.status == 'ci_completed' && loan.ciStatus == 'completed';
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => context.push(
-          RouteConstants.lenderLoanApplicationStatus
-              .replaceFirst(':id', loan.id),
+          RouteConstants.lenderLoanApplicationStatus.replaceFirst(':id', loan.id),
         ),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.warningLight,
+            color: isAwaitingApproval ? AppColors.warning.withValues(alpha: 0.12) : AppColors.warningLight,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+            border: Border.all(color: isAwaitingApproval ? AppColors.warning : AppColors.warning.withValues(alpha: 0.4)),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: AppColors.warning,
+                decoration: BoxDecoration(
+                  color: isAwaitingApproval ? AppColors.warning : AppColors.warning,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.hourglass_top,
-                    color: Colors.white, size: 22),
+                child: Icon(icon, color: Colors.white, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Loan #${loan.loanNumber} Under Review',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Your application has been submitted. Track its progress here.',
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
-                    ),
+                    Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    if (isAwaitingApproval) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6), border: Border.all(color: AppColors.warning.withValues(alpha: 0.3))),
+                        child: const Text('Manager approval required before you can choose disbursement method', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.warning)),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -714,7 +776,7 @@ class _LoanHistorySection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const _SectionLabel('Loan History'),
+            const _SectionLabel('Recent Transactions'),
             GestureDetector(
               onTap: () => context.push(RouteConstants.lenderLoanHistory),
               child: const Row(
@@ -746,11 +808,11 @@ class _LoanHistorySection extends StatelessWidget {
             ),
             child: const Row(
               children: [
-                Icon(Icons.history_outlined,
+                Icon(Icons.receipt_long_outlined,
                     color: AppColors.textTertiary, size: 20),
                 SizedBox(width: 10),
                 Text(
-                  'No past loans yet',
+                  'No transactions yet',
                   style:
                       TextStyle(color: AppColors.textSecondary, fontSize: 13),
                 ),
@@ -780,12 +842,33 @@ class _LoanHistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = loan.status.toLowerCase();
+    final Color accent;
+    final IconData icon;
+    if (status == 'active') {
+      accent = AppColors.lenderBlue;
+      icon = Icons.account_balance_wallet_rounded;
+    } else if (status == 'approved') {
+      accent = AppColors.success;
+      icon = Icons.check_circle_rounded;
+    } else if (status == 'rejected') {
+      accent = AppColors.error;
+      icon = Icons.cancel_rounded;
+    } else if (['pending', 'under_review', 'ci_required', 'ci_assigned', 'ci_completed'].contains(status)) {
+      accent = AppColors.warning;
+      icon = Icons.hourglass_top_rounded;
+    } else {
+      accent = AppColors.textTertiary;
+      icon = Icons.receipt_long_rounded;
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: accent.withValues(alpha: 0.12)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -794,64 +877,38 @@ class _LoanHistoryTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: accent.withValues(alpha: 0.15)),
+                  ),
+                  child: Icon(icon, color: accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(loan.loanNumber, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text(loan.createdAt.toDateString(), style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                      const SizedBox(height: 2),
+                      Text(loan.paymentFrequency.toUpperCase(), style: const TextStyle(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      loan.loanNumber,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    Text(loan.principalAmount.toCurrency, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.textPrimary)),
+                    const SizedBox(height: 4),
                     StatusBadge(status: loan.status, small: true),
                   ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Principal',
-                            style: TextStyle(
-                                fontSize: 10, color: AppColors.textSecondary)),
-                        Text(
-                          loan.principalAmount.toCurrency,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        const Text('Total Payable',
-                            style: TextStyle(
-                                fontSize: 10, color: AppColors.textSecondary)),
-                        Text(
-                          loan.totalPayable.toCurrency,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.lenderBlue),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Applied: ${loan.createdAt.toDateString()}',
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary),
                 ),
               ],
             ),

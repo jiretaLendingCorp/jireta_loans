@@ -88,12 +88,16 @@ async function handleCiSubmitReport(req: Request) {
   if (!['accepted', 'in_progress'].includes(ci.status)) return errorResponse('CI is not in progress', 400, 'INVALID_STATUS');
   const { count: docCount } = await db.from('ci_documents').select('*', { count: 'exact', head: true }).eq('ci_id', ci_id);
   if ((docCount ?? 0) === 0) return errorResponse('At least 1 document must be uploaded', 400, 'VALIDATION_ERROR');
+  // NEW FLOW: completed = submitted, awaiting MANAGER approval (not yet lender-ready)
+  // The loan becomes ci_completed but still requires explicit CI approval
+  // (ci -> approved) before loans-manage approve allows it to become 'approved'
+  // and lender can select disbursement method.
   await db.from('credit_investigations').update({ status: 'completed', report_summary: sanitizeString(report_summary), completed_at: new Date().toISOString() }).eq('id', ci_id);
   await db.from('loans').update({ status: 'ci_completed' }).eq('id', ci.loan_id);
   await db.from('rider_profiles').update({ is_available: true }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_submit_report', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
-  await notifyStaff({ title: 'CI Report Submitted', body: 'A rider has submitted a credit investigation report. Ready for approval.', type: 'ci_completed', referenceId: ci.loan_id });
-  return jsonResponse({ message: 'CI report submitted. Loan is ready for approval.' });
+  await notifyStaff({ title: 'CI Report Submitted — Awaiting Review', body: 'A rider has submitted a credit investigation report. Please review and approve/reject it before loan disbursement. Lender will choose disbursement method only after CI approval.', type: 'ci_completed', referenceId: ci.loan_id });
+  return jsonResponse({ message: 'CI report submitted. Awaiting manager approval before disbursement.' });
 }
 
 // ── [moved from functions/ci-upload-documents/index.ts] ─────────────────────

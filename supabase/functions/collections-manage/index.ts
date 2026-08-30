@@ -116,10 +116,23 @@ async function handleCollectionRequest(req: Request) {
   const roleCheck = requireRole(user, ROLES.LENDER);
   if (roleCheck) return roleCheck;
 
-  const { loan_schedule_id, type = 'rider' } = await req.json();
+  const { loan_schedule_id, type = 'rider', amount } = await req.json();
   if (!loan_schedule_id) return errorResponse('loan_schedule_id is required', 400, 'VALIDATION_ERROR');
   if (!['rider', 'office'].includes(type)) {
     return errorResponse('type must be rider or office', 400, 'VALIDATION_ERROR');
+  }
+  // amount is flexible: lender can pay any positive amount up to outstanding_balance
+  // If omitted, system will default to the schedule's remaining amount on the client,
+  // but we also support explicit amount here for business-rule enforcement.
+  let requestedAmount: number | null = null;
+  if (amount !== undefined && amount !== null && amount !== '') {
+    requestedAmount = Number(amount);
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      return errorResponse('Amount must be a positive number', 400, 'VALIDATION_ERROR');
+    }
+    if (requestedAmount > 10000000) {
+      return errorResponse('Amount too large', 400, 'VALIDATION_ERROR');
+    }
   }
 
   const db = getAdminClient();
@@ -143,6 +156,21 @@ async function handleCollectionRequest(req: Request) {
   const payment = await getSchedulePayment(db, loan_schedule_id);
   if (scheduleStatus(payment.amount_paid, Number(schedule.amount_due), schedule.due_date) === 'paid') {
     return errorResponse('Schedule already paid', 400, 'INVALID_STATUS');
+  }
+
+  // Validate requested amount against outstanding_balance if provided
+  if (requestedAmount !== null) {
+    const financials = await getLoanFinancials(db, loan.id as string);
+    if (!financials) return errorResponse('Loan not found', 404, 'NOT_FOUND');
+    if (requestedAmount > Number(financials.outstanding_balance) + 0.01) {
+      return errorResponse(`Amount ₱${requestedAmount.toLocaleString()} exceeds outstanding balance ₱${Number(financials.outstanding_balance).toLocaleString()}`, 400, 'VALIDATION_ERROR');
+    }
+    const remainingForSchedule = Math.max(0, Number(schedule.amount_due) - payment.amount_paid);
+    // Allow paying less than remaining (partial) or more (advance to next installments) — just warn if way beyond
+    // But if amount is less than a minimal threshold (e.g., 100 pesos), require at least 100 to avoid dust payments
+    if (requestedAmount < 1) {
+      return errorResponse('Amount must be at least ₱1', 400, 'VALIDATION_ERROR');
+    }
   }
 
   const { data: active } = await db
@@ -175,6 +203,7 @@ async function handleCollectionRequest(req: Request) {
     loan_schedule_id,
     requested_by: user.id,
     collection_type: type,
+    requested_amount: requestedAmount,
     status: 'requested',
   }).select('id').single();
   if (insErr) {
@@ -198,7 +227,7 @@ async function handleCollectionRequest(req: Request) {
       action: 'collection_request',
       tableName: 'collection_assignments',
       recordId: assignment.id,
-      newValues: { loan_schedule_id, collection_type: type, status: 'requested' },
+      newValues: { loan_schedule_id, collection_type: type, requested_amount: requestedAmount, status: 'requested' },
       ipAddress: ip,
     });
   } catch (e) {
@@ -206,10 +235,11 @@ async function handleCollectionRequest(req: Request) {
   }
 
   try {
+    const amountLabel = requestedAmount ? ` of ₱${requestedAmount.toLocaleString()}` : '';
     if (type === 'office') {
       await notifyStaff({
         title: 'Office Payment Request',
-        body: 'A lender will visit the office to pay an installment. Please prepare to record the payment.',
+        body: `A lender will visit the office to pay${amountLabel}. Please prepare to record the payment.`,
         type: 'office_payment_requested',
         referenceId: assignment.id,
         sentBy: user.id,
@@ -217,7 +247,7 @@ async function handleCollectionRequest(req: Request) {
     } else {
       await notifyStaff({
         title: 'New Collection Request',
-        body: 'A lender has requested a rider to collect a payment. Please assign a rider.',
+        body: `A lender has requested a rider to collect${amountLabel}. Please assign a rider.`,
         type: 'collection_requested',
         referenceId: assignment.id,
         sentBy: user.id,
@@ -227,7 +257,7 @@ async function handleCollectionRequest(req: Request) {
     console.error('notifyStaff failed (non-fatal):', e);
   }
 
-  return jsonResponse({ message: 'Collection request created', assignment_id: assignment.id }, 201);
+  return jsonResponse({ message: 'Collection request created', assignment_id: assignment.id, requested_amount: requestedAmount }, 201);
 }
 
 // ── [moved from functions/collections-assign/index.ts] ──────────────────────

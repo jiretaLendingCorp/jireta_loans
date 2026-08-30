@@ -93,7 +93,11 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
                 const SizedBox(width: 6),
                 _StatusPill(label: 'In Progress', value: 'in_progress', selected: state.statusFilter == 'in_progress', onTap: (v) => ref.read(hmCiProvider.notifier).setStatus(v)),
                 const SizedBox(width: 6),
-                _StatusPill(label: 'Completed', value: 'completed', selected: state.statusFilter == 'completed', onTap: (v) => ref.read(hmCiProvider.notifier).setStatus(v)),
+                _StatusPill(label: 'Pending Approval', value: 'completed', selected: state.statusFilter == 'completed', onTap: (v) => ref.read(hmCiProvider.notifier).setStatus(v)),
+                const SizedBox(width: 6),
+                _StatusPill(label: 'Approved', value: 'approved', selected: state.statusFilter == 'approved', onTap: (v) => ref.read(hmCiProvider.notifier).setStatus(v)),
+                const SizedBox(width: 6),
+                _StatusPill(label: 'Rejected', value: 'rejected', selected: state.statusFilter == 'rejected', onTap: (v) => ref.read(hmCiProvider.notifier).setStatus(v)),
               ],
             ),
           ),
@@ -197,7 +201,11 @@ class _CiCardState extends State<_CiCard> {
       case 'in_progress':
         return AppColors.warning;
       case 'completed':
-        return AppColors.riderGreen;
+        return AppColors.warning;
+      case 'approved':
+        return AppColors.success;
+      case 'rejected':
+        return AppColors.error;
       case 'declined':
         return AppColors.error;
       default:

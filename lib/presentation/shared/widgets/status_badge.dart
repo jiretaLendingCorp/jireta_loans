@@ -51,7 +51,9 @@ class StatusBadge extends StatelessWidget {
       case 'ci_assigned':
         return (AppColors.lenderBlue, const Color(0xFFF3E5F5), 'CI Assigned');
       case 'ci_completed':
-        return (AppColors.info, AppColors.infoLight, 'CI Completed');
+        return (AppColors.warning, AppColors.warningLight, 'CI Pending Approval');
+      case 'ci_approved':
+        return (AppColors.riderGreen, AppColors.successLight, 'CI Approved');
       case 'rider_delivery_assigned':
         return (AppColors.lenderBlue, const Color(0xFFE3F2FD),
             'Rider Delivery Assigned');

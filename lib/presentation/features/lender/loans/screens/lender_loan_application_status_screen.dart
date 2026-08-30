@@ -15,10 +15,16 @@ const _lenderNavItems = [
       label: 'Home',
       route: RouteConstants.lenderDashboard),
   MobileNavItem(
-      icon: Icons.payment_outlined,
-      activeIcon: Icons.payment,
+      icon: Icons.payments_outlined,
+      activeIcon: Icons.payments,
       label: 'Payments',
       route: RouteConstants.lenderPayments),
+  MobileNavItem(
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'History',
+      route: RouteConstants.lenderPaymentHistory),
+
   MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
@@ -75,6 +81,22 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
                         const SizedBox(height: 16),
                         _RejectionCard(reason: loan.rejectionReason!),
                       ],
+                      if (loan.status == 'approved' && loan.disbursedAt == null) ...[
+                        const SizedBox(height: 20),
+                        _DisbursementChoiceCard(loan: loan),
+                      ],
+                      if (loan.status == 'ci_completed' && (loan.ciStatus == 'completed')) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.warning.withValues(alpha: 0.3))),
+                          child: const Row(children: [
+                            Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 20),
+                            SizedBox(width: 10),
+                            Expanded(child: Text('Your credit investigation report is awaiting manager approval. You will be able to choose how to receive your funds after the manager approves the investigation and the loan.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4))),
+                          ]),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -83,52 +105,30 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
 
   Widget _buildTimeline(dynamic loan) {
     final status = loan.status as String? ?? '';
+    final ciStatus = loan.ciStatus as String? ?? '';
+    // ciStatus: assigned/accepted/in_progress/completed(pending approval)/approved/rejected
+    final ciSubmitted = ['completed', 'approved', 'rejected'].contains(ciStatus) || ['ci_completed', 'approved', 'active', 'completed'].contains(status);
+    final ciApproved = ciStatus == 'approved';
+    final ciPendingApproval = ciStatus == 'completed' && status == 'ci_completed';
+    final loanApproved = ['approved', 'active', 'completed'].contains(status);
     final steps = [
-      const _Step('Applied', 'Loan application submitted successfully.', true,
-          Icons.description),
+      const _Step('Applied', 'Loan application submitted successfully.', true, Icons.description),
+      _Step('Under Review', 'Staff is reviewing your application.', ['under_review', 'ci_required', 'ci_assigned', 'ci_completed', 'approved', 'active', 'completed', 'rejected'].contains(status), Icons.manage_search),
+      _Step('Credit Investigation — Rider Assigned', ciStatus == 'assigned' ? 'Rider assigned and will visit your address.' : 'A field officer will visit your address for verification.', ['ci_assigned', 'ci_completed', 'approved', 'active', 'completed'].contains(status), Icons.pin_drop),
+      _Step('CI In Progress', 'Rider is conducting field investigation.', ['in_progress', 'completed', 'approved'].contains(ciStatus) || ciSubmitted, Icons.timelapse),
+      _Step('CI Submitted — Awaiting Manager Approval', ciPendingApproval ? 'Report submitted. Manager must approve before disbursement.' : ciApproved ? 'Report approved by manager.' : ciStatus == 'rejected' ? 'Report was not approved — under review.' : 'Rider will submit investigation report.', ciSubmitted, Icons.rate_review, isWarning: ciPendingApproval),
+      _Step('CI Approved', ciApproved ? 'Manager approved the investigation. Loan can now be approved.' : 'Awaiting manager approval of CI report.', ciApproved, Icons.verified),
+      _Step('Loan Approved', loanApproved ? 'Congratulations! Choose how you want to receive funds (see below).' : ciApproved ? 'CI approved — awaiting final loan approval by manager.' : 'Waiting for CI approval before final loan approval.', loanApproved, Icons.check_circle),
       _Step(
-          'Under Review',
-          'Staff is reviewing your application.',
-          [
-            'under_review',
-            'ci_required',
-            'ci_assigned',
-            'ci_completed',
-            'approved',
-            'active',
-            'completed',
-            'rejected'
-          ].contains(status),
-          Icons.manage_search),
-      _Step(
-          'Credit Investigation',
-          'A field officer will visit your address.',
-          ['ci_assigned', 'ci_completed', 'approved', 'active', 'completed']
-              .contains(status),
-          Icons.pin_drop),
-      _Step(
-          'CI Completed',
-          'Credit investigation report submitted.',
-          ['ci_completed', 'approved', 'active', 'completed'].contains(status),
-          Icons.task_alt),
-      _Step(
-        status == 'rejected' ? 'Rejected' : 'Approved',
-        status == 'rejected'
-            ? 'Your application has been rejected.'
-            : 'Application approved! Awaiting fund release.',
-        ['approved', 'active', 'completed', 'rejected'].contains(status),
-        status == 'rejected' ? Icons.cancel : Icons.check_circle,
+        status == 'rejected' ? 'Rejected' : status == 'active' ? 'Funds Released' : 'Awaiting Disbursement',
+        status == 'rejected' ? 'Your application has been rejected.' : status == 'active' ? 'Funds have been released. Your loan is now active.' : loanApproved ? 'Loan approved! Please choose disbursement method to receive funds.' : 'Choose disbursement method only after CI & loan approval.',
+        status == 'rejected' || status == 'active' || status == 'completed',
+        status == 'rejected' ? Icons.cancel : status == 'active' ? Icons.payments : Icons.account_balance_wallet,
         isError: status == 'rejected',
       ),
     ];
 
-    return Column(
-        children: steps
-            .asMap()
-            .entries
-            .map((e) =>
-                _TimelineTile(step: e.value, isLast: e.key == steps.length - 1))
-            .toList());
+    return Column(children: steps.asMap().entries.map((e) => _TimelineTile(step: e.value, isLast: e.key == steps.length - 1)).toList());
   }
 }
 
@@ -137,8 +137,9 @@ class _Step {
   final bool done;
   final IconData icon;
   final bool isError;
+  final bool isWarning;
   const _Step(this.title, this.subtitle, this.done, this.icon,
-      {this.isError = false});
+      {this.isError = false, this.isWarning = false});
 }
 
 class _TimelineTile extends StatelessWidget {
@@ -150,9 +151,11 @@ class _TimelineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = step.isError
         ? AppColors.error
-        : step.done
-            ? AppColors.success
-            : AppColors.border;
+        : step.isWarning
+            ? AppColors.warning
+            : step.done
+                ? AppColors.success
+                : AppColors.border;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -313,4 +316,96 @@ class _RejectionCard extends StatelessWidget {
           ],
         ),
       );
+}
+
+class _DisbursementChoiceCard extends ConsumerWidget {
+  final dynamic loan;
+  const _DisbursementChoiceCard({required this.loan});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF0D47A1), Color(0xFF1976D2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: AppColors.lenderBlue.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.celebration_rounded, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Text('Loan Approved — Choose Disbursement', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+          ]),
+          const SizedBox(height: 8),
+          const Text('Your loan has been approved after CI review! Now choose how you want to receive your funds:', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+          const SizedBox(height: 14),
+          _ChoiceButton(
+            icon: Icons.storefront_rounded,
+            label: 'Pick Up at Office',
+            subtitle: 'Visit our office to claim cash',
+            onTap: () async {
+              final ok = await ref.read(lenderLoanProvider.notifier).selectDisbursementMethod(loanId: loan.id, method: 'office_cash');
+              if (ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Office pickup selected. We will notify you when funds are ready.'), backgroundColor: AppColors.success));
+              } else if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${ref.read(lenderLoanProvider).error ?? 'try again'}'), backgroundColor: AppColors.error));
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          _ChoiceButton(
+            icon: Icons.delivery_dining_rounded,
+            label: 'Cash via Rider',
+            subtitle: 'Rider will deliver cash to your address',
+            onTap: () async {
+              final ok = await ref.read(lenderLoanProvider.notifier).selectDisbursementMethod(loanId: loan.id, method: 'rider_delivery');
+              if (ok && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rider delivery selected. A rider will be scheduled to deliver your funds.'), backgroundColor: AppColors.success));
+              } else if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${ref.read(lenderLoanProvider).error ?? 'try again'}'), backgroundColor: AppColors.error));
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          const Text('GCash disbursement is coming soon. Please choose Office or Rider for now.', style: TextStyle(color: Colors.white60, fontSize: 10)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChoiceButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _ChoiceButton({required this.icon, required this.label, required this.subtitle, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white.withValues(alpha: 0.6))),
+          child: Row(children: [
+            Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.lenderBlue.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Icon(icon, color: AppColors.lenderBlue, size: 20)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
+              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ])),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary),
+          ]),
+        ),
+      ),
+    );
+  }
 }

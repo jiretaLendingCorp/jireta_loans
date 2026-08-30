@@ -20,7 +20,7 @@ import { embedAsObject } from '../_shared/types.ts';
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
 
-const COLLECTION_SELECT = `id, loan_schedule_id, status, collection_type, rider_id, assigned_by, requested_by, amount_collected, collection_schedule, response_at, completed_at, created_at,
+const COLLECTION_SELECT = `id, loan_schedule_id, status, collection_type, rider_id, assigned_by, requested_by, amount_collected, requested_amount, collection_schedule, response_at, completed_at, created_at,
   notes:collection_notes,
   proof_photo, borrower_signature, collection_photo,
   loan_schedule:loan_schedules(id, installment_number, due_date, amount_due, loan:loans(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, gcash_number, users!lender_profiles_id_fkey(first_name, last_name, phone_number, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary))))),

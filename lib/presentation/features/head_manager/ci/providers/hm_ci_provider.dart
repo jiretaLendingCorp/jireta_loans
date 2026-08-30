@@ -122,6 +122,28 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
       deadline: deadline?.toIso8601String() ?? '',
     );
   }
+
+  Future<bool> approveReport({required String ciId, String? notes}) async {
+    try {
+      await _ds.approveCiReport(ciId: ciId, reviewNotes: notes);
+      await fetch(page: state.currentPage);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
+      return false;
+    }
+  }
+
+  Future<bool> rejectReport({required String ciId, required String reason}) async {
+    try {
+      await _ds.rejectCiReport(ciId: ciId, rejectionReason: reason);
+      await fetch(page: state.currentPage);
+      return true;
+    } catch (e) {
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
+      return false;
+    }
+  }
 }
 
 final hmCiProvider =

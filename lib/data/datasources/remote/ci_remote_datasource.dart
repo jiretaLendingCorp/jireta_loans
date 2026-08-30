@@ -88,6 +88,34 @@ class CiRemoteDataSource {
     );
   }
 
+  /// Manager approves a submitted CI report (completed -> approved)
+  Future<void> approveCiReport({
+    required String ciId,
+    String? reviewNotes,
+  }) async {
+    await _client.post(
+      ApiEndpoints.ciApproveReport,
+      data: {'ci_id': ciId, if (reviewNotes != null) 'review_notes': reviewNotes},
+    );
+  }
+
+  /// Manager rejects a submitted CI report (completed -> rejected)
+  Future<void> rejectCiReport({
+    required String ciId,
+    required String rejectionReason,
+  }) async {
+    await _client.post(
+      ApiEndpoints.ciRejectReport,
+      data: {'ci_id': ciId, 'rejection_reason': rejectionReason},
+    );
+  }
+
+  // Aliases for HM/Employee providers to call without patch vs post confusion
+  Future<void> approveReport({required String ciId, String? notes}) =>
+      approveCiReport(ciId: ciId, reviewNotes: notes);
+  Future<void> rejectReport({required String ciId, required String reason}) =>
+      rejectCiReport(ciId: ciId, rejectionReason: reason);
+
   Future<Map<String, dynamic>> getList({
     String? status,
     int page = 1,

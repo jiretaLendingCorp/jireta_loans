@@ -16,6 +16,14 @@ class LenderPaymentState {
   final String? error;
   final bool isSubmitting;
   final String? xenditUrl;
+  final String statusFilter;
+  final String methodFilter;
+  final String searchQuery;
+  final int currentPage;
+  final int totalPages;
+  final int totalCount;
+  final double totalPaid;
+  final double totalPending;
 
   const LenderPaymentState({
     this.payments = const [],
@@ -23,7 +31,27 @@ class LenderPaymentState {
     this.error,
     this.isSubmitting = false,
     this.xenditUrl,
+    this.statusFilter = 'all',
+    this.methodFilter = 'all',
+    this.searchQuery = '',
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.totalCount = 0,
+    this.totalPaid = 0,
+    this.totalPending = 0,
   });
+
+  // Client-side filtered view based on search
+  List<PaymentModel> get filteredPayments {
+    if (searchQuery.isEmpty) return payments;
+    final q = searchQuery.toLowerCase();
+    return payments.where((p) {
+      return p.loanNumber.toLowerCase().contains(q) ||
+          (p.referenceNumber ?? '').toLowerCase().contains(q) ||
+          p.methodLabel.toLowerCase().contains(q) ||
+          p.statusLabel.toLowerCase().contains(q);
+    }).toList();
+  }
 
   LenderPaymentState copyWith({
     List<PaymentModel>? payments,
@@ -31,6 +59,14 @@ class LenderPaymentState {
     String? error,
     bool? isSubmitting,
     String? xenditUrl,
+    String? statusFilter,
+    String? methodFilter,
+    String? searchQuery,
+    int? currentPage,
+    int? totalPages,
+    int? totalCount,
+    double? totalPaid,
+    double? totalPending,
   }) =>
       LenderPaymentState(
         payments: payments ?? this.payments,
@@ -38,6 +74,14 @@ class LenderPaymentState {
         error: error,
         isSubmitting: isSubmitting ?? this.isSubmitting,
         xenditUrl: xenditUrl ?? this.xenditUrl,
+        statusFilter: statusFilter ?? this.statusFilter,
+        methodFilter: methodFilter ?? this.methodFilter,
+        searchQuery: searchQuery ?? this.searchQuery,
+        currentPage: currentPage ?? this.currentPage,
+        totalPages: totalPages ?? this.totalPages,
+        totalCount: totalCount ?? this.totalCount,
+        totalPaid: totalPaid ?? this.totalPaid,
+        totalPending: totalPending ?? this.totalPending,
       );
 }
 
@@ -53,16 +97,55 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
     loadPayments();
   }
 
-  Future<void> loadPayments({bool silent = false}) async {
+  Future<void> loadPayments({bool silent = false, int page = 1}) async {
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      final payments = await _ds.getPaymentList(page: 1);
-      state = state.copyWith(payments: payments, isLoading: false);
+      final data = await _ds.getPaymentListPage(
+        status: state.statusFilter == 'all' ? null : state.statusFilter,
+        method: state.methodFilter == 'all' ? null : state.methodFilter,
+        page: page,
+      );
+      final list = (data['data'] as List? ?? [])
+          .map((e) => PaymentModel.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      final meta = data['meta'] as Map<String, dynamic>? ?? {};
+      final total = (meta['total'] as num?)?.toInt() ?? list.length;
+      final totalPages = (meta['total_pages'] as num?)?.toInt() ?? 1;
+      final totalPaid = list.where((p) => p.status == 'verified').fold<double>(0, (s, p) => s + p.amount);
+      final totalPending = list.where((p) => p.status == 'pending').fold<double>(0, (s, p) => s + p.amount);
+      state = state.copyWith(
+        payments: list,
+        isLoading: false,
+        currentPage: (meta['page'] as num?)?.toInt() ?? page,
+        totalPages: totalPages,
+        totalCount: total,
+        totalPaid: totalPaid,
+        totalPending: totalPending,
+      );
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
+  }
+
+  Future<void> loadNextPage() async {
+    if (state.currentPage >= state.totalPages) return;
+    await loadPayments(page: state.currentPage + 1);
+  }
+
+  void setStatusFilter(String status) {
+    state = state.copyWith(statusFilter: status, currentPage: 1);
+    loadPayments();
+  }
+
+  void setMethodFilter(String method) {
+    state = state.copyWith(methodFilter: method, currentPage: 1);
+    loadPayments();
+  }
+
+  void setSearch(String query) {
+    state = state.copyWith(searchQuery: query);
   }
 
   Future<String?> generateGcashLink({
@@ -125,6 +208,14 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
       return 'This installment is already fully paid.';
     }
 
+    // 3b) Amount validation (flexible payment)
+    if (low.contains('exceeds outstanding')) {
+      return raw; // already friendly: Amount ₱X exceeds outstanding ₱Y
+    }
+    if (low.contains('amount must be') || low.contains('amount too large')) {
+      return raw;
+    }
+
     // 4) Schedule not found / wrong ID (often stale schedule cache).
     if (low.contains('schedule not found') || (code == 'NOT_FOUND' && low.contains('schedule'))) {
       return 'Installment not found. Please pull to refresh your Payment Schedule and try again. (schedule_id: $low)';
@@ -163,12 +254,14 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
   }
 
   /// Requests a rider to collect the installment at the lender's home.
-  Future<bool> requestRiderCollection({required String loanScheduleId}) async {
+  /// [amount] is flexible: lender can pay any positive amount up to outstanding balance.
+  /// System business logic: amount < installment => partial, amount > installment => advance to next installments, exact => paid.
+  Future<bool> requestRiderCollection({required String loanScheduleId, double? amount}) async {
     state = state.copyWith(isSubmitting: true, error: null);
     try {
-      AppLogger.d('[LenderPayment] requestRiderCollection schedule=$loanScheduleId');
+      AppLogger.d('[LenderPayment] requestRiderCollection schedule=$loanScheduleId amount=$amount');
       final res = await _collectionDs.requestRiderCollection(
-          loanScheduleId: loanScheduleId, type: 'rider');
+          loanScheduleId: loanScheduleId, type: 'rider', amount: amount);
       final msg = (res['message'] as String? ?? '').toLowerCase();
       if (msg.contains('already pending')) {
         AppLogger.w('[LenderPayment] rider request idempotent pending: $res');
@@ -191,12 +284,13 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
   }
 
   /// Requests an office visit so the lender can pay the installment in person.
-  Future<bool> requestOfficePayment({required String loanScheduleId}) async {
+  /// [amount] flexible same as rider collection.
+  Future<bool> requestOfficePayment({required String loanScheduleId, double? amount}) async {
     state = state.copyWith(isSubmitting: true, error: null);
     try {
-      AppLogger.d('[LenderPayment] requestOfficePayment schedule=$loanScheduleId');
+      AppLogger.d('[LenderPayment] requestOfficePayment schedule=$loanScheduleId amount=$amount');
       final res = await _collectionDs.requestRiderCollection(
-          loanScheduleId: loanScheduleId, type: 'office');
+          loanScheduleId: loanScheduleId, type: 'office', amount: amount);
       final msg = (res['message'] as String? ?? '').toLowerCase();
       if (msg.contains('already pending')) {
         AppLogger.w('[LenderPayment] office request idempotent pending: $res');
@@ -219,6 +313,7 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
   }
 
   Future<void> loadPaymentHistory() => loadPayments();
+  Future<void> refreshHistory() => loadPayments(page: 1);
 
   Future<Map<String, dynamic>> getReceiptData(String paymentId) async {
     try {

@@ -58,6 +58,8 @@ class ApiEndpoints {
   static const String ciAssign = 'ci-manage?fn=assign';
   static const String ciAccept = 'ci-manage?fn=accept';
   static const String ciDecline = 'ci-manage?fn=decline';
+  static const String ciApproveReport = 'ci-manage?fn=approve-report';
+  static const String ciRejectReport = 'ci-manage?fn=reject-report';
   static const String ciUploadDocuments = 'ci-submit?fn=upload-documents';
   static const String ciSubmitReport = 'ci-submit?fn=submit-report';
   static const String ciGetList = 'ci-view?fn=get-list';

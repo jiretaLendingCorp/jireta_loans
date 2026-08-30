@@ -19,10 +19,16 @@ const _lenderNavItems = [
       label: 'Home',
       route: RouteConstants.lenderDashboard),
   MobileNavItem(
-      icon: Icons.payment_outlined,
-      activeIcon: Icons.payment,
+      icon: Icons.payments_outlined,
+      activeIcon: Icons.payments,
       label: 'Payments',
       route: RouteConstants.lenderPayments),
+  MobileNavItem(
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long,
+      label: 'History',
+      route: RouteConstants.lenderPaymentHistory),
+
   MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
