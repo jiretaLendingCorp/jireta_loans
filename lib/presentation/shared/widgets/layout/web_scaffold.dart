@@ -197,7 +197,7 @@ class _MobileActions extends ConsumerWidget {
             ),
           ),
         ),
-        _UserAvatar(authState: authState),
+        _UserAvatar(authState: authState, showName: false),
       ],
     );
   }
@@ -288,7 +288,24 @@ class _TopBar extends StatelessWidget {
 
 class _UserAvatar extends ConsumerWidget {
   final AuthState authState;
-  const _UserAvatar({required this.authState});
+  /// When true, shows the user's full name beside the avatar (desktop header).
+  /// When false, shows only the circular avatar (mobile compact header).
+  final bool showName;
+  const _UserAvatar({required this.authState, this.showName = true});
+
+  String _getInitials(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'U';
+    final parts =
+        trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length == 1) {
+      final w = parts[0];
+      if (w.length >= 2) return (w[0] + w[1]).toUpperCase();
+      return w[0].toUpperCase();
+    }
+    // first + last -> "Juan Dela Cruz" => JC, "Juan Cruz" => JC
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -302,35 +319,79 @@ class _UserAvatar extends ConsumerWidget {
 
     final user = profileUser ?? authState.user;
     final name = user?.fullName ?? '';
-    final initials = name.isNotEmpty
-        ? name
-            .trim()
-            .split(' ')
-            .map((p) => p.isNotEmpty ? p[0] : '')
-            .take(2)
-            .join()
-            .toUpperCase()
-        : 'U';
+    final displayName = name.trim().isNotEmpty
+        ? name.trim()
+        : (user?.email ?? 'User');
+    final initials = _getInitials(name);
     final photoUrl =
         profileUser?.profilePhotoUrl ?? authState.user?.profilePhotoUrl;
+    final roleLabel = (authState.role ?? '').replaceAll('_', ' ');
+
+    final avatar = ProfileAvatar(
+      photoUrl: photoUrl,
+      name: name,
+      color: AppColors.deepNavy,
+      radius: 18,
+      borderColor: Colors.black,
+      fallback: Text(
+        initials,
+        style: TextStyle(
+          fontSize: initials.length == 1 ? 14 : 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.gold,
+          letterSpacing: initials.length == 1 ? 0 : 0.5,
+        ),
+      ),
+    );
 
     return PopupMenuButton<String>(
       offset: const Offset(0, 48),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ProfileAvatar(
-        photoUrl: photoUrl,
-        name: name,
-        color: AppColors.deepNavy,
-        radius: 18,
-        borderColor: Colors.black,
-        fallback: Text(
-          initials,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppColors.gold,
-          ),
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          avatar,
+          if (showName) ...[
+            const SizedBox(width: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    displayName,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  if (roleLabel.isNotEmpty)
+                    Text(
+                      roleLabel.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textTertiary,
+                        letterSpacing: 0.4,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ],
       ),
       onSelected: (val) async {
         if (val == 'profile') {

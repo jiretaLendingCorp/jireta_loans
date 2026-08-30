@@ -83,19 +83,47 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
     );
   }
 
+  /// Builds initials from [name]:
+  /// - "Juan Cruz" -> "JC"
+  /// - "Juan Dela Cruz" -> "JC" (first + last)
+  /// - "Juan" -> "JU" (first two letters) so single names still get a 2-char badge
+  /// - "" -> "?"
+  String _initials(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return '?';
+    final parts =
+        trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length == 1) {
+      final w = parts[0];
+      if (w.length >= 2) return (w[0] + w[1]).toUpperCase();
+      return w[0].toUpperCase();
+    }
+    // >=2 parts: first + last (so "Maria Santos Reyes" -> "MR")
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
   Widget _buildFallback() {
     final fallback = widget.fallback;
+    if (fallback != null) {
+      return ColoredBox(
+        color: widget.color.withValues(alpha: 0.15),
+        child: Center(child: fallback),
+      );
+    }
+    final initials = _initials(widget.name);
+    final isSingle = initials.length == 1;
     return ColoredBox(
       color: widget.color.withValues(alpha: 0.15),
       child: Center(
-        child: fallback ??
-            Text(
-                widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
-                style: TextStyle(
-                  color: widget.textColor,
-                  fontSize: widget.radius * 0.9,
-                  fontWeight: FontWeight.w700,
-                )),
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: widget.textColor,
+            fontSize: widget.radius * (isSingle ? 0.9 : 0.62),
+            fontWeight: FontWeight.w700,
+            letterSpacing: isSingle ? 0 : 0.5,
+          ),
+        ),
       ),
     );
   }

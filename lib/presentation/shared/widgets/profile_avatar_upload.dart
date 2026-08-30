@@ -86,14 +86,32 @@ class _ProfileAvatarUploadState extends State<ProfileAvatarUpload> {
     }
   }
 
-  Widget _buildFallback() => Text(
-        widget.name.isNotEmpty ? widget.name[0].toUpperCase() : '?',
-        style: TextStyle(
-          fontSize: widget.radius * 0.8,
-          fontWeight: FontWeight.w700,
-          color: widget.color,
-        ),
-      );
+  String _initials(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return '?';
+    final parts =
+        trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length == 1) {
+      final w = parts[0];
+      if (w.length >= 2) return (w[0] + w[1]).toUpperCase();
+      return w[0].toUpperCase();
+    }
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  Widget _buildFallback() {
+    final initials = _initials(widget.name);
+    final isSingle = initials.length == 1;
+    return Text(
+      initials,
+      style: TextStyle(
+        fontSize: widget.radius * (isSingle ? 0.8 : 0.55),
+        fontWeight: FontWeight.w700,
+        color: widget.color,
+        letterSpacing: isSingle ? 0 : 0.5,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
