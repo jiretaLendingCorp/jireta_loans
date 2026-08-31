@@ -10,95 +10,22 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
 
-/// Modern chart-based analytics section shown at the top of the Head Manager
-/// dashboard. Renders live charts (donut, monthly bar, applications trend and
-/// revenue breakdown) — now fully interactive with hover tooltips and drill-down
-/// detail sheets on tap.
+/// Analytics section shown at the top of the Head Manager dashboard.
+/// Currently shows only the loan portfolio donut — other charts removed per spec.
 class HmAnalyticsPanel extends StatelessWidget {
   final KpiHeadManagerModel kpi;
   const HmAnalyticsPanel({super.key, required this.kpi});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final twoCols = constraints.maxWidth >= 900;
-        final chart = SizedBox(
-          height: 320,
-          child: _ChartCard(
-            title: 'Loan Portfolio by Status',
-            subtitle:
-                'Distribution across all loan records · tap a slice for details',
-            icon: Icons.pie_chart_rounded,
-            child: _LoanStatusDonut(kpi: kpi),
-          ),
-        );
-        final bar = SizedBox(
-          height: 320,
-          child: _ChartCard(
-            title: 'Monthly Disbursements vs Collections',
-            subtitle:
-                'Last 6 months · verified transactions · tap a month for breakdown',
-            icon: Icons.bar_chart_rounded,
-            child: _MonthlyBarChart(kpi: kpi),
-          ),
-        );
-        final line = SizedBox(
-          height: 320,
-          child: _ChartCard(
-            title: 'Monthly Loan Applications',
-            subtitle:
-                'Applications filed per month · hover for trend, tap for details',
-            icon: Icons.show_chart_rounded,
-            child: _ApplicationsLineChart(kpi: kpi),
-          ),
-        );
-        final revenue = SizedBox(
-          height: 320,
-          child: _ChartCard(
-            title: 'Revenue Composition',
-            subtitle:
-                'Interest earned vs penalties collected · tap for breakdown',
-            icon: Icons.payments_rounded,
-            child: _RevenueBreakdown(kpi: kpi),
-          ),
-        );
-
-        if (twoCols) {
-          return Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: chart),
-                  const SizedBox(width: 16),
-                  Expanded(child: bar),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: line),
-                  const SizedBox(width: 16),
-                  Expanded(child: revenue),
-                ],
-              ),
-            ],
-          );
-        }
-        return Column(
-          children: [
-            chart,
-            const SizedBox(height: 16),
-            bar,
-            const SizedBox(height: 16),
-            line,
-            const SizedBox(height: 16),
-            revenue,
-          ],
-        );
-      },
+    return SizedBox(
+      height: 320,
+      child: _ChartCard(
+        title: 'Loan Portfolio by Status',
+        subtitle: 'Distribution across all loan records',
+        icon: Icons.pie_chart_rounded,
+        child: _LoanStatusDonut(kpi: kpi),
+      ),
     );
   }
 }
@@ -171,33 +98,6 @@ class _ChartCard extends StatelessWidget {
                         color: AppColors.textTertiary,
                       ),
                       overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.deepNavy.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                      color: AppColors.deepNavy.withValues(alpha: 0.08)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.touch_app_rounded,
-                        size: 10,
-                        color: AppColors.deepNavy.withValues(alpha: 0.6)),
-                    const SizedBox(width: 3),
-                    Text(
-                      'Interactive',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.deepNavy.withValues(alpha: 0.6),
-                        letterSpacing: 0.3,
-                      ),
                     ),
                   ],
                 ),
@@ -385,7 +285,6 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Interactive legend — hover highlights slice, tap drills down
                       Expanded(
                         flex: isNarrow ? 5 : 4,
                         child: SingleChildScrollView(
@@ -493,15 +392,7 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Hover slice or legend · tap for drill-down',
-                  style: TextStyle(
-                      fontSize: 8.5,
-                      color: AppColors.textTertiary.withValues(alpha: 0.9),
-                      fontStyle: FontStyle.italic),
-                  textAlign: TextAlign.center,
-                ),
+
               ],
             ),
             // Overlay tooltip — does not affect layout so legend never overflows
@@ -927,15 +818,7 @@ class _PortfolioDrillSheet extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Tip: Hover slices or legend rows for instant tooltips. Drill-down stays in sync with live KPIs via Realtime + 30s poll.',
-                      style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textTertiary.withValues(alpha: 0.9),
-                          fontStyle: FontStyle.italic),
-                      textAlign: TextAlign.center,
-                    ),
+
                   ],
                 ),
               ),
@@ -1226,15 +1109,16 @@ class _MonthlyBarChartState extends State<_MonthlyBarChart> {
               ),
             ),
             const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 14,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 _LegendInteractive('Disbursed', AppColors.deepNavy,
                     isHovered: _hovered >= 0),
-                const SizedBox(width: 14),
                 _LegendInteractive('Collected', AppColors.riderGreen,
                     isHovered: _hovered >= 0),
-                const SizedBox(width: 14),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -1262,39 +1146,6 @@ class _MonthlyBarChartState extends State<_MonthlyBarChart> {
               point: points[_hovered],
               prev: _hovered > 0 ? points[_hovered - 1] : null,
               fullLabel: _fullLabel(points[_hovered].month),
-            ),
-          )
-        else
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(99),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.touch_app_rounded,
-                        size: 11, color: AppColors.textTertiary),
-                    SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        'Hover bars · tap month for details',
-                        style: TextStyle(
-                            fontSize: 10, color: AppColors.textTertiary),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
       ],
@@ -1919,11 +1770,13 @@ class _ApplicationsLineChartState extends State<_ApplicationsLineChart> {
               ),
             ),
             const SizedBox(height: 6),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const _Legend('Applications', AppColors.lenderBlue),
-                const SizedBox(width: 12),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -1959,38 +1812,6 @@ class _ApplicationsLineChartState extends State<_ApplicationsLineChart> {
               prev: _hovered > 0 ? points[_hovered - 1] : null,
               fullLabel: _fullLabel(points[_hovered].month),
               avg: avg,
-            ),
-          )
-        else
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                    color: AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(color: AppColors.border)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.trending_up_rounded,
-                        size: 11, color: AppColors.lenderBlue),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        'Avg ${avg.toStringAsFixed(1)} · max $maxCount · hover points',
-                        style: const TextStyle(
-                            fontSize: 10, color: AppColors.textTertiary),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
       ],
@@ -2557,14 +2378,7 @@ class _RevenueBreakdownState extends State<_RevenueBreakdown> {
                       color: AppColors.deepNavy,
                       bold: true),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                    'Hover segments for share · tap any row for breakdown',
-                    style: TextStyle(
-                        fontSize: 8.5,
-                        color: AppColors.textTertiary,
-                        fontStyle: FontStyle.italic),
-                    textAlign: TextAlign.center),
+
               ],
             ),
           ),

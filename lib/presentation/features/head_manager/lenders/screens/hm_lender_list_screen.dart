@@ -39,7 +39,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             builder: (_) => const CreateLenderModal(),
           ),
           icon: const Icon(Icons.person_add, size: 18),
-          label: const Text('Register Lender'),
+          label: const Text('Create Lender'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.lenderBlue,
             foregroundColor: Colors.white,

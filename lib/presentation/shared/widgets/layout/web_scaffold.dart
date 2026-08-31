@@ -649,8 +649,6 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           RouteConstants.hmCollections,
         ),
         const _NavItem(
-            Icons.payments_outlined, 'Payments', RouteConstants.hmPayments),
-        const _NavItem(
             Icons.assessment_outlined, 'Reports', RouteConstants.hmReports),
         const _NavItem(
             Icons.history_outlined, 'Audit Logs', RouteConstants.hmAudit),
@@ -692,8 +690,6 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           'Collections',
           RouteConstants.empCollections,
         ),
-        const _NavItem(
-            Icons.payments_outlined, 'Payments', RouteConstants.empPayments),
       ];
 }
 
@@ -791,7 +787,19 @@ class _SidebarItem extends ConsumerWidget {
                 path.startsWith('${RouteConstants.empActiveLoans}/') ||
                 path == RouteConstants.empInOffice ||
                 path.startsWith('${RouteConstants.empInOffice}/')));
+    // Collections now contains Payments as a tab (side-nav Payments removed)
+    final isCollectionsParent = (item.route == RouteConstants.hmCollections &&
+            (path == RouteConstants.hmPayments ||
+                path.startsWith('${RouteConstants.hmPayments}/') ||
+                path == RouteConstants.hmPenalties ||
+                path.startsWith('${RouteConstants.hmPenalties}/') ||
+                path == RouteConstants.hmPaymentDetails ||
+                path.startsWith('${RouteConstants.hmPaymentDetails.replaceFirst('/:id', '')}/'))) ||
+        (item.route == RouteConstants.empCollections &&
+            (path == RouteConstants.empPayments ||
+                path.startsWith('${RouteConstants.empPayments}/')));
     final baseActive = isLoanApplicationsParent ||
+        isCollectionsParent ||
         (item.route.isNotEmpty &&
             (path == item.route || path.startsWith('${item.route}/')));
     final isActive = !isPeopleOpen && baseActive;

@@ -37,7 +37,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
           onPressed: () => showDialog(
               context: context, builder: (_) => const EmpCreateRiderModal()),
           icon: const Icon(Icons.add, size: 18),
-          label: const Text('Add Rider'),
+          label: const Text('Create Rider'),
           style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.riderGreen,
               foregroundColor: Colors.white),

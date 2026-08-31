@@ -38,7 +38,7 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
         ElevatedButton.icon(
           onPressed: () => _showCreate(context),
           icon: const Icon(Icons.add, size: 18),
-          label: const Text('Add Employee'),
+          label: const Text('Create Employee'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
             foregroundColor: Colors.black87,

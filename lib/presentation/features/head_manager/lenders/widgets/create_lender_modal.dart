@@ -58,7 +58,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                       ),
                       const SizedBox(width: 12),
                       const Text(
-                        'Register New Lender',
+                        'Create New Lender',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.w700),
                       ),
@@ -212,7 +212,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text('Register Lender'),
+                            : const Text('Create Lender'),
                       ),
                     ],
                   ),

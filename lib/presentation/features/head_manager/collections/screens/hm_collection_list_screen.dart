@@ -4,13 +4,103 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
+import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/hm_collection_provider.dart';
 import '../widgets/assign_rider_collection_modal.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+
+// ── Payments state reused inside Collections (so Payments tab lives here) ──
+class _PaymentsState {
+  final List<Map<String, dynamic>> payments;
+  final bool isLoading;
+  final String? error;
+  final int currentPage;
+  final int totalPages;
+  final String methodFilter;
+  const _PaymentsState({
+    this.payments = const [],
+    this.isLoading = false,
+    this.error,
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.methodFilter = 'all',
+  });
+  _PaymentsState copyWith({
+    List<Map<String, dynamic>>? payments,
+    bool? isLoading,
+    String? error,
+    int? currentPage,
+    int? totalPages,
+    String? methodFilter,
+  }) =>
+      _PaymentsState(
+        payments: payments ?? this.payments,
+        isLoading: isLoading ?? this.isLoading,
+        error: error,
+        currentPage: currentPage ?? this.currentPage,
+        totalPages: totalPages ?? this.totalPages,
+        methodFilter: methodFilter ?? this.methodFilter,
+      );
+}
+
+class _PaymentsNotifier extends StateNotifier<_PaymentsState>
+    with RealtimeRefreshMixin {
+  final PaymentRemoteDataSource _ds;
+  _PaymentsNotifier(this._ds) : super(const _PaymentsState()) {
+    bindRealtimeRefresh(['payments'], refresh: () => fetch(silent: true));
+    fetch();
+  }
+
+  Future<void> fetch({int page = 1, bool silent = false, String? method}) async {
+    final m = method ?? state.methodFilter;
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
+    try {
+      final res = await _ds.getPaymentListPage(
+        page: page,
+        method: m == 'all' ? null : m,
+      );
+      final payments = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
+      final meta = res['meta'] as Map<String, dynamic>? ?? {};
+      if (!mounted) return;
+      state = state.copyWith(
+        payments: payments,
+        isLoading: false,
+        currentPage: meta['page'] as int? ?? 1,
+        totalPages: meta['total_pages'] as int? ?? 1,
+        methodFilter: m,
+      );
+    } catch (e) {
+      if (silent) return;
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false, error: ErrorHandler.handle(e).message);
+    }
+  }
+
+  void setMethod(String method) {
+    state = state.copyWith(methodFilter: method);
+    fetch(method: method);
+  }
+
+  Future<bool> reversePayment(String paymentId) async {
+    try {
+      await _ds.reversePayment(paymentId: paymentId, reason: 'Reversed by Head Manager');
+      await fetch();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+final _hmPaymentsInCollectionProvider =
+    StateNotifierProvider<_PaymentsNotifier, _PaymentsState>((ref) {
+  return _PaymentsNotifier(sl<PaymentRemoteDataSource>());
+});
 
 class HmCollectionListScreen extends ConsumerStatefulWidget {
   const HmCollectionListScreen({super.key});
@@ -20,78 +110,429 @@ class HmCollectionListScreen extends ConsumerStatefulWidget {
 }
 
 class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen> {
-  final _search = TextEditingController();
+  final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+  String _activeTab = 'all'; // all, payments, requested, assigned, in_progress, completed
+
+  final _dropdownTabs = const [
+    _TabDef('all', 'All', Icons.layers_outlined),
+    _TabDef('requested', 'Requested', Icons.hourglass_top_rounded),
+    _TabDef('assigned', 'Assigned', Icons.assignment_ind_outlined),
+    _TabDef('in_progress', 'In Progress', Icons.sync_rounded),
+    _TabDef('completed', 'Completed', Icons.check_circle_rounded),
+  ];
+
+  final _pillTabs = const [
+    _TabDef('payments', 'Payments', Icons.payments_outlined),
+  ];
+
+  final _paymentMethodTabs = const [
+    _TabDef('all', 'All', Icons.layers_outlined),
+    _TabDef('gcash', 'GCash', Icons.phone_android_rounded),
+    _TabDef('office_cash', 'Office', Icons.storefront_rounded),
+    _TabDef('rider_collection', 'Rider', Icons.delivery_dining_rounded),
+  ];
 
   @override
   void dispose() {
-    _search.dispose();
+    _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _onTabTap(String key) {
+    if (key == _activeTab) return;
+    setState(() => _activeTab = key);
+    _searchCtrl.clear();
+    if (key == 'payments') {
+      ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(method: 'all');
+    } else {
+      ref.read(hmCollectionProvider.notifier).setStatus(key);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(hmCollectionProvider);
+    final collectionState = ref.watch(hmCollectionProvider);
+    final paymentsState = ref.watch(_hmPaymentsInCollectionProvider);
+    final isPayments = _activeTab == 'payments';
 
     return WebScaffold(
       title: 'Collections',
-      actions: [
-        Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-          child: IconButton(onPressed: () => ref.read(hmCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 20, color: AppColors.textSecondary)),
-        ),
-      ],
-      body: Column(
-        children: [
-          _buildFilterBar(state),
-          Expanded(
-            child: state.isLoading
-                ? const ShimmerLoader()
-                : state.items.isEmpty
-                    ? (state.error != null ? _buildError(context, ref, state.error!) : _buildEmpty())
-                    : _buildList(context, state),
+      body: Container(
+        color: const Color(0xFFF0F2F5),
+        child: SingleChildScrollView(
+          controller: _scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTabPills(),
+              const SizedBox(height: 16),
+              _buildToolbar(collectionState, paymentsState, isPayments),
+              const SizedBox(height: 16),
+              if (isPayments) ...[
+                _buildPaymentMethodFilter(paymentsState),
+                const SizedBox(height: 12),
+                if (paymentsState.isLoading)
+                  _buildLoadingShimmer()
+                else if (paymentsState.error != null && paymentsState.payments.isEmpty)
+                  _buildPaymentError(paymentsState.error!)
+                else if (_filteredPayments(paymentsState.payments).isEmpty)
+                  _buildPaymentEmpty(paymentsState)
+                else
+                  _Entrance(child: _buildPaymentsTable(_filteredPayments(paymentsState.payments))),
+                if (paymentsState.totalPages > 1) ...[
+                  const SizedBox(height: 16),
+                  _buildPaymentPagination(paymentsState),
+                ],
+              ] else ...[
+                if (collectionState.isLoading)
+                  _buildLoadingShimmer()
+                else if (collectionState.error != null && collectionState.items.isEmpty)
+                  _buildError(collectionState.error!)
+                else
+                  _buildCollectionsContent(collectionState),
+                if (!collectionState.isLoading && collectionState.totalPages > 1) ...[
+                  const SizedBox(height: 16),
+                  _buildCollectionPagination(collectionState),
+                ],
+              ],
+              const SizedBox(height: 8),
+            ],
           ),
-          if (state.totalPages > 1)
-            TablePagination(currentPage: state.currentPage, totalPages: state.totalPages, totalCount: state.totalCount, onPageChange: (p) => ref.read(hmCollectionProvider.notifier).fetch(page: p)),
+        ),
+      ),
+    );
+  }
+
+  // ── Tabs: dropdown for All/Requested/etc (like Loan Records Pipeline) + Payments pill beside it ──
+  Widget _buildTabPills() {
+    final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
+    final isDropdownActive = dropdownKeys.contains(_activeTab);
+    final dropdownValue = isDropdownActive ? _activeTab : null;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDropdownActive ? AppColors.deepNavy : Colors.white,
+              borderRadius: BorderRadius.zero,
+              border: Border.all(
+                color: isDropdownActive ? AppColors.deepNavy : AppColors.border,
+                width: isDropdownActive ? 1.2 : 1,
+              ),
+              boxShadow: isDropdownActive
+                  ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))]
+                  : null,
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: dropdownValue,
+                isDense: true,
+                iconSize: 18,
+                hint: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.filter_list_rounded,
+                        size: 12, color: isDropdownActive ? AppColors.gold : AppColors.textTertiary),
+                    const SizedBox(width: 4),
+                    Text('Collections',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isDropdownActive ? Colors.white : AppColors.textSecondary)),
+                  ],
+                ),
+                icon: Icon(Icons.arrow_drop_down_rounded, size: 16,
+                    color: isDropdownActive ? Colors.white : AppColors.textTertiary),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isDropdownActive ? Colors.white : AppColors.textSecondary,
+                ),
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                items: _dropdownTabs
+                    .map((t) => DropdownMenuItem<String>(
+                          value: t.key,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(t.icon, size: 12, color: AppColors.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(t.label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  _onTabTap(v);
+                },
+                selectedItemBuilder: (ctx) => _dropdownTabs
+                    .map((t) => Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(t.icon, size: 12, color: AppColors.gold),
+                            const SizedBox(width: 4),
+                            Text(t.label,
+                                style: const TextStyle(
+                                    fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                          ],
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ..._pillTabs.map((t) {
+            final isActive = t.key == _activeTab;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _PillTab(def: t, active: isActive, onTap: () => _onTabTap(t.key)),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildFilterBar(HmCollectionState state) {
+  Widget _buildPaymentMethodFilter(_PaymentsState state) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _paymentMethodTabs.map((t) {
+          final isActive = t.key == state.methodFilter;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: InkWell(
+              onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod(t.key),
+              borderRadius: BorderRadius.zero,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isActive ? AppColors.deepNavy : Colors.white,
+                  borderRadius: BorderRadius.zero,
+                  border: Border.all(color: isActive ? AppColors.deepNavy : AppColors.border, width: isActive ? 1.2 : 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(t.icon, size: 12, color: isActive ? AppColors.gold : AppColors.textTertiary),
+                    const SizedBox(width: 4),
+                    Text(t.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isActive ? Colors.white : AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ── Toolbar: single outer box with Search (hint "Search"), refresh, results badge ──
+  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState, bool isPayments) {
+    final hasSearch = _searchCtrl.text.isNotEmpty;
+    final resultsCount = isPayments
+        ? _filteredPayments(pState.payments).length
+        : _filteredCollections(cState.items).length;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2))],
+      ),
       child: Row(
         children: [
+          Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
+          const SizedBox(width: 10),
           Expanded(
             child: TextField(
-              controller: _search,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search by loan # or lender…',
-                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-                prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textTertiary),
-                filled: true,
-                fillColor: AppColors.surfaceVariant,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() {}),
+              style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Search',
+                hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              _StatusPill(label: 'All', value: 'all', selected: state.statusFilter == 'all', onTap: (v) => ref.read(hmCollectionProvider.notifier).setStatus(v)),
+          if (hasSearch)
+            InkWell(
+              onTap: () {
+                _searchCtrl.clear();
+                setState(() {});
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle),
+                child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary),
+              ),
+            ),
+          if (hasSearch) const SizedBox(width: 10),
+          _ToolbarIcon(
+            icon: Icons.refresh_rounded,
+            tooltip: 'Refresh',
+            onTap: () => isPayments
+                ? ref.read(_hmPaymentsInCollectionProvider.notifier).fetch()
+                : ref.read(hmCollectionProvider.notifier).fetch(),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.layers_outlined, size: 14, color: Colors.white),
+                const SizedBox(width: 6),
+                Text('$resultsCount results', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<dynamic> _filteredCollections(List<dynamic> items) {
+    final q = _searchCtrl.text.toLowerCase().trim();
+    if (q.isEmpty) return items;
+    return items.where((c) => c.loanNumber.toString().toLowerCase().contains(q) || c.lenderName.toString().toLowerCase().contains(q) || c.riderName.toString().toLowerCase().contains(q)).toList();
+  }
+
+  List<Map<String, dynamic>> _filteredPayments(List<Map<String, dynamic>> payments) {
+    final q = _searchCtrl.text.toLowerCase().trim();
+    if (q.isEmpty) return payments;
+    return payments.where((p) {
+      final lender = p['lender'] as Map<String, dynamic>? ?? {};
+      final loan = p['loan'] as Map<String, dynamic>? ?? {};
+      final lenderName = '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.toLowerCase();
+      final loanNum = (loan['loan_number'] ?? '').toString().toLowerCase();
+      final method = (p['payment_method'] ?? '').toString().toLowerCase();
+      return lenderName.contains(q) || loanNum.contains(q) || method.contains(q);
+    }).toList();
+  }
+
+  // ── Collections content ──
+  Widget _buildCollectionsContent(HmCollectionState state) {
+    final items = _filteredCollections(state.items);
+    if (items.isEmpty) {
+      final isFiltered = _searchCtrl.text.isNotEmpty || state.statusFilter != 'all';
+      if (isFiltered) {
+        return Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 16),
+            Container(width: 72, height: 72, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary)),
+            const SizedBox(height: 14),
+            const Text('No matches', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            const Text('Try a different search or status filter', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(hmCollectionProvider.notifier).setStatus('all'); setState(() {}); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+          ]),
+        );
+      }
+      return _buildEmpty();
+    }
+    return _Entrance(
+      child: Column(
+        children: [
+          // Premium header + cards wrapped in white card
+          Container(
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(bottom: BorderSide(color: AppColors.border))),
+                  child: const Row(
+                    children: [
+                      Expanded(flex: 3, child: _HLabel('Lender & Loan', Icons.person_outline)),
+                      Expanded(flex: 2, child: _HLabel('Amount', Icons.payments_outlined)),
+                      Expanded(flex: 2, child: _HLabel('Rider', Icons.delivery_dining_outlined)),
+                      Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
+                      SizedBox(width: 96, child: _HLabel('Action', Icons.bolt_outlined)),
+                    ],
+                  ),
+                ),
+                ...items.asMap().entries.map((e) => _buildCollectionRow(e.value, e.key.isEven)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollectionRow(dynamic col, bool isEven) {
+    final fmt = NumberFormat('#,##0.00', 'en_PH');
+    final schedule = col.loanSchedule as Map<String, dynamic>? ?? {};
+    final isOffice = col.collectionType == 'office';
+    final amount = col.amountCollected ?? (schedule['amount_due'] as num?)?.toDouble() ?? 0.0;
+    final status = (col.status?.toString() ?? '').toLowerCase();
+    final accent = _accentForStatus(status);
+    final canAssign = col.status == 'requested' && !isOffice;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Row(children: [
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: AppColors.deepNavy.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)), child: Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.deepNavy))),
+                if (isOffice) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: const Color(0xFF00838F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)), child: const Text('OFFICE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF00838F))))],
+              ]),
+              const SizedBox(height: 2),
+              Row(mainAxisSize: MainAxisSize.min, children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 12, color: AppColors.textTertiary), const SizedBox(width: 4), Flexible(child: Text(isOffice ? 'Office visit' : (col.riderName.isNotEmpty ? col.riderName : 'Unassigned'), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
+            ]),
+          ),
+          Expanded(flex: 2, child: Text('₱${fmt.format(amount)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary))),
+          Expanded(flex: 2, child: Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : '—'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))])),
+          Expanded(
+            flex: 2,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 7, height: 7, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
               const SizedBox(width: 6),
-              _StatusPill(label: 'Requested', value: 'requested', selected: state.statusFilter == 'requested', onTap: (v) => ref.read(hmCollectionProvider.notifier).setStatus(v)),
-              const SizedBox(width: 6),
-              _StatusPill(label: 'Assigned', value: 'assigned', selected: state.statusFilter == 'assigned', onTap: (v) => ref.read(hmCollectionProvider.notifier).setStatus(v)),
-              const SizedBox(width: 6),
-              _StatusPill(label: 'In Progress', value: 'in_progress', selected: state.statusFilter == 'in_progress', onTap: (v) => ref.read(hmCollectionProvider.notifier).setStatus(v)),
-              const SizedBox(width: 6),
-              _StatusPill(label: 'Completed', value: 'completed', selected: state.statusFilter == 'completed', onTap: (v) => ref.read(hmCollectionProvider.notifier).setStatus(v)),
+              Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent), overflow: TextOverflow.ellipsis)),
+            ]),
+          ),
+          SizedBox(
+            width: 96,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (canAssign)
+                InkWell(
+                  onTap: () async {
+                    final loanScheduleId = col.loanScheduleId as String? ?? '';
+                    final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
+                    final result = await showDialog<bool>(context: context, builder: (_) => AssignRiderCollectionModal(loanScheduleId: loanScheduleId, loanId: loanId, assignmentId: col.id as String? ?? ''));
+                    if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
+                  },
+                  borderRadius: BorderRadius.circular(9),
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white)),
+                ),
+              if (canAssign) const SizedBox(width: 6),
+              InkWell(
+                onTap: () => context.go(RouteConstants.hmCollectionDetails.replaceFirst(':id', col.id)),
+                child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+              ),
             ]),
           ),
         ],
@@ -99,113 +540,115 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     );
   }
 
-  Widget _buildList(BuildContext context, HmCollectionState state) {
-    final q = _search.text.toLowerCase().trim();
+  // ── Payments table (premium container like loan records) ──
+  Widget _buildPaymentsTable(List<Map<String, dynamic>> payments) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
-    final items = q.isEmpty ? state.items : state.items.where((c) => c.loanNumber.toString().toLowerCase().contains(q) || c.lenderName.toString().toLowerCase().contains(q) || c.riderName.toString().toLowerCase().contains(q)).toList();
-    if (items.isEmpty) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.search_off_rounded, size: 36, color: AppColors.textTertiary)),
-        const SizedBox(height: 14),
-        const Text('No matches', style: TextStyle(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        const Text('Try a different search or status filter', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-      ]));
+    final dateFmt = DateFormat('MMM dd, yyyy');
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(bottom: BorderSide(color: AppColors.border))),
+            child: const Row(
+              children: [
+                Expanded(flex: 3, child: _HLabel('Lender & Loan', Icons.person_outline)),
+                Expanded(flex: 2, child: _HLabel('Amount', Icons.payments_outlined)),
+                Expanded(flex: 2, child: _HLabel('Method', Icons.account_balance_wallet_outlined)),
+                Expanded(flex: 2, child: _HLabel('Date', Icons.event_outlined)),
+                Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
+                SizedBox(width: 96, child: _HLabel('Action', Icons.bolt_outlined)),
+              ],
+            ),
+          ),
+          ...payments.asMap().entries.map((e) {
+            final p = e.value;
+            final isEven = e.key.isEven;
+            final lender = p['lender'] as Map<String, dynamic>? ?? {};
+            final loan = p['loan'] as Map<String, dynamic>? ?? {};
+            final status = (p['status'] as String? ?? '-').toLowerCase();
+            final method = (p['payment_method'] as String? ?? '-').toLowerCase();
+            final amt = (p['amount'] as num?)?.toDouble() ?? 0;
+            final statusColor = status == 'verified' ? AppColors.success : status == 'pending' ? AppColors.warning : AppColors.error;
+            final dateStr = () {
+              final d = p['created_at'];
+              if (d == null) return '-';
+              try { return dateFmt.format(DateTime.parse(d.toString())); } catch (_) { return d.toString(); }
+            }();
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim().isEmpty ? '—' : '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: AppColors.deepNavy.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)), child: Text(loan['loan_number'] as String? ?? '—', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.deepNavy))),
+                    ]),
+                  ),
+                  Expanded(flex: 2, child: Text('₱${fmt.format(amt)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
+                  Expanded(flex: 2, child: _PaymentMethodInline(method: method)),
+                  Expanded(flex: 2, child: Text(dateStr, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))),
+                  Expanded(
+                    flex: 2,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(width: 7, height: 7, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor), overflow: TextOverflow.ellipsis)),
+                    ]),
+                  ),
+                  SizedBox(
+                    width: 96,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: status == 'verified'
+                          ? InkWell(
+                              onTap: () => _confirmReverse(p['id'] as String? ?? ''),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.error.withValues(alpha: 0.5))), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.undo_rounded, size: 14, color: AppColors.error), SizedBox(width: 4), Text('Reverse', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.error))])),
+                            )
+                          : InkWell(
+                              onTap: () {
+                                final id = p['id'] as String? ?? '';
+                                if (id.isNotEmpty) context.go(RouteConstants.hmPaymentDetails.replaceFirst(':id', id));
+                              },
+                              child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmReverse(String paymentId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reverse Payment'),
+        content: const Text('Are you sure you want to reverse this payment? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.error), child: const Text('Reverse')),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      final ok = await ref.read(_hmPaymentsInCollectionProvider.notifier).reversePayment(paymentId);
+      if (mounted) context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'Payment reversed' : 'Failed to reverse payment'), backgroundColor: ok ? AppColors.success : AppColors.error));
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (ctx, i) => _CollectionCard(key: ValueKey(items[i].id), collection: items[i], fmt: fmt, onTap: () => context.go(RouteConstants.hmCollectionDetails.replaceFirst(':id', items[i].id))),
-    );
-  }
-
-  Widget _buildError(BuildContext context, WidgetRef ref, String message) {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 64, height: 64, decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.cloud_off_rounded, size: 32, color: AppColors.error)),
-          const SizedBox(height: 14),
-          const Text('Failed to load collections', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(onPressed: () => ref.read(hmCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildEmpty() {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 80, height: 80, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.riderGreen.withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18)), child: const Icon(Icons.delivery_dining_rounded, size: 40, color: AppColors.riderGreen)),
-          const SizedBox(height: 16),
-          const Text('No collections found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          const Text('Rider collection assignments will appear here once requested.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-        ]),
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool selected;
-  final ValueChanged<String> onTap;
-  const _StatusPill({required this.label, required this.value, required this.selected, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => onTap(value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(color: selected ? AppColors.deepNavy : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(20), border: Border.all(color: selected ? AppColors.deepNavy : AppColors.border)),
-        child: Text(label, style: TextStyle(fontSize: 12, fontWeight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? Colors.white : AppColors.textSecondary)),
-      ),
-    );
-  }
-}
-
-class _CollectionCard extends ConsumerStatefulWidget {
-  final dynamic collection;
-  final NumberFormat fmt;
-  final VoidCallback onTap;
-  const _CollectionCard({super.key, required this.collection, required this.fmt, required this.onTap});
-
-  @override
-  ConsumerState<_CollectionCard> createState() => _CollectionCardState();
-}
-
-class _CollectionCardState extends ConsumerState<_CollectionCard> {
-  bool _hover = false;
-
-  bool get _canAssign {
-    final col = widget.collection;
-    final isOffice = col.collectionType == 'office';
-    return col.status == 'requested' && !isOffice;
-  }
-
-  Future<void> _assignRider() async {
-    final col = widget.collection;
-    final loanScheduleId = col.loanScheduleId as String? ?? '';
-    final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
-    final result = await showDialog<bool>(context: context, builder: (_) => AssignRiderCollectionModal(loanScheduleId: loanScheduleId, loanId: loanId, assignmentId: col.id as String? ?? ''));
-    if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
   }
 
   Color _accentForStatus(String s) {
-    switch (s.toLowerCase()) {
+    switch (s) {
       case 'requested':
         return AppColors.warning;
       case 'assigned':
@@ -224,100 +667,287 @@ class _CollectionCardState extends ConsumerState<_CollectionCard> {
     }
   }
 
+  Widget _buildLoadingShimmer() {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: List.generate(6, (i) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(children: [
+            Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(10))),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(6))),
+              const SizedBox(height: 8),
+              Container(height: 10, width: 160, decoration: BoxDecoration(color: AppColors.shimmerHighlight.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(6))),
+            ])),
+            const SizedBox(width: 16),
+            Container(width: 86, height: 28, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(20))),
+          ]),
+        )),
+      ),
+    );
+  }
+
+  Widget _buildError(String message) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 64, height: 64, decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.cloud_off_rounded, size: 32, color: AppColors.error)),
+          const SizedBox(height: 14),
+          const Text('Failed to load collections', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(onPressed: () => ref.read(hmCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildPaymentError(String message) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 64, height: 64, decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.cloud_off_rounded, size: 32, color: AppColors.error)),
+          const SizedBox(height: 14),
+          const Text('Failed to load payments', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(onPressed: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
+      child: Column(children: [
+        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.riderGreen.withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: const Icon(Icons.delivery_dining_rounded, size: 40, color: AppColors.riderGreen)),
+        const SizedBox(height: 16),
+        const Text('No collections found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        const Text('Rider collection assignments will appear here once requested.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
+      ]),
+    );
+  }
+
+  Widget _buildPaymentEmpty(_PaymentsState state) {
+    final isFiltered = _searchCtrl.text.isNotEmpty || state.methodFilter != 'all';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
+      child: Column(children: [
+        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.deepNavy.withValues(alpha: 0.10), AppColors.gold.withValues(alpha: 0.16)]), shape: BoxShape.circle, border: Border.all(color: AppColors.border)), child: Icon(isFiltered ? Icons.search_off_rounded : Icons.payments_outlined, size: 32, color: AppColors.deepNavy.withValues(alpha: 0.75))),
+        const SizedBox(height: 16),
+        Text(isFiltered ? 'No matching payments' : 'No payments found', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+        const SizedBox(height: 6),
+        Text(isFiltered ? 'Try a different search or method filter.' : 'Verified payments will appear here.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
+        if (isFiltered) ...[
+          const SizedBox(height: 18),
+          OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod('all'); setState(() {}); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildCollectionPagination(HmCollectionState state) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Row(children: [
+        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        const Spacer(),
+        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(hmCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
+        const SizedBox(width: 8),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(20)), child: Text('${state.currentPage} / ${state.totalPages}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
+        const SizedBox(width: 8),
+        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(hmCollectionProvider.notifier).fetch(page: state.currentPage + 1)),
+      ]),
+    );
+  }
+
+  Widget _buildPaymentPagination(_PaymentsState state) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Row(children: [
+        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        const Spacer(),
+        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
+        const SizedBox(width: 8),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(20)), child: Text('${state.currentPage} / ${state.totalPages}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
+        const SizedBox(width: 8),
+        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage + 1)),
+      ]),
+    );
+  }
+}
+
+// ── Supporting widgets (mirrors loan records style) ──
+class _TabDef {
+  final String key;
+  final String label;
+  final IconData icon;
+  const _TabDef(this.key, this.label, this.icon);
+}
+
+class _PillTab extends StatelessWidget {
+  final _TabDef def;
+  final bool active;
+  final VoidCallback onTap;
+  const _PillTab({required this.def, required this.active, required this.onTap});
+
   @override
   Widget build(BuildContext context) {
-    final col = widget.collection;
-    final schedule = col.loanSchedule as Map<String, dynamic>? ?? {};
-    final isOffice = col.collectionType == 'office';
-    final amount = col.amountCollected ?? (schedule['amount_due'] as num?)?.toDouble() ?? 0.0;
-    final status = (col.status?.toString() ?? '').toLowerCase();
-    final accent = _accentForStatus(status);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.zero,
       child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _hover ? accent.withValues(alpha: 0.3) : AppColors.border),
-            boxShadow: _hover ? [BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6))] : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(width: 4, height: 56, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
-                    if (isOffice)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(color: const Color(0xFF00838F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('OFFICE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF00838F), letterSpacing: 0.6)),
-                      ),
-                  ]),
-                  const SizedBox(height: 2),
-                  Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                      Wrap(spacing: 10, runSpacing: 4, children: [
-                    Row(mainAxisSize: MainAxisSize.min, children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 13, color: AppColors.textTertiary), const SizedBox(width: 4), Flexible(child: Text(isOffice ? 'Office visit payment' : col.riderName.isNotEmpty ? col.riderName : 'Unassigned', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
-                    if (col.collectionSchedule != null)
-                      Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.event_rounded, size: 12, color: AppColors.textTertiary), const SizedBox(width: 4), Text(DateFormat('MMM d, y').format(col.collectionSchedule!), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))]),
-                  ]),
-                ]),
-              ),
-              const SizedBox(width: 12),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('₱${widget.fmt.format(amount)}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
-    
-              ]),
-              const SizedBox(width: 10),
-              if (_canAssign)
-                InkWell(
-                  onTap: () => _assignRider(),
-                  borderRadius: BorderRadius.circular(9),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.riderGreen, AppColors.riderGreenDark]), borderRadius: BorderRadius.circular(9), boxShadow: [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))]),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white), SizedBox(width: 6), Text('Assign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))]),
-                  ),
-                ),
-              if (_canAssign) const SizedBox(width: 8),
-              Text(
-                status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '),
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
-              ),
-              const SizedBox(width: 10),
-              Tooltip(
-                message: 'View',
-                child: InkWell(
-                  onTap: widget.onTap,
-                  
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
-                        SizedBox(width: 4),
-                        Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.deepNavy : Colors.white,
+          borderRadius: BorderRadius.zero,
+          border: Border.all(color: active ? AppColors.deepNavy : AppColors.border, width: active ? 1.2 : 1),
+          boxShadow: active ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))] : null,
         ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(def.icon, size: 12, color: active ? AppColors.gold : AppColors.textTertiary),
+          const SizedBox(width: 4),
+          Text(def.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: active ? Colors.white : AppColors.textSecondary)),
+        ]),
+      ),
     );
+  }
+}
+
+class _HLabel extends StatelessWidget {
+  final String text;
+  final IconData icon;
+  const _HLabel(this.text, this.icon);
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 12, color: AppColors.textTertiary),
+      const SizedBox(width: 6),
+      Flexible(child: Text(text.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5), overflow: TextOverflow.ellipsis)),
+    ]);
+  }
+}
+
+class _PaymentMethodInline extends StatelessWidget {
+  final String method;
+  const _PaymentMethodInline({required this.method});
+  @override
+  Widget build(BuildContext context) {
+    Color c;
+    String label;
+    IconData icon;
+    switch (method) {
+      case 'gcash':
+      case 'gcash_xendit':
+        c = AppColors.lenderBlue;
+        label = 'GCash';
+        icon = Icons.phone_android_rounded;
+        break;
+      case 'office_cash':
+      case 'cash':
+        c = AppColors.success;
+        label = 'Office';
+        icon = Icons.storefront_rounded;
+        break;
+      case 'rider_collection':
+        c = AppColors.riderGreen;
+        label = 'Rider';
+        icon = Icons.delivery_dining_rounded;
+        break;
+      default:
+        c = AppColors.textSecondary;
+        label = method.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+        icon = Icons.payments_outlined;
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 14, color: c),
+      const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c)),
+    ]);
+  }
+}
+
+class _ToolbarIcon extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _ToolbarIcon({required this.icon, required this.tooltip, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 16, color: AppColors.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _PageBtn extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _PageBtn({required this.icon, required this.enabled, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(width: 36, height: 36, decoration: BoxDecoration(color: enabled ? Colors.white : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8), border: Border.all(color: enabled ? AppColors.border : AppColors.divider)), child: Icon(icon, size: 18, color: enabled ? AppColors.textPrimary : AppColors.textTertiary)),
+    );
+  }
+}
+
+class _Entrance extends StatefulWidget {
+  final Widget child;
+  const _Entrance({required this.child});
+  @override
+  State<_Entrance> createState() => _EntranceState();
+}
+
+class _EntranceState extends State<_Entrance> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _offset = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(opacity: _opacity, child: SlideTransition(position: _offset, child: widget.child));
   }
 }

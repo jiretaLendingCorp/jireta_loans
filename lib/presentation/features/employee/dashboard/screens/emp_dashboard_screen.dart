@@ -107,7 +107,7 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
       ),
       _QuickAction(
         Icons.person_add_outlined,
-        'Register Lender',
+        'Create Lender',
         AppColors.lenderBlue,
         () => context.go(RouteConstants.empLenders),
       ),

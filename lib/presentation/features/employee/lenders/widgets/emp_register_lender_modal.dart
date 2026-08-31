@@ -66,7 +66,7 @@ class _EmpRegisterLenderModalState
         Navigator.pop(context);
         context.showSnackBarAsToast(
           const SnackBar(
-            content: Text('Lender registered successfully'),
+            content: Text('Lender created successfully'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -304,7 +304,7 @@ class _EmpRegisterLenderModalState
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
-              'Register New Lender',
+              'Create New Lender',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -385,7 +385,7 @@ class _EmpRegisterLenderModalState
                       color: Colors.white,
                     ),
                   )
-                : const Text('Register Lender'),
+                : const Text('Create Lender'),
           ),
         ],
       ),

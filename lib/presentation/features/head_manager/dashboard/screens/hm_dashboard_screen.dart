@@ -53,6 +53,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Single portfolio donut — full width, clean spacing
                     _Entrance(child: HmAnalyticsPanel(kpi: dashState.kpi)),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
@@ -78,14 +79,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     ),
                     const SizedBox(height: 14),
                     _buildLoanStatsGrid(dashState.kpi),
-                    const SizedBox(height: 28),
-                    _buildSectionTitle(
-                      Icons.assessment_rounded,
-                      'Operational Metrics',
-                      'Internal operations summary',
-                    ),
-                    const SizedBox(height: 14),
-                    _buildOperationalGrid(dashState.kpi),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -100,13 +93,15 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
+          const ShimmerLoader(height: 320),
+          const SizedBox(height: 16),
           Row(
             children: List.generate(
-              2,
+              4,
               (i) => Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(left: i > 0 ? 16 : 0),
-                  child: const ShimmerLoader(height: 260),
+                  child: const ShimmerLoader(height: 120),
                 ),
               ),
             ),
@@ -209,47 +204,28 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
   }
 
   Widget _buildLoanStatsGrid(KpiHeadManagerModel kpi) {
-    return Column(
-      children: [
-        _buildGridRow([
-          _KpiCard(label: 'Total Applications', value: kpi.totalLoanApplications.toDouble(), icon: Icons.description_rounded, color: AppColors.info, isCurrency: false),
-          _KpiCard(label: 'Approved Loans', value: kpi.totalApprovedLoans.toDouble(), icon: Icons.check_circle_rounded, color: AppColors.riderGreen, isCurrency: false),
-          _KpiCard(label: 'Active Loans', value: kpi.totalActiveLoans.toDouble(), icon: Icons.account_balance_wallet_rounded, color: AppColors.deepNavy, isCurrency: false),
-          _KpiCard(label: 'Completed Loans', value: kpi.totalCompletedLoans.toDouble(), icon: Icons.done_all_rounded, color: AppColors.info, isCurrency: false),
-        ]),
-        const SizedBox(height: 12),
-        _buildGridRow([
-          _KpiCard(label: 'Rejected Loans', value: kpi.totalRejectedLoans.toDouble(), icon: Icons.cancel_rounded, color: AppColors.error, isCurrency: false),
-          _KpiCard(label: 'Overdue Loans', value: kpi.totalOverdueLoans.toDouble(), icon: Icons.warning_rounded, color: AppColors.statusOverdue, isCurrency: false),
-          _KpiCard(label: 'CI Assignments', value: kpi.totalCiAssignments.toDouble(), icon: Icons.search_rounded, color: AppColors.lenderBlue, isCurrency: false),
-          _KpiCard(label: 'Collections', value: kpi.totalCollectionTransactions.toDouble(), icon: Icons.delivery_dining_rounded, color: AppColors.riderGreen, isCurrency: false),
-        ]),
-      ],
-    );
+    // Single Wrap so 8 cards flow as 4+4 on desktop, 3+3+2 on tablet, no isolated card
+    return _buildGridRow([
+      _KpiCard(label: 'Total Applications', value: kpi.totalLoanApplications.toDouble(), icon: Icons.description_rounded, color: AppColors.info, isCurrency: false),
+      _KpiCard(label: 'Approved Loans', value: kpi.totalApprovedLoans.toDouble(), icon: Icons.check_circle_rounded, color: AppColors.riderGreen, isCurrency: false),
+      _KpiCard(label: 'Active Loans', value: kpi.totalActiveLoans.toDouble(), icon: Icons.account_balance_wallet_rounded, color: AppColors.deepNavy, isCurrency: false),
+      _KpiCard(label: 'Completed Loans', value: kpi.totalCompletedLoans.toDouble(), icon: Icons.done_all_rounded, color: AppColors.info, isCurrency: false),
+      _KpiCard(label: 'Rejected Loans', value: kpi.totalRejectedLoans.toDouble(), icon: Icons.cancel_rounded, color: AppColors.error, isCurrency: false),
+      _KpiCard(label: 'Overdue Loans', value: kpi.totalOverdueLoans.toDouble(), icon: Icons.warning_rounded, color: AppColors.statusOverdue, isCurrency: false),
+      _KpiCard(label: 'CI Assignments', value: kpi.totalCiAssignments.toDouble(), icon: Icons.search_rounded, color: AppColors.lenderBlue, isCurrency: false),
+      _KpiCard(label: 'Collections', value: kpi.totalCollectionTransactions.toDouble(), icon: Icons.delivery_dining_rounded, color: AppColors.riderGreen, isCurrency: false),
+    ]);
   }
 
   Widget _buildFinancialGrid(KpiHeadManagerModel kpi) {
-    return Column(
-      children: [
-        _buildGridRow([
-          _KpiCard(label: 'Amount Released', value: kpi.totalLoanAmountReleased, icon: Icons.payments_rounded, color: AppColors.deepNavy, isCurrency: true),
-          _KpiCard(label: 'Amount Collected', value: kpi.totalAmountCollected, icon: Icons.savings_rounded, color: AppColors.riderGreen, isCurrency: true),
-          _KpiCard(label: 'Outstanding Balance', value: kpi.totalOutstandingBalance, icon: Icons.account_balance_rounded, color: AppColors.warning, isCurrency: true),
-          _KpiCard(label: 'Interest Earned', value: kpi.totalInterestEarned, icon: Icons.trending_up_rounded, color: AppColors.goldDark, isCurrency: true),
-        ]),
-        const SizedBox(height: 12),
-        _buildGridRow([
-          _KpiCard(label: 'Penalties Collected', value: kpi.totalPenaltiesCollected, icon: Icons.gavel_rounded, color: AppColors.error, isCurrency: true),
-          _KpiCard(label: 'Total Revenue', value: kpi.totalRevenue, icon: LucideIcons.philippinePeso, color: AppColors.riderGreen, isCurrency: true),
-        ]),
-      ],
-    );
-  }
-
-  Widget _buildOperationalGrid(KpiHeadManagerModel kpi) {
+    // Single Wrap for 6 cards so no 4+2 split leaves isolated cards
     return _buildGridRow([
-      _KpiCard(label: 'Report Exports', value: kpi.totalReportExports.toDouble(), icon: Icons.assessment_rounded, color: AppColors.info, isCurrency: false),
-      _KpiCard(label: 'CI Assignments', value: kpi.totalCiAssignments.toDouble(), icon: Icons.fact_check_rounded, color: AppColors.deepNavy, isCurrency: false),
+      _KpiCard(label: 'Amount Released', value: kpi.totalLoanAmountReleased, icon: Icons.payments_rounded, color: AppColors.deepNavy, isCurrency: true),
+      _KpiCard(label: 'Amount Collected', value: kpi.totalAmountCollected, icon: Icons.savings_rounded, color: AppColors.riderGreen, isCurrency: true),
+      _KpiCard(label: 'Outstanding Balance', value: kpi.totalOutstandingBalance, icon: Icons.account_balance_rounded, color: AppColors.warning, isCurrency: true),
+      _KpiCard(label: 'Interest Earned', value: kpi.totalInterestEarned, icon: Icons.trending_up_rounded, color: AppColors.goldDark, isCurrency: true),
+      _KpiCard(label: 'Penalties Collected', value: kpi.totalPenaltiesCollected, icon: Icons.gavel_rounded, color: AppColors.error, isCurrency: true),
+      _KpiCard(label: 'Total Revenue', value: kpi.totalRevenue, icon: LucideIcons.philippinePeso, color: AppColors.riderGreen, isCurrency: true),
     ]);
   }
 
