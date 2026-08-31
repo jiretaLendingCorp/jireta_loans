@@ -658,44 +658,6 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
     }
   }
 
-  Widget _buildApprovalSection(BuildContext context, Map<String, dynamic> ci) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-        boxShadow: [BoxShadow(color: AppColors.warning.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.08), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
-            child: Row(children: [
-              Container(width: 36, height: 36, decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.warning, Color(0xFFE65100)]), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.rate_review_rounded, color: Colors.white, size: 18)),
-              const SizedBox(width: 10),
-              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('CI Report — Awaiting Your Approval', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                Text('Review the investigation report and evidence, then approve or reject. Lender can choose disbursement method only after approval.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              ])),
-            ]),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Consumer(builder: (cntx, ref, _) {
-              return Row(children: [
-                Expanded(child: _ApprovalButton(label: 'Reject', icon: Icons.close_rounded, color: AppColors.error, onTap: () => _showRejectDialog(cntx, ref, ci))),
-                const SizedBox(width: 12),
-                Expanded(child: _ApprovalButton(label: 'Approve', icon: Icons.check_rounded, color: AppColors.success, onTap: () => _showApproveDialog(cntx, ref, ci))),
-              ]);
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildReviewInfoCard(Map<String, dynamic> ci) {
     final status = (ci['status'] as String? ?? '').toLowerCase();
     final isApproved = status == 'approved';

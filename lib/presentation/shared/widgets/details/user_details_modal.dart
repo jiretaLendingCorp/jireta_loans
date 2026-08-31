@@ -66,7 +66,7 @@ class _UserDetailsModalContent extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(roleLabel + ' Details',
+                        Text('$roleLabel Details',
                             style: const TextStyle(
                                 fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                         const Text('Detailed profile information',
@@ -164,7 +164,7 @@ class _UserDetailsModalContent extends StatelessWidget {
             icon: Icons.account_circle_outlined,
             accentColor: accent,
             items: [
-              _Kv('Role', 'Employee'),
+              const _Kv('Role', 'Employee'),
               _Kv('Email', u.email ?? '—'),
               _Kv('Phone', u.phoneNumber ?? '—'),
               _Kv('Position', u.position ?? '—'),
@@ -194,7 +194,7 @@ class _UserDetailsModalContent extends StatelessWidget {
             icon: Icons.account_circle_outlined,
             accentColor: accent,
             items: [
-              _Kv('Role', 'Rider'),
+              const _Kv('Role', 'Rider'),
               _Kv('Phone', u.phoneNumber ?? '—'),
               _Kv('Account Status', u.accountStatus),
               _Kv('Member Since', u.createdAt.toString().substring(0, 10)),

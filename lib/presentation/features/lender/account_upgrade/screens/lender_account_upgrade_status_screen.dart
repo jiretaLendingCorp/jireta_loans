@@ -62,13 +62,13 @@ class _LenderAccountUpgradeStatusScreenState
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go(RouteConstants.lenderDashboard);
       });
-      return MobileScaffold(
+      return const MobileScaffold(
         title: 'Account Upgrade Status',
         accentColor: AppColors.lenderBlue,
         navItems: _lenderNavItems,
         showBackButton: true,
         centerTitle: true,
-        body: const ShimmerLoader(),
+        body: ShimmerLoader(),
       );
     }
 
@@ -301,7 +301,7 @@ class _TimelineTile extends StatelessWidget {
 
 class _DocumentTile extends StatelessWidget {
   final dynamic doc;
-  const _DocumentTile({super.key, required this.doc});
+  const _DocumentTile({required this.doc});
 
   @override
   Widget build(BuildContext context) {

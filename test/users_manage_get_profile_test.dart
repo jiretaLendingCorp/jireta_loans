@@ -81,7 +81,7 @@ void main() {
       // Fixed code does: eq('lender_id', canonicalId) -> 222
       expect(staleTargetId, isNot(canonicalId));
       // The fix asserts we always use data.id after fallback
-      final usedId = canonicalId; // after fallback, data.id
+      const usedId = canonicalId; // after fallback, data.id
       expect(usedId, canonicalId);
       expect(usedId, isNot(staleTargetId));
     });
@@ -121,8 +121,9 @@ void main() {
       expect(dbError.contains("'users' and 'roles'"), isTrue);
       // This is the exact error from PostgREST when `select=roles(id,name)` is ambiguous
       // after 00115 added roles.archived_by -> users. The fix is roles!users_role_id_fkey.
-      const targetId = "f0877d80-6661-421a-af68-43b912ca2594";
       const authPhone = "639303030303";
+      const targetId = "f0877d80-6661-421a-af68-43b912ca2594";
+      expect(targetId, isNotEmpty);
       // Phone candidate generation for this log:
       final cands = phoneCandidates(authPhone);
       expect(cands, contains('09303030303'), reason: 'DB stores 09303030303, token is 639... -> candidate must include local 09');
@@ -135,7 +136,7 @@ void main() {
       const base = 'https://lcelzrvpqwlbeccrwpkp.supabase.co/functions/v1/';
       const path = 'users-manage?fn=get-profile';
       // Self profile: no extra queryParams
-      final url = '$base$path';
+      const url = '$base$path';
       final uri = Uri.parse(url);
       expect(uri.queryParameters['fn'], 'get-profile');
       // With user_id, Dio appends with & not ?

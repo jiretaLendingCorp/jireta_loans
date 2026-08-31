@@ -561,12 +561,12 @@ class _LenderAccountUpgradeSubmitScreenState
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go(RouteConstants.lenderDashboard);
       });
-      return MobileScaffold(
+      return const MobileScaffold(
         title: 'Account Upgrade Verification',
         accentColor: AppColors.lenderBlue,
         navItems: _navItems,
         showBackButton: true,
-        body: const ShimmerLoader(),
+        body: ShimmerLoader(),
       );
     }
 
