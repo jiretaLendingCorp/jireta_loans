@@ -33,8 +33,8 @@ serve(async (req) => {
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
   } catch (err) {
-    console.error('ci-view error:', err);
-    return errorResponse('Internal server error', 500, 'SERVER_ERROR');
+    console.error('ci-view error:', err, { url: req.url });
+    return errorResponse('Internal server error', 500, 'SERVER_ERROR', undefined, req);
   }
 });
 
@@ -57,18 +57,27 @@ async function handleCiGetList(req: Request) {
   let query = db.from('credit_investigations')
     .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at, reviewed_by, reviewed_at, review_notes, review_decision,
       loan_id,
-      loans(id, loan_number, lender_id, principal_amount, lender_profiles!loans_lender_id_fkey(id, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, gcash_number, source_of_funds, account_upgrade_status, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email, addresses:addresses(address_type, street, barangay, city, province, latitude, longitude)), emergency_contacts(id, name, relationship, phone_number, address))),
-      rider:rider_profiles(users!rider_profiles_id_fkey(id, first_name, last_name)),
-      assigner:users(id, first_name, last_name),
+      loans(id, loan_number, lender_id, principal_amount, lender_profiles!loans_lender_id_fkey(id, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, gcash_number, source_of_funds, account_upgrade_status, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email, addresses:addresses!addresses_user_id_fkey(address_type, street, barangay, city, province, latitude, longitude)), emergency_contacts!emergency_contacts_lender_id_fkey(id, name, relationship, phone_number, address))),
+      rider:rider_profiles!credit_investigations_rider_id_fkey(users!rider_profiles_id_fkey(id, first_name, last_name)),
+      assigner:users!credit_investigations_assigned_by_fkey(id, first_name, last_name),
       reviewer:users!credit_investigations_reviewed_by_fkey(id, first_name, last_name),
-      ci_documents:ci_documents(id, document_type, file_path, file_name, mime_type, notes, uploaded_at)`, { count: 'exact' });
+      ci_documents:ci_documents!ci_documents_ci_id_fkey(id, document_type, file_path, file_name, mime_type, notes, uploaded_at)`, { count: 'exact' });
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
   else if (riderId) query = query.eq('rider_id', riderId);
   if (ciId) query = query.eq('id', ciId);
   if (status) query = query.eq('status', status);
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   const { data, error, count } = await query;
-  if (error) return errorResponse('Failed to fetch CI list', 500, 'SERVER_ERROR');
+  if (error) {
+    console.error('[ci-view] PostgREST query error', {
+      message: (error as any)?.message,
+      details: (error as any)?.details,
+      hint: (error as any)?.hint,
+      code: (error as any)?.code,
+      status, riderId, ciId, page, limit,
+    });
+    return errorResponse(`Failed to fetch CI list: ${(error as any)?.message ?? 'unknown'}`, 500, 'SERVER_ERROR', undefined, req);
+  }
 
   const lenderIds = (data ?? [])
     .map((r) => embedAsObject(r.loans)?.lender_id)
@@ -123,5 +132,5 @@ async function handleCiGetList(req: Request) {
     }),
   );
 
-  return jsonResponse({ data: rows, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) });
+  return jsonResponse({ data: rows, total: count ?? 0, page, limit, totalPages: Math.ceil((count ?? 0) / limit) }, 200, req);
 }

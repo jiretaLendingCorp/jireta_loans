@@ -269,6 +269,7 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
           boxShadow: _hovered ? [BoxShadow(color: accent.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 6))] : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(width: 4, height: 48, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
             const SizedBox(width: 12),
@@ -294,27 +295,8 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
               ),
               const SizedBox(width: 10),
             ],
-            Tooltip(
-              message: 'View',
-              child: InkWell(
-                onTap: widget.onTap,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
-                      SizedBox(width: 4),
-                      Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            // All action buttons now use same size/borderRadius for consistency (pantay)
+            _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: widget.onTap, primary: false),
             if (MediaQuery.of(context).size.width >= 640 && status != 'verified') ...[
               const SizedBox(width: 8),
               if (status != 'verified')
@@ -350,13 +332,13 @@ class _ActionButtonState extends State<_ActionButton> {
       onExit: (_) => setState(() => _hover = false),
       child: InkWell(
         onTap: widget.onPressed,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.zero,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.primary ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1)) : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.zero,
             border: Border.all(color: widget.color.withValues(alpha: widget.primary ? 0.2 : 0.3)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

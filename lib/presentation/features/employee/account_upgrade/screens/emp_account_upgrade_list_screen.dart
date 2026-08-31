@@ -451,27 +451,7 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
               ),
               const SizedBox(width: 10),
             ],
-            Tooltip(
-              message: 'View',
-              child: InkWell(
-                onTap: widget.onTap,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
-                      SizedBox(width: 4),
-                      Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: widget.onTap, primary: false),
             if (MediaQuery.of(context).size.width >= 640 && status != 'verified') ...[
               const SizedBox(width: 8),
               if (status != 'verified')
@@ -508,7 +488,7 @@ class _ActionButtonState extends State<_ActionButton> {
       onExit: (_) => setState(() => _hover = false),
       child: InkWell(
         onTap: widget.onPressed,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.zero,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -516,7 +496,7 @@ class _ActionButtonState extends State<_ActionButton> {
             color: widget.primary
                 ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1))
                 : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.zero,
             border: Border.all(color: widget.color.withValues(alpha: widget.primary ? 0.2 : 0.3)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

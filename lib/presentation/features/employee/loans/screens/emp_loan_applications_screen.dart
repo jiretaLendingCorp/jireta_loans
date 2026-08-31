@@ -31,13 +31,15 @@ class _EmpLoanApplicationsScreenState
   String? _overrideTab;
   String _inOfficeSearch = '';
 
-  final _tabs = const [
+  final _dropdownTabs = const [
     _TabDef('all', 'All', Icons.layers_outlined),
     _TabDef('pending', 'Pending', Icons.hourglass_top_rounded),
     _TabDef('under_review', 'Under Review', Icons.rate_review_outlined),
     _TabDef('ci_required', 'CI Required', Icons.search_outlined),
     _TabDef('ci_assigned', 'CI Assigned', Icons.assignment_ind_outlined),
     _TabDef('ci_completed', 'CI Completed', Icons.verified_outlined),
+  ];
+  final _pillTabs = const [
     _TabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
     _TabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
   ];
@@ -87,31 +89,110 @@ class _EmpLoanApplicationsScreenState
     );
   }
 
-  // ───────────────────────── Pill Tabs (stay on /employee/loans) ─────────────────────────
+  // ───────────────────────── Pill Tabs + Dropdown ─────────────────────────
   Widget _buildTabPills(String active) {
+    final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
+    final isDropdownActive = dropdownKeys.contains(active);
+    final dropdownValue = isDropdownActive ? active : null;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: _tabs.map((t) {
-          final isActive = t.key == active;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _PillTab(
-              def: t,
-              active: isActive,
-              onTap: () {
-                if (t.key == 'in_office') {
-                  setState(() => _overrideTab = 'in_office');
-                  ref.read(empInOfficeProvider.notifier).loadList();
-                  return;
-                }
-                if (_overrideTab != null) setState(() => _overrideTab = null);
-                final statusKey = t.key == 'all' ? null : t.key;
-                ref.read(empLoanProvider.notifier).setStatus(statusKey);
-              },
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDropdownActive ? AppColors.deepNavy : Colors.white,
+              borderRadius: BorderRadius.zero,
+              border: Border.all(
+                color: isDropdownActive ? AppColors.deepNavy : AppColors.border,
+                width: isDropdownActive ? 1.2 : 1,
+              ),
+              boxShadow: isDropdownActive
+                  ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))]
+                  : null,
             ),
-          );
-        }).toList(),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: dropdownValue,
+                isDense: true,
+                iconSize: 18,
+                hint: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.filter_list_rounded,
+                        size: 12, color: isDropdownActive ? AppColors.gold : AppColors.textTertiary),
+                    const SizedBox(width: 4),
+                    Text('Pipeline',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700, color: isDropdownActive ? Colors.white : AppColors.textSecondary)),
+                  ],
+                ),
+                icon: Icon(Icons.arrow_drop_down_rounded, size: 16, color: isDropdownActive ? Colors.white : AppColors.textTertiary),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDropdownActive ? Colors.white : AppColors.textSecondary),
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                items: _dropdownTabs
+                    .map((t) => DropdownMenuItem<String>(
+                          value: t.key,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(t.icon, size: 12, color: AppColors.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(t.label,
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  if (_overrideTab != null) setState(() => _overrideTab = null);
+                  final statusKey = v == 'all' ? null : v;
+                  ref.read(empLoanProvider.notifier).setStatus(statusKey);
+                },
+                selectedItemBuilder: (ctx) => _dropdownTabs
+                    .map((t) => Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(t.icon, size: 12, color: AppColors.gold),
+                            const SizedBox(width: 4),
+                            Text(t.label,
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                          ],
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ..._pillTabs.map((t) {
+            final isActive = t.key == active;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _PillTab(
+                def: t,
+                active: isActive,
+                onTap: () {
+                  if (t.key == 'in_office') {
+                    setState(() => _overrideTab = 'in_office');
+                    ref.read(empInOfficeProvider.notifier).loadList();
+                    return;
+                  }
+                  if (_overrideTab != null) setState(() => _overrideTab = null);
+                  final statusKey = t.key == 'all' ? null : t.key;
+                  // For 'active' pill, statusKey is 'active' not null, handle specifically
+                  if (t.key == 'active') {
+                    ref.read(empLoanProvider.notifier).setStatus('active');
+                  } else {
+                    ref.read(empLoanProvider.notifier).setStatus(statusKey);
+                  }
+                },
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -977,13 +1058,13 @@ class _PillTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.zero,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: active ? AppColors.deepNavy : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.zero,
           border: Border.all(
               color: active ? AppColors.deepNavy : AppColors.border,
               width: active ? 1.2 : 1),
@@ -991,8 +1072,8 @@ class _PillTab extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: AppColors.deepNavy.withValues(alpha: 0.18),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ]
               : null,
@@ -1001,13 +1082,13 @@ class _PillTab extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(def.icon,
-                size: 14,
+                size: 12,
                 color: active ? AppColors.gold : AppColors.textTertiary),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Text(
               def.label,
               style: TextStyle(
-                fontSize: 12.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: active ? Colors.white : AppColors.textSecondary,
               ),

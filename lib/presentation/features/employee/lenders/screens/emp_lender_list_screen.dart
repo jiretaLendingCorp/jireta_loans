@@ -1,10 +1,9 @@
 // lib/presentation/features/employee/lenders/screens/emp_lender_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
@@ -143,9 +142,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
     final isActive = user.accountStatus == 'active';
     return InkWell(
       key: ValueKey(user.id),
-      onTap: () => context.go(
-        RouteConstants.empLenderDetails.replaceFirst(':id', user.id),
-      ),
+      onTap: () => showUserDetailsModal(context, user),
       child: Container(
         color: isEven
             ? Colors.white
@@ -159,7 +156,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
                 children: [
                   ProfileAvatar(
                     photoUrl: user.profilePhotoUrl,
-                    name: user.firstName,
+                    name: '${user.firstName} ${user.lastName}',
                     color: AppColors.lenderBlue,
                     radius: 18,
                   ),
@@ -231,12 +228,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
                   _ActionBtn(
                     icon: Icons.visibility_outlined,
                     tooltip: 'View Details',
-                    onTap: () => context.go(
-                      RouteConstants.empLenderDetails.replaceFirst(
-                        ':id',
-                        user.id,
-                      ),
-                    ),
+                    onTap: () => showUserDetailsModal(context, user),
                   ),
                  ],
                ),

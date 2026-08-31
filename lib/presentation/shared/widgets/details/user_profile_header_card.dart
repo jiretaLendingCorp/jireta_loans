@@ -54,7 +54,7 @@ class UserProfileHeaderCard extends StatelessWidget {
               name: name,
               color: accentColor,
               radius: 38,
-              textColor: accentColor,
+              textColor: Colors.white,
             ),
           ),
           const SizedBox(width: 20),

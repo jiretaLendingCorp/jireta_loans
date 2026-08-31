@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_archived_provider.dart';
 
 class HmArchivedScreen extends ConsumerStatefulWidget {
@@ -151,10 +152,23 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
         children: [
           Expanded(
             flex: 3,
-            child: Text(
-              '${user.firstName} ${user.lastName}',
-              style: const TextStyle(fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                ProfileAvatar(
+                  photoUrl: user.profilePhotoUrl,
+                  name: '${user.firstName} ${user.lastName}',
+                  color: _roleColor(user.role),
+                  radius: 18,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    '${user.firstName} ${user.lastName}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(

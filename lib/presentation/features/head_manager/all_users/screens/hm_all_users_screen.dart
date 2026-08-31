@@ -1,12 +1,12 @@
 // lib/presentation/features/head_manager/all_users/screens/hm_all_users_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_all_users_provider.dart';
 
 class HmAllUsersScreen extends ConsumerStatefulWidget {
@@ -141,10 +141,23 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
           children: [
             Expanded(
               flex: 3,
-              child: Text(
-                '${user.firstName} ${user.lastName}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  ProfileAvatar(
+                    photoUrl: user.profilePhotoUrl,
+                    name: '${user.firstName} ${user.lastName}',
+                    color: _roleColor(user.role),
+                    radius: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      '${user.firstName} ${user.lastName}',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -214,19 +227,8 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
   }
 
   void _goToDetails(UserModel user) {
-    switch (user.role) {
-      case 'employee':
-        context.go(RouteConstants.hmEmployeeDetails.replaceFirst(':id', user.id));
-        break;
-      case 'rider':
-        context.go(RouteConstants.hmRiderDetails.replaceFirst(':id', user.id));
-        break;
-      case 'lender':
-        context.go(RouteConstants.hmLenderDetails.replaceFirst(':id', user.id));
-        break;
-      default:
-        break;
-    }
+    // All PEOPLE roles now use modal with zero radius and fit to details
+    showUserDetailsModal(context, user);
   }
 
   void _confirmArchive(UserModel user) {

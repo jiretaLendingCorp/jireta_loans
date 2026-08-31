@@ -106,19 +106,23 @@ class _ProfileAvatarState extends State<ProfileAvatar> {
     final fallback = widget.fallback;
     if (fallback != null) {
       return ColoredBox(
-        color: widget.color.withValues(alpha: 0.15),
+        color: widget.color,
         child: Center(child: fallback),
       );
     }
     final initials = _initials(widget.name);
     final isSingle = initials.length == 1;
+    // Solid background ensures initials are always visible — previous 0.15 alpha
+    // made white text invisible on near-white background (covered name).
+    final effectiveTextColor =
+        widget.textColor == widget.color ? Colors.white : widget.textColor;
     return ColoredBox(
-      color: widget.color.withValues(alpha: 0.15),
+      color: widget.color,
       child: Center(
         child: Text(
           initials,
           style: TextStyle(
-            color: widget.textColor,
+            color: effectiveTextColor,
             fontSize: widget.radius * (isSingle ? 0.9 : 0.62),
             fontWeight: FontWeight.w700,
             letterSpacing: isSingle ? 0 : 0.5,

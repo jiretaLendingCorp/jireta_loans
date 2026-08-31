@@ -1,10 +1,9 @@
 // lib/presentation/features/employee/riders/screens/emp_rider_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
@@ -136,8 +135,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
   Widget _buildRow(UserModel rider, bool isEven) {
     return InkWell(
       key: ValueKey(rider.id),
-      onTap: () => context
-          .go(RouteConstants.empRiderDetails.replaceFirst(':id', rider.id)),
+      onTap: () => showUserDetailsModal(context, rider),
       child: Container(
         color: isEven
             ? Colors.white
@@ -150,7 +148,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
                 child: Row(children: [
                   ProfileAvatar(
                     photoUrl: rider.profilePhotoUrl,
-                    name: rider.firstName,
+                    name: '${rider.firstName} ${rider.lastName}',
                     color: AppColors.riderGreen,
                     radius: 18,
                   ),
@@ -196,8 +194,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
                   Tooltip(
                     message: 'View',
                     child: InkWell(
-                      onTap: () => context.go(
-                          RouteConstants.empRiderDetails.replaceFirst(':id', rider.id)),
+                      onTap: () => showUserDetailsModal(context, rider),
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(

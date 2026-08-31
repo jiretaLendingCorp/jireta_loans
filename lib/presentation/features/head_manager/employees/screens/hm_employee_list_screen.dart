@@ -1,13 +1,13 @@
 // lib/presentation/features/head_manager/employees/screens/hm_employee_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_employee_provider.dart';
 import '../widgets/create_employee_modal.dart';
 
@@ -160,10 +160,23 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
           children: [
             Expanded(
               flex: 3,
-              child: Text(
-                '${user.firstName} ${user.lastName}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
+              child: Row(
+                children: [
+                  ProfileAvatar(
+                    photoUrl: user.profilePhotoUrl,
+                    name: '${user.firstName} ${user.lastName}',
+                    color: AppColors.deepNavy,
+                    radius: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      '${user.firstName} ${user.lastName}',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -190,11 +203,14 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
             ),
             Expanded(
               flex: 1,
-              child: _StatusBadge(
-                label: isActive ? 'Active' : _statusLabel(user.accountStatus),
-                color: isActive ? AppColors.success : AppColors.error,
-                bgColor:
-                    isActive ? AppColors.successLight : AppColors.errorLight,
+              child: Text(
+                isActive ? 'Active' : _statusLabel(user.accountStatus),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: isActive ? AppColors.success : AppColors.error,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             Expanded(
@@ -204,12 +220,7 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
                   _ActionBtn(
                     icon: Icons.visibility_outlined,
                     tooltip: 'View',
-                    onTap: () => context.go(
-                      RouteConstants.hmEmployeeDetails.replaceFirst(
-                        ':id',
-                        user.id,
-                      ),
-                    ),
+                    onTap: () => showUserDetailsModal(context, user),
                   ),
                   _ActionBtn(
                     icon: Icons.edit_outlined,
@@ -307,31 +318,6 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
       ref.read(hmEmployeeProvider.notifier).load();
     }
   }
-}
-
-class _StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  final Color bgColor;
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-    required this.bgColor,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-              color: color, fontSize: 11, fontWeight: FontWeight.w600),
-        ),
-      );
 }
 
 class _ActionBtn extends StatelessWidget {

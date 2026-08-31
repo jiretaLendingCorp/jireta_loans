@@ -72,52 +72,134 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
   Widget _buildContent(BuildContext context, Map<String, dynamic> ci) {
     final status = ci['status'] as String? ?? '';
     final model = CreditInvestigationModel.fromJson(ci);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildPremiumHeader(model, status, ci),
-          const SizedBox(height: 16),
-          _buildTimeline(status, ci),
-          const SizedBox(height: 16),
-          LayoutBuilder(builder: (context, c) {
-            final isNarrow = c.maxWidth < 820;
-            if (isNarrow) {
-              return Column(children: [
-                _buildLenderCard(ci, model),
+    final isApproval = status == 'completed';
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPremiumHeader(model, status, ci),
                 const SizedBox(height: 16),
-                _buildAssignmentCard(ci, model),
-              ]);
-            }
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: _buildLenderCard(ci, model)),
-              const SizedBox(width: 16),
-              Expanded(child: _buildAssignmentCard(ci, model)),
-            ]);
-          }),
-          if ((ci['report_summary'] as String?)?.isNotEmpty == true) ...[
-            const SizedBox(height: 16),
-            _buildReportCard(ci),
-          ],
-          if ((ci['ci_documents'] as List?)?.isNotEmpty == true) ...[
-            const SizedBox(height: 16),
-            _buildDocumentsCard(ci),
-          ],
-          if (status == 'completed') ...[
-            const SizedBox(height: 16),
-            _buildApprovalSection(context, ci),
-          ],
-          if (status == 'approved' || status == 'rejected') ...[
-            const SizedBox(height: 16),
-            _buildReviewInfoCard(ci),
-          ],
-          if (status == 'pending' || status == 'declined') ...[
-            const SizedBox(height: 16),
-            _buildAssignRiderSection(context, ci),
-          ],
-        ],
+                _buildTimeline(status, ci),
+                const SizedBox(height: 16),
+                LayoutBuilder(builder: (context, c) {
+                  final isNarrow = c.maxWidth < 820;
+                  if (isNarrow) {
+                    return Column(children: [
+                      _buildLenderCard(ci, model),
+                      const SizedBox(height: 16),
+                      _buildAssignmentCard(ci, model),
+                    ]);
+                  }
+                  return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(child: _buildLenderCard(ci, model)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildAssignmentCard(ci, model)),
+                  ]);
+                }),
+                if ((ci['report_summary'] as String?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 16),
+                  _buildReportCard(ci),
+                ],
+                if ((ci['ci_documents'] as List?)?.isNotEmpty == true) ...[
+                  const SizedBox(height: 16),
+                  _buildDocumentsCard(ci),
+                ],
+                if (status == 'approved' || status == 'rejected') ...[
+                  const SizedBox(height: 16),
+                  _buildReviewInfoCard(ci),
+                ],
+                if (status == 'pending' || status == 'declined') ...[
+                  const SizedBox(height: 16),
+                  _buildAssignRiderSection(context, ci),
+                ],
+                if (isApproval) const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        ),
+        if (isApproval) _buildApprovalBarOutside(context, ci),
+      ],
+    );
+  }
+
+  Widget _buildApprovalBarOutside(BuildContext context, Map<String, dynamic> ci) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(top: BorderSide(color: AppColors.border)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, -4))],
       ),
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
+      child: LayoutBuilder(builder: (cntx, c) {
+        final isNarrow = c.maxWidth < 560;
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [AppColors.warning, Color(0xFFE65100)]),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Icon(Icons.rate_review_rounded, color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('CI Report — Awaiting Your Approval',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                      Text('Review report & evidence, then approve or reject.',
+                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    ]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _ApprovalButton(label: 'Reject', icon: Icons.close_rounded, color: AppColors.error, onTap: () => _showRejectDialog(context, ref, ci))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _ApprovalButton(label: 'Approve', icon: Icons.check_rounded, color: AppColors.success, onTap: () => _showApproveDialog(context, ref, ci))),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [AppColors.warning, Color(0xFFE65100)]),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(Icons.rate_review_rounded, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('CI Report — Awaiting Your Approval',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                Text('Review report & evidence, then approve or reject.',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              ]),
+            ),
+            const SizedBox(width: 12),
+            _ApprovalButton(label: 'Reject', icon: Icons.close_rounded, color: AppColors.error, onTap: () => _showRejectDialog(context, ref, ci)),
+            const SizedBox(width: 10),
+            _ApprovalButton(label: 'Approve', icon: Icons.check_rounded, color: AppColors.success, onTap: () => _showApproveDialog(context, ref, ci)),
+          ],
+        );
+      }),
     );
   }
 
