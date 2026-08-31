@@ -134,10 +134,12 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 const SizedBox(height: 16),
                 _buildEditProfileButton(),
               ],
-              const SizedBox(height: 22),
-              _sectionTitle('Verification'),
-              const SizedBox(height: 10),
-              _buildAccountUpgradeCard(userModel?.accountUpgradeStatus),
+              if (!isVerified) ...[
+                const SizedBox(height: 22),
+                _sectionTitle('Verification'),
+                const SizedBox(height: 10),
+                _buildAccountUpgradeCard(userModel?.accountUpgradeStatus),
+              ],
               if (isVerified) ...[
                 const SizedBox(height: 16),
                 _CollapsibleSection(

@@ -276,7 +276,8 @@ class _EmpAccountUpgradeDetailsScreenState
                                 Expanded(
                                     child: Text(d['document_type'] ?? 'Document',
                                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
-                                StatusBadge(status: docStatus, small: true),
+                                if (docStatus.toLowerCase() != 'submitted')
+                                  StatusBadge(status: docStatus, small: true),
                               ]),
                               const SizedBox(height: 8),
                               Row(children: [
@@ -403,7 +404,8 @@ class _EmpAccountUpgradeDetailsScreenState
                         const Expanded(
                             child: Text('Review Actions',
                                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14))),
-                        StatusBadge(status: accountUpgradeStatus),
+                        if (accountUpgradeStatus.toLowerCase() != 'submitted')
+                          StatusBadge(status: accountUpgradeStatus),
                       ]),
                     ),
                     Padding(
@@ -608,8 +610,10 @@ class _EmpAccountUpgradeDetailsScreenState
               ]),
               const SizedBox(height: 8),
               Row(children: [
-                StatusBadge(status: status),
-                const SizedBox(width: 8),
+                if (status.toLowerCase() != 'submitted') ...[
+                  StatusBadge(status: status),
+                  const SizedBox(width: 8),
+                ],
                 Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),

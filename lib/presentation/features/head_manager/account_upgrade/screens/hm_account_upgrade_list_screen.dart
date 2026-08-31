@@ -92,8 +92,6 @@ class _HmAccountUpgradeListScreenState
             child: Row(children: [
               _StatusPill(label: 'All', value: 'all', selected: state.statusFilter == 'all', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
               const SizedBox(width: 6),
-              _StatusPill(label: 'Submitted', value: 'submitted', selected: state.statusFilter == 'submitted', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
-              const SizedBox(width: 6),
               _StatusPill(label: 'Verified', value: 'verified', selected: state.statusFilter == 'verified', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
               const SizedBox(width: 6),
               _StatusPill(label: 'Rejected', value: 'rejected', selected: state.statusFilter == 'rejected', onTap: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v)),
@@ -288,12 +286,14 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
               ]),
             ),
             const SizedBox(width: 12),
-            // Right side: status plain text + view white box, same level (pantay)
-            Text(
-              status[0].toUpperCase() + status.substring(1).replaceAll('_', ' '),
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
-            ),
-            const SizedBox(width: 10),
+            // Hide "Submitted" status text per request; show other statuses only
+            if (status.toLowerCase() != 'submitted') ...[
+              Text(
+                status[0].toUpperCase() + status.substring(1).replaceAll('_', ' '),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
+              ),
+              const SizedBox(width: 10),
+            ],
             Tooltip(
               message: 'View',
               child: InkWell(

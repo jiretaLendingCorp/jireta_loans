@@ -1,11 +1,11 @@
-﻿// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_status_screen.dart
+﻿// ignore_for_file: unused_element
+// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_status_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -56,10 +56,28 @@ class _LenderAccountUpgradeStatusScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(lenderAccountUpgradeProvider);
 
+    // Hide verification status UI when already verified — redirect directly to home
+    if (!state.isLoading &&
+        (state.status == 'verified' || state.status == 'approved')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go(RouteConstants.lenderDashboard);
+      });
+      return MobileScaffold(
+        title: 'Account Upgrade Status',
+        accentColor: AppColors.lenderBlue,
+        navItems: _lenderNavItems,
+        showBackButton: true,
+        centerTitle: true,
+        body: const ShimmerLoader(),
+      );
+    }
+
     return MobileScaffold(
       title: 'Account Upgrade Status',
       accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
+      showBackButton: true,
+      centerTitle: true,
       body: state.isLoading
           ? const ShimmerLoader()
           : RefreshIndicator(
@@ -72,25 +90,8 @@ class _LenderAccountUpgradeStatusScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _StatusBanner(status: state.status),
-                    const SizedBox(height: 20),
+                    // Only Verification Timeline per request — remove status banner, submitted docs, and button
                     _buildTimeline(state),
-                    const SizedBox(height: 20),
-                    if (state.documents.isNotEmpty) ...[
-                      _sectionLabel('Submitted Documents'),
-                      const SizedBox(height: 12),
-                      ...state.documents
-                          .map((d) => _DocumentTile(key: ValueKey(d.id), doc: d)),
-                    ],
-                    if (state.status == 'rejected') ...[
-                      const SizedBox(height: 16),
-                      AppButton(
-                        label: 'Resubmit Documents',
-                        onPressed: () =>
-                            context.push(RouteConstants.lenderAccountUpgrade),
-                        color: AppColors.lenderBlue,
-                      ),
-                    ],
                   ],
                 ),
               ),

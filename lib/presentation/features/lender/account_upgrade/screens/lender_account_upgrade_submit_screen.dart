@@ -1,4 +1,5 @@
-﻿// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_submit_screen.dart
+﻿// ignore_for_file: curly_braces_in_flow_control_structures
+// lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_submit_screen.dart
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,7 +16,6 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
-import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -59,11 +59,11 @@ class _LenderAccountUpgradeSubmitScreenState
     ),
   ];
 
-  // Merged to 3 steps per request: Residence is now part of step 2 (final)
+  // Residence moved to Financial Info per request (was in final step)
   static const _steps = [
     'Personal Info',
     'Financial Info',
-    'Residence & Docs',
+    'Emergency & Docs',
   ];
 
   final Map<String, PlatformFile?> _selectedFiles = {
@@ -352,6 +352,8 @@ class _LenderAccountUpgradeSubmitScreenState
     if (_sourceOfFunds == null) return false;
     if (_sourceOfFunds == 'Other' &&
         _sourceOtherCtrl.text.trim().isEmpty) return false;
+    // Residence is now part of Financial Info (step 1)
+    if (!_isResidenceValid()) return false;
     return true;
   }
 
@@ -378,13 +380,12 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   bool get _canGoNext {
-    // 3-step flow: 0 Personal, 1 Financial, 2 Residence & Docs
+    // 3-step flow: 0 Personal, 1 Financial + Residence, 2 Emergency & Docs
     if (_step == 0) return _isPersonalInfoValid();
     if (_step == 1) return _isFinancialInfoValid();
     if (_step == 2) {
       return _isPersonalInfoValid() &&
           _isFinancialInfoValid() &&
-          _isResidenceValid() &&
           _isEmergencyAndDocsValid();
     }
     return false;
@@ -528,11 +529,10 @@ class _LenderAccountUpgradeSubmitScreenState
       // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
         if (!mounted) return;
-        await showDialog(
-          context: context,
-          builder: (_) => const SuccessDialog(
-            message:
-                'Account upgrade documents submitted successfully. Under review.',
+        context.showSnackBarAsToast(
+          const SnackBar(
+            content: Text('Account upgrade documents submitted successfully. Under review.'),
+            backgroundColor: AppColors.success,
           ),
         );
         if (!mounted) return;
@@ -556,6 +556,20 @@ class _LenderAccountUpgradeSubmitScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(lenderAccountUpgradeProvider);
 
+    // When verified/success, hide verification UI and redirect directly to home
+    if (!state.isLoading && (state.status == 'verified' || state.status == 'approved')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go(RouteConstants.lenderDashboard);
+      });
+      return MobileScaffold(
+        title: 'Account Upgrade Verification',
+        accentColor: AppColors.lenderBlue,
+        navItems: _navItems,
+        showBackButton: true,
+        body: const ShimmerLoader(),
+      );
+    }
+
     return MobileScaffold(
       title: 'Account Upgrade Verification',
       accentColor: AppColors.lenderBlue,
@@ -567,32 +581,43 @@ class _LenderAccountUpgradeSubmitScreenState
 
   Widget _buildFlow(LenderAccountUpgradeState state) {
     final status = state.status;
-    if (status == 'submitted' ||
-        status == 'under_review' ||
-        status == 'verified') {
+    // Hide verification UI when already verified — handled via redirect in build()
+    if (status == 'verified' || status == 'approved') {
+      return const SizedBox.shrink();
+    }
+    if (status == 'submitted' || status == 'under_review') {
       return _buildSubmittedView(state);
     }
 
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Column(
       children: [
         _buildStatusBanner(state),
         _StepIndicator(current: _step, labels: _steps),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + bottomInset),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: _buildStepContent(),
           ),
         ),
-        _buildWizardBar(state),
+        AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: _buildWizardBar(state),
+        ),
       ],
     );
   }
 
   Widget _buildSubmittedView(LenderAccountUpgradeState state) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final status = state.status;
     final isVerified = status == 'verified';
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + bottomInset),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -635,7 +660,7 @@ class _LenderAccountUpgradeSubmitScreenState
           ),
           const SizedBox(height: 20),
           AppButton(
-            label: 'View Status',
+            label: 'Account Upgrade Status',
             onPressed: () =>
                 context.push(RouteConstants.lenderAccountUpgradeStatus),
             color: AppColors.lenderBlue,
@@ -654,20 +679,18 @@ class _LenderAccountUpgradeSubmitScreenState
       case 1:
         return _buildFinancialInformation();
       default:
-        // Step 2 (last) = Residence + Emergency + Docs merged per request
-        return _buildResidenceAndDocsStep();
+        // Step 2 (last) = Emergency + Docs (Residence moved to Financial Info)
+        return _buildEmergencyAndDocsStep();
     }
   }
 
-  Widget _buildResidenceAndDocsStep() {
-    // Single Form for the merged final step to avoid duplicate GlobalKey.
+  Widget _buildEmergencyAndDocsStep() {
+    // Single Form for the final step to avoid duplicate GlobalKey.
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildResidenceAddress(wrapForm: false),
-          const SizedBox(height: 16),
           _buildEmergencyAndDocuments(wrapForm: false, includeDocs: false),
           const SizedBox(height: 16),
           _buildDocumentsSection(),
@@ -790,77 +813,85 @@ class _LenderAccountUpgradeSubmitScreenState
   Widget _buildFinancialInformation() {
     return Form(
       key: _formKey,
-      child: _buildSectionCard(
-        'Financial Information',
-        Icons.account_balance_wallet_outlined,
-        [
-          _buildDropdown(
-            label: 'Employment Type *',
-            value: _employmentType,
-            items: _employmentOptions,
-            validator: (v) => v == null ? 'Employment type is required' : null,
-            onChanged: (v) => setState(() {
-              _employmentType = v;
-              if (v != 'Other') _employmentOtherCtrl.clear();
-            }),
-          ),
-          if (_employmentType == 'Other') ...[
-            const SizedBox(height: 12),
-            AppTextField(
-              label: 'Please specify employment type *',
-              controller: _employmentOtherCtrl,
-              maxLength: 100,
-              validator: _required('Employment type (Other)'),
-            ),
-          ],
-          const SizedBox(height: 12),
-          AppTextField(
-            label: 'Employer / Business Name *',
-            controller: _employerCtrl,
-            maxLength: 255,
-            validator: _required('Employer / business name'),
-          ),
-          const SizedBox(height: 12),
-          AppTextField(
-            label: 'Monthly Income (₱) *',
-            controller: _incomeCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-              _PesoCurrencyFormatter(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionCard(
+            'Financial Information',
+            Icons.account_balance_wallet_outlined,
+            [
+              _buildDropdown(
+                label: 'Employment Type *',
+                value: _employmentType,
+                items: _employmentOptions,
+                validator: (v) => v == null ? 'Employment type is required' : null,
+                onChanged: (v) => setState(() {
+                  _employmentType = v;
+                  if (v != 'Other') _employmentOtherCtrl.clear();
+                }),
+              ),
+              if (_employmentType == 'Other') ...[
+                const SizedBox(height: 12),
+                AppTextField(
+                  label: 'Please specify employment type *',
+                  controller: _employmentOtherCtrl,
+                  maxLength: 100,
+                  validator: _required('Employment type (Other)'),
+                ),
+              ],
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Employer / Business Name *',
+                controller: _employerCtrl,
+                maxLength: 255,
+                validator: _required('Employer / business name'),
+              ),
+              const SizedBox(height: 12),
+              AppTextField(
+                label: 'Monthly Income (₱) *',
+                controller: _incomeCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  _PesoCurrencyFormatter(),
+                ],
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'Monthly income is required';
+                  }
+                  final cleaned = v.replaceAll(RegExp(r'[₱,\s]'), '').trim();
+                  final d = double.tryParse(cleaned);
+                  if (d == null || d <= 0) {
+                    return 'Enter a valid amount greater than 0';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildDropdown(
+                label: 'Source of Funds *',
+                value: _sourceOfFunds,
+                items: _sourceOfFundsOptions,
+                validator: (v) =>
+                    v == null ? 'Source of funds is required' : null,
+                onChanged: (v) => setState(() {
+                  _sourceOfFunds = v;
+                  if (v != 'Other') _sourceOtherCtrl.clear();
+                }),
+              ),
+              if (_sourceOfFunds == 'Other') ...[
+                const SizedBox(height: 12),
+                AppTextField(
+                  label: 'Please specify source of funds *',
+                  controller: _sourceOtherCtrl,
+                  maxLength: 100,
+                  validator: _required('Source of funds (Other)'),
+                ),
+              ],
             ],
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) {
-                return 'Monthly income is required';
-              }
-              final cleaned = v.replaceAll(RegExp(r'[₱,\s]'), '').trim();
-              final d = double.tryParse(cleaned);
-              if (d == null || d <= 0) {
-                return 'Enter a valid amount greater than 0';
-              }
-              return null;
-            },
           ),
-          const SizedBox(height: 12),
-          _buildDropdown(
-            label: 'Source of Funds *',
-            value: _sourceOfFunds,
-            items: _sourceOfFundsOptions,
-            validator: (v) => v == null ? 'Source of funds is required' : null,
-            onChanged: (v) => setState(() {
-              _sourceOfFunds = v;
-              if (v != 'Other') _sourceOtherCtrl.clear();
-            }),
-          ),
-          if (_sourceOfFunds == 'Other') ...[
-            const SizedBox(height: 12),
-            AppTextField(
-              label: 'Please specify source of funds *',
-              controller: _sourceOtherCtrl,
-              maxLength: 100,
-              validator: _required('Source of funds (Other)'),
-            ),
-          ],
+          const SizedBox(height: 16),
+          _buildResidenceAddress(wrapForm: false),
         ],
       ),
     );
@@ -1241,26 +1272,67 @@ class _PesoCurrencyFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     final text = newValue.text;
-    if (text.isEmpty) return newValue;
-    // Strip peso sign and commas for parsing, keep digits and dot
-    final cleaned = text.replaceAll(RegExp(r'[₱,\s]'), '');
+    if (text.isEmpty) {
+      return const TextEditingValue(
+          text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+
+    // Keep only digits and dots for parsing
+    final cleaned = text.replaceAll(RegExp(r'[^0-9.]'), '');
+
     if (cleaned.isEmpty) {
       return const TextEditingValue(
           text: '', selection: TextSelection.collapsed(offset: 0));
     }
-    if (cleaned == '.') return newValue;
+
+    if (cleaned == '.') {
+      return const TextEditingValue(
+          text: '₱', selection: TextSelection.collapsed(offset: 1));
+    }
+
     // Prevent multiple dots
     if (cleaned.split('.').length > 2) return oldValue;
-    // If user is in the middle of typing decimal (ends with dot), don't format yet
-    if (cleaned.endsWith('.')) return newValue;
-    final value = double.tryParse(cleaned);
-    if (value == null) return oldValue;
-    final fmt = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
-    final formatted = fmt.format(value);
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
+
+    // If user is typing decimal (ends with dot), keep dot visible with formatted integer
+    if (cleaned.endsWith('.')) {
+      final intPart = cleaned.substring(0, cleaned.length - 1);
+      if (intPart.isEmpty) {
+        return const TextEditingValue(
+            text: '₱0.', selection: TextSelection.collapsed(offset: 3));
+      }
+      final intVal = int.tryParse(intPart.replaceAll(',', ''));
+      if (intVal == null) return oldValue;
+      final formattedInt = NumberFormat('#,##0', 'en_PH').format(intVal);
+      final formatted = '₱$formattedInt.';
+      return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+
+    // Split integer and fractional parts, keep fractional as typed (max 2 decimals)
+    final parts = cleaned.split('.');
+    final intPartRaw = parts[0].isEmpty ? '0' : parts[0];
+    final intVal = int.tryParse(intPartRaw);
+    if (intVal == null) return oldValue;
+
+    final formattedInt = NumberFormat('#,##0', 'en_PH').format(intVal);
+
+    if (parts.length == 1) {
+      final formatted = '₱$formattedInt';
+      return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    } else {
+      var fraction = parts[1];
+      if (fraction.length > 2) fraction = fraction.substring(0, 2);
+      final formatted = '₱$formattedInt.$fraction';
+      return TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
   }
 }
 

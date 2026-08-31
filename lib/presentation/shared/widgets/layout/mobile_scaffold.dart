@@ -22,6 +22,7 @@ class MobileScaffold extends ConsumerWidget {
   final bool resizeToAvoidBottomInset;
   final bool showBottomNav;
   final bool showNotificationsBell;
+  final bool centerTitle;
 
   const MobileScaffold({
     super.key,
@@ -36,6 +37,7 @@ class MobileScaffold extends ConsumerWidget {
     this.resizeToAvoidBottomInset = true,
     this.showBottomNav = true,
     this.showNotificationsBell = true,
+    this.centerTitle = false,
   });
 
   @override
@@ -70,6 +72,7 @@ class MobileScaffold extends ConsumerWidget {
           foregroundColor: Colors.white,
           elevation: 0,
           scrolledUnderElevation: 0,
+          centerTitle: centerTitle,
           title: title.isEmpty
               ? null
               : Text(
@@ -81,7 +84,19 @@ class MobileScaffold extends ConsumerWidget {
                   ),
                 ),
           automaticallyImplyLeading: showBackButton && appBarLeading == null,
-          leading: appBarLeading,
+          leading: appBarLeading ??
+              (showBackButton
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                      onPressed: () {
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        } else {
+                          context.go(RouteConstants.lenderDashboard);
+                        }
+                      },
+                    )
+                  : null),
           actions: [
             if (showNotificationsBell) ...[
               IconButton(

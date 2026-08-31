@@ -347,8 +347,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   Widget _buildLoanDetailsStep(
       NumberFormat fmt, Map<String, dynamic>? preview) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -441,6 +443,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             controller: _purposeCtrl,
             maxLines: 3,
             maxLength: 255,
+            scrollPadding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 120),
             decoration: InputDecoration(
               hintText: 'Enter purpose of loan...',
               counterText: '',
@@ -464,8 +468,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   }
 
   Widget _buildCoMakerStep() {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -488,8 +494,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   }
 
   Widget _buildSignatureStep() {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -544,13 +552,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   }
 
   Widget _buildReviewStep(NumberFormat fmt, Map<String, dynamic>? preview) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final interest = preview == null ? null : (preview['interest'] ?? 0);
     final totalPayable =
         preview == null ? null : (preview['total_payable'] ?? 0);
     final installment =
         preview == null ? null : (preview['installment_amount'] ?? 0);
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -624,12 +634,23 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final loanState = ref.watch(lenderLoanProvider);
     final accountUpgradeState = ref.watch(lenderAccountUpgradeProvider);
     final fmt = NumberFormat('#,##0.00', 'en_PH');
+    final upgradeStatus = accountUpgradeState.status;
+    final needsUpgrade =
+        upgradeStatus != 'verified' && upgradeStatus != 'approved';
+    final scaffoldTitle = (accountUpgradeState.isLoading || loanState.isLoading)
+        ? ''
+        : (upgradeStatus == 'submitted' ||
+                upgradeStatus == 'pending' ||
+                upgradeStatus == 'under_review')
+            ? 'Account Upgrade Status'
+            : (needsUpgrade ? 'Upgrade Account' : '');
 
     return MobileScaffold(
-      title: 'My Loans',
+      title: scaffoldTitle,
       accentColor: AppColors.lenderBlue,
       navItems: _navItems,
       showBackButton: true,
+      centerTitle: scaffoldTitle == 'Account Upgrade Status',
       body: (loanState.isLoading || accountUpgradeState.isLoading)
           ? const ShimmerLoader()
           : _buildFlow(loanState, accountUpgradeState, fmt),
@@ -645,6 +666,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final dob = ref.watch(lenderProfileProvider).user?.dateOfBirth;
     if (dob != null && !_isAdult(dob)) {
       return const _AgeGateView();
+    }
+
+    // When documents are already submitted/under review, pressing "Apply Now"
+    // should directly show the Account Upgrade Status (timeline) instead of
+    // a gate with a "View Status" button — render inline without splash/redirect.
+    if (accountUpgrade == 'submitted' ||
+        accountUpgrade == 'pending' ||
+        accountUpgrade == 'under_review') {
+      return _InlineSubmittedTimeline(accountUpgradeState: accountUpgradeState);
     }
 
     if (accountUpgrade != 'verified' && accountUpgrade != 'approved') {
@@ -670,6 +700,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     final state = loanState;
     final preview = state.schedulePreview;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Column(
       children: [
         _StepIndicator(current: _step),
@@ -684,7 +715,12 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ],
           ),
         ),
-        _buildWizardBar(state),
+        AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: _buildWizardBar(state),
+        ),
       ],
     );
   }
@@ -857,6 +893,8 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               controller: _firstCtrl,
               onChanged: (_) => _emit(),
               maxLength: 100,
+              scrollPadding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'First name is required'
                   : null,
@@ -867,6 +905,8 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               controller: _lastCtrl,
               onChanged: (_) => _emit(),
               maxLength: 100,
+              scrollPadding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'Last name is required'
                   : null,
@@ -878,6 +918,8 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               keyboardType: TextInputType.phone,
               onChanged: (_) => _emit(),
               maxLength: 11,
+              scrollPadding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
                   return 'Contact number is required';
@@ -909,6 +951,8 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               controller: _addressCtrl,
               onChanged: (_) => _emit(),
               maxLength: 100,
+              scrollPadding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'Address is required'
                   : null,
@@ -1458,14 +1502,14 @@ class _AccountUpgradeGate extends StatelessWidget {
       title = 'Account Upgrade Under Review';
       subtitle =
           'Your documents are being reviewed. You can apply for a loan once your account upgrade is approved.';
-      actionLabel = 'View Status';
+      actionLabel = 'Account Upgrade Status';
       onAction = () => context.push(RouteConstants.lenderAccountUpgradeStatus);
     } else {
       fg = AppColors.warning;
       icon = Icons.verified_user_outlined;
       title = 'Complete Your Account Upgrade';
       subtitle = 'Verify your identity to start borrowing with Jireta Loans.';
-      actionLabel = 'Verify Now';
+      actionLabel = 'Upgrade Account';
       onAction = () => context.push(RouteConstants.lenderAccountUpgrade);
     }
 
@@ -1512,6 +1556,19 @@ class _AccountUpgradeGate extends StatelessWidget {
               ),
               const SizedBox(height: 28),
             ],
+            if (isDefaultGate) ...[
+              const Text(
+                'Before you Apply a loan you need to Upgrade your account',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             AppButton(
               label: actionLabel,
               onPressed: onAction,
@@ -1521,6 +1578,110 @@ class _AccountUpgradeGate extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _InlineSubmittedTimeline extends StatelessWidget {
+  final LenderAccountUpgradeState accountUpgradeState;
+  const _InlineSubmittedTimeline({required this.accountUpgradeState});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = accountUpgradeState.status;
+    final steps = [
+      _InlineTimelineStep(
+          'Documents Submitted',
+          'Your account upgrade documents have been submitted for review.',
+          status != 'not_submitted',
+          Icons.upload_file),
+      _InlineTimelineStep(
+          'Under Review',
+          'Our team is reviewing your documents.',
+          ['under_review', 'verified', 'rejected'].contains(status),
+          Icons.manage_search),
+      _InlineTimelineStep(
+        status == 'rejected' ? 'Rejected' : 'Verified',
+        status == 'rejected'
+            ? (accountUpgradeState.rejectionNotes ?? 'Documents were rejected. Please resubmit.')
+            : 'Your identity has been verified. You may now apply for a loan.',
+        ['verified', 'rejected'].contains(status),
+        status == 'rejected' ? Icons.cancel : Icons.verified_user,
+        isError: status == 'rejected',
+      ),
+    ];
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Verification Timeline',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          const SizedBox(height: 12),
+          ...steps.asMap().entries.map((e) => _InlineTimelineTile(step: e.value, isLast: e.key == steps.length - 1)),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineTimelineStep {
+  final String title;
+  final String subtitle;
+  final bool completed;
+  final IconData icon;
+  final bool isError;
+  const _InlineTimelineStep(this.title, this.subtitle, this.completed, this.icon, {this.isError = false});
+}
+
+class _InlineTimelineTile extends StatelessWidget {
+  final _InlineTimelineStep step;
+  final bool isLast;
+  const _InlineTimelineTile({required this.step, required this.isLast});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = step.isError
+        ? AppColors.error
+        : step.completed
+            ? AppColors.success
+            : AppColors.border;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: step.completed ? color.withValues(alpha: 0.12) : AppColors.surfaceVariant,
+                shape: BoxShape.circle,
+                border: Border.all(color: step.completed ? color : AppColors.border, width: 2),
+              ),
+              child: Icon(step.icon, size: 18, color: step.completed ? color : AppColors.textTertiary),
+            ),
+            if (!isLast)
+              Container(width: 2, height: 40, color: step.completed ? color.withValues(alpha: 0.3) : AppColors.border),
+          ],
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(step.title,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14, color: step.completed ? AppColors.textPrimary : AppColors.textTertiary)),
+                const SizedBox(height: 4),
+                Text(step.subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

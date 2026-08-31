@@ -118,13 +118,6 @@ class _EmpAccountUpgradeListScreenState
                       ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
               const SizedBox(width: 6),
               _StatusPill(
-                  label: 'Submitted',
-                  value: 'submitted',
-                  selected: state.statusFilter == 'submitted',
-                  onTap: (v) =>
-                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
-              const SizedBox(width: 6),
-              _StatusPill(
                   label: 'Verified',
                   value: 'verified',
                   selected: state.statusFilter == 'verified',
@@ -450,11 +443,14 @@ class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
               ]),
             ),
             const SizedBox(width: 12),
-            Text(
-              status[0].toUpperCase() + status.substring(1).replaceAll('_', ' '),
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
-            ),
-            const SizedBox(width: 10),
+            // Hide "Submitted" status text per request
+            if (status.toLowerCase() != 'submitted') ...[
+              Text(
+                status[0].toUpperCase() + status.substring(1).replaceAll('_', ' '),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
+              ),
+              const SizedBox(width: 10),
+            ],
             Tooltip(
               message: 'View',
               child: InkWell(

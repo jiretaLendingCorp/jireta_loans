@@ -79,6 +79,8 @@ class _AppTextFieldState extends State<AppTextField> {
       focusNode: widget.focusNode,
       onTap: widget.onTap,
       onChanged: widget.onChanged,
+      scrollPadding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 120),
       style: const TextStyle(
         fontSize: 14,
         color: AppColors.textPrimary,
