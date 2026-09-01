@@ -17,6 +17,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   final _formKey = GlobalKey<FormState>();
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
   final _licenseCtrl = TextEditingController();
@@ -59,6 +60,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   void dispose() {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
+    _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _plateCtrl.dispose();
     _licenseCtrl.dispose();
@@ -78,6 +80,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
       await ref.read(empRiderProvider.notifier).createRider({
         'first_name': _firstNameCtrl.text.trim(),
         'last_name': _lastNameCtrl.text.trim(),
+        'email': _emailCtrl.text.trim().toLowerCase(),
         'phone': _phoneCtrl.text.trim(),
         'vehicle_type': _vehicleType,
         'plate_number': _plateCtrl.text.trim(),
@@ -128,6 +131,8 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                             child: _field('Last Name', _lastNameCtrl,
                                 maxLength: 100)),
                       ]),
+                      const SizedBox(height: 14),
+                      _field('Email Address', _emailCtrl, isEmail: true),
                       const SizedBox(height: 14),
                       _field('Phone Number', _phoneCtrl, maxLength: 11),
                       const SizedBox(height: 14),
@@ -250,12 +255,20 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
         ]),
       );
 
-  Widget _field(String label, TextEditingController ctrl, {int? maxLength}) =>
+  Widget _field(String label, TextEditingController ctrl, {int? maxLength, bool isEmail = false}) =>
       TextFormField(
         controller: ctrl,
         maxLength: maxLength,
+        keyboardType: isEmail ? TextInputType.emailAddress : null,
         decoration:
             InputDecoration(labelText: label, counterText: ''),
-        validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+        validator: (v) {
+          if (v == null || v.trim().isEmpty) return 'Required';
+          if (isEmail) {
+            final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+            if (!regex.hasMatch(v.trim())) return 'Enter a valid email address';
+          }
+          return null;
+        },
       );
 }

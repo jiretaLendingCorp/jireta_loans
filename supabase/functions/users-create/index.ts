@@ -211,11 +211,15 @@ async function handleCreateRider(req: Request) {
   if (roleCheck) return roleCheck;
 
   const body = await req.json();
-  const { first_name, middle_name, last_name, suffix, phone, vehicle_type, plate_number,
+  const { email, first_name, middle_name, last_name, suffix, phone, vehicle_type, plate_number,
     drivers_license_number, drivers_license_expiry, vehicle_brand } = body;
 
-  if (!first_name || !last_name || !phone || !vehicle_type || !plate_number || !drivers_license_number) {
+  if (!email || !first_name || !last_name || !phone || !vehicle_type || !plate_number || !drivers_license_number) {
     return errorResponse('Missing required fields', 400, 'VALIDATION_ERROR');
+  }
+  const cleanEmail = sanitizeString(email).trim().toLowerCase();
+  if (!validateEmail(cleanEmail)) {
+    return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
   }
   const canonicalVehicleType = normalizeVehicleType(vehicle_type);
   if (!canonicalVehicleType) {
@@ -227,6 +231,9 @@ async function handleCreateRider(req: Request) {
 
   const db = getAdminClient();
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: dupEmail } = await db.from('users').select('id').ilike('email', cleanEmail).maybeSingle();
+  if (dupEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
 
   const { data: existingPhone } = await db.from('users').select('id').eq('phone_number', phone.trim()).maybeSingle();
   if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
@@ -244,18 +251,24 @@ async function handleCreateRider(req: Request) {
   if (!roleData) return errorResponse('Rider role not found', 500, 'SERVER_ERROR');
 
   const { data: authUser, error: authErr } = await db.auth.admin.createUser({
+    email: cleanEmail,
     phone: toE164(phone.trim()),
     password: riderDefaultPassword,
+    email_confirm: true,
     phone_confirm: true,
     app_metadata: { role: 'rider' },
   });
   if (authErr || !authUser.user) {
+    if (authErr?.message?.toLowerCase().includes('already') || authErr?.message?.toLowerCase().includes('duplicate')) {
+      return errorResponse('Email already registered', 409, 'DUPLICATE');
+    }
     console.error('[users-create] rider auth user creation failed:', authErr?.message);
     return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
   }
 
   const { data: newUser, error: userErr } = await db.from('users').upsert({
     id: authUser.user.id,
+    email: cleanEmail,
     first_name: sanitizeString(first_name),
     middle_name: middle_name ? sanitizeString(middle_name) : null,
     last_name: sanitizeString(last_name),
@@ -268,6 +281,12 @@ async function handleCreateRider(req: Request) {
   }, { onConflict: 'id' }).select('id').single();
 
   if (userErr) {
+    const msg = (userErr as unknown as { message?: string; code?: string })?.message?.toLowerCase() ?? '';
+    const code = (userErr as unknown as { code?: string })?.code ?? '';
+    if (code === '23505' || msg.includes('duplicate') || msg.includes('uq_users_email_lower') || msg.includes('users_email')) {
+      await db.auth.admin.deleteUser(authUser.user.id);
+      return errorResponse('Email already registered', 409, 'DUPLICATE');
+    }
     await db.auth.admin.deleteUser(authUser.user.id);
     return errorResponse('Failed to create user record', 500, 'SERVER_ERROR');
   }
@@ -293,7 +312,7 @@ async function handleCreateRider(req: Request) {
     password_hash: await hashPassword(newUser.id, riderDefaultPassword),
   });
 
-  await writeAuditLog({ performedBy: user.id, action: 'create_rider', tableName: 'users', recordId: newUser.id, newValues: { role: 'rider', first_name, last_name, phone_number: phone.trim() }, ipAddress: ip });
+  await writeAuditLog({ performedBy: user.id, action: 'create_rider', tableName: 'users', recordId: newUser.id, newValues: { role: 'rider', first_name, last_name, email: cleanEmail, phone_number: phone.trim() }, ipAddress: ip });
   await sendPushNotification({ userId: user.id, title: 'Rider Created', body: `Rider ${first_name} ${last_name} has been created.`, type: 'user_created' });
 
   return jsonResponse({ message: 'Rider created successfully', user_id: newUser.id }, 201);

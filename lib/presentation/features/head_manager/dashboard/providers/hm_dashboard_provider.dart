@@ -44,6 +44,7 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
     with RealtimeRefreshMixin {
   final KpiRemoteDataSource _ds;
   Timer? _pollTimer;
+  int _loadSeq = 0;
 
   HmDashboardNotifier(this._ds)
       : super(HmDashboardState(kpi: KpiHeadManagerModel.empty())) {
@@ -97,12 +98,27 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
 
   Future<void> loadKpis({bool silent = false, String? month}) async {
     final m = month ?? state.selectedMonth;
+    final seq = ++_loadSeq;
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       // Head manager dashboard is MONTHLY: always pass selectedMonth
       final kpi = await _ds.getHeadManagerKpis(month: m);
+      // Stale guard: if a newer request started after this one, discard result
+      // This prevents the initial load for the current month from overwriting
+      // a user-selected month when the user switches months quickly.
+      if (seq != _loadSeq) return;
+      // Also discard if selectedMonth was changed externally to a different month
+      // while this request was in flight — the KPI belongs to the old month.
+      if (state.selectedMonth != m && month != null) {
+        // If caller explicitly asked for m, but state is now different, still
+        // apply only if nothing newer is pending (seq check above passed).
+        // For explicit month loads we honour the requested month to avoid
+        // the "always snaps back to current month" bug; silent refreshes that
+        // happen concurrently are discarded above via seq guard.
+      }
       state = state.copyWith(kpi: kpi, isLoading: false, selectedMonth: m);
     } catch (e) {
+      if (seq != _loadSeq) return;
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
@@ -110,6 +126,8 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
   }
 
   Future<void> setMonth(String month) async {
+    // Optimistic update so the dropdown reflects the choice immediately,
+    // even before the network responds — prevents perceived "snap back".
     state = state.copyWith(selectedMonth: month);
     await loadKpis(month: month);
   }

@@ -15,6 +15,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
   final _formKey = GlobalKey<FormState>();
   final _firstCtrl = TextEditingController();
   final _lastCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
   final _licenseCtrl = TextEditingController();
@@ -57,6 +58,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
   void dispose() {
     _firstCtrl.dispose();
     _lastCtrl.dispose();
+    _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _plateCtrl.dispose();
     _licenseCtrl.dispose();
@@ -122,6 +124,14 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                           child: _f('Last Name', _lastCtrl,
                               req: true, maxLength: 100)),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  _f(
+                    'Email Address',
+                    _emailCtrl,
+                    req: true,
+                    type: TextInputType.emailAddress,
+                    isEmail: true,
                   ),
                   const SizedBox(height: 12),
                   _f(
@@ -228,15 +238,21 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
     bool req = false,
     TextInputType? type,
     int? maxLength,
+    bool isEmail = false,
   }) =>
       TextFormField(
         controller: ctrl,
         keyboardType: type,
         maxLength: maxLength,
         decoration: _dec(label),
-        validator: req
-            ? (v) => v == null || v.isEmpty ? '$label is required' : null
-            : null,
+        validator: (v) {
+          if (req && (v == null || v.trim().isEmpty)) return '$label is required';
+          if (isEmail && v != null && v.trim().isNotEmpty) {
+            final regex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+            if (!regex.hasMatch(v.trim())) return 'Enter a valid email address';
+          }
+          return null;
+        },
       );
 
   InputDecoration _dec(String label) => InputDecoration(
@@ -257,6 +273,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
       await ref.read(hmRiderProvider.notifier).createRider({
         'first_name': _firstCtrl.text.trim(),
         'last_name': _lastCtrl.text.trim(),
+        'email': _emailCtrl.text.trim().toLowerCase(),
         'phone': _phoneCtrl.text.trim(),
         'vehicle_type': _vehicleType,
         'vehicle_brand': _resolvedBrand,
