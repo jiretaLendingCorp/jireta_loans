@@ -635,6 +635,7 @@ class _LenderAccountUpgradeSubmitScreenState
               ),
             ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   isVerified
@@ -649,6 +650,7 @@ class _LenderAccountUpgradeSubmitScreenState
                     isVerified
                         ? 'Your identity has been verified. You can now apply for a loan.'
                         : 'Your account upgrade is under review. We will notify you once verified.',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
                       color: isVerified ? AppColors.success : AppColors.warning,
@@ -1056,7 +1058,7 @@ class _LenderAccountUpgradeSubmitScreenState
               label: isLast
                   ? (_isSubmitting
                       ? 'Submitting...'
-                      : 'Submit Account Upgrade Documents')
+                      : 'Submit')
                   : 'Next',
               icon: isLast ? Icons.send : Icons.arrow_forward,
               color: AppColors.lenderBlue,

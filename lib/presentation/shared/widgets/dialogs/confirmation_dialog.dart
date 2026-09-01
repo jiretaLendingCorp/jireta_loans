@@ -94,7 +94,7 @@ class ConfirmationDialog extends StatelessWidget {
                     child: Icon(
                       confirmColor == AppColors.error
                           ? Icons.warning_outlined
-                          : Icons.help_outline,
+                          : Icons.info_outline,
                       color: confirmColor,
                       size: 22,
                     ),

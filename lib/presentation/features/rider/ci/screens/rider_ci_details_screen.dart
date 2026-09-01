@@ -91,12 +91,12 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   // Effective docs = server docs + pending staged docs (deferred upload until Review→Submit)
   int get _effectiveDocsCount => _uploadedDocsCount + _pendingCount;
   int get _reportLen => _reportCtrl.text.trim().length;
-  bool get _hasReport => _reportLen >= 10 && _reportLen <= 5000;
+  bool get _hasReport => true;
   // DEBUG FIX: upload must NOT succeed before Review Submit, so pending staged docs count toward canSubmit
   // Actual server upload happens atomically inside _submitFinal()
   // Report: min 10, max 600 chars (user req)
   bool get _canSubmit =>
-      _isAccepted && _effectiveDocsCount > 0 && _hasReport && !_isCompleted;
+      _isAccepted && _effectiveDocsCount > 0 && !_isCompleted;
 
   // Step gating — must accept before proceeding past step 0
   bool _canGoToStep(int idx) {
@@ -121,9 +121,9 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   Future<void> _handleAccept() async {
     final confirmed = await showConfirmationDialog(
       context,
-      title: 'Accept Assignment?',
+      title: 'Accept Assignment',
       message:
-          'By accepting, you’ll start the investigation wizard. You’ll be guided through Details → Upload → Report → Review. Continue?',
+          'Are you sure to accept this ci?',
       confirmLabel: 'Accept',
       confirmColor: AppColors.riderGreen,
     );
@@ -182,8 +182,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       String msg = 'Complete all steps first.';
       if (_effectiveDocsCount == 0) {
         msg = 'Upload at least 1 evidence photo in Step 2 before submitting.';
-      } else if (!_hasReport) {
-        msg = 'Report must be 10-5000 characters (Step 2).';
       } else if (_isAssigned) {
         msg = 'You must accept the assignment first.';
       }
@@ -191,7 +189,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       context.showSnackBarAsToast(SnackBar(
           content: Text(msg), backgroundColor: AppColors.error));
       // jump to the failing step (Step 2 is combined Upload & Report for 3-step wizard)
-      if (_effectiveDocsCount == 0 || !_hasReport) {
+      if (_effectiveDocsCount == 0) {
         setState(() => _currentStep = 1);
       }
       return;
@@ -199,9 +197,9 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
 
     final confirmed = await showConfirmationDialog(
       context,
-      title: 'Submit Report?',
+      title: 'Submit Report',
       message:
-          'This will mark the investigation as COMPLETED. You can’t edit after this. Submit now?',
+          'Are you sure to submit this ci?',
       confirmLabel: 'Submit',
       confirmColor: AppColors.riderGreen,
     );
@@ -242,19 +240,19 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           context: context,
           builder: (_) => const SuccessDialog(
             title: 'Report Submitted!',
-            message: 'Investigation completed. Your report and evidence have been submitted.',
+            message: 'Your report and evidence have been submitted.',
           ),
         );
         if (!mounted) return;
         // stay on review step showing completed state
-        setState(() => _currentStep = 3);
+        setState(() => _currentStep = 2);
       } else {
         if (!mounted) return;
         showDialog(
             context: context,
             builder: (_) => const ErrorDialog(
                 message:
-                    'Failed to submit report. Ensure at least 1 photo is uploaded and report is valid.'));
+                    'Failed to submit report. Ensure at least 1 photo is uploaded.'));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -272,14 +270,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
         if (_effectiveDocsCount == 0) {
           context.showSnackBarAsToast(const SnackBar(
               content: Text('Upload at least 1 photo is required')));
-          return;
-        }
-        if (!_hasReport) {
-          context.showSnackBarAsToast(SnackBar(
-              content: Text(_reportLen < 10
-                  ? 'Report must be at least 10 characters'
-                  : 'Report must be max 5000 characters'),
-              backgroundColor: AppColors.error));
           return;
         }
       }
@@ -366,7 +356,9 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                     ],
                   ),
                 ))
-              : Column(
+              : _isCompleted
+                  ? _CompletedView(ci: ci)
+                  : Column(
                   children: [
                     _WizardHeader(
                       current: _currentStep,
@@ -378,35 +370,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                       hasReport: _hasReport,
                       onTapStep: _jumpTo,
                     ),
-                    _ProgressBar(
-                        progress: (_currentStep + 1) / _steps.length),
-                    if (_isCompleted)
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppColors.successLight,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: AppColors.riderGreen.withValues(alpha: 0.25)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.verified_rounded,
-                                color: AppColors.riderGreen, size: 18),
-                            SizedBox(width: 8),
-                            Expanded(
-                                child: Text(
-                                    'Completed — Report submitted.',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.riderGreen))),
-                          ],
-                        ),
-                      ),
                     if (_isDeclined)
                       Container(
                         width: double.infinity,
@@ -701,9 +664,8 @@ class _DetailsStep extends StatelessWidget {
       child: Column(
         children: [
           // Lender card — premium
-          _PremiumSectionCard(
+          _DetailsSectionCard(
             title: 'Lender Information',
-            subtitle: '',
             icon: Icons.person_rounded,
             accent: AppColors.lenderBlue,
             children: [
@@ -726,9 +688,8 @@ class _DetailsStep extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _PremiumSectionCard(
+          _DetailsSectionCard(
             title: 'Assignment Details',
-            subtitle: 'Timeline & instructions',
             icon: Icons.assignment_outlined,
             accent: AppColors.riderGreen,
             children: [
@@ -881,41 +842,27 @@ class _UploadStep extends StatelessWidget {
             const SizedBox(height: 16),
           ],
           // Pick buttons
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPickMulti,
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: const Text('Gallery',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.riderGreen,
-                    side: const BorderSide(color: AppColors.riderGreen),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
+          GestureDetector(
+            onTap: onPickMulti,
+            child: Container(
+              width: double.infinity,
+              height: 160,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border, width: 2, strokeAlign: BorderSide.strokeAlignInside),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onPickCamera,
-                  icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                  label: const Text('Camera',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.riderGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_upload_outlined, size: 40, color: AppColors.riderGreen),
+                  const SizedBox(height: 8),
+                  const Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  const SizedBox(height: 4),
+                  const Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
+                ],
               ),
-            ],
+            ),
           ),
           if (hasPending) ...[
             const SizedBox(height: 14),
@@ -998,15 +945,13 @@ class _ReportStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final len = controller.text.trim().length;
-    final hasMin = len >= 10 && len <= 5000;
     final isCompleted = ci.status == 'completed';
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Investigation Report *',
+          const Text('Investigation Report',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -1016,10 +961,7 @@ class _ReportStep extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: !hasMin && len > 0
-                      ? AppColors.error.withValues(alpha: 0.5)
-                      : AppColors.border),
+              border: Border.all(color: AppColors.border),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -1050,12 +992,6 @@ class _ReportStep extends StatelessWidget {
                   null,
             ),
           ),
-          const SizedBox(height: 8),
-          Text('$len / 5000',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: hasMin ? AppColors.riderGreen : AppColors.error)),
           const SizedBox(height: 80),
         ],
       ),
@@ -1088,8 +1024,6 @@ class _UploadReportStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final uploaded = ci.documents ?? [];
     final hasPending = pickedImages.isNotEmpty;
-    final len = controller.text.trim().length;
-    final hasMin = len >= 10 && len <= 5000;
     final isCompleted = ci.status == 'completed';
 
     return SingleChildScrollView(
@@ -1104,69 +1038,54 @@ class _UploadReportStep extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary)),
           const SizedBox(height: 12),
-          if (uploaded.isNotEmpty) ...[
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
-              itemCount: uploaded.length,
-              itemBuilder: (ctx, i) {
-                final doc = uploaded[i];
-                final url = (doc['file_url'] as String?) ?? '';
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: url.isNotEmpty
-                      ? Image.network(url,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                              color: AppColors.surfaceVariant,
-                              child: const Icon(Icons.broken_image_outlined,
-                                  color: AppColors.textTertiary)))
-                      : Container(
-                          color: AppColors.surfaceVariant,
-                          child: const Icon(Icons.photo_outlined,
-                              color: AppColors.textTertiary)),
-                );
-              },
+          GestureDetector(
+            onTap: onPickMulti,
+            child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(minHeight: uploaded.isNotEmpty ? 200 : 160),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border, width: 2, strokeAlign: BorderSide.strokeAlignInside),
+              ),
+              child: uploaded.isNotEmpty
+                  ? GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3, crossAxisSpacing: 6, mainAxisSpacing: 6),
+                      itemCount: uploaded.length,
+                      itemBuilder: (ctx, i) {
+                        final doc = uploaded[i];
+                        final url = (doc['file_url'] as String?) ?? '';
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: url.isNotEmpty
+                              ? Image.network(url,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                      color: AppColors.border,
+                                      child: const Icon(Icons.broken_image_outlined,
+                                          color: AppColors.textTertiary)))
+                              : Container(
+                                  color: AppColors.border,
+                                  child: const Icon(Icons.photo_outlined,
+                                      color: AppColors.textTertiary)),
+                        );
+                      },
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.cloud_upload_outlined, size: 40, color: AppColors.riderGreen),
+                        const SizedBox(height: 8),
+                        const Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        const Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
             ),
-            const SizedBox(height: 16),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPickMulti,
-                  icon: const Icon(Icons.photo_library_outlined, size: 18),
-                  label: const Text('Gallery',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.riderGreen,
-                    side: const BorderSide(color: AppColors.riderGreen),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onPickCamera,
-                  icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                  label: const Text('Camera',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.riderGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-            ],
           ),
           if (hasPending) ...[
             const SizedBox(height: 14),
@@ -1233,7 +1152,7 @@ class _UploadReportStep extends StatelessWidget {
           const SizedBox(height: 16),
 
           // ── Report section ──
-          const Text('Investigation Report *',
+          const Text('Investigation Report',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -1243,10 +1162,7 @@ class _UploadReportStep extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: !hasMin && len > 0
-                      ? AppColors.error.withValues(alpha: 0.5)
-                      : AppColors.border),
+              border: Border.all(color: AppColors.border),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -1277,12 +1193,6 @@ class _UploadReportStep extends StatelessWidget {
                   null,
             ),
           ),
-          const SizedBox(height: 8),
-          Text('$len / 5000',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: hasMin ? AppColors.riderGreen : AppColors.error)),
           const SizedBox(height: 80),
         ],
       ),
@@ -1310,7 +1220,6 @@ class _ReviewStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uploaded = ci.documents ?? [];
-    final hasPending = pickedImages.isNotEmpty;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -1349,12 +1258,12 @@ class _ReviewStep extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Evidence Photos — read-only
+          // Evidence Photos — show both uploaded and pending
           _ReviewCard(
-            title: 'Evidence Photos (${uploaded.length})',
+            title: 'Evidence Photos (${uploaded.length + pickedImages.length})',
             icon: Icons.photo_library_rounded,
             color: AppColors.riderGreen,
-            child: uploaded.isEmpty
+            child: (uploaded.isEmpty && pickedImages.isEmpty)
                 ? Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -1369,52 +1278,38 @@ class _ReviewStep extends StatelessWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
-                    itemCount: uploaded.length > 6 ? 6 : uploaded.length,
+                    itemCount: (uploaded.length + pickedImages.length) > 6 ? 6 : (uploaded.length + pickedImages.length),
                     itemBuilder: (ctx, i) {
-                      final doc = uploaded[i];
-                      final url = (doc['file_url'] as String?) ?? '';
+                      if (i < uploaded.length) {
+                        final doc = uploaded[i];
+                        final url = (doc['file_url'] as String?) ?? '';
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: url.isNotEmpty
+                              ? Image.network(url,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                      color: AppColors.surfaceVariant,
+                                      child: const Icon(Icons.broken_image_outlined,
+                                          color: AppColors.textTertiary)))
+                              : Container(
+                                  color: AppColors.surfaceVariant,
+                                  child: const Icon(Icons.photo_outlined,
+                                      color: AppColors.textTertiary)),
+                        );
+                      }
+                      final pendingIdx = i - uploaded.length;
                       return ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: url.isNotEmpty
-                            ? Image.network(url,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                    color: AppColors.surfaceVariant,
-                                    child: const Icon(Icons.broken_image_outlined,
-                                        color: AppColors.textTertiary)))
-                            : Container(
-                                color: AppColors.surfaceVariant,
-                                child: const Icon(Icons.photo_outlined,
-                                    color: AppColors.textTertiary)),
+                        child: XFilePreview(file: pickedImages[pendingIdx]),
                       );
                     },
                   ),
           ),
-          if (hasPending) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                  color: AppColors.infoLight,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.info.withValues(alpha: 0.2))),
-              child: Row(
-                children: [
-                  const Icon(Icons.pending_actions_rounded,
-                      size: 16, color: AppColors.info),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: Text('${pickedImages.length} new photo(s) pending — will be uploaded automatically on Submit.',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.textSecondary))),
-                ],
-              ),
-            ),
-          ],
-          if (uploaded.length > 6)
+          if ((uploaded.length + pickedImages.length) > 6)
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: Text('+ ${uploaded.length - 6} more photo(s)',
+              child: Text('+ ${(uploaded.length + pickedImages.length) - 6} more photo(s)',
                   style: const TextStyle(
                       fontSize: 11, color: AppColors.textSecondary)),
             ),
@@ -1468,30 +1363,6 @@ class _ReviewStep extends StatelessWidget {
                           style: TextStyle(
                               fontWeight: FontWeight.w600,
                               color: AppColors.riderGreen))),
-                ],
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.lock_outline_rounded,
-                      size: 16, color: AppColors.textSecondary),
-                  SizedBox(width: 8),
-                  Expanded(
-                      child: Text(
-                          'By submitting, you confirm the report is accurate.',
-                          style: TextStyle(
-                              fontSize: 11,
-                              height: 1.4,
-                              color: AppColors.textSecondary))),
                 ],
               ),
             ),
@@ -1664,6 +1535,74 @@ class _ReviewTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// COMPLETED VIEW — shows lender info only (no steps)
+// ─────────────────────────────────────────────────────────────────────────────
+class _CompletedView extends StatelessWidget {
+  final CreditInvestigationModel ci;
+  const _CompletedView({required this.ci});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.successLight,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: AppColors.riderGreen.withValues(alpha: 0.25)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.verified_rounded,
+                    color: AppColors.riderGreen, size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                    child: Text(
+                        'Completed — Report submitted.',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.riderGreen))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _DetailsSectionCard(
+            title: 'Lender Information',
+            icon: Icons.person_rounded,
+            accent: AppColors.lenderBlue,
+            children: [
+              _InfoTile(
+                  icon: Icons.badge_outlined,
+                  label: 'Name',
+                  value: ci.borrowerName.isEmpty ? 'N/A' : ci.borrowerName),
+              _InfoTile(
+                  icon: Icons.numbers_rounded,
+                  label: 'Loan #',
+                  value: ci.loanNumber.isEmpty ? 'N/A' : ci.loanNumber),
+              _InfoTile(
+                  icon: Icons.location_on_outlined,
+                  label: 'Address',
+                  value: ci.borrowerAddress.isEmpty ? 'N/A' : ci.borrowerAddress),
+              _InfoTile(
+                  icon: Icons.phone_outlined,
+                  label: 'Phone',
+                  value: ci.borrowerPhone.isEmpty ? 'N/A' : ci.borrowerPhone),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BOTTOM BAR
 // ─────────────────────────────────────────────────────────────────────────────
 class _WizardBottomBar extends StatelessWidget {
@@ -1825,7 +1764,7 @@ class _WizardBottomBar extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                              current == 0 ? 'Continue' : 'Next: Review',
+                              current == 0 ? 'Continue' : 'Next',
                               style:
                                   const TextStyle(fontWeight: FontWeight.w700)),
                           const SizedBox(width: 6),
@@ -1895,6 +1834,59 @@ class _PremiumSectionCard extends StatelessWidget {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailsSectionCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color accent;
+  final List<Widget> children;
+  const _DetailsSectionCard({
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.children,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Row(
+              children: [
+                Icon(icon, size: 16, color: accent),
+                const SizedBox(width: 8),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary)),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(children: children),

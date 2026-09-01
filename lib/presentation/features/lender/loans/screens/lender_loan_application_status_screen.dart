@@ -99,21 +99,17 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
     final ciStatus = loan.ciStatus as String? ?? '';
     // ciStatus: assigned/accepted/in_progress/completed(pending approval)/approved/rejected
     final ciSubmitted = ['completed', 'approved', 'rejected'].contains(ciStatus) || ['ci_completed', 'approved', 'active', 'completed'].contains(status);
-    final ciApproved = ciStatus == 'approved';
-    final ciPendingApproval = ciStatus == 'completed' && status == 'ci_completed';
     final loanApproved = ['approved', 'active', 'completed'].contains(status);
     final steps = [
       const _Step('Applied', 'Loan application submitted successfully.', true, Icons.description),
       _Step('Under Review', 'Staff is reviewing your application.', ['under_review', 'ci_required', 'ci_assigned', 'ci_completed', 'approved', 'active', 'completed', 'rejected'].contains(status), Icons.manage_search),
       _Step('Credit Investigation — Rider Assigned', ciStatus == 'assigned' ? 'Rider assigned and will visit your address.' : 'A field officer will visit your address for verification.', ['ci_assigned', 'ci_completed', 'approved', 'active', 'completed'].contains(status), Icons.pin_drop),
       _Step('CI In Progress', 'Rider is conducting field investigation.', ['in_progress', 'completed', 'approved'].contains(ciStatus) || ciSubmitted, Icons.timelapse),
-      _Step('CI Submitted — Awaiting Manager Approval', ciPendingApproval ? 'Report submitted. Manager must approve before disbursement.' : ciApproved ? 'Report approved by manager. Loan auto-approved!' : ciStatus == 'rejected' ? 'Report was not approved — loan rejected.' : 'Rider will submit investigation report.', ciSubmitted, Icons.rate_review, isWarning: ciPendingApproval),
-      _Step('CI Approved → Loan Approved', ciApproved ? 'CI approved! Loan has been auto-approved. Choose disbursement method.' : 'Awaiting manager approval of CI report.', ciApproved, Icons.verified),
       _Step(
-        status == 'rejected' ? 'Rejected' : status == 'active' ? 'Funds Released' : 'Awaiting Disbursement',
-        status == 'rejected' ? 'Your application has been rejected.' : status == 'active' ? 'Funds have been released. Your loan is now active.' : loanApproved ? 'Loan approved! Please choose disbursement method to receive funds.' : 'Choose disbursement method only after CI & loan approval.',
+        status == 'rejected' ? 'Rejected' : status == 'active' ? 'Funds Released' : 'Approved',
+        status == 'rejected' ? 'Your application has been rejected.' : status == 'active' ? 'Funds have been released. Your loan is now active.' : loanApproved ? 'Loan approved! Please choose disbursement method to receive funds.' : 'Awaiting CI and loan approval.',
         status == 'rejected' || status == 'active' || status == 'completed',
-        status == 'rejected' ? Icons.cancel : status == 'active' ? Icons.payments : Icons.account_balance_wallet,
+        status == 'rejected' ? Icons.cancel : status == 'active' ? Icons.payments : Icons.check_circle,
         isError: status == 'rejected',
       ),
     ];
@@ -127,9 +123,8 @@ class _Step {
   final bool done;
   final IconData icon;
   final bool isError;
-  final bool isWarning;
   const _Step(this.title, this.subtitle, this.done, this.icon,
-      {this.isError = false, this.isWarning = false});
+      {this.isError = false});
 }
 
 class _TimelineTile extends StatelessWidget {
@@ -141,11 +136,9 @@ class _TimelineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = step.isError
         ? AppColors.error
-        : step.isWarning
-            ? AppColors.warning
-            : step.done
-                ? AppColors.success
-                : AppColors.border;
+        : step.done
+            ? AppColors.success
+            : AppColors.border;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

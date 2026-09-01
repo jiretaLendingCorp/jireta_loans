@@ -181,8 +181,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       builder: (_) => ConfirmationDialog(
         title: 'Submit Loan Application',
         message:
-            'Apply for ${_amount.toCurrency} via $_frequency payments over ${_termLabel()}?',
-        confirmLabel: 'Submit Application',
+            'Are you sure to apply this loan?',
+        confirmLabel: 'Submit',
         confirmColor: AppColors.lenderBlue,
       ),
     );
@@ -270,8 +270,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// maximum for the current amount. The max value is always included so the
   /// default (full) term stays selectable.
   List<int> _termOptions(int max) {
-    const candidates = <String, List<int>>{
-      'daily': [7, 10, 14, 20, 21, 28, 30, 35, 40, 45, 60, 70, 80, 90, 120, 180],
+    const candidates = <String, List<int>>{                  'daily': [14, 21, 30, 45, 60, 90, 120, 180],
       'weekly': [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 26],
       'monthly': [1, 2, 3, 4, 5, 6],
     };
@@ -535,6 +534,19 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   'The co-maker signature above serves as consent for this loan.',
                   style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
                 ),
+                if (_coMakerSignature != null && _coMakerSignature!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'Signature confirmed',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+                      ),
+                    ],
+                  ),
+                ],
                 if (_signatureError != null) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -1066,9 +1078,6 @@ class _SchedulePreview extends StatelessWidget {
     final termUnit = freq == 'weekly'
         ? 'weeks'
         : (freq == 'monthly' ? 'months' : 'days');
-    final schedule =
-        List<dynamic>.from(preview['schedule'] ?? preview['due_dates'] ?? []);
-
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1118,15 +1127,7 @@ class _SchedulePreview extends StatelessWidget {
                 _PreviewRow('Term', '$installments $termUnit',
                     AppColors.textSecondary),
                 const Divider(height: 20),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Full Computation Per Period',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                ),
-                const SizedBox(height: 8),
-                if (schedule.isNotEmpty)
-                  _buildScheduleTable(fmt, schedule, installment),
+
               ],
             ),
           ),
@@ -1135,82 +1136,6 @@ class _SchedulePreview extends StatelessWidget {
     );
   }
 
-  Widget _buildScheduleTable(
-      NumberFormat fmt, List<dynamic> schedule, double installment) {
-    final hasItemized = schedule
-        .every((p) => p is Map<String, dynamic> && p.containsKey('balance'));
-
-    Widget header(String text, bool bold) => Text(
-          text,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-            color: bold ? AppColors.textPrimary : AppColors.textSecondary,
-          ),
-        );
-
-    final rows = schedule.map((p) {
-      if (p is Map<String, dynamic> && p.containsKey('due_date')) {
-        final period = p['period'] ?? '';
-        final dueDate = p['due_date'].toString().substring(0, 10);
-        final amount = (p['amount'] ?? 0).toDouble();
-        final principal = (p['principal'] ?? amount).toDouble();
-        final interest = (p['interest'] ?? 0).toDouble();
-        final balance = (p['balance'] ?? 0).toDouble();
-        return Row(
-          children: [
-            Expanded(flex: 1, child: header('$period', false)),
-            Expanded(flex: 2, child: header(dueDate, false)),
-            Expanded(flex: 2, child: header('₱${fmt.format(amount)}', false)),
-            if (hasItemized)
-              Expanded(
-                  flex: 2, child: header('₱${fmt.format(principal)}', false)),
-            if (hasItemized)
-              Expanded(
-                  flex: 2, child: header('₱${fmt.format(interest)}', false)),
-            if (hasItemized)
-              Expanded(
-                  flex: 2, child: header('₱${fmt.format(balance)}', false)),
-          ],
-        );
-      }
-      final dueDate = p.toString().substring(0, 10);
-      return Row(
-        children: [
-          Expanded(flex: 1, child: header('-', false)),
-          Expanded(flex: 2, child: header(dueDate, false)),
-          Expanded(
-              flex: 2, child: header('₱${fmt.format(installment)}', false)),
-        ],
-      );
-    }).toList();
-
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 260),
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(flex: 1, child: header('#', true)),
-                Expanded(flex: 2, child: header('Due Date', true)),
-                Expanded(flex: 2, child: header('Amount', true)),
-                if (hasItemized) ...[
-                  Expanded(flex: 2, child: header('Principal', true)),
-                  Expanded(flex: 2, child: header('Interest', true)),
-                  Expanded(flex: 2, child: header('Balance', true)),
-                ],
-              ],
-            ),
-            const SizedBox(height: 4),
-            ...rows,
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _PreviewRow extends StatelessWidget {
@@ -1779,7 +1704,7 @@ class _ApplicationReviewView extends StatelessWidget {
                     Text(
                       loan.status == 'approved'
                           ? 'Loan Approved'
-                          : 'Loan Application Under Review',
+                          : 'CI Submitted — Awaiting Manager Approval',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -1787,17 +1712,6 @@ class _ApplicationReviewView extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  loan.status == 'approved'
-                      ? 'Your loan has been approved. It will become active and available for payments once the funds are disbursed.'
-                      : 'Your application has been submitted and is being reviewed by our team. We will notify you once a decision has been made.',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
                 ),
               ],
             ),

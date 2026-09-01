@@ -75,7 +75,7 @@ class _RiderSubmitCiReportScreenState
     final confirmed = await showConfirmationDialog(
       context,
       title: 'Submit Report',
-      message: 'Are you sure you want to submit?',
+      message: 'Are you sure to submit this ci?',
       confirmLabel: 'Submit',
       confirmColor: AppColors.riderGreen,
     );
