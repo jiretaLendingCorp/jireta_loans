@@ -1340,6 +1340,7 @@ class _RowActions extends StatelessWidget {
     ].contains(status);
 
     // Compact: primary action + overflow menu
+    final needsRiderDot = canAssignRider || canAssignDeliveryRider;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1351,87 +1352,107 @@ class _RowActions extends StatelessWidget {
           onTap: () => showLoanApplicationDetailsModal(context, loan.id),
         ),
         const SizedBox(width: 6),
-        PopupMenuButton<String>(
-          tooltip: 'Actions',
-          offset: const Offset(0, 36),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          itemBuilder: (_) => [
-            if (canApprove)
-              const PopupMenuItem(
-                  value: 'approve',
-                  child: Row(children: [
-                    Icon(Icons.check_circle_outline,
-                        size: 16, color: AppColors.success),
-                    SizedBox(width: 8),
-                    Text('Approve')
-                  ])),
-            if (canAssignRider)
-              const PopupMenuItem(
-                  value: 'assign_ci',
-                  child: Row(children: [
-                    Icon(Icons.search_rounded,
-                        size: 16, color: AppColors.info),
-                    SizedBox(width: 8),
-                    Text('Assign CI Rider')
-                  ])),
-            if (canAssignDeliveryRider)
-              const PopupMenuItem(
-                  value: 'assign_delivery',
-                  child: Row(children: [
-                    Icon(Icons.delivery_dining_rounded,
-                        size: 16, color: AppColors.goldDark),
-                    SizedBox(width: 8),
-                    Text('Assign Delivery Rider')
-                  ])),
-            if (canReject)
-              const PopupMenuItem(
-                  value: 'reject',
-                  child: Row(children: [
-                    Icon(Icons.cancel_outlined,
-                        size: 16, color: AppColors.error),
-                    SizedBox(width: 8),
-                    Text('Reject')
-                  ])),
-            const PopupMenuItem(
-                value: 'view',
-                child: Row(children: [
-                  Icon(Icons.open_in_new_rounded,
-                      size: 16, color: AppColors.textSecondary),
-                  SizedBox(width: 8),
-                  Text('Open details')
-                ])),
-          ],
-          onSelected: (v) {
-            switch (v) {
-              case 'approve':
-                parent?._showApprove(loan);
-                break;
-              case 'reject':
-                parent?._showReject(loan);
-                break;
-              case 'assign_ci':
-                parent?._showAssignRider(loan);
-                break;
-              case 'assign_delivery':
-                parent?._showAssignDisbursementRider(loan);
-                break;
-              case 'view':
-                showLoanApplicationDetailsModal(context, loan.id);
-                break;
-            }
-          },
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border),
+        // 3-dot menu with notification dot when rider needs assignment
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            PopupMenuButton<String>(
+              tooltip: 'Actions',
+              offset: const Offset(0, 36),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              itemBuilder: (_) => [
+                if (canApprove)
+                  const PopupMenuItem(
+                      value: 'approve',
+                      child: Row(children: [
+                        Icon(Icons.check_circle_outline,
+                            size: 16, color: AppColors.success),
+                        SizedBox(width: 8),
+                        Text('Approve')
+                      ])),
+                if (canAssignRider)
+                  const PopupMenuItem(
+                      value: 'assign_ci',
+                      child: Row(children: [
+                        Icon(Icons.search_rounded,
+                            size: 16, color: AppColors.info),
+                        SizedBox(width: 8),
+                        Text('Assign CI Rider')
+                      ])),
+                if (canAssignDeliveryRider)
+                  const PopupMenuItem(
+                      value: 'assign_delivery',
+                      child: Row(children: [
+                        Icon(Icons.delivery_dining_rounded,
+                            size: 16, color: AppColors.goldDark),
+                        SizedBox(width: 8),
+                        Text('Assign Delivery Rider')
+                      ])),
+                if (canReject)
+                  const PopupMenuItem(
+                      value: 'reject',
+                      child: Row(children: [
+                        Icon(Icons.cancel_outlined,
+                            size: 16, color: AppColors.error),
+                        SizedBox(width: 8),
+                        Text('Reject')
+                      ])),
+                const PopupMenuItem(
+                    value: 'view',
+                    child: Row(children: [
+                      Icon(Icons.open_in_new_rounded,
+                          size: 16, color: AppColors.textSecondary),
+                      SizedBox(width: 8),
+                      Text('Open details')
+                    ])),
+              ],
+              onSelected: (v) {
+                switch (v) {
+                  case 'approve':
+                    parent?._showApprove(loan);
+                    break;
+                  case 'reject':
+                    parent?._showReject(loan);
+                    break;
+                  case 'assign_ci':
+                    parent?._showAssignRider(loan);
+                    break;
+                  case 'assign_delivery':
+                    parent?._showAssignDisbursementRider(loan);
+                    break;
+                  case 'view':
+                    showLoanApplicationDetailsModal(context, loan.id);
+                    break;
+                }
+              },
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Icon(Icons.more_horiz_rounded,
+                    size: 16, color: AppColors.textSecondary),
+              ),
             ),
-            child: const Icon(Icons.more_horiz_rounded,
-                size: 16, color: AppColors.textSecondary),
-          ),
+            if (needsRiderDot)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );

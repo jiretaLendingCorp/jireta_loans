@@ -183,7 +183,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
             Expanded(flex: 2, child: _HLabel('Documents', Icons.description_outlined)),
             Expanded(flex: 2, child: _HLabel('Submitted', Icons.event_outlined)),
             Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-            SizedBox(width: 140, child: _HLabel('Action', Icons.bolt_outlined)),
+            SizedBox(width: 260, child: _HLabel('Action', Icons.bolt_outlined)),
           ]),
         ),
         ...docs.asMap().entries.map((entry) {
@@ -208,7 +208,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
               Expanded(flex: 2, child: Text(date, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600))),
               Expanded(flex: 2, child: _StatusInline(status: status)),
               SizedBox(
-                width: 140,
+                width: 260,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: () => context.go(RouteConstants.empAccountUpgradeDetails.replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)), primary: false),
                   if (status != 'verified') ...[

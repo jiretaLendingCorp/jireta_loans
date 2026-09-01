@@ -52,7 +52,7 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
   final DisbursementRemoteDataSource _disbDs;
 
   LenderLoanNotifier(this._ds, this._disbDs) : super(const LenderLoanState()) {
-    bindRealtimeRefresh(['loans', 'loan_schedules', 'disbursements'],
+    bindRealtimeRefresh(['loans', 'loan_schedules', 'disbursements', 'credit_investigations'],
         refresh: () => loadLoans(silent: true));
     loadLoans();
   }

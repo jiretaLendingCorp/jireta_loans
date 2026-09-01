@@ -627,7 +627,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Approve CI Report'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Are you sure you want to approve this investigation? Lender will be able to choose disbursement method after your approval and the loan can then be approved.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const Text('Are you sure you want to approve this investigation? The loan will be automatically approved and the lender can choose their disbursement method.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
           TextField(controller: notesCtrl, maxLines: 3, decoration: const InputDecoration(hintText: 'Optional review notes', border: OutlineInputBorder())),
         ]),
@@ -639,7 +639,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
               Navigator.pop(context);
               final ok = await ref.read(empCiProvider.notifier).approveReport(ciId: ci['id'] as String, notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim());
               if (ok && context.mounted) {
-                context.showSnackBarAsToast(const SnackBar(content: Text('CI approved — loan ready for final approval'), backgroundColor: AppColors.success));
+                context.showSnackBarAsToast(const SnackBar(content: Text('CI approved — loan has been auto-approved'), backgroundColor: AppColors.success));
                 ref.invalidate(_ciDetailProvider(ci['id'] as String));
               } else if (context.mounted) {
                 context.showSnackBarAsToast(SnackBar(content: Text('Failed: ${ref.read(empCiProvider).error ?? 'error'}'), backgroundColor: AppColors.error));
@@ -659,7 +659,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Reject CI Report'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Provide a reason for rejection (min 10 chars). Loan will return to review and a new CI can be assigned.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const Text('Provide a reason for rejection (min 10 chars). Loan will be rejected. The lender must wait 3 months before re-applying.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
           TextField(controller: reasonCtrl, maxLines: 4, decoration: const InputDecoration(hintText: 'Rejection reason', border: OutlineInputBorder())),
         ]),
@@ -676,7 +676,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
               Navigator.pop(context);
               final ok = await ref.read(empCiProvider.notifier).rejectReport(ciId: ci['id'] as String, reason: reason);
               if (ok && context.mounted) {
-                context.showSnackBarAsToast(const SnackBar(content: Text('CI rejected — loan returned to review'), backgroundColor: AppColors.error));
+                context.showSnackBarAsToast(const SnackBar(content: Text('CI rejected — loan has been rejected'), backgroundColor: AppColors.error));
                 ref.invalidate(_ciDetailProvider(ci['id'] as String));
               } else if (context.mounted) {
                 context.showSnackBarAsToast(SnackBar(content: Text('Failed: ${ref.read(empCiProvider).error ?? 'error'}'), backgroundColor: AppColors.error));

@@ -274,7 +274,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             keyboardType: TextInputType.number,
             prefix: '₱',
             maxLength: 12,
-            validator: _numberValidator),
+            validator: _numberValidator,
+            onChanged: (_) => _updateIncomeDisplay()),
       ],
     );
   }
@@ -922,6 +923,21 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   double _currentAmount() =>
       double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
+
+  void _updateIncomeDisplay() {
+    final raw = _monthlyIncomeCtrl.text.replaceAll(',', '').replaceAll('₱', '').trim();
+    if (raw.isEmpty) return;
+    final val = double.tryParse(raw);
+    if (val != null) {
+      final formatted = val.toStringAsFixed(2);
+      if (_monthlyIncomeCtrl.text != formatted) {
+        _monthlyIncomeCtrl.text = formatted;
+        _monthlyIncomeCtrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: formatted.length),
+        );
+      }
+    }
+  }
 
   void _onLoanInputChanged() {
     final amount = _currentAmount();

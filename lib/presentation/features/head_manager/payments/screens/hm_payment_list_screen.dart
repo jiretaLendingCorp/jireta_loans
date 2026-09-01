@@ -209,6 +209,10 @@ class _HmPaymentListScreenState extends ConsumerState<HmPaymentListScreen>
     final loan = p['loan'] as Map<String, dynamic>? ?? {};
     final status = p['status'] as String? ?? '-';
     final method = p['payment_method'] as String? ?? '-';
+    final refNum = p['reference_number'] as String? ?? '';
+    final maskedRef = refNum.length > 4
+        ? '${refNum.substring(0, 2)}****${refNum.substring(refNum.length - 2)}'
+        : refNum;
     final statusColor = status == 'verified'
         ? AppColors.success
         : status == 'pending'
@@ -224,11 +228,23 @@ class _HmPaymentListScreenState extends ConsumerState<HmPaymentListScreen>
         children: [
           Expanded(
               flex: 3,
-              child: Text(
-                  '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
-                      .trim(),
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w500))),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (maskedRef.isNotEmpty)
+                      Text(maskedRef,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                              letterSpacing: 1.0)),
+                    const SizedBox(height: 2),
+                    Text(
+                        '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
+                            .trim(),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                  ]),),
           Expanded(
               flex: 2,
               child: Text(loan['loan_number'] as String? ?? '-',

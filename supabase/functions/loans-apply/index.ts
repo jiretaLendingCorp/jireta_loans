@@ -85,6 +85,29 @@ serve(async (req) => {
       return errorResponse('You already have an active loan application', 409, 'ACTIVE_LOAN_EXISTS');
     }
 
+    // 3-month cooldown after CI rejection: lender cannot re-apply within 3 months of a rejected CI loan.
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const { data: recentRejected } = await db
+      .from('loans')
+      .select('updated_at')
+      .eq('lender_id', lenderId)
+      .eq('status', 'rejected')
+      .gte('updated_at', threeMonthsAgo.toISOString())
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recentRejected) {
+      const rejectedAt = new Date(recentRejected.updated_at);
+      const cooldownEnd = new Date(rejectedAt);
+      cooldownEnd.setMonth(cooldownEnd.getMonth() + 3);
+      const remainingDays = Math.ceil((cooldownEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      return errorResponse(
+        `Your previous loan application was rejected. You can re-apply after ${cooldownEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} (${remainingDays} days remaining).`,
+        403, 'COOLDOWN_ACTIVE'
+      );
+    }
+
     const sched = computeSchedule(Number(principal), frequency, new Date(), periods);
     const loanNumber = generateLoanNumber();
     const dueDate = sched.dueDates[sched.dueDates.length - 1];

@@ -9,7 +9,7 @@ project system the name of company is Jireta Loans & Credit Corp 1966 and gumawa
 ka ng folder kapag magcocode ka na head manager, Employee, Rider, Lender give
 the advance code so the out will fine backend and frontend dapat connected sila
 BACKEND MUNA I CODE MO BEFORE THE FRONTEND, code it in localhost muna at dapat i
-expose kung anong laman ng env sa code
+expose kung anong laman ng env sa code.
 
 dapat visible ung mga text nila sa front end design ahh fix the layout
 responsive
@@ -194,7 +194,9 @@ Office Payment The borrower may visit the office to pay directly. The employee
 shall verify the borrower's identity by reviewing previously submitted Account
 Upgrade documents before accepting payment. The employee shall record: * Payment
 Amount * Payment Method * Receipt Number * Remaining Balance * Payment Notes ---
+
 ## Cash Collection by Rider The Head Manager or Employee may assign a Rider to
+
 collect payment from the borrower. The assignment shall contain: * Assigned
 Rider * Assigned By * Assignment Date * Collection Schedule * Collection Notes
 The authenticated user who assigned the Rider must always be recorded. The Rider
@@ -1659,7 +1661,9 @@ validation + role extraction │ │ ├── rbac.ts # Permission enforcement 
 sanitization + schema validators │ │ ├── audit.ts # Audit log writer helper │ │
 ├── notifications.ts # FCM push notification helper │ │ ├── sms.ts # Semaphore
 SMS helper │ │ ├── xendit.ts # Xendit API wrapper helper │ │ ├── rate_limiter.ts
+
 # Rate limiting helper │ │ ├── errors.ts # Standard error response builder │ │
+
 └── types.ts # Shared TypeScript interfaces │ │ │ │ # ── Authentication (8
 functions) ────────────────────────────────── │ ├── auth-login/index.ts │ │ #
 POST: Email+password login for HM/Employee (web). │ │ # Enforces:
@@ -1675,7 +1679,9 @@ Writes: auth_logs event. │ │ │ ├── auth-force-change-password/index.
 POST: Replace default password (12345678). │ │ # Enforces: complexity rules,
 password history (last 5). │ │ # Sets: force_password_change = FALSE. │ │ #
 Writes: audit_log(password_changed). │ │ │ ├── auth-forgot-password/index.ts │ │
+
 # POST: Send password reset link to email (HM/Employee). │ │ # Enforces:
+
 time-limited token (1 hour). │ │ # Writes: auth_logs(password_reset_requested).
 │ │ │ ├── auth-reset-password/index.ts │ │ # POST: Token-based password reset
 from email link. │ │ # Enforces: token validity, complexity rules. │ │ # Writes:
@@ -1685,7 +1691,9 @@ auth-refresh-session/index.ts │ │ # POST: Rotate refresh token, return new
 access token. │ │ # Enforces: account_status check on refresh. │ │ │ │ # ──
 Users (8 functions) ─────────────────────────────────────────── │ ├──
 users-create-employee/index.ts │ │ # POST: HM only. Create Employee account. │ │
-# Fields: first_name, middle_name, last_name, suffix, gender, │ │ #
+
+# Fields: first_name, middle_name, last_name, suffix, gender, │ │
+
 civil_status, dob, email, phone, department, position, hired_at. │ │ # Sets:
 default password=12345678 (hashed), force_password_change=TRUE. │ │ # Writes:
 users, employee_profiles, audit_log, notification(to HM). │ │ │ ├──
@@ -1704,7 +1712,9 @@ role, cannot update another user's profile. │ │ # Writes: users, role-specif
 profile table, audit_log. │ │ │ ├── users-get-profile/index.ts │ │ # GET: Fetch
 own or target user profile (RBAC-filtered). │ │ # HM: any user. Employee:
 lenders + riders. Rider/Lender: self only. │ │ │ ├── users-get-list/index.ts │ │
+
 # GET: Paginated user list with search, filter, sort. │ │ # RBAC: HM=all roles;
+
 Employee=lenders+riders; Rider/Lender=forbidden. │ │ # Supports: search, status
 filter, role filter, date range, pagination. │ │ │ ├──
 users-suspend-activate/index.ts │ │ # PATCH: HM only. Toggle account_status
@@ -1853,7 +1863,9 @@ loans.status='active', disbursement_method='office_cash'. │ │ # Writes:
 disbursements, audit_log. Triggers: notification to Lender. │ │ │ ├──
 disbursements-rider-delivery/index.ts │ │ # POST: HM or Employee assigns Rider
 for cash delivery. │ │ # Body: { loan_id, rider_id, delivery_date, notes }. │ │
+
 # Sets: assigned_by=authenticated_user. │ │ # Writes: disbursements, audit_log.
+
 │ │ # Triggers: FCM push to Rider. │ │ │ ├──
 disbursements-xendit-webhook/index.ts │ │ # POST: Xendit disbursement webhook
 receiver. │ │ # Verifies: X-CALLBACK-TOKEN signature. │ │ # Updates:
@@ -1874,7 +1886,9 @@ active assignment. │ │ # Enforces: rate-limited (1 update per 30s), valid
 lat/long range. │ │ # GPS spoof detection: rejects impossible coordinate jumps.
 │ │ # Upserts: rider_locations (one row per rider). │ │ │ ├──
 location-get-rider/index.ts │ │ # GET: Fetch rider's latest GPS coordinates. │ │
-# RBAC: Lender=only if has active collection by that rider. │ │ #
+
+# RBAC: Lender=only if has active collection by that rider. │ │
+
 HM/Employee=any active rider. │ │ │ │ # ── Notifications (3 functions)
 ─────────────────────────────────── │ ├── notifications-send/index.ts │ │ #
 POST: HM or Employee sends push notification to a user. │ │ # Body: { user_id,
@@ -1958,7 +1972,9 @@ to Edge Functions. │ │ │ │ │ ├── dio_client.dart │ │ │ # D
 with: │ │ │ # - BaseOptions: baseUrl=EDGE_FUNCTIONS_URL, timeouts │ │ │ # -
 Interceptors: auth, error, logging │ │ │ # - HTTPS only (rejects HTTP) │ │ │ │ │
 ├── api_endpoints.dart │ │ │ # All endpoint paths as static const strings. │ │ │
+
 # e.g. static const kpiHeadManager = 'kpi-head-manager'; │ │ │ │ │ └──
+
 interceptors/ │ │ ├── auth_interceptor.dart │ │ │ # Injects Authorization:
 Bearer <token> header. │ │ │ # Handles 401: refreshes token via
 auth-refresh-session, │ │ │ # retries once, then redirects to login. │ │ │ │ │
@@ -2062,7 +2078,9 @@ StateNotifierProvider. │ │ # Holds: current user, role, force_password_chang
 flag. │ │ # Resets all state on logout. │ │ │ └── widgets/ │ ├── animated/ │ │
 ├── count_up_animation.dart # KPI number count-up on load │ │ ├──
 fade_animation.dart │ │ ├── slide_animation.dart │ │ └── stagger_animation.dart
-# List item stagger │ │ │ ├── dialogs/ │ │ ├── confirmation_dialog.dart #
+
+# List item stagger │ │ │ ├── dialogs/ │ │ ├── confirmation_dialog.dart
+
 Confirm before critical actions │ │ ├── error_dialog.dart # Generic error (no
 stack trace) │ │ ├── info_dialog.dart │ │ └── success_dialog.dart │ │ │ ├──
 forms/ │ │ ├── app_date_picker.dart # Philippine locale │ │ ├──
@@ -2083,12 +2101,18 @@ row hover, bulk select, │ │ │ # context menu, expandable rows, sort animat
 │ │ │ # Accepts: columns[], rows[], onRowTap, actions. │ │ │ │ │ ├──
 table_filter_bar.dart # Search + filter chips + date range │ │ └──
 table_pagination.dart # Page size selector + prev/next │ │ │ ├── app_button.dart
+
 # Primary, secondary, danger variants │ ├── app_card.dart # Expandable card with
+
 animation │ ├── app_chip.dart # Status chip (color-coded) │ ├──
 document_viewer.dart # Signed URL image/PDF viewer │ ├── empty_state_widget.dart
+
 # Illustration + CTA │ ├── error_state_widget.dart # Error + retry button │ ├──
+
 kpi_stat_card.dart # Animated KPI card (count-up) │ ├── notification_badge.dart
+
 # Unread count badge │ ├── pii_mask_widget.dart # Masked text (Juan D**_* C****)
+
 │ ├── signature_pad.dart # Borrower signature capture widget │ ├──
 status_badge.dart # Loan/Account Upgrade/collection status chip │ └──
 upload_progress_widget.dart # File upload progress indicator │ └── features/ │
@@ -2191,7 +2215,9 @@ assigned rider, │ │ │ # ci_notes, rider report summary, photo gallery │ 
 (GPS-tagged), completion status + timeline. │ │ │ │ │ └── widgets/ │ │ └──
 ci_assign_modal.dart │ │ # Rider picker (available only), deadline, notes. │ │ │
 ├── collections/ │ │ ├── providers/ │ │ │ └── hm_collection_provider.dart │ │ │
+
 # collections-assign, collections-get-list, reassign. │ │ │ │ │ ├── screens/ │ │
+
 │ ├── hm_collection_list_screen.dart │ │ │ └── hm_collection_details_screen.dart
 │ │ │ # Assignment details, proof photos, signature, │ │ │ # GPS coordinates,
 amount collected. │ │ │ │ │ └── widgets/ │ │ └──
@@ -2228,11 +2254,15 @@ filters, preview table, Export PDF / Excel. │ │ │ ├── audit/ │ │
 │ │ └── hm_audit_logs_screen.dart │ │ # Full audit trail: action, performed_by,
 table, record, │ │ # old/new values (JSON diff view), IP, datetime. Read-only. │
 │ │ ├── in_office/ │ │ ├── providers/ │ │ │ └── hm_in_office_provider.dart │ │ │
+
 # in-office-create-draft, in-office-save-step, │ │ │ # in-office-submit,
+
 in-office-get-list. │ │ │ # loans-get-schedule-preview (live preview call). │ │
 │ │ │ ├── screens/ │ │ │ └── hm_in_office_list_screen.dart │ │ │ # Draft /
 Submitted / Converted tabs. │ │ │ │ │ └── widgets/ │ │ ├── in_office_wizard.dart
+
 # 5-step wizard container │ │ ├── wizard_step_indicator.dart # Step progress bar
+
 │ │ ├── step1_identify_borrower.dart # Search/create lender │ │ ├──
 step2_address_contacts.dart # Address + emergency contacts │ │ ├──
 step3_loan_details.dart # Amount + freq + live schedule │ │ ├──
@@ -2244,11 +2274,16 @@ hm_notification_center_screen.dart │ │ # Sent notifications list. Send modal
 (recipient, title, body). │ │ # SMS logs tab.. │ │ │ ├── settings/ │ │ ├──
 providers/ │ │ │ └── hm_settings_provider.dart │ │ │ # system-get-config,
 system-update-config. │ │ │ │ │ └── screens/ │ │ └── hm_settings_screen.dart │ │
+
 # Sections: Roles, Permissions matrix, SMS Templates editor, │ │ # Report
+
 Templates manager, System config values. │ │ │ └── profile/ │ ├── providers/ │ │
 └── hm_profile_provider.dart │ │ # users-get-profile, users-update-profile, │ │
+
 # auth-force-change-password. │ │ │ └── screens/ │ └── hm_profile_screen.dart │
+
 # View/edit: name, gender, civil_status, DOB, photo. │ # Change password form
+
 (requires current password). │ │ ├── employee/ # ── WEB PORTAL ────────────────
 │ │ │ ├── dashboard/ │ │ ├── providers/ │ │ │ └── emp_dashboard_provider.dart │
 │ │ # kpi-employee. Activity feed (own processed apps only). │ │ │ │ │ ├──
@@ -2327,7 +2362,9 @@ borrower address for CI. │ │ │ │ │ │ │ ├── rider_upload_ci_d
 │ │ │ │ # Camera/gallery. Caption per photo. GPS auto-tagged. │ │ │ │ # Types:
 site photo, neighbor interview, proof of residence. │ │ │ │ # Calls:
 ci-upload-documents. │ │ │ │ │ │ │ └── rider_submit_ci_report_screen.dart │ │ │
+
 # Rider writes investigation notes. Reviews uploaded docs. │ │ │ # Submit
+
 triggers ci-submit-report. │ │ │ │ │ └── widgets/ │ │ └──
 rider_ci_evidence_gallery.dart │ │ │ ├── location/ │ │ └── providers/ │ │ └──
 rider_location_provider.dart │ │ # Background GPS posting (30s interval). │ │ #
@@ -2340,7 +2377,9 @@ screens/ │ │ └── rider_notifications_screen.dart │ │ │ └──
 providers/ │ │ └── rider_profile_provider.dart │ │ # users-get-profile,
 users-update-profile, │ │ # auth-force-change-password. │ │ │ └── screens/ │ └──
 rider_profile_screen.dart │ # View/edit: name, photo, plate, vehicle, license. │
+
 # Change password form. │ │ └── lender/ # ── MOBILE (Purple accent) ───── │ ├──
+
 dashboard/ │ ├── providers/ │ │ └── lender_dashboard_provider.dart │ │ #
 kpi-lender. Quick action buttons state. │ │ │ ├── screens/ │ │ └──
 lender_dashboard_screen.dart │ │ # 10 KPI stat cards (count-up animation). │ │ #
@@ -2362,7 +2401,9 @@ schedule preview: calls loans-get-schedule-preview, │ │ # shows installment
 table instantly (NO Dart math). │ │ # Blocked if: Account Upgrade not verified,
 active loan exists, blacklisted │ │ # (all checks done server-side; UI shows
 server error message). │ │ │ ├── lender_loan_application_status_screen.dart │ │
+
 # Timeline: Applied → Account Upgrade Verified → CI Done → Approved/Rejected. │
+
 │ # Rejection reason shown. │ │ │ ├── lender_loan_details_screen.dart │ │ #
 Loan#, amount, total_payable, interest, installment, │ │ # frequency, term,
 due_date, outstanding_balance, │ │ # disbursement info. │ │ │ └──

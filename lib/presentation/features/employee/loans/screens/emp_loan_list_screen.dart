@@ -220,11 +220,10 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
             ),
             Expanded(
                 flex: 1,
-                child: IconButton(
-                    onPressed: () => context.go(RouteConstants.empLoanDetails
-                        .replaceFirst(':id', loan.id)),
-                    icon: const Icon(Icons.chevron_right,
-                        size: 20, color: AppColors.textSecondary))),
+                child: _ActionCell(
+                    loan: loan,
+                    onTap: () => context.go(RouteConstants.empLoanDetails
+                        .replaceFirst(':id', loan.id)))),
           ],
         ),
       ),
@@ -285,5 +284,65 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
       default:
         return AppColors.textTertiary;
     }
+  }
+}
+
+class _ActionCell extends StatelessWidget {
+  final LoanModel loan;
+  final VoidCallback onTap;
+  const _ActionCell({required this.loan, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final needsRider = _needsRider(loan);
+    return Tooltip(
+      message: needsRider ? 'View — Rider needs assignment' : 'View details',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppColors.deepNavy.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+              ),
+              child: const Icon(Icons.chevron_right, size: 20, color: AppColors.deepNavy),
+            ),
+            if (needsRider)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.warning.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _needsRider(LoanModel l) {
+    final status = l.status.toLowerCase();
+    if (['pending', 'under_review', 'ci_required'].contains(status) && (l.ciStatus == null || l.ciStatus!.isEmpty)) return true;
+    if (status == 'approved' && !l.riderDeliveryAssigned) return true;
+    return false;
   }
 }

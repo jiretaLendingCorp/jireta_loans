@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
-import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -187,7 +186,7 @@ class _LoanCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text((loan.principalAmount as num?)?.toCurrency ?? '₱0',
+                  Text('₱${(loan.outstandingBalance > 0 ? loan.outstandingBalance : loan.principalAmount).toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
                   Text((loan.paymentFrequency ?? '').toString().toUpperCase(),

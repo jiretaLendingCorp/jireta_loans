@@ -36,27 +36,10 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
   bool _saving = false;
   String? _error;
   String? _email;
-  String _role = '';
-  String _status = 'active';
-
-  static const List<String> _roles = [
-    'head_manager',
-    'employee',
-    'rider',
-    'lender',
-  ];
-  static const List<String> _statuses = [
-    'active',
-    'pending',
-    'inactive',
-    'archived',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _role = widget.initialRole;
-    _status = widget.initialStatus;
     _load();
   }
 
@@ -73,13 +56,6 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         _suffixCtrl.text = (data['suffix'] as String?) ?? '';
         _phoneCtrl.text = (data['phone_number'] as String?) ?? '';
         _email = (data['email'] as String?) ?? '';
-        if (data['role'] is Map) {
-          _role = (data['role'] as Map)['name'] as String? ?? _role;
-        } else if (data['role'] is String) {
-          _role = data['role'] as String;
-        }
-        final status = (data['account_status'] as String?) ?? 'active';
-        if (_statuses.contains(status)) _status = status;
         _loading = false;
       });
     } catch (e) {
@@ -106,8 +82,6 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         'last_name': _lastCtrl.text.trim(),
         'suffix': _suffixCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
-        if (widget.showRole) 'role': _role,
-        'account_status': _status,
       });
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -129,11 +103,6 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
     _phoneCtrl.dispose();
     super.dispose();
   }
-
-  String _roleLabel(String r) => r.split('_').map((w) {
-        if (w.isEmpty) return w;
-        return w[0].toUpperCase() + w.substring(1);
-      }).join(' ');
 
   @override
   Widget build(BuildContext context) => Dialog(
@@ -232,19 +201,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            if (widget.showRole) ...[
-                              Expanded(
-                                child: _roleDropdown(),
-                              ),
-                              const SizedBox(width: 12),
-                            ],
-                            Expanded(
-                              child: _statusDropdown(),
-                            ),
-                          ],
-                        ),
+                        // Role and Account Status removed per spec — only profile fields are editable.
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
@@ -273,50 +230,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         ),
       );
 
-  Widget _roleDropdown() => DropdownButtonFormField<String>(
-        initialValue: _role,
-        decoration: const InputDecoration(
-          labelText: 'Role',
-          border: OutlineInputBorder(),
-        ),
-        items: _roles
-            .map((r) => DropdownMenuItem(
-                  value: r,
-                  child: Text(_roleLabel(r)),
-                ))
-            .toList(),
-        onChanged: (v) => setState(() => _role = v ?? _role),
-      );
 
-  Widget _statusDropdown() => DropdownButtonFormField<String>(
-        initialValue: _status,
-        decoration: const InputDecoration(
-          labelText: 'Account Status',
-          border: OutlineInputBorder(),
-        ),
-        items: _statuses
-            .map((s) => DropdownMenuItem(
-                  value: s,
-                  child: Text(_statusLabel(s)),
-                ))
-            .toList(),
-        onChanged: (v) => setState(() => _status = v ?? _status),
-      );
-
-  String _statusLabel(String s) {
-    switch (s) {
-      case 'active':
-        return 'Active';
-      case 'pending':
-        return 'Pending Approval';
-      case 'inactive':
-        return 'Inactive';
-      case 'archived':
-        return 'Archived';
-      default:
-        return s;
-    }
-  }
 
   Widget _f(String label, TextEditingController c,
           {bool req = false, int? maxLength}) =>

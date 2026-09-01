@@ -1,6 +1,9 @@
 // lib/presentation/shared/widgets/details/user_details_modal.dart
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../profile_avatar.dart';
 import '../status_badge.dart';
@@ -18,12 +21,48 @@ Future<void> showUserDetailsModal(BuildContext context, UserModel user) {
   );
 }
 
-class _UserDetailsModalContent extends StatelessWidget {
+class _UserDetailsModalContent extends ConsumerStatefulWidget {
   final UserModel user;
   const _UserDetailsModalContent({required this.user});
 
   @override
+  ConsumerState<_UserDetailsModalContent> createState() => _UserDetailsModalContentState();
+}
+
+class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalContent> {
+  UserModel? _fullUser;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchFullProfile();
+  }
+
+  Future<void> _fetchFullProfile() async {
+    try {
+      final ds = sl<UserRemoteDataSource>();
+      final full = await ds.getProfile(userId: widget.user.id);
+      if (mounted) setState(() { _fullUser = full; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() { _fullUser = widget.user; _loading = false; });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      final size = MediaQuery.of(context).size;
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: size.width > 640 ? 560.0 : size.width * 0.94, maxHeight: size.height * 0.88),
+        child: Container(
+          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.zero, boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 24, offset: Offset(0, 8))]),
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    final user = _fullUser ?? widget.user;
     final role = user.role;
     final accent = _roleColor(role);
     final roleLabel = _roleLabel(role);
@@ -49,7 +88,6 @@ class _UserDetailsModalContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header — no radius, square
             Container(
               color: Colors.white,
               padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
@@ -105,19 +143,6 @@ class _UserDetailsModalContent extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     ..._sectionsForRole(user, accent),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.border),
-                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w700)),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -423,7 +448,7 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Color accentColor;
-  final List<dynamic> items; // _Kv or _KvWidget
+  final List<dynamic> items;
   const _SectionCard({required this.title, required this.icon, required this.accentColor, required this.items});
 
   @override

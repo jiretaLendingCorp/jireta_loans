@@ -501,6 +501,7 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
                         alignment: Alignment.centerRight,
                         child: _ViewButton(
                           onTap: () => showLoanDetailsModal(context, loan.id),
+                          needsRider: _needsRiderAssignment(loan),
                         ),
                       ),
                     ),
@@ -511,6 +512,19 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
         ],
       ),
     );
+  }
+
+  bool _needsRiderAssignment(LoanModel loan) {
+    final status = loan.status.toLowerCase();
+    // Needs CI rider when loan is pending/under_review/ci_required and no CI assigned yet
+    if (['pending', 'under_review', 'ci_required'].contains(status) && (loan.ciStatus == null || loan.ciStatus!.isEmpty)) {
+      return true;
+    }
+    // Needs delivery rider when loan is approved but no delivery rider assigned
+    if (status == 'approved' && !loan.riderDeliveryAssigned) {
+      return true;
+    }
+    return false;
   }
 
   Color _dueBg(int? daysLeft) {
@@ -785,34 +799,61 @@ class _HLabel extends StatelessWidget {
 
 class _ViewButton extends StatelessWidget {
   final VoidCallback onTap;
-  const _ViewButton({required this.onTap});
+  final bool needsRider;
+  const _ViewButton({required this.onTap, this.needsRider = false});
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'View',
+      message: needsRider ? 'View — Rider needs assignment' : 'View',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.deepNavy.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
-              SizedBox(width: 4),
-              Text('View',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.deepNavy)),
-            ],
-          ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.deepNavy.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                  SizedBox(width: 4),
+                  Text('View',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.deepNavy)),
+                ],
+              ),
+            ),
+            if (needsRider)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.warning.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

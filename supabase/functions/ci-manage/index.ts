@@ -203,8 +203,20 @@ async function handleCiApproveReport(req: Request) {
     review_decision: 'approved',
     review_notes: review_notes ? sanitizeString(review_notes) : null,
   }).eq('id', ci_id);
-  // Loan stays ci_completed but now is "CI approved" — ready for final loan approval
-  // Keep loan status as ci_completed; loans-manage approve will check CI is approved.
+  // AUTO-APPROVE the loan when CI is approved — no separate final approval step needed.
+  await db.from('loans').update({ status: 'approved', approved_by: user.id }).eq('id', ci.loan_id);
+
+  // Also close any in-flight CI (assigned/accepted/in_progress) for this loan and release riders
+  const { data: openCis } = await db
+    .from('credit_investigations')
+    .select('rider_id')
+    .eq('loan_id', ci.loan_id)
+    .in('status', ['assigned', 'accepted', 'in_progress']);
+  if (openCis && openCis.length > 0) {
+    const riderIds = [...new Set(openCis.map((c: { rider_id: string }) => c.rider_id))];
+    await db.from('credit_investigations').update({ status: 'completed' }).eq('loan_id', ci.loan_id).in('status', ['assigned', 'accepted', 'in_progress']);
+    await db.from('rider_profiles').update({ is_available: true }).in('id', riderIds);
+  }
   await writeAuditLog({
     performedBy: user.id,
     action: 'ci_approve_report',
@@ -215,10 +227,10 @@ async function handleCiApproveReport(req: Request) {
   });
   // Notify rider and lender
   if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'CI Report Approved', body: 'Your investigation report has been approved by management. Thank you!', type: 'ci_approved', referenceId: ci_id });
-  // Notify lender via loan
+  // Notify lender via loan — loan is now approved, lender can choose disbursement
   const { data: loan } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
-  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Approved', body: 'Your loan credit investigation has been approved. Your application is now ready for final approval.', type: 'ci_approved', referenceId: ci.loan_id });
-  return jsonResponse({ message: 'CI report approved. Loan is now ready for final approval.' });
+  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved!', body: 'Your credit investigation has been approved and your loan is now approved. Please choose your disbursement method.', type: 'loan_approved', referenceId: ci.loan_id });
+  return jsonResponse({ message: 'CI report approved. Loan has been auto-approved.' });
 }
 
 async function handleCiRejectReport(req: Request) {
@@ -245,8 +257,8 @@ async function handleCiRejectReport(req: Request) {
     review_decision: 'rejected',
     review_notes: reason,
   }).eq('id', ci_id);
-  // Return loan to under_review so it can be re-assigned or re-evaluated
-  await db.from('loans').update({ status: 'under_review' }).eq('id', ci.loan_id);
+  // Reject the loan outright — lender must wait 3 months before re-applying.
+  await db.from('loans').update({ status: 'rejected', rejected_by: user.id, rejection_reason: `CI Rejected: ${reason}` }).eq('id', ci.loan_id);
   await writeAuditLog({
     performedBy: user.id,
     action: 'ci_reject_report',
@@ -259,5 +271,5 @@ async function handleCiRejectReport(req: Request) {
   if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'CI Report Needs Revision', body: `Your report was not approved: ${reason}. Please contact management.`, type: 'ci_rejected', referenceId: ci_id });
   const { data: loan } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
   if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Update', body: 'Your loan credit investigation requires additional review. Our team will contact you.', type: 'ci_rejected', referenceId: ci.loan_id });
-  return jsonResponse({ message: 'CI report rejected. Loan returned to review.' });
+  return jsonResponse({ message: 'CI report rejected. Loan has been rejected.' });
 }

@@ -280,6 +280,7 @@ async function handleGetDetails(req: Request) {
       payments: payments,
       credit_investigations: ci ?? [],
       disbursements: disbursements ?? [],
+      ci_status: (ci ?? []).length > 0 ? (ci ?? [])[0]?.status ?? null : null,
       rider_delivery_assigned: (disbursements ?? []).some(
         (d) => d?.method === 'rider_delivery'),
       penalties: penalties ?? [],

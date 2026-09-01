@@ -9,7 +9,6 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/lender_payment_provider.dart';
 import '../../../../../data/models/payment_model.dart';
@@ -267,6 +266,10 @@ class _PaymentCard extends StatelessWidget {
     final isReversed = status == 'reversed';
     final accent = isVerified ? AppColors.success : isReversed ? AppColors.error : status == 'pending' ? AppColors.warning : AppColors.lenderBlue;
 
+    final maskedRef = (referenceNum != null && referenceNum.length > 4)
+        ? '${referenceNum.substring(0, 2)}****${referenceNum.substring(referenceNum.length - 2)}'
+        : (referenceNum ?? '');
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -293,14 +296,12 @@ class _PaymentCard extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Text(methodLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
-                        const SizedBox(width: 6),
-                        StatusBadge(status: status),
-                      ]),
+                      if (maskedRef.isNotEmpty)
+                        Text(maskedRef, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary, letterSpacing: 1.0)),
+                      if (maskedRef.isNotEmpty) const SizedBox(height: 2),
+                      Text(item.lenderName.isNotEmpty ? item.lenderName : methodLabel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary)),
                       const SizedBox(height: 3),
-                      if (loanNumber.isNotEmpty) Text('Loan: $loanNumber', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                      if (referenceNum != null && referenceNum.isNotEmpty) Text('Ref: $referenceNum', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                      if (loanNumber.isNotEmpty) Text('Loan: $loanNumber', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary, fontWeight: FontWeight.w500)),
                       Text(item.createdAt.toShortDate, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
                     ]),
                   ),
@@ -309,7 +310,7 @@ class _PaymentCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6), border: Border.all(color: accent.withValues(alpha: 0.18))),
+                      decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(isVerified ? Icons.check_circle_rounded : isReversed ? Icons.undo_rounded : Icons.schedule_rounded, size: 12, color: accent),
                         const SizedBox(width: 4),
@@ -319,17 +320,6 @@ class _PaymentCard extends StatelessWidget {
                   ]),
                 ],
               ),
-              if (item.loan != null && (item.lenderName.isNotEmpty || loanNumber.isNotEmpty)) ...[
-                const SizedBox(height: 10),
-                const Divider(height: 1, color: AppColors.divider),
-                const SizedBox(height: 8),
-                Row(children: [
-                  const Icon(Icons.account_balance_wallet_outlined, size: 12, color: AppColors.textTertiary),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(item.lenderName.isNotEmpty ? 'Paid for ${item.lenderName}' : 'Loan payment', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))),
-                  const Icon(Icons.chevron_right_rounded, size: 14, color: AppColors.textTertiary),
-                ]),
-              ],
             ],
           ),
         ),
