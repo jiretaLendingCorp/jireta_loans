@@ -518,6 +518,40 @@ async function handleGetProfile(req: Request) {
   const rider = embedAsObject(data?.rider_profiles);
   const lender = embedAsObject(data?.lender_profiles);
 
+  // Walk-in origin flag for lender — mirrors kyc-view logic: show "Created via Walk-in"
+  let inOfficeApplication: Record<string, unknown> | null = null;
+  let isWalkIn = false;
+  try {
+    if (lender) {
+      const { data: ioApp } = await db.from('in_office_applications')
+        .select('id,status,wizard_step,created_at,created_by,lender_id,users!in_office_applications_created_by_fkey(first_name,last_name)')
+        .eq('lender_id', canonicalId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (ioApp) {
+        inOfficeApplication = ioApp as unknown as Record<string, unknown>;
+        isWalkIn = true;
+      } else {
+        // fallback phone match for legacy where lender_id not yet linked
+        const { data: rawUser } = await db.from('users').select('phone_number').eq('id', canonicalId).maybeSingle();
+        const phone = (rawUser as any)?.phone_number;
+        if (phone) {
+          const { data: match } = await db.from('application_personal_info')
+            .select('application_id, in_office_applications!inner(id,status,created_at,created_by,lender_id,users!in_office_applications_created_by_fkey(first_name,last_name))')
+            .eq('phone_number', phone)
+            .limit(1)
+            .maybeSingle();
+          const app = (match as any)?.in_office_applications;
+          if (app && (app.status === 'submitted' || app.status === 'converted')) {
+            inOfficeApplication = app;
+            isWalkIn = true;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
   const flattened = {
     ...data,
     department: emp?.department ?? null,
@@ -544,6 +578,8 @@ async function handleGetProfile(req: Request) {
     province: address?.province ?? null,
     zip_code: address?.zip_code ?? null,
     emergency_contacts: emergencyContacts ?? [],
+    in_office_application: inOfficeApplication,
+    is_walk_in: isWalkIn,
   };
 
   return jsonResponse({ user: flattened });

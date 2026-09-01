@@ -45,6 +45,9 @@ class KpiHeadManagerModel {
   final List<MonthlyKpiPoint> monthlySeries;
   final Map<String, int> loanStatusBreakdown;
   final int pendingBucket;
+  // Monthly metadata — when isMonthly==true, values above are filtered to selectedMonth
+  final String? selectedMonth; // YYYY-MM or null (lifetime)
+  final bool isMonthly;
 
   const KpiHeadManagerModel({
     required this.totalEmployees,
@@ -69,6 +72,8 @@ class KpiHeadManagerModel {
     this.monthlySeries = const [],
     this.loanStatusBreakdown = const {},
     this.pendingBucket = 0,
+    this.selectedMonth,
+    this.isMonthly = false,
   });
 
   int get totalApproved => totalApprovedLoans;
@@ -123,6 +128,8 @@ class KpiHeadManagerModel {
           .toList(),
       loanStatusBreakdown: breakdown,
       pendingBucket: (json['pending_bucket'] as num?)?.toInt() ?? 0,
+      selectedMonth: json['selected_month']?.toString(),
+      isMonthly: (json['is_monthly'] == true) || (json['period'] == 'monthly'),
     );
   }
 
@@ -148,5 +155,7 @@ class KpiHeadManagerModel {
         totalPendingAccountUpgrade: 0,
         loanStatusBreakdown: {},
         pendingBucket: 0,
+        selectedMonth: null,
+        isMonthly: false,
       );
 }

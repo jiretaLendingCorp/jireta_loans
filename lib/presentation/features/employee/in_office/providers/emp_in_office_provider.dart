@@ -67,17 +67,20 @@ class EmpInOfficeNotifier
     }
   }
 
-  Future<bool> submit(String applicationId) async {
+  Future<Map<String, dynamic>?> submit(String applicationId) async {
     try {
-      await _ds.submit(applicationId: applicationId);
+      final res = await _ds.submit(applicationId: applicationId);
       await loadList();
-      return true;
+      return res;
     } catch (e) {
       // ignore: avoid_print
       print('[EmpInOffice] submit failed: ${ErrorHandler.handle(e).message}');
-      return false;
+      return null;
     }
   }
+
+  // Legacy bool wrapper
+  Future<bool> submitBool(String applicationId) async => (await submit(applicationId)) != null;
 
   Future<Map<String, dynamic>?> getSchedulePreview({
     required double principal,

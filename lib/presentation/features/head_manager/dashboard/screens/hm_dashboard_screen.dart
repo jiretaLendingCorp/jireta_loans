@@ -24,10 +24,31 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final dashState = ref.watch(hmDashboardProvider);
+    final notifier = ref.read(hmDashboardProvider.notifier);
 
     return WebScaffold(
       title: 'Dashboard',
       actions: [
+        // Month picker — monthly dashboard (head_manager role only)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: dashState.selectedMonth,
+              icon: const Icon(Icons.calendar_month_rounded, size: 18, color: AppColors.deepNavy),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.deepNavy),
+              isDense: true,
+              items: HmDashboardNotifier.availableMonths().map((m) {
+                return DropdownMenuItem(value: m, child: Text(HmDashboardNotifier.monthLabel(m)));
+              }).toList(),
+              onChanged: (v) {
+                if (v != null) notifier.setMonth(v);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -35,7 +56,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
             border: Border.all(color: AppColors.border),
           ),
           child: IconButton(
-            onPressed: () => ref.read(hmDashboardProvider.notifier).refresh(),
+            onPressed: () => notifier.refresh(),
             icon: dashState.isLoading
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh_rounded, color: AppColors.textSecondary, size: 20),
@@ -46,44 +67,106 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
       body: dashState.isLoading
           ? _buildShimmer()
           : RefreshIndicator(
-              onRefresh: () => ref.read(hmDashboardProvider.notifier).refresh(),
+              onRefresh: () => notifier.refresh(),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Single portfolio donut — full width, clean spacing
+                    _buildMonthlyBanner(dashState),
+                    const SizedBox(height: 16),
+                    // Single portfolio donut — monthly filtered
                     _Entrance(child: HmAnalyticsPanel(kpi: dashState.kpi)),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.people_rounded,
-                      'User Statistics',
-                      'Staff and lender counts across the branch',
+                      'User Statistics — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                      'New registrations in selected month',
                     ),
                     const SizedBox(height: 14),
                     _buildUserStatsGrid(dashState.kpi),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.account_balance_wallet_rounded,
-                      'Financial Metrics',
-                      'Money in, money out and everything in between',
+                      'Financial Metrics — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                      'Money movements within selected month',
                     ),
                     const SizedBox(height: 14),
                     _buildFinancialGrid(dashState.kpi),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.description_rounded,
-                      'Loan Overview',
-                      'Loan portfolio at a glance',
+                      'Loan Overview — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                      'Loans created in selected month',
                     ),
                     const SizedBox(height: 14),
                     _buildLoanStatsGrid(dashState.kpi),
+                    const SizedBox(height: 16),
+                    _buildMonthlyExplainer(),
                     const SizedBox(height: 32),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildMonthlyBanner(HmDashboardState dashState) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.deepNavy,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.calendar_view_month_rounded, color: Colors.white, size: 18)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Monthly View — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+              const SizedBox(height: 2),
+              Text('All KPIs below are filtered to the selected month (activity inside that month). Lifetime totals are de-emphasized — see explainer below.',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontSize: 11, height: 1.4)),
+            ]),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+            child: const Text('HEAD MANAGER ONLY', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMonthlyExplainer() {
+    const items = [
+      ('User Statistics', 'New employees / riders / lenders REGISTERED in that month; Pending Upgrades = upgrades submitted in month. Not cumulative headcount.'),
+      ('Financial Metrics', 'Released = sum principal of loans originated in month (subset). Collected = payments with paid_at in month. Penalties/Revenue = likewise month-filtered.'),
+      ('Loan Overview', 'Counts = loans where created_at in month by status. Donut = distribution of that month’s pipeline only.'),
+      ('Monthly Series', '6-month trend ending at selected month (released vs collected). Lets you compare the selected month to its 5 predecessors.'),
+    ];
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Row(children: [Icon(Icons.info_outline_rounded, size: 16, color: AppColors.deepNavy), SizedBox(width: 6), Text('What “Monthly” means — business rules', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13))]),
+        const SizedBox(height: 12),
+        ...items.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(margin: const EdgeInsets.only(top: 6), width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle)),
+                const SizedBox(width: 8),
+                Expanded(child: RichText(text: TextSpan(style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4), children: [TextSpan(text: '${e.$1}: ', style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)), TextSpan(text: e.$2)]))),
+              ]),
+            )),
+        const SizedBox(height: 8),
+        const Text('Lifetime view is still available via API (?month absent) for audit, but the UI defaults to monthly per spec.', style: TextStyle(fontSize: 11, color: AppColors.textTertiary, fontStyle: FontStyle.italic)),
+      ]),
     );
   }
 

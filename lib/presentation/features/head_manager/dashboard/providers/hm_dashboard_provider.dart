@@ -12,22 +12,31 @@ class HmDashboardState {
   final KpiHeadManagerModel kpi;
   final bool isLoading;
   final String? error;
+  final String selectedMonth; // YYYY-MM
 
-  const HmDashboardState({
+  HmDashboardState({
     required this.kpi,
     this.isLoading = false,
     this.error,
-  });
+    String? selectedMonth,
+  }) : selectedMonth = selectedMonth ?? _currentMonth();
+
+  static String _currentMonth() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  }
 
   HmDashboardState copyWith({
     KpiHeadManagerModel? kpi,
     bool? isLoading,
     String? error,
+    String? selectedMonth,
   }) =>
       HmDashboardState(
         kpi: kpi ?? this.kpi,
         isLoading: isLoading ?? this.isLoading,
         error: error,
+        selectedMonth: selectedMonth ?? this.selectedMonth,
       );
 }
 
@@ -62,17 +71,37 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
     });
   }
 
+  /// Month helpers — generates last 12 months for picker (newest first)
+  static List<String> availableMonths({int count = 12}) {
+    final now = DateTime.now();
+    return List.generate(count, (i) {
+      final d = DateTime(now.year, now.month - i, 1);
+      return '${d.year}-${d.month.toString().padLeft(2, '0')}';
+    });
+  }
+
+  static String monthLabel(String yyyyMm) {
+    const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final parts = yyyyMm.split('-');
+    if (parts.length != 2) return yyyyMm;
+    final y = parts[0];
+    final m = int.tryParse(parts[1]) ?? 1;
+    return '${mNames[m - 1]} $y';
+  }
+
   @override
   void dispose() {
     _pollTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> loadKpis({bool silent = false}) async {
+  Future<void> loadKpis({bool silent = false, String? month}) async {
+    final m = month ?? state.selectedMonth;
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      final kpi = await _ds.getHeadManagerKpis();
-      state = state.copyWith(kpi: kpi, isLoading: false);
+      // Head manager dashboard is MONTHLY: always pass selectedMonth
+      final kpi = await _ds.getHeadManagerKpis(month: m);
+      state = state.copyWith(kpi: kpi, isLoading: false, selectedMonth: m);
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
@@ -80,7 +109,12 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
     }
   }
 
-  Future<void> refresh() => loadKpis();
+  Future<void> setMonth(String month) async {
+    state = state.copyWith(selectedMonth: month);
+    await loadKpis(month: month);
+  }
+
+  Future<void> refresh() => loadKpis(month: state.selectedMonth);
 }
 
 final hmDashboardProvider =

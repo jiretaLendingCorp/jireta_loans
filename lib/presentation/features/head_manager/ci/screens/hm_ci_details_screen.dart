@@ -10,7 +10,6 @@ import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_ci_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -62,11 +61,9 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
   }
 
   Widget _buildContent(BuildContext context, Map<String, dynamic> ci) {
-    final status = ci['status'] as String? ?? '';
+    final rawStatus = (ci['status'] as String? ?? '').trim();
+    final status = rawStatus.toLowerCase();
     final model = CreditInvestigationModel.fromJson(ci);
-    // Approval action is intentionally placed OUTSIDE the scroll content
-    // (fixed bottom bar) so it is not nested inside CI Assignment Details.
-    final isApproval = status == 'completed';
     return Column(
       children: [
         Expanded(
@@ -106,121 +103,67 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
                   const SizedBox(height: 16),
                   _buildReviewInfoCard(ci),
                 ],
-                if (status == 'pending' || status == 'declined') ...[
+                if (status == 'pending' || status == 'declined' || status == 'assigned') ...[
                   const SizedBox(height: 16),
                   _buildAssignRiderSection(context, ci),
                 ],
-                // Extra bottom padding when fixed approval bar is visible
-                if (isApproval) const SizedBox(height: 16),
               ],
             ),
           ),
         ),
-        if (isApproval) _buildApprovalBarOutside(context, ci),
       ],
     );
   }
 
-  Widget _buildApprovalBarOutside(BuildContext context, Map<String, dynamic> ci) {
+  // ignore: unused_element
+  // Solid banner — OUTSIDE assignment details, no borderRadius, solid Warning background, includes Approve/Reject actions
+  Widget _buildSolidWaitingBanner(BuildContext context, Map<String, dynamic> ci) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(top: BorderSide(color: AppColors.border)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, -4))],
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
-      child: LayoutBuilder(builder: (cntx, c) {
-        final isNarrow = c.maxWidth < 560;
+      width: double.infinity,
+      color: AppColors.warning, // solid, no borderRadius
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: LayoutBuilder(builder: (ctx, c) {
+        final isNarrow = c.maxWidth < 640;
         if (isNarrow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [AppColors.warning, Color(0xFFE65100)]),
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    child: const Icon(Icons.rate_review_rounded, color: Colors.white, size: 18),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('CI Report — Awaiting Your Approval',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                      Text('Review report & evidence, then approve or reject.',
-                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                    ]),
-                  ),
-                ],
-              ),
+              Row(children: [
+                Container(width: 32, height: 32, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.rate_review_rounded, color: AppColors.warning, size: 18)),
+                const SizedBox(width: 10),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('CI Report — Awaiting Your Approval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                  Text('Rider submitted. Review outside the details card.', style: TextStyle(fontSize: 11, color: Colors.white, height: 1.2)),
+                ])),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)), child: const Text('ACTION REQUIRED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.warning, letterSpacing: 0.5))),
+              ]),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ApprovalButton(
-                      label: 'Reject',
-                      icon: Icons.close_rounded,
-                      color: AppColors.error,
-                      onTap: () => _showRejectDialog(context, ref, ci),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _ApprovalButton(
-                      label: 'Approve',
-                      icon: Icons.check_rounded,
-                      color: AppColors.success,
-                      onTap: () => _showApproveDialog(context, ref, ci),
-                    ),
-                  ),
-                ],
-              ),
+              Row(children: [
+                Expanded(child: ElevatedButton.icon(onPressed: () => _showRejectDialog(context, ref, ci), icon: const Icon(Icons.close_rounded, size: 18), label: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.error, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))))),
+                const SizedBox(width: 10),
+                Expanded(child: ElevatedButton.icon(onPressed: () => _showApproveDialog(context, ref, ci), icon: const Icon(Icons.check_rounded, size: 18), label: const Text('Approve', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.success, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))))),
+              ]),
             ],
           );
         }
-        return Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppColors.warning, Color(0xFFE65100)]),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: const Icon(Icons.rate_review_rounded, color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('CI Report — Awaiting Your Approval',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                Text('Review report & evidence, then approve or reject.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              ]),
-            ),
-            const SizedBox(width: 12),
-            _ApprovalButton(
-              label: 'Reject',
-              icon: Icons.close_rounded,
-              color: AppColors.error,
-              onTap: () => _showRejectDialog(context, ref, ci),
-            ),
-            const SizedBox(width: 10),
-            _ApprovalButton(
-              label: 'Approve',
-              icon: Icons.check_rounded,
-              color: AppColors.success,
-              onTap: () => _showApproveDialog(context, ref, ci),
-            ),
-          ],
-        );
+        return Row(children: [
+          Container(width: 32, height: 32, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.rate_review_rounded, color: AppColors.warning, size: 18)),
+          const SizedBox(width: 10),
+          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('CI Report — Awaiting Your Approval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+            Text('Rider has submitted the report. Review it outside the details card and take action.', style: TextStyle(fontSize: 11, color: Colors.white, height: 1.2)),
+          ])),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(onPressed: () => _showRejectDialog(context, ref, ci), icon: const Icon(Icons.close_rounded, size: 18), label: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.error, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+          const SizedBox(width: 10),
+          ElevatedButton.icon(onPressed: () => _showApproveDialog(context, ref, ci), icon: const Icon(Icons.check_rounded, size: 18), label: const Text('Approve', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.success, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
+        ]);
       }),
     );
   }
+
+  // ignore: unused_element
+  Widget _buildApprovalBarOutside(BuildContext context, Map<String, dynamic> ci) => _buildSolidWaitingBanner(context, ci);
 
   Widget _buildPremiumHeader(CreditInvestigationModel model, String status, Map<String, dynamic> ci) {
     final accent = _accentForStatus(status);
@@ -269,7 +212,11 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
             ]),
           ),
           const SizedBox(width: 12),
-          StatusBadge(status: status),
+          // Text only, not button-like pill — per spec "complete dapat text lang"
+          Text(
+            status.replaceAll('_', ' ').toUpperCase(),
+            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6),
+          ),
         ],
       ),
     );
@@ -351,7 +298,6 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         _InfoRow('Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone, icon: Icons.phone_outlined),
         _InfoRow('Loan Amount', principal != null ? '₱${_fmt.format((principal as num).toDouble())}' : 'N/A', icon: Icons.payments_outlined, highlight: true),
         if (addresses is Map) _InfoRow('Primary Address', _formatAddress(Map<String, dynamic>.from(addresses)), icon: Icons.location_on_outlined),
-        _InfoRow('CI Notes', ci['investigation_notes'] ?? 'None', icon: Icons.sticky_note_2_outlined),
         _InfoRow('Deadline', ci['deadline'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(ci['deadline'])) : 'N/A', icon: Icons.event_outlined),
       ],
     );
@@ -370,39 +316,28 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(DateTime.parse(ci['created_at'])) : 'N/A', icon: Icons.schedule_rounded),
         _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(DateTime.parse(ci['response_at'])) : 'Pending', icon: Icons.check_circle_outline_rounded),
         _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(DateTime.parse(ci['completed_at'])) : '—', icon: Icons.verified_outlined),
+        _InfoRow('CI Notes', (ci['investigation_notes'] as String?)?.isNotEmpty == true ? ci['investigation_notes'] as String : 'None', icon: Icons.sticky_note_2_outlined),
       ],
     );
   }
 
   Widget _buildReportCard(Map<String, dynamic> ci) {
+    // Header removed per spec — CI report content only, no header row
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Container(
+          width: double.infinity,
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.divider))),
-          child: Row(children: [
-            Container(width: 36, height: 36, decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF00838F), Color(0xFF006064)]), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.article_rounded, color: Colors.white, size: 18)),
-            const SizedBox(width: 10),
-            const Text('Investigation Report', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-            const Spacer(),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)), child: const Text('FIELD REPORT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.warning))),
+          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(ci['report_summary'] as String? ?? '', style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
           ]),
         ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
-              const SizedBox(width: 8),
-              Expanded(child: Text(ci['report_summary'] as String? ?? '', style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
-            ]),
-          ),
-        ),
-      ]),
+      ),
     );
   }
 
@@ -797,13 +732,9 @@ class _PremiumInfoCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(border: const Border(bottom: BorderSide(color: AppColors.divider)), color: accent.withValues(alpha: 0.04), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
-          child: Row(children: [
-            Container(width: 36, height: 36, decoration: BoxDecoration(gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]), borderRadius: BorderRadius.circular(9)), child: Icon(icon, color: Colors.white, size: 18)),
-            const SizedBox(width: 10),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ]),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           ]),
         ),
         Padding(padding: const EdgeInsets.all(16), child: Column(children: children)),
@@ -815,17 +746,16 @@ class _PremiumInfoCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
+  final IconData? icon;
   final bool highlight;
-  const _InfoRow(this.label, this.value, {required this.icon, this.highlight = false});
+  const _InfoRow(this.label, this.value, {this.icon, this.highlight = false});
 
   @override
   Widget build(BuildContext context) {
+    // Icons removed per spec — text only rows
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(7)), child: Icon(icon, size: 14, color: AppColors.textSecondary)),
-        const SizedBox(width: 10),
         SizedBox(width: 120, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
         Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
       ]),
@@ -833,6 +763,7 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ApprovalButton extends StatelessWidget {
   final String label;
   final IconData icon;

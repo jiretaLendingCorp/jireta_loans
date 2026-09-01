@@ -11,7 +11,7 @@ class KpiRepositoryImpl implements IKpiRepository {
   KpiRepositoryImpl(this._ds);
 
   @override
-  Future<KpiHeadManagerModel> getHeadManagerKpi() => _ds.getHeadManagerKpi();
+  Future<KpiHeadManagerModel> getHeadManagerKpi({String? month}) => _ds.getHeadManagerKpi(month: month);
 
   @override
   Future<KpiEmployeeModel> getEmployeeKpi() => _ds.getEmployeeKpi();

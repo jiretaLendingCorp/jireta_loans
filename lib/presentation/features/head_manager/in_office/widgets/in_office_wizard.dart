@@ -1112,11 +1112,31 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           }
         }
       }
-      final submitted = await ref.read(hmInOfficeProvider.notifier).submitApplication(_appId!);
-      if (!submitted) {
+      final submittedRes = await ref.read(hmInOfficeProvider.notifier).submitApplication(_appId!);
+      if (submittedRes == null) {
         if (mounted) _showMessage('Submit failed. Application data is incomplete or already submitted.');
         setState(() => _loading = false);
         return;
+      }
+      // Business rule parity: if lender not yet verified, account is created but loan is PENDING upgrade
+      final pendingUpgrade = submittedRes['pending_upgrade'] == true;
+      if (mounted) {
+        if (pendingUpgrade) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created via Walk-in. Lender must complete Account Upgrade before loan is created. (Default pwd: 12345678)'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(submittedRes['message']?.toString() ?? 'Application submitted.'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
       }
       widget.onComplete();
       if (mounted) Navigator.pop(context);

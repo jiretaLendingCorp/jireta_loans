@@ -494,14 +494,9 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           Expanded(
             flex: 3,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+              Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
-              Row(children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: AppColors.deepNavy.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)), child: Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.deepNavy))),
-                if (isOffice) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: const Color(0xFF00838F).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)), child: const Text('OFFICE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Color(0xFF00838F))))],
-              ]),
-              const SizedBox(height: 2),
-              Row(mainAxisSize: MainAxisSize.min, children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 12, color: AppColors.textTertiary), const SizedBox(width: 4), Flexible(child: Text(isOffice ? 'Office visit' : (col.riderName.isNotEmpty ? col.riderName : 'Unassigned'), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
+              Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
             ]),
           ),
           Expanded(flex: 2, child: Text('₱${fmt.format(amount)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary))),

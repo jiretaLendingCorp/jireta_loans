@@ -88,16 +88,24 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
     }
   }
 
-  Future<bool> submitApplication(String applicationId) async {
+  /// Returns the raw backend response (may contain pending_upgrade flag).
+  /// Caller should inspect `pending_upgrade` == true to show "account created, awaiting KYC" vs loan converted.
+  Future<Map<String, dynamic>?> submitApplication(String applicationId) async {
     try {
-      await _ds.submit(applicationId: applicationId);
+      final res = await _ds.submit(applicationId: applicationId);
       await load();
-      return true;
+      return res;
     } catch (e) {
       // ignore: avoid_print
       print('[HmInOffice] submit failed for $applicationId: ${ErrorHandler.handle(e).message}');
-      return false;
+      return null;
     }
+  }
+
+  /// Legacy bool wrapper for callers that only care about success/failure
+  Future<bool> submitApplicationBool(String applicationId) async {
+    final r = await submitApplication(applicationId);
+    return r != null;
   }
 
   Future<Map<String, dynamic>?> getSchedulePreview(

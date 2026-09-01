@@ -10,7 +10,6 @@ import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-import '../../../../shared/widgets/status_badge.dart';
 import '../providers/emp_ci_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -70,9 +69,9 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
   }
 
   Widget _buildContent(BuildContext context, Map<String, dynamic> ci) {
-    final status = ci['status'] as String? ?? '';
+    final rawStatus = (ci['status'] as String? ?? '').trim();
+    final status = rawStatus.toLowerCase();
     final model = CreditInvestigationModel.fromJson(ci);
-    final isApproval = status == 'completed';
     return Column(
       children: [
         Expanded(
@@ -112,20 +111,38 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
                   const SizedBox(height: 16),
                   _buildReviewInfoCard(ci),
                 ],
-                if (status == 'pending' || status == 'declined') ...[
+                if (status == 'pending' || status == 'declined' || status == 'assigned') ...[
                   const SizedBox(height: 16),
                   _buildAssignRiderSection(context, ci),
                 ],
-                if (isApproval) const SizedBox(height: 16),
               ],
             ),
           ),
         ),
-        if (isApproval) _buildApprovalBarOutside(context, ci),
       ],
     );
   }
 
+  // ignore: unused_element
+  Widget _buildSolidWaitingBanner(BuildContext context, Map<String, dynamic> ci) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.warning,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(children: [
+        Container(width: 32, height: 32, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.rate_review_rounded, color: AppColors.warning, size: 18)),
+        const SizedBox(width: 10),
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('CI Report — Awaiting Your Approval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+          Text('Rider has submitted the report. Review it outside the details card and take action below.', style: TextStyle(fontSize: 11, color: Colors.white, height: 1.2)),
+        ])),
+        const SizedBox(width: 12),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)), child: const Text('ACTION REQUIRED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.warning, letterSpacing: 0.5))),
+      ]),
+    );
+  }
+
+  // ignore: unused_element
   Widget _buildApprovalBarOutside(BuildContext context, Map<String, dynamic> ci) {
     return Container(
       decoration: BoxDecoration(
@@ -298,7 +315,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
             ]),
           ),
           const SizedBox(width: 12),
-          StatusBadge(status: status),
+          Text(status.replaceAll('_', ' ').toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
         ],
       ),
     );
@@ -396,29 +413,11 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
       icon: Icons.person_rounded,
       accent: AppColors.lenderBlue,
       children: [
-        _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName,
-            icon: Icons.badge_outlined),
-        _InfoRow('Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone,
-            icon: Icons.phone_outlined),
-        _InfoRow(
-            'Loan Amount',
-            principal != null
-                ? '₱${_fmt.format((principal as num).toDouble())}'
-                : 'N/A',
-            icon: Icons.payments_outlined,
-            highlight: true),
-        if (addresses is Map)
-          _InfoRow('Primary Address',
-              _formatAddress(Map<String, dynamic>.from(addresses)),
-              icon: Icons.location_on_outlined),
-        _InfoRow('CI Notes', ci['investigation_notes'] ?? 'None',
-            icon: Icons.sticky_note_2_outlined),
-        _InfoRow(
-            'Deadline',
-            ci['deadline'] != null
-                ? DateFormat('MMM d, yyyy').format(DateTime.parse(ci['deadline']))
-                : 'N/A',
-            icon: Icons.event_outlined),
+        _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName, icon: Icons.badge_outlined),
+        _InfoRow('Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone, icon: Icons.phone_outlined),
+        _InfoRow('Loan Amount', principal != null ? '₱${_fmt.format((principal as num).toDouble())}' : 'N/A', icon: Icons.payments_outlined, highlight: true),
+        if (addresses is Map) _InfoRow('Primary Address', _formatAddress(Map<String, dynamic>.from(addresses)), icon: Icons.location_on_outlined),
+        _InfoRow('Deadline', ci['deadline'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(ci['deadline'])) : 'N/A', icon: Icons.event_outlined),
       ],
     );
   }
@@ -430,97 +429,33 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
       icon: Icons.assignment_rounded,
       accent: AppColors.deepNavy,
       children: [
-        _InfoRow('Status', (ci['status'] ?? 'N/A').toString().replaceAll('_', ' '),
-            icon: Icons.flag_outlined),
-        _InfoRow('Assigned Rider',
-            model.riderName.isEmpty ? 'Not Assigned' : model.riderName,
-            icon: Icons.delivery_dining_rounded),
-        _InfoRow('Assigned By',
-            model.assignedByName.isEmpty ? 'N/A' : model.assignedByName,
-            icon: Icons.admin_panel_settings_outlined),
-        _InfoRow(
-            'Assigned At',
-            ci['created_at'] != null
-                ? _dateFmt.format(DateTime.parse(ci['created_at']))
-                : 'N/A',
-            icon: Icons.schedule_rounded),
-        _InfoRow(
-            'Accepted At',
-            ci['response_at'] != null
-                ? _dateFmt.format(DateTime.parse(ci['response_at']))
-                : 'Pending',
-            icon: Icons.check_circle_outline_rounded),
-        _InfoRow(
-            'Completed At',
-            ci['completed_at'] != null
-                ? _dateFmt.format(DateTime.parse(ci['completed_at']))
-                : '—',
-            icon: Icons.verified_outlined),
+        _InfoRow('Status', (ci['status'] ?? 'N/A').toString().replaceAll('_', ' '), icon: Icons.flag_outlined),
+        _InfoRow('Assigned Rider', model.riderName.isEmpty ? 'Not Assigned' : model.riderName, icon: Icons.delivery_dining_rounded),
+        _InfoRow('Assigned By', model.assignedByName.isEmpty ? 'N/A' : model.assignedByName, icon: Icons.admin_panel_settings_outlined),
+        _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(DateTime.parse(ci['created_at'])) : 'N/A', icon: Icons.schedule_rounded),
+        _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(DateTime.parse(ci['response_at'])) : 'Pending', icon: Icons.check_circle_outline_rounded),
+        _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(DateTime.parse(ci['completed_at'])) : '—', icon: Icons.verified_outlined),
+        _InfoRow('CI Notes', (ci['investigation_notes'] as String?)?.isNotEmpty == true ? ci['investigation_notes'] as String : 'None', icon: Icons.sticky_note_2_outlined),
       ],
     );
   }
 
   Widget _buildReportCard(Map<String, dynamic> ci) {
     return Container(
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Container(
+          width: double.infinity,
           padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.divider))),
-          child: Row(children: [
-            Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                        colors: [Color(0xFF00838F), Color(0xFF006064)]),
-                    borderRadius: BorderRadius.all(Radius.circular(9))),
-                child: const Icon(Icons.article_rounded, color: Colors.white, size: 18)),
-            const SizedBox(width: 10),
-            const Text('Investigation Report',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-            const Spacer(),
-            Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6)),
-                child: const Text('FIELD REPORT',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.warning))),
+          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(ci['report_summary'] as String? ?? '', style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
           ]),
         ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('“',
-                  style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textTertiary,
-                      height: 0.8)),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: Text(ci['report_summary'] as String? ?? '',
-                      style: const TextStyle(
-                          fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
-            ]),
-          ),
-        ),
-      ]),
+      ),
     );
   }
 
@@ -995,42 +930,18 @@ class _PremiumInfoCard extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final List<Widget> children;
-  const _PremiumInfoCard(
-      {required this.title,
-      required this.subtitle,
-      required this.icon,
-      required this.accent,
-      required this.children});
-
+  const _PremiumInfoCard({required this.title, required this.subtitle, required this.icon, required this.accent, required this.children});
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-              border: const Border(bottom: BorderSide(color: AppColors.divider)),
-              color: accent.withValues(alpha: 0.04),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
-          child: Row(children: [
-            Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
-                    borderRadius: BorderRadius.circular(9)),
-                child: Icon(icon, color: Colors.white, size: 18)),
-            const SizedBox(width: 10),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ]),
+          decoration: BoxDecoration(border: const Border(bottom: BorderSide(color: AppColors.divider)), color: accent.withValues(alpha: 0.04), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
           ]),
         ),
         Padding(padding: const EdgeInsets.all(16), child: Column(children: children)),
@@ -1042,33 +953,16 @@ class _PremiumInfoCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
+  final IconData? icon;
   final bool highlight;
-  const _InfoRow(this.label, this.value, {required this.icon, this.highlight = false});
-
+  const _InfoRow(this.label, this.value, {this.icon, this.highlight = false});
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-                color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(7)),
-            child: Icon(icon, size: 14, color: AppColors.textSecondary)),
-        const SizedBox(width: 10),
-        SizedBox(
-            width: 120,
-            child: Text(label,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
-        Expanded(
-            child: Text(value,
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
+        SizedBox(width: 120, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
       ]),
     );
   }

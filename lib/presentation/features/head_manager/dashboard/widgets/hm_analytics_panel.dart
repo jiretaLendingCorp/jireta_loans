@@ -18,11 +18,19 @@ class HmAnalyticsPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMonthly = kpi.isMonthly;
+    final monthLabel = kpi.selectedMonth != null ? (() {
+      const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      final p = kpi.selectedMonth!.split('-');
+      final y = p[0];
+      final m = int.tryParse(p[1]) ?? 1;
+      return '${mNames[m-1]} $y';
+    })() : null;
     return SizedBox(
       height: 320,
       child: _ChartCard(
-        title: 'Loan Portfolio by Status',
-        subtitle: 'Distribution across all loan records',
+        title: isMonthly && monthLabel != null ? 'Loan Portfolio — $monthLabel (Monthly)' : 'Loan Portfolio by Status',
+        subtitle: isMonthly ? 'Loans created in $monthLabel only' : 'Distribution across all loan records',
         icon: Icons.pie_chart_rounded,
         child: _LoanStatusDonut(kpi: kpi),
       ),

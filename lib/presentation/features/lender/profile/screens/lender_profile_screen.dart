@@ -130,6 +130,10 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             child: Column(children: [
               _buildHeader(fullName, firstName, phone,
                   user.profilePhotoUrl as String?, accountStatus),
+              if (userModel?.isWalkIn == true) ...[
+                const SizedBox(height: 12),
+                _buildWalkInBanner(userModel?.inOfficeApplication),
+              ],
               if (isVerified) ...[
                 const SizedBox(height: 16),
                 _buildEditProfileButton(),
@@ -357,6 +361,62 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: AppColors.lenderBlue),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWalkInBanner(Map<String, dynamic>? app) {
+    final createdAt = app?['created_at']?.toString();
+    String dateLabel = '';
+    if (createdAt != null) {
+      try {
+        final d = DateTime.parse(createdAt);
+        dateLabel = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      } catch (_) {}
+    }
+    final status = (app?['status']?.toString() ?? 'submitted').toLowerCase();
+    final statusLabel = switch (status) {
+      'converted' => 'Converted — Loan Created',
+      'submitted' => 'Pending Upgrade — Complete KYC to enable loan',
+      _ => status,
+    };
+    final staffName = () {
+      final u = app?['users'] ?? app?['created_by_user'];
+      if (u is Map) return '${u['first_name'] ?? ''} ${u['last_name'] ?? ''}'.trim();
+      return 'Staff';
+    }();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.lenderBlue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.lenderBlue.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: AppColors.lenderBlue, borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.storefront_outlined, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Created via Walk-in (In-Office Application)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.lenderBlue)),
+              const SizedBox(height: 4),
+              Text('This account was created by $staffName via In-Office Application${dateLabel.isNotEmpty ? ' on $dateLabel' : ''}. $statusLabel.',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4)),
+              if (status == 'submitted') ...[
+                const SizedBox(height: 6),
+                const Text('Complete Account Upgrade now to unlock loan application.',
+                    style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w700)),
+              ],
+            ]),
           ),
         ],
       ),

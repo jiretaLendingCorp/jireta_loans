@@ -85,18 +85,9 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
                         const SizedBox(height: 20),
                         _DisbursementChoiceCard(loan: loan),
                       ],
-                      if (loan.status == 'ci_completed' && (loan.ciStatus == 'completed')) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.warning.withValues(alpha: 0.3))),
-                          child: const Row(children: [
-                            Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 20),
-                            SizedBox(width: 10),
-                            Expanded(child: Text('Your credit investigation report is awaiting manager approval. You will be able to choose how to receive your funds after the manager approves the investigation and the loan.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.4))),
-                          ]),
-                        ),
-                      ],
+                      // NOTE: Lender does NOT show the "awaiting manager approval" solid box — that design is staff-only.
+                      // Timeline step _Step('CI Submitted — Awaiting Manager Approval' with isWarning) already informs lender.
+                      // Removed the extra Container to satisfy spec: no approval-like design in lender role after rider CI.
                     ],
                   ),
                 ),

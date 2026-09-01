@@ -636,14 +636,14 @@ class _HmLoanApplicationsListScreenState
               ),
               child: Row(
                 children: [
-                    // Lender & Loan
+                    // Lender & Loan — LN as plain text (no pill), lender name below
                     Expanded(
                       flex: 3,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            lenderName.isEmpty ? '—' : lenderName,
+                            loan.loanNumber,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
@@ -651,63 +651,26 @@ class _HmLoanApplicationsListScreenState
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.deepNavy
-                                      .withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  loan.loanNumber,
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: AppColors.deepNavy),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  loan.createdAt
-                                      .toIso8601String()
-                                      .substring(0, 10),
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textTertiary),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Amount
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
                           Text(
-                            '₱${fmt.format(loan.principalAmount)}',
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${loan.termLabel} • ${loan.installmentAmount > 0 ? "₱${fmt.format(loan.installmentAmount)}/ ${loan.termUnit.replaceAll('s', '')}" : loan.paymentFrequency}',
+                            lenderName.isEmpty ? '—' : lenderName,
                             style: const TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textTertiary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
+                      ),
+                    ),
+                    // Amount — plain text only, no term label
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        '₱${fmt.format(loan.principalAmount)}',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     // Frequency — flat inline, start-aligned pantay sa header

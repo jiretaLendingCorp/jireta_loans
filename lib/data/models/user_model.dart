@@ -24,6 +24,8 @@ class UserModel extends UserEntity {
   final String? province;
   final String? zipCode;
   final List<Map<String, dynamic>> emergencyContacts;
+  final bool isWalkIn;
+  final Map<String, dynamic>? inOfficeApplication;
 
   const UserModel({
     required super.id,
@@ -60,6 +62,8 @@ class UserModel extends UserEntity {
     this.province,
     this.zipCode,
     this.emergencyContacts = const [],
+    this.isWalkIn = false,
+    this.inOfficeApplication,
   });
 
   String get phone => phoneNumber ?? '';
@@ -125,6 +129,8 @@ class UserModel extends UserEntity {
               .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
           const [],
+      isWalkIn: json['is_walk_in'] == true || json['isWalkIn'] == true,
+      inOfficeApplication: json['in_office_application'] is Map ? Map<String, dynamic>.from(json['in_office_application'] as Map) : null,
     );
   }
 
@@ -162,6 +168,8 @@ class UserModel extends UserEntity {
         'province': province,
         'zip_code': zipCode,
         'emergency_contacts': emergencyContacts,
+        'is_walk_in': isWalkIn,
+        'in_office_application': inOfficeApplication,
       };
 
   UserModel copyWith({
@@ -175,6 +183,8 @@ class UserModel extends UserEntity {
     String? accountStatus,
     bool? forcePasswordChange,
     String? profilePhotoUrl,
+    bool? isWalkIn,
+    Map<String, dynamic>? inOfficeApplication,
   }) {
     return UserModel(
       id: id,
@@ -210,6 +220,9 @@ class UserModel extends UserEntity {
       city: city,
       province: province,
       zipCode: zipCode,
+      emergencyContacts: emergencyContacts,
+      isWalkIn: isWalkIn ?? this.isWalkIn,
+      inOfficeApplication: inOfficeApplication ?? this.inOfficeApplication,
     );
   }
 }

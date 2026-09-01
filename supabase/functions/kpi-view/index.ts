@@ -50,6 +50,25 @@ serve(async (req) => {
 });
 
 // ── [moved from functions/kpi-head-manager/index.ts] ────────────────────────
+// BUSINESS RULES — MONTHLY vs LIFETIME
+// ─────────────────────────────────────────────────────────────────────────────
+// Head Manager dashboard is MONTHLY by default (isMonthly=true when ?month=YYYY-MM or ?period=monthly).
+// LIFETIME (no month param) is kept for backwards-compatibility / audit but UI defaults to monthly.
+// When isMonthly:
+//   • All count KPIs = activity INSIDE the selected month only (created_at in [monthStart, monthEndNext)).
+//     This answers "what happened THIS month?" not "what is the all-time total?".
+//   • User stats (employees/riders/lenders) = NEW Registrations that month (hiring velocity), not cumulative headcount.
+//     If you need headcount snapshot (active at month end), use separate analytics or remove the date filter.
+//   • Loan counts (applications/approved/rejected/active/completed/overdue) = loans whose created_at is in month
+//     and status matches. E.g. "Approved Loans (monthly)" = loans created in month that ended up approved/active/completed.
+//   • Financials: released/outstanding/interest = principal/interest of loans originated in month (subset loanRows).
+//     Collected = payments with paid_at in month; penalties = penalty_logs applied_at in month.
+//     Revenue = interest (of monthly loans) + penalties (of month). Outstanding = sum outstanding of monthly loan subset.
+//   • CI / Reports / Pending Upgrade / Collection Tx = records created/updated in month.
+//   • monthly_series = last 6 months ENDING at selected month (not always current month), so drill-down stays in context.
+//   • loanStatusBreakdown & pendingBucket = distribution of loans created in month only (so the donut reflects monthly pipeline).
+// When isMonthly==false (no month query): all metrics are LIFETIME cumulative (legacy) — every record ever created.
+// ─────────────────────────────────────────────────────────────────────────────
 async function handleHeadManager(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
@@ -57,6 +76,50 @@ async function handleHeadManager(req: Request) {
   if (roleCheck) return roleCheck;
 
   const db = getAdminClient();
+  const url = new URL(req.url);
+  const monthParam = url.searchParams.get('month'); // YYYY-MM
+  const periodParam = url.searchParams.get('period');
+  let monthStart: Date | null = null;
+  let monthEndNext: Date | null = null;
+  let isMonthly = false;
+  let selectedMonth = '';
+  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    const [yy, mm] = monthParam.split('-').map(Number);
+    if (mm >= 1 && mm <= 12) {
+      monthStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0));
+      monthEndNext = new Date(Date.UTC(yy, mm, 1, 0, 0, 0));
+      isMonthly = true;
+      selectedMonth = monthParam;
+    }
+  } else if (periodParam === 'monthly') {
+    const now = new Date();
+    monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    monthEndNext = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    isMonthly = true;
+    selectedMonth = `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth() + 1).padStart(2, '0')}`;
+  }
+  const isoStart = monthStart?.toISOString() ?? null;
+  const isoEnd = monthEndNext?.toISOString() ?? null;
+
+  // Helper to add monthly date filter on created_at / generated_at / paid_at as appropriate.
+  // For lifetime mode we use the base query untouched.
+  const buildCounts = async () => {
+    // Build each head query with optional date range. Users filtered on created_at in month (new this month).
+    const qEmp = (() => { let q: any = db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qRider = (() => { let q: any = db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'rider').neq('account_status', 'archived'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qLender = (() => { let q: any = db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'lender').neq('account_status', 'archived'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qApps = (() => { let q: any = db.from('loans').select('*', { count: 'exact', head: true }); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qApproved = (() => { let q: any = db.from('loans').select('*', { count: 'exact', head: true }).in('status', ['approved', 'active', 'completed']); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qRejected = (() => { let q: any = db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'rejected'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qActive = (() => { let q: any = db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'active'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qCompleted = (() => { let q: any = db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'completed'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qOverdue = (() => { let q: any = db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'overdue'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qCi = (() => { let q: any = db.from('credit_investigations').select('*', { count: 'exact', head: true }); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
+    const qReports = (() => { let q: any = db.from('reports').select('*', { count: 'exact', head: true }); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })(); // use created_at to avoid missing generated_at index
+    const qPendingUpgrade = (() => { let q: any = db.from('lender_profiles').select('*', { count: 'exact', head: true }).eq('account_upgrade_status', 'submitted'); if (isMonthly) q = q.gte('updated_at', isoStart!).lt('updated_at', isoEnd!); return q; })();
+    const qCollTx = (() => { let q: any = db.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'verified'); if (isMonthly) q = q.gte('paid_at', isoStart!).lt('paid_at', isoEnd!); return q; })();
+    return await Promise.all([qEmp, qRider, qLender, qApps, qApproved, qRejected, qActive, qCompleted, qOverdue, qCi, qReports, qPendingUpgrade, qCollTx]);
+  };
 
   const [
     { count: totalEmployees },
@@ -72,57 +135,44 @@ async function handleHeadManager(req: Request) {
     { count: totalReports },
     { count: totalPendingAccountUpgrade },
     { count: totalCollectionTx },
-  ] = await Promise.all([
-    db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'),
-    db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'rider').neq('account_status', 'archived'),
-    db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'lender').neq('account_status', 'archived'),
-    db.from('loans').select('*', { count: 'exact', head: true }),
-    db.from('loans').select('*', { count: 'exact', head: true }).in('status', ['approved', 'active', 'completed']),
-    db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
-    db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-    db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-    db.from('loans').select('*', { count: 'exact', head: true }).eq('status', 'overdue'),
-    db.from('credit_investigations').select('*', { count: 'exact', head: true }),
-    db.from('reports').select('*', { count: 'exact', head: true }),
-    db.from('lender_profiles').select('*', { count: 'exact', head: true }).eq('account_upgrade_status', 'submitted'),
-    db.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'verified'),
-  ]);
+  ] = await buildCounts();
 
-  const { data: loanRows } = await db
-    .from('loans')
-    .select('id, principal_amount')
-    .in('status', ['active', 'completed', 'overdue']);
+  // Loan subset for financials — filtered to month when isMonthly (loans originated that month)
+  let loanRowsQuery: any = db.from('loans').select('id, principal_amount, created_at').in('status', ['active', 'completed', 'overdue']);
+  if (isMonthly) loanRowsQuery = loanRowsQuery.gte('created_at', isoStart!).lt('created_at', isoEnd!);
+  const { data: loanRows } = await loanRowsQuery;
 
   const financials = await getLoanFinancialsBatch(
     db,
-    (loanRows ?? []).map((l) => l.id),
+    (loanRows ?? []).map((l: any) => l.id),
   );
 
-  const { data: payments } = await db
-    .from('payments')
-    .select('amount, payment_method')
-    .eq('status', 'verified');
+  // Payments / penalties — monthly filtered on paid_at / applied_at
+  let paymentsQuery: any = db.from('payments').select('amount, payment_method, paid_at').eq('status', 'verified');
+  if (isMonthly) paymentsQuery = paymentsQuery.gte('paid_at', isoStart!).lt('paid_at', isoEnd!);
+  const { data: payments } = await paymentsQuery;
 
-  const { data: penalties } = await db
-    .from('penalty_logs')
-    .select('penalty_amount');
+  let penaltiesQuery: any = db.from('penalty_logs').select('penalty_amount, applied_at');
+  if (isMonthly) penaltiesQuery = penaltiesQuery.gte('applied_at', isoStart!).lt('applied_at', isoEnd!);
+  const { data: penalties } = await penaltiesQuery;
 
   let totalReleased = 0, totalOutstanding = 0, totalInterest = 0;
-  (loanRows ?? []).forEach((l) => {
-    const fin = financials[l.id] ?? null;
+  (loanRows ?? []).forEach((l: any) => {
+    const fin = (financials as any)[l.id] ?? null;
     totalReleased += Number(l.principal_amount);
     totalOutstanding += Number(fin?.outstanding_balance ?? 0);
     totalInterest += Number(fin?.interest_amount ?? 0);
   });
 
   let totalCollected = 0;
-  (payments ?? []).forEach((p) => { totalCollected += Number(p.amount); });
+  (payments ?? []).forEach((p: any) => { totalCollected += Number(p.amount); });
 
   let totalPenalties = 0;
-  (penalties ?? []).forEach((p) => { totalPenalties += Number(p.penalty_amount); });
+  (penalties ?? []).forEach((p: any) => { totalPenalties += Number(p.penalty_amount); });
 
   // ── Monthly trend series (last 6 months, oldest → newest) ──────────────
-  const { data: trendLoans } = await db
+  // If monthly mode, the 6-month window ends at selectedMonth; otherwise ends at now.
+  const { data: trendLoansRaw } = await db
     .from('loans')
     .select('created_at, status, principal_amount');
   const { data: trendDisbursements } = await db
@@ -134,15 +184,23 @@ async function handleHeadManager(req: Request) {
     .select('paid_at, amount')
     .eq('status', 'verified');
 
+  // For isMonthly we restrict trendLoans to subset? No — monthlySeries still shows full 6-month history for context.
+  // But loanStatusBreakdown should reflect only selectedMonth's loans when monthly, so we filter a copy.
+  const trendLoans = trendLoansRaw;
+  const trendLoansMonthlyFiltered = isMonthly && isoStart && isoEnd
+    ? (trendLoansRaw ?? []).filter((l: any) => l.created_at && new Date(l.created_at).getTime() >= new Date(isoStart!).getTime() && new Date(l.created_at).getTime() < new Date(isoEnd!).getTime())
+    : trendLoansRaw;
+
   const monthlySeries: Array<{
     month: string;
     applications: number;
     released: number;
     collected: number;
   }> = [];
-  const now = new Date();
+  // Determine anchor month for series (selectedMonth end vs now)
+  const anchor = isMonthly && monthStart ? new Date(monthStart) : new Date();
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const d = new Date(anchor.getFullYear(), anchor.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
     const inRange = (ts: string | null | undefined) => {
@@ -152,21 +210,21 @@ async function handleHeadManager(req: Request) {
     };
     monthlySeries.push({
       month: key,
-      applications: (trendLoans ?? []).filter((l) => inRange(l.created_at)).length,
+      applications: (trendLoans ?? []).filter((l: any) => inRange(l.created_at)).length,
       released: (trendDisbursements ?? [])
-        .filter((x) => inRange(x.disbursed_at))
-        .reduce((s, x) => s + Number(x.amount), 0),
+        .filter((x: any) => inRange(x.disbursed_at))
+        .reduce((s: number, x: any) => s + Number(x.amount), 0),
       collected: (trendPayments ?? [])
-        .filter((p) => inRange(p.paid_at))
-        .reduce((s, p) => s + Number(p.amount), 0),
+        .filter((p: any) => inRange(p.paid_at))
+        .reduce((s: number, p: any) => s + Number(p.amount), 0),
     });
   }
 
   // ── Loan portfolio breakdown by status (for interactive donut drill-down) ─
-  // Compute exact counts per status in a single pass; keeps donut tooltip
-  // accurate even when new statuses are added and avoids N separate head queries.
+  // Monthly mode: donut reflects ONLY loans created in selected month; lifetime: all loans.
+  const sourceForBreakdown = isMonthly ? trendLoansMonthlyFiltered : trendLoans;
   const loanStatusBreakdown: Record<string, number> = {};
-  (trendLoans ?? []).forEach((r: { status: string }) => {
+  (sourceForBreakdown ?? []).forEach((r: { status: string }) => {
     const s = (r.status ?? 'unknown') as string;
     loanStatusBreakdown[s] = (loanStatusBreakdown[s] ?? 0) + 1;
   });
@@ -219,6 +277,10 @@ async function handleHeadManager(req: Request) {
     monthly_series: monthlySeries,
     loan_status_breakdown: loanStatusBreakdown,
     pending_bucket: pendingBucket,
+    // Monthly metadata — frontend uses this to switch labels & show "May 2026 — Monthly View"
+    selected_month: isMonthly ? selectedMonth : null,
+    is_monthly: isMonthly,
+    period: isMonthly ? 'monthly' : 'lifetime',
   });
 }
 
@@ -374,16 +436,16 @@ async function handleLender(req: Request) {
     .single();
 
   let totalBorrowed = 0, totalOutstanding = 0, totalInterestPaid = 0;
-  (loanData ?? []).forEach((l) => {
+  (loanData ?? []).forEach((l: any) => {
     totalBorrowed += Number(l.principal_amount);
-    totalOutstanding += Number(financials[l.id]?.outstanding_balance ?? 0);
+    totalOutstanding += Number((financials as any)[l.id]?.outstanding_balance ?? 0);
   });
 
   let totalPaid = 0;
-  (paymentData ?? []).forEach((p) => { totalPaid += Number(p.amount); });
+  (paymentData ?? []).forEach((p: any) => { totalPaid += Number(p.amount); });
 
   let totalPenaltiesPaid = 0;
-  (penaltyData ?? []).forEach((p) => { totalPenaltiesPaid += Number(p.penalty_amount); });
+  (penaltyData ?? []).forEach((p: any) => { totalPenaltiesPaid += Number(p.penalty_amount); });
 
   totalInterestPaid = totalPaid - (totalBorrowed - totalOutstanding);
 

@@ -1,4 +1,4 @@
-// lib/presentation/features/employee/account_upgrade/screens/emp_account_upgrade_list_screen.dart
+// lib/presentation/features/head_manager/account_upgrade/screens/hm_account_upgrade_list_screen.dart — matched to Loan Records premium table
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,201 +6,230 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/emp_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
   const EmpAccountUpgradeListScreen({super.key});
-
   @override
-  ConsumerState<EmpAccountUpgradeListScreen> createState() =>
-      _EmpAccountUpgradeListScreenState();
+  ConsumerState<EmpAccountUpgradeListScreen> createState() => _EmpAccountUpgradeListScreenState();
 }
 
-class _EmpAccountUpgradeListScreenState
-    extends ConsumerState<EmpAccountUpgradeListScreen> {
-  final _search = TextEditingController();
+class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeListScreen> {
+  final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+
+  final _dropdownTabs = const [
+    _TabDef('all', 'All', Icons.layers_outlined),
+    _TabDef('submitted', 'Submitted', Icons.hourglass_top_rounded),
+  ];
+  final _pillTabs = const [
+    _TabDef('verified', 'Verified', Icons.verified_rounded),
+    _TabDef('rejected', 'Rejected', Icons.cancel_rounded),
+  ];
 
   @override
   void dispose() {
-    _search.dispose();
+    _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(empAccountUpgradeProvider);
+    final effectiveTab = state.statusFilter;
 
     return WebScaffold(
       title: 'Lender Account Upgrade',
-      actions: [
-        Container(
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border)),
-          child: IconButton(
-              onPressed: () =>
-                  ref.read(empAccountUpgradeProvider.notifier).fetch(),
-              icon: const Icon(Icons.refresh_rounded,
-                  size: 20, color: AppColors.textSecondary),
-              tooltip: 'Refresh'),
+      body: Container(
+        color: const Color(0xFFF0F2F5),
+        child: SingleChildScrollView(
+          controller: _scrollCtrl,
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTabPills(effectiveTab),
+              const SizedBox(height: 16),
+              _buildToolbar(state),
+              const SizedBox(height: 16),
+              if (state.isLoading)
+                _buildLoadingShimmer()
+              else if (state.docs.isEmpty)
+                _buildEmpty(state)
+              else
+                _Entrance(child: _buildPremiumTable(_filtered(state.docs))),
+              if (state.totalPages > 1) ...[
+                const SizedBox(height: 16),
+                _buildPagination(state),
+              ],
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
-      ],
-      body: Column(
-        children: [
-          _buildFilterBar(state),
-          Expanded(
-            child: state.isLoading
-                ? const ShimmerLoader()
-                : state.docs.isEmpty
-                    ? _buildEmpty()
-                    : _buildList(context, state),
-          ),
-          if (state.totalPages > 1)
-            TablePagination(
-              currentPage: state.currentPage,
-              totalPages: state.totalPages,
-              totalCount: state.totalCount,
-              onPageChange: (p) =>
-                  ref.read(empAccountUpgradeProvider.notifier).fetch(page: p),
-            ),
-        ],
       ),
     );
   }
 
-  Widget _buildFilterBar(EmpAccountUpgradeState state) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))
-          ]),
+  List<dynamic> _filtered(List<dynamic> docs) {
+    final q = _searchCtrl.text.toLowerCase().trim();
+    if (q.isEmpty) return docs;
+    return docs.where((d) => d.lenderName.toString().toLowerCase().contains(q) || (d.lender?['email']?.toString().toLowerCase().contains(q) ?? false)).toList();
+  }
+
+  Widget _buildTabPills(String active) {
+    final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
+    final isDropdownActive = dropdownKeys.contains(active);
+    final dropdownValue = isDropdownActive ? active : null;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _search,
-              decoration: InputDecoration(
-                hintText: 'Search lender name…',
-                hintStyle:
-                    const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-                prefixIcon: const Icon(Icons.search_rounded,
-                    size: 19, color: AppColors.textTertiary),
-                filled: true,
-                fillColor: AppColors.surfaceVariant,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDropdownActive ? AppColors.deepNavy : Colors.white,
+              borderRadius: BorderRadius.zero,
+              border: Border.all(color: isDropdownActive ? AppColors.deepNavy : AppColors.border, width: isDropdownActive ? 1.2 : 1),
+              boxShadow: isDropdownActive ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))] : null,
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: dropdownValue,
+                isDense: true,
+                iconSize: 18,
+                hint: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.filter_list_rounded, size: 12, color: isDropdownActive ? AppColors.gold : AppColors.textTertiary),
+                  const SizedBox(width: 4),
+                  Text('Pipeline', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDropdownActive ? Colors.white : AppColors.textSecondary)),
+                ]),
+                icon: Icon(Icons.arrow_drop_down_rounded, size: 16, color: isDropdownActive ? Colors.white : AppColors.textTertiary),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDropdownActive ? Colors.white : AppColors.textSecondary),
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                items: _dropdownTabs.map((t) => DropdownMenuItem<String>(value: t.key, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(t.icon, size: 12, color: AppColors.textSecondary), const SizedBox(width: 4), Text(t.label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary))]))).toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  ref.read(empAccountUpgradeProvider.notifier).setStatus(v);
+                },
+                selectedItemBuilder: (ctx) => _dropdownTabs.map((t) => Row(mainAxisSize: MainAxisSize.min, children: [Icon(t.icon, size: 12, color: AppColors.gold), const SizedBox(width: 4), Text(t.label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white))])).toList(),
               ),
-              onChanged: (_) => setState(() {}),
             ),
           ),
-          const SizedBox(width: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              _StatusPill(
-                  label: 'All',
-                  value: 'all',
-                  selected: state.statusFilter == 'all',
-                  onTap: (v) =>
-                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
-              const SizedBox(width: 6),
-              _StatusPill(
-                  label: 'Verified',
-                  value: 'verified',
-                  selected: state.statusFilter == 'verified',
-                  onTap: (v) =>
-                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
-              const SizedBox(width: 6),
-              _StatusPill(
-                  label: 'Rejected',
-                  value: 'rejected',
-                  selected: state.statusFilter == 'rejected',
-                  onTap: (v) =>
-                      ref.read(empAccountUpgradeProvider.notifier).setStatus(v)),
-            ]),
-          ),
+          const SizedBox(width: 8),
+          ..._pillTabs.map((t) {
+            final isActive = t.key == active;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _PillTab(def: t, active: isActive, onTap: () => ref.read(empAccountUpgradeProvider.notifier).setStatus(t.key)),
+            );
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildList(BuildContext context, EmpAccountUpgradeState state) {
-    final q = _search.text.toLowerCase().trim();
-    final docs = q.isEmpty
-        ? state.docs
-        : state.docs
-            .where((d) =>
-                d.lenderName.toString().toLowerCase().contains(q) ||
-                (d.lender?['email']?.toString().toLowerCase().contains(q) ??
-                    false))
-            .toList();
-    if (docs.isEmpty) {
-      return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(16)),
-              child: const Icon(Icons.search_off_rounded,
-                  size: 36, color: AppColors.textTertiary)),
-          const SizedBox(height: 14),
-          const Text('No matches',
-              style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          const Text('Try a different search or filter',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-        ]),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      itemCount: docs.length,
-      itemBuilder: (context, i) {
-        final doc = docs[i];
-        return Padding(
-          padding: EdgeInsets.only(bottom: i == docs.length - 1 ? 0 : 10),
-          child: _AccountUpgradeRow(
-            key: ValueKey(doc.id),
-            doc: doc,
-            onTap: () => context.go(RouteConstants.empAccountUpgradeDetails
-                .replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)),
-            onVerify: () => _verifyAll(doc, 'verified'),
-            onReject: () => _promptReject(doc),
+  Widget _buildToolbar(EmpAccountUpgradeState state) {
+    final hasSearch = _searchCtrl.text.isNotEmpty;
+    final resultsCount = _filtered(state.docs).length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2))]),
+      child: Row(children: [
+        Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextField(
+            controller: _searchCtrl,
+            onChanged: (_) => setState(() {}),
+            style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)),
           ),
-        );
-      },
+        ),
+        if (hasSearch)
+          InkWell(
+            onTap: () => setState(() => _searchCtrl.clear()),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary)),
+          ),
+        if (hasSearch) const SizedBox(width: 10),
+        _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch()),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(10)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.layers_outlined, size: 14, color: Colors.white),
+            const SizedBox(width: 6),
+            Text('$resultsCount results', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildPremiumTable(List<dynamic> docs) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(bottom: BorderSide(color: AppColors.border))),
+          child: const Row(children: [
+            Expanded(flex: 3, child: _HLabel('Lender', Icons.person_outline)),
+            Expanded(flex: 2, child: _HLabel('Documents', Icons.description_outlined)),
+            Expanded(flex: 2, child: _HLabel('Submitted', Icons.event_outlined)),
+            Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
+            SizedBox(width: 140, child: _HLabel('Action', Icons.bolt_outlined)),
+          ]),
+        ),
+        ...docs.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final doc = entry.value;
+          final isEven = idx.isEven;
+          final status = (doc.status ?? 'pending').toString().toLowerCase();
+          final date = DateFormat('MMM dd, yyyy').format(doc.submittedAt ?? doc.createdAt);
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
+            child: Row(children: [
+              Expanded(
+                flex: 3,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(doc.lenderName ?? 'Unknown Lender', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Text(doc.lender?['email'] ?? '', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+              Expanded(flex: 2, child: Text(doc.documentCountLabel ?? 'Account Upgrade Submission', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis)),
+              Expanded(flex: 2, child: Text(date, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600))),
+              Expanded(flex: 2, child: _StatusInline(status: status)),
+              SizedBox(
+                width: 140,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: () => context.go(RouteConstants.empAccountUpgradeDetails.replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)), primary: false),
+                  if (status != 'verified') ...[
+                    const SizedBox(width: 6),
+                    _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: () => _verifyAll(doc, 'verified'), primary: true),
+                    if (status != 'rejected') const SizedBox(width: 6),
+                    if (status != 'rejected') _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: () => _promptReject(doc), primary: false),
+                  ],
+                ]),
+              ),
+            ]),
+          );
+        }),
+      ]),
     );
   }
 
   Future<void> _verifyAll(dynamic doc, String action) async {
-    final ok = await ref
-        .read(empAccountUpgradeProvider.notifier)
-        .verifyAll(
-            lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId,
-            action: action);
+    final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId, action: action);
     if (!mounted) return;
-    context.showSnackBarAsToast(SnackBar(
-        content: Text(ok
-            ? (action == 'verified'
-                ? 'Account upgrade documents verified'
-                : 'Account upgrade documents rejected')
-            : 'Action failed'),
-        backgroundColor: ok ? AppColors.success : AppColors.error));
+    context.showSnackBarAsToast(SnackBar(content: Text(ok ? (action == 'verified' ? 'Account upgrade documents verified' : 'Account upgrade documents rejected') : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
   }
 
   Future<void> _promptReject(dynamic doc) async {
@@ -214,255 +243,159 @@ class _EmpAccountUpgradeListScreenState
           constraints: const BoxConstraints(maxWidth: 440),
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                            color: AppColors.error.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10)),
-                        child: const Icon(Icons.cancel_rounded, color: AppColors.error)),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                        child: Text('Reject Account Upgrade',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
-                  ]),
-                  const SizedBox(height: 12),
-                  const Text('Rejecting will reject all submitted documents for this lender.',
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  const SizedBox(height: 16),
-                  const Text('Rejection Reason *',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  TextField(
-                      controller: notesCtrl,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                          hintText: 'Enter reason for rejection…',
-                          filled: true,
-                          fillColor: AppColors.surfaceVariant,
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none),
-                          enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: AppColors.border)),
-                          focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: const BorderSide(color: AppColors.error)))),
-                  const SizedBox(height: 20),
-                  Row(children: [
-                    Expanded(
-                        child: OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10))),
-                            child: const Text('Cancel'))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: ElevatedButton(
-                            onPressed: () {
-                              if (notesCtrl.text.trim().isEmpty) {
-                                context.showSnackBarAsToast(const SnackBar(
-                                    content: Text('Please provide a rejection reason'),
-                                    backgroundColor: AppColors.error));
-                                return;
-                              }
-                              Navigator.of(context).pop(true);
-                            },
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.error,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10))),
-                            child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w700)))),
-                  ]),
-                ]),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.cancel_rounded, color: AppColors.error)),
+                const SizedBox(width: 12),
+                const Expanded(child: Text('Reject Account Upgrade', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
+              ]),
+              const SizedBox(height: 12),
+              const Text('Rejecting will reject all submitted documents for this lender.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              const Text('Rejection Reason *', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+              const SizedBox(height: 8),
+              TextField(controller: notesCtrl, maxLines: 3, decoration: InputDecoration(hintText: 'Enter reason for rejection…', filled: true, fillColor: AppColors.surfaceVariant, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.error)))),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: OutlinedButton(onPressed: () => Navigator.of(context).pop(false), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('Cancel'))),
+                const SizedBox(width: 12),
+                Expanded(child: ElevatedButton(onPressed: () { if (notesCtrl.text.trim().isEmpty) { context.showSnackBarAsToast(const SnackBar(content: Text('Please provide a rejection reason'), backgroundColor: AppColors.error)); return; } Navigator.of(context).pop(true); }, style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w700)))),
+              ]),
+            ]),
           ),
         ),
       ),
     );
     if (confirmed == true) {
       if (!mounted) return;
-      final ok = await ref
-          .read(empAccountUpgradeProvider.notifier)
-          .verifyAll(lenderId: lenderId, action: 'rejected', rejectionNotes: notesCtrl.text.trim());
+      final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: 'rejected', rejectionNotes: notesCtrl.text.trim());
       if (!mounted) return;
-      context.showSnackBarAsToast(SnackBar(
-          content: Text(ok ? 'Account upgrade documents rejected' : 'Action failed'),
-          backgroundColor: ok ? AppColors.success : AppColors.error));
+      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'Account upgrade documents rejected' : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
     }
   }
 
-  Widget _buildEmpty() {
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [
-                    const Color(0xFF00838F).withValues(alpha: 0.12),
-                    AppColors.deepNavy.withValues(alpha: 0.08)
-                  ]),
-                  borderRadius: BorderRadius.circular(18)),
-              child: const Icon(Icons.verified_user_rounded, size: 40, color: Color(0xFF00838F))),
-          const SizedBox(height: 16),
-          const Text('No account upgrade submissions found',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 6),
-          const Text('Lender KYC upgrade requests will appear here for review.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              textAlign: TextAlign.center),
-        ]),
-      ),
+  Widget _buildLoadingShimmer() {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      padding: const EdgeInsets.all(16),
+      child: Column(children: List.generate(6, (i) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(10))), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(height: 10, width: 160, decoration: BoxDecoration(color: AppColors.shimmerHighlight.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(6)))] )), const SizedBox(width: 16), Container(width: 86, height: 28, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(20)))])))),
+    );
+  }
+
+  Widget _buildEmpty(EmpAccountUpgradeState state) {
+    final isFiltered = state.statusFilter != 'all';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
+      child: Column(children: [
+        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFF00838F).withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18)), child: const Icon(Icons.verified_user_rounded, size: 40, color: Color(0xFF00838F))),
+        const SizedBox(height: 16),
+        Text(isFiltered ? 'No matching submissions' : 'No account upgrade submissions found', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        Text(isFiltered ? 'Try a different filter.' : 'Lender KYC upgrade requests will appear here for review.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
+        if (isFiltered) ...[
+          const SizedBox(height: 18),
+          OutlinedButton.icon(onPressed: () => ref.read(empAccountUpgradeProvider.notifier).setStatus('all'), icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildPagination(EmpAccountUpgradeState state) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      child: Row(children: [
+        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        const Spacer(),
+        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch(page: state.currentPage - 1)),
+        const SizedBox(width: 8),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(20)), child: Text('${state.currentPage} / ${state.totalPages}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
+        const SizedBox(width: 8),
+        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch(page: state.currentPage + 1)),
+      ]),
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
+class _TabDef {
+  final String key;
   final String label;
-  final String value;
-  final bool selected;
-  final ValueChanged<String> onTap;
-  const _StatusPill(
-      {required this.label,
-      required this.value,
-      required this.selected,
-      required this.onTap});
+  final IconData icon;
+  const _TabDef(this.key, this.label, this.icon);
+}
+
+class _PillTab extends StatelessWidget {
+  final _TabDef def;
+  final bool active;
+  final VoidCallback onTap;
+  const _PillTab({required this.def, required this.active, required this.onTap});
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => onTap(value),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.zero,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-            color: selected ? AppColors.deepNavy : AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: selected ? AppColors.deepNavy : AppColors.border)),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? Colors.white : AppColors.textSecondary)),
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(color: active ? AppColors.deepNavy : Colors.white, borderRadius: BorderRadius.zero, border: Border.all(color: active ? AppColors.deepNavy : AppColors.border, width: active ? 1.2 : 1), boxShadow: active ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))] : null),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(def.icon, size: 12, color: active ? AppColors.gold : AppColors.textTertiary), const SizedBox(width: 4), Text(def.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: active ? Colors.white : AppColors.textSecondary))]),
       ),
     );
   }
 }
 
-class _AccountUpgradeRow extends StatefulWidget {
-  final dynamic doc;
-  final VoidCallback onTap;
-  final VoidCallback onVerify;
-  final VoidCallback onReject;
-
-  const _AccountUpgradeRow(
-      {super.key, required this.doc, required this.onTap, required this.onVerify, required this.onReject});
-
-  @override
-  State<_AccountUpgradeRow> createState() => _AccountUpgradeRowState();
-}
-
-class _AccountUpgradeRowState extends State<_AccountUpgradeRow> {
-  bool _hovered = false;
-
-  Color _accentForStatus(String s) {
-    switch (s.toLowerCase()) {
-      case 'verified':
-        return AppColors.riderGreen;
-      case 'rejected':
-        return AppColors.error;
-      case 'submitted':
-        return AppColors.lenderBlue;
-      default:
-        return AppColors.warning;
-    }
-  }
-
+class _HLabel extends StatelessWidget {
+  final String text;
+  final IconData icon;
+  const _HLabel(this.text, this.icon);
   @override
   Widget build(BuildContext context) {
-    final doc = widget.doc;
-    final date = DateFormat('MMM d, y').format(doc.submittedAt ?? doc.createdAt);
-    final status = (doc.status ?? 'pending').toString();
-    final accent = _accentForStatus(status);
+    return Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 12, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(text.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5), overflow: TextOverflow.ellipsis))]);
+  }
+}
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _hovered ? accent.withValues(alpha: 0.3) : AppColors.border),
-          boxShadow: _hovered
-              ? [BoxShadow(color: accent.withValues(alpha: 0.1), blurRadius: 16, offset: const Offset(0, 6))]
-              : const [BoxShadow(color: Color(0x0A000000), blurRadius: 6, offset: Offset(0, 2))],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-                width: 4,
-                height: 48,
-                decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4))),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(doc.lenderName ?? 'Unknown Lender',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                const SizedBox(height: 3),
-                Row(children: [
-                  Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
-                      child: Text(doc.documentCountLabel ?? 'Account Upgrade Submission',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: accent))),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
-                  const SizedBox(width: 4),
-                  Text(date, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
-                ]),
-              ]),
-            ),
-            const SizedBox(width: 12),
-            // Hide "Submitted" status text per request
-            if (status.toLowerCase() != 'submitted') ...[
-              Text(
-                status[0].toUpperCase() + status.substring(1).replaceAll('_', ' '),
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: accent),
-              ),
-              const SizedBox(width: 10),
-            ],
-            _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: widget.onTap, primary: false),
-            if (MediaQuery.of(context).size.width >= 640 && status != 'verified') ...[
-              const SizedBox(width: 8),
-              if (status != 'verified')
-                _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: widget.onVerify, primary: true),
-              if (status != 'verified' && status != 'rejected') const SizedBox(width: 8),
-              if (status != 'verified' && status != 'rejected')
-                _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: widget.onReject, primary: false),
-            ],
-          ],
-        ),
-      ),
+class _StatusInline extends StatelessWidget {
+  final String status;
+  const _StatusInline({required this.status});
+  @override
+  Widget build(BuildContext context) {
+    final s = status.toLowerCase();
+    final Color c;
+    final String label;
+    switch (s) {
+      case 'verified': c = AppColors.success; label = 'Verified'; break;
+      case 'rejected': c = AppColors.error; label = 'Rejected'; break;
+      case 'submitted': c = AppColors.lenderBlue; label = 'Submitted'; break;
+      default: c = AppColors.warning; label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 7, height: 7, decoration: BoxDecoration(color: c, shape: BoxShape.circle)), const SizedBox(width: 6), Flexible(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c), overflow: TextOverflow.ellipsis))]);
+  }
+}
+
+class _ToolbarIcon extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _ToolbarIcon({required this.icon, required this.tooltip, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(message: tooltip, child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(9), child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 16, color: AppColors.textSecondary))));
+  }
+}
+
+class _PageBtn extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _PageBtn({required this.icon, required this.enabled, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(width: 32, height: 32, decoration: BoxDecoration(color: enabled ? Colors.white : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 18, color: enabled ? AppColors.textPrimary : AppColors.textTertiary)),
     );
   }
 }
@@ -473,8 +406,7 @@ class _ActionButton extends StatefulWidget {
   final Color color;
   final VoidCallback onPressed;
   final bool primary;
-  const _ActionButton(
-      {required this.icon, required this.label, required this.color, required this.onPressed, required this.primary});
+  const _ActionButton({required this.icon, required this.label, required this.color, required this.onPressed, required this.primary});
   @override
   State<_ActionButton> createState() => _ActionButtonState();
 }
@@ -493,21 +425,45 @@ class _ActionButtonState extends State<_ActionButton> {
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: widget.primary
-                ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1))
-                : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
+            color: widget.primary ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1)) : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
             borderRadius: BorderRadius.zero,
             border: Border.all(color: widget.color.withValues(alpha: widget.primary ? 0.2 : 0.3)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(widget.icon, size: 14, color: widget.primary ? (_hover ? Colors.white : widget.color) : widget.color),
             const SizedBox(width: 6),
-            Text(widget.label,
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: widget.primary ? (_hover ? Colors.white : widget.color) : widget.color)),
+            Text(widget.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: widget.primary ? (_hover ? Colors.white : widget.color) : widget.color)),
           ]),
         ),
       ),
     );
   }
+}
+
+class _Entrance extends StatefulWidget {
+  final Widget child;
+  const _Entrance({required this.child});
+  @override
+  State<_Entrance> createState() => _EntranceState();
+}
+
+class _EntranceState extends State<_Entrance> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+    _opacity = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(opacity: _opacity, child: widget.child);
 }

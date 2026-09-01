@@ -148,7 +148,24 @@ async function handleSubmit(req: Request) {
     // Normalize s3 principal for later use.
     s3.principal_amount = sanitizedPrincipal;
 
+    // ── BUSINESS RULE: In-office must mirror Lender self-service flow ──────────
+    // Lender self flow: 1) Register -> 2) Account Upgrade (KYC) verified -> 3) Apply loan.
+    // In-office before fix: created loan immediately, bypassing step 2 (verified check).
+    // AFTER FIX (parity):
+    //   • submit always creates the LENDER ACCOUNT first (phone + default pwd 12345678, force change)
+    //   • then we CHECK lender_profiles.account_upgrade_status
+    //   • If NOT verified, we STOP before loan creation: set application to 'submitted' (pending upgrade),
+    //     store lender_id, insert addresses/emergency_contacts for lender, notify lender to log in & complete KYC.
+    //     The walk-in loan details (amount/frequency/co-maker/docs) stay in application_* tables.
+    //   • Loan creation is DEFERRED until account is verified. Verification (kyc-verify) will auto-convert
+    //     the pending in_office_application into a real loan (see kyc-view handler). Same result as lender
+    //     clicking "Apply" after KYC — parity achieved.
+    //   • If lender already exists AND is verified, we create loan immediately (legacy fast-path for repeat borrowers).
+    //   • Lender app shows "Created via Walk-in" badge whenever in_office_applications.lender_id == lender.id
+    //     and can then apply loan after verification.
+    // ─────────────────────────────────────────────────────────────────────────────
     let lenderId = app.lender_id ?? null;
+    let isNewLender = false;
 
     if (!lenderId) {
       const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
@@ -186,6 +203,7 @@ async function handleSubmit(req: Request) {
 
       if (userErr) return errorResponse('Failed to create lender user', 500);
       lenderId = newUser.id;
+      isNewLender = true;
 
       await db.from('lender_profiles').insert({
         id: lenderId,
@@ -200,6 +218,84 @@ async function handleSubmit(req: Request) {
       });
     }
 
+    // Always ensure addresses/emergency are materialized for the lender on pause path (so KYC profile is prefilled)
+    // We deduplicate by checking existing lender addresses/emergency before insert to avoid doubles on retry.
+    // For verified path we will still insert but after pause they already exist — skip duplicates in conversion helper instead.
+
+    // Check current account_upgrade_status to decide pause vs immediate loan
+    const { data: curProfile } = await db.from('lender_profiles').select('account_upgrade_status').eq('id', lenderId).maybeSingle();
+    const isVerified = curProfile?.account_upgrade_status === 'verified';
+
+    if (!isVerified) {
+      // ── PAUSE PATH: account not yet verified → do NOT create loan yet ──────
+      // Insert addresses/emergency if not already present (idempotent)
+      if (s2.addresses.length > 0) {
+        // Simple: delete existing home addresses for this lender before inserting walk-in ones if we are new lender; otherwise skip if already has addresses
+        const { count: existingAddrCount } = await db.from('addresses').select('*', { count: 'exact', head: true }).eq('user_id', lenderId);
+        if ((existingAddrCount ?? 0) === 0) {
+          const addressRows = s2.addresses.map((a) => ({
+            user_id: lenderId,
+            address_type: a.address_type,
+            street: a.street,
+            barangay: a.barangay,
+            city: a.city,
+            province: a.province,
+            zip_code: a.zip_code,
+            latitude: a.latitude,
+            longitude: a.longitude,
+          }));
+          await db.from('addresses').insert(addressRows);
+        }
+      }
+      if (s2.emergency_contacts.length > 0) {
+        const { count: existingEcCount } = await db.from('emergency_contacts').select('*', { count: 'exact', head: true }).eq('lender_id', lenderId);
+        if ((existingEcCount ?? 0) === 0) {
+          const ecRows = s2.emergency_contacts.map((ec) => ({
+            lender_id: lenderId,
+            name: ec.name,
+            relationship: normalizeRelationship(ec.relationship ?? null) ?? 'Other',
+            phone_number: ec.phone_number,
+            address: ec.address,
+          }));
+          await db.from('emergency_contacts').insert(ecRows);
+        }
+      }
+
+      // Mark application as submitted (pending upgrade) + store lender link
+      await db.from('in_office_applications').update({
+        lender_id: lenderId,
+        status: 'submitted',
+        wizard_step: 5,
+        updated_at: new Date().toISOString(),
+      }).eq('id', application_id);
+
+      await writeAuditLog({
+        performedBy: authResult.id,
+        action: 'in_office_account_created_pending_upgrade',
+        tableName: 'in_office_applications',
+        recordId: application_id,
+        newValues: { lender_id: lenderId, status: 'submitted', note: 'Account created, awaiting KYC verification before loan' },
+      });
+
+      // Notify lender that account exists via walk-in and needs upgrade before loan
+      await sendPushNotification({
+        userId: lenderId,
+        title: 'Walk-in Account Created — Verify to Apply for Loan',
+        body: `Your account was created via Walk-in Application by staff. Please log in with your phone number (default password 12345678) and complete Account Upgrade. You can then apply for your ₱${Number(String(s3.principal_amount).replace(/,/g,'')).toLocaleString()} loan.`,
+        type: 'account_upgrade_required',
+        referenceId: application_id,
+      });
+
+      return successResponse({
+        message: 'Account created via Walk-in. Awaiting Account Upgrade verification before loan creation.',
+        lender_id: lenderId,
+        application_id,
+        pending_upgrade: true,
+        is_new_lender: isNewLender,
+      });
+    }
+
+    // ── VERIFIED PATH: lender already verified → create loan immediately (parity: loan can now be created)
     if (s2.addresses.length > 0) {
       const addressRows = s2.addresses.map((a) => ({
         user_id: lenderId,
@@ -212,18 +308,23 @@ async function handleSubmit(req: Request) {
         latitude: a.latitude,
         longitude: a.longitude,
       }));
-      await db.from('addresses').insert(addressRows);
+      // For verified repeat, insert only if lender has no addresses yet (avoid duplicates on retry)
+      const { count: addrCount } = await db.from('addresses').select('*', { count: 'exact', head: true }).eq('user_id', lenderId);
+      if ((addrCount ?? 0) === 0) await db.from('addresses').insert(addressRows);
     }
 
     if (s2.emergency_contacts.length > 0) {
-      const ecRows = s2.emergency_contacts.map((ec) => ({
-        lender_id: lenderId,
-        name: ec.name,
-        relationship: normalizeRelationship(ec.relationship ?? null) ?? 'Other',
-        phone_number: ec.phone_number,
-        address: ec.address,
-      }));
-      await db.from('emergency_contacts').insert(ecRows);
+      const { count: ecCount } = await db.from('emergency_contacts').select('*', { count: 'exact', head: true }).eq('lender_id', lenderId);
+      if ((ecCount ?? 0) === 0) {
+        const ecRows = s2.emergency_contacts.map((ec) => ({
+          lender_id: lenderId,
+          name: ec.name,
+          relationship: normalizeRelationship(ec.relationship ?? null) ?? 'Other',
+          phone_number: ec.phone_number,
+          address: ec.address,
+        }));
+        await db.from('emergency_contacts').insert(ecRows);
+      }
     }
 
     const principalAmount = Number(String(s3.principal_amount).replace(/,/g, ''));
@@ -311,7 +412,7 @@ async function handleSubmit(req: Request) {
     // NOTE: in_office_applications.loan_id was dropped (00099). The link lives
     // on loans.in_office_application_id, already set at insert above.
     await db.from('in_office_applications')
-      .update({ status: 'converted', wizard_step: 5, updated_at: new Date().toISOString() })
+      .update({ lender_id: lenderId, status: 'converted', wizard_step: 5, updated_at: new Date().toISOString() })
       .eq('id', application_id);
 
     await writeAuditLog({

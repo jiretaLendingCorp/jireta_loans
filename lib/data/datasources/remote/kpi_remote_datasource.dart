@@ -10,8 +10,10 @@ class KpiRemoteDataSource {
   final DioClient _client;
   KpiRemoteDataSource(this._client);
 
-  Future<KpiHeadManagerModel> getHeadManagerKpi() async {
-    final res = await _client.get(ApiEndpoints.kpiHeadManager);
+  Future<KpiHeadManagerModel> getHeadManagerKpi({String? month}) async {
+    final isMonthly = month != null && month.isNotEmpty;
+    final path = isMonthly ? '${ApiEndpoints.kpiHeadManager}&month=$month' : ApiEndpoints.kpiHeadManager;
+    final res = await _client.get(path);
     return KpiHeadManagerModel.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -30,7 +32,7 @@ class KpiRemoteDataSource {
     return KpiLenderModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<KpiHeadManagerModel> getHeadManagerKpis() => getHeadManagerKpi();
+  Future<KpiHeadManagerModel> getHeadManagerKpis({String? month}) => getHeadManagerKpi(month: month);
   Future<KpiEmployeeModel> getEmployeeKpis() => getEmployeeKpi();
   Future<KpiRiderModel> getRiderKpis() => getRiderKpi();
   Future<KpiLenderModel> getLenderKpis() => getLenderKpi();

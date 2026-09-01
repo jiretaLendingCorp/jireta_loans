@@ -21,6 +21,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddressBatch, getLenderAddress } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { computeSchedule } from '../_shared/schedule.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'verify';
@@ -110,6 +111,119 @@ async function handleVerify(req: Request) {
 
     await db.from('lender_profiles').update({ account_upgrade_status: newAccountUpgradeStatus }).eq('id', targetLenderId);
 
+    // ── AUTO-CONVERT pending Walk-in (in_office) to Loan after verification ──────
+    // Business rule: in-office application STOPPED at account creation until KYC verified.
+    // Once staff verifies, any in_office_applications with that lender_id and status='submitted'
+    // (pending upgrade) must be automatically converted into a real loan so the lender can proceed
+    // without re-entering data — parity with lender self-apply where verified lender can immediately apply.
+    let autoConvertedLoanId: string | null = null;
+    if (newAccountUpgradeStatus === 'verified' && targetLenderId) {
+      try {
+        const { data: pendingApps } = await db.from('in_office_applications').select('id').eq('lender_id', targetLenderId).eq('status', 'submitted');
+        for (const app of (pendingApps ?? [])) {
+          const appId = (app as any).id;
+          // Load stored wizard data
+          const [pRes, eRes, aRes, ecRes, lRes, cmRes, dRes] = await Promise.all([
+            db.from('application_personal_info').select('*').eq('application_id', appId).maybeSingle(),
+            db.from('application_employment_info').select('*').eq('application_id', appId).maybeSingle(),
+            db.from('application_addresses').select('*').eq('application_id', appId),
+            db.from('application_emergency_contacts').select('*').eq('application_id', appId),
+            db.from('application_loan_details').select('*').eq('application_id', appId).maybeSingle(),
+            db.from('application_co_makers').select('*').eq('application_id', appId),
+            db.from('application_documents').select('*').eq('application_id', appId),
+          ]);
+          const loanDet = (lRes as any).data;
+          if (!loanDet || !loanDet.principal_amount) continue;
+          const principalAmount = Number(String(loanDet.principal_amount).replace(/,/g, ''));
+          if (Number.isNaN(principalAmount) || principalAmount < 3000) continue;
+          const rawFreq = String(loanDet.payment_frequency ?? loanDet.frequency ?? 'monthly').toLowerCase();
+          const frequency = ['daily','weekly','monthly'].includes(rawFreq) ? rawFreq : 'monthly';
+          let periodsOverride: number | undefined;
+          if (loanDet.term_periods != null && String(loanDet.term_periods).trim() !== '') {
+            const parsed = Number(String(loanDet.term_periods).replace(/,/g, '').trim());
+            periodsOverride = Number.isNaN(parsed) ? undefined : parsed;
+          }
+          const sched = computeSchedule(principalAmount, frequency, new Date(), periodsOverride);
+          const year = new Date().getFullYear();
+          const seq = Math.floor(Math.random() * 900000 + 100000);
+          const loanNumber = `LN-${year}-${seq}`;
+          const { data: newLoan, error: loanErr } = await db.from('loans').insert({
+            lender_id: targetLenderId,
+            in_office_application_id: appId,
+            loan_number: loanNumber,
+            principal_amount: principalAmount,
+            interest_rate: 20,
+            payment_frequency: frequency,
+            term_days: sched.termDays,
+            term_periods: sched.installments,
+            installment_amount: sched.installmentAmount,
+            status: 'pending',
+            purpose: loanDet.purpose ?? 'Walk-in loan',
+          }).select().single();
+          if (loanErr || !newLoan) {
+            console.error('kyc-verify auto-convert loan insert failed', { appId, loanErr });
+            continue;
+          }
+          const scheduleRows = sched.dueDates.map((due: string, i: number) => ({
+            loan_id: newLoan.id,
+            installment_number: i + 1,
+            due_date: due,
+            amount_due: (sched.amounts as number[])[i],
+          }));
+          await db.from('loan_schedules').insert(scheduleRows);
+          const coMakers = (cmRes as any).data ?? [];
+          for (const cm of coMakers) {
+            const { data: person } = await db.from('co_makers').insert({
+              first_name: cm.first_name,
+              last_name: cm.last_name,
+              phone_number: cm.phone_number,
+              date_of_birth: cm.date_of_birth,
+              address: cm.address,
+            }).select().single();
+            if (person) {
+              const relSet = new Set(['Spouse','Parent','Sibling','Child','Relative','Friend','Colleague','Employer','Other']);
+              const rel = relSet.has(cm.relationship) ? cm.relationship : 'Other';
+              await db.from('loan_co_makers').insert({ loan_id: newLoan.id, co_maker_id: person.id, relationship: rel });
+            }
+          }
+          const docs = (dRes as any).data ?? [];
+          if (docs.length > 0) {
+            const docSet = new Set(['valid_id','proof_of_income','barangay_clearance','pay_slip','selfie','proof_of_billing','certificate_of_employment','itr','business_registration','co_maker','ci_photo','evidence','site_photo','neighbor_interview','proof_of_residence','other']);
+            const docRows = docs.map((d: any) => ({
+              loan_id: newLoan.id,
+              document_type: docSet.has(d.document_type) ? d.document_type : 'other',
+              file_path: d.file_path ?? d.file_url,
+              file_name: d.file_name ?? 'document',
+              mime_type: d.mime_type ?? 'application/octet-stream',
+              uploaded_by: user.id,
+            }));
+            await db.from('loan_documents').insert(docRows);
+          }
+          await db.from('in_office_applications').update({ status: 'converted', wizard_step: 5, updated_at: new Date().toISOString() }).eq('id', appId);
+          autoConvertedLoanId = newLoan.id;
+          await writeAuditLog({
+            performedBy: user.id,
+            action: 'in_office_auto_converted_after_kyc_verified',
+            tableName: 'in_office_applications',
+            recordId: appId,
+            newValues: { loan_id: newLoan.id, lender_id: targetLenderId, loan_number: loanNumber },
+            ipAddress: ip,
+          });
+          await sendPushNotification({
+            userId: targetLenderId,
+            title: 'Walk-in Loan Now Ready',
+            body: `Your Walk-in loan ${loanNumber} (₱${principalAmount.toLocaleString()}) is now submitted and pending approval. Track it in My Loans.`,
+            type: 'loan_applied',
+            referenceId: newLoan.id,
+          });
+          // Convert only the oldest pending app per verification to avoid duplicate loans if multiple drafts
+          break;
+        }
+      } catch (e) {
+        console.error('kyc-verify auto-convert error', e);
+      }
+    }
+
     await writeAuditLog({
       performedBy: user.id,
       action: singleDocId ? `account_upgrade_doc_${action}` : `account_upgrade_all_${action}`,
@@ -132,6 +246,7 @@ async function handleVerify(req: Request) {
       message: singleDocId ? `Document ${action}` : `All documents ${action}`,
       account_upgrade_status: newAccountUpgradeStatus,
       lender_id: targetLenderId,
+      auto_converted_loan_id: autoConvertedLoanId,
     });
 }
 
@@ -290,12 +405,42 @@ async function handleGetStatus(req: Request) {
       created_at: d.uploaded_at,
     }));
 
+    // Walk-in origin: did this lender get created via in-office application?
+    let inOfficeApplication: Record<string, unknown> | null = null;
+    try {
+      const { data: ioApp } = await db.from('in_office_applications')
+        .select('id, status, wizard_step, created_at, created_by, lender_id, users!in_office_applications_created_by_fkey(first_name,last_name)')
+        .eq('lender_id', lenderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (ioApp) inOfficeApplication = ioApp as unknown as Record<string, unknown>;
+      // Fallback: if lender_id not set yet (old data) but phone matches walk-in draft, try via personal info phone
+      if (!inOfficeApplication && profile) {
+        // Check phone match with any submitted in-office draft that has same phone and created by staff
+        const phone = lender?.phone_number ?? profile?.phone_number;
+        if (phone) {
+          const { data: phoneMatch } = await db.from('application_personal_info')
+            .select('application_id, phone_number, in_office_applications!inner(id,status,created_at,created_by,lender_id,users!in_office_applications_created_by_fkey(first_name,last_name))')
+            .eq('phone_number', phone)
+            .limit(1)
+            .maybeSingle();
+          if (phoneMatch) {
+            const app = (phoneMatch as any).in_office_applications;
+            if (app && app.status === 'submitted') inOfficeApplication = app;
+          }
+        }
+      }
+    } catch (_) { /* ignore */ }
+
     return jsonResponse({
       account_upgrade_status: profile?.account_upgrade_status ?? 'not_submitted',
       lender_id: lenderId,
       lender,
       documents,
       emergency_contacts: emergencyContacts ?? [],
+      in_office_application: inOfficeApplication,
+      is_walk_in: inOfficeApplication != null,
     });
 }
 

@@ -49,14 +49,14 @@ class FakeKpiDS extends KpiRemoteDataSource {
       : super(FakeDioClient((_) async => throw UnimplementedError()));
 
   @override
-  Future<KpiHeadManagerModel> getHeadManagerKpi() async => buildKpi();
+  Future<KpiHeadManagerModel> getHeadManagerKpi({String? month}) async => buildKpi();
 }
 
 class FakeDashboardNotifier extends HmDashboardNotifier {
   FakeDashboardNotifier() : super(FakeKpiDS());
 
   @override
-  Future<void> loadKpis({bool silent = false}) async {
+  Future<void> loadKpis({String? month, bool silent = false}) async {
     state = HmDashboardState(kpi: buildKpi());
   }
 }

@@ -12,8 +12,6 @@ import '../../../../core/utils/validators.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
-import '../../../shared/widgets/layout/web_auth_footer.dart';
-import '../../../shared/widgets/layout/web_auth_header.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -177,76 +175,53 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
-      body: Column(
+      body: Stack(
         children: [
-          const WebAuthHeader(),
-          Expanded(
-            child: Stack(
-              children: [
-                // ── Premium background blobs (animated fade) ──
-                Positioned.fill(
-                  child: FadeTransition(
-                    opacity: _bgFade,
-                    child: const _PremiumBackground(),
-                  ),
-                ),
-                // ── Centered premium layout — single centered card, footer scrolls with content
-                // SliverFillRemaining keeps footer at viewport bottom when content short, scrolls together when tall
-                CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(maxWidth: 440),
-                                  child: FadeTransition(
-                                    opacity: _cardFade,
-                                    child: SlideTransition(
-                                      position: _cardSlide,
-                                      child: _PremiumLoginCard(
-                                        formKey: _formKey,
-                                        emailCtrl: _emailCtrl,
-                                        passCtrl: _passCtrl,
-                                        emailFocus: _emailFocus,
-                                        passFocus: _passFocus,
-                                        obscure: _obscure,
-                                        onToggleObscure: () => setState(() => _obscure = !_obscure),
-                                        onSubmit: _submit,
-                                        isLoading: isLoading,
-                                        isOnline: isOnline,
-                                        lockSecondsLeft: _lockSecondsLeft,
-                                        lockLabel: _lockLabel,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Footer scrolls with page
-                          const WebAuthFooter(),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (!isOnline)
-                  const Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Padding(
-                      padding: EdgeInsets.only(left: 24, right: 24, bottom: 18),
-                      child: OfflineToast(),
-                    ),
-                  ),
-              ],
+          // ── Premium background blobs (animated fade) ──
+          Positioned.fill(
+            child: FadeTransition(
+              opacity: _bgFade,
+              child: const _PremiumBackground(),
             ),
           ),
+          // Centered login card — no header/footer (removed per spec #4)
+          Center(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 40),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: FadeTransition(
+                  opacity: _cardFade,
+                  child: SlideTransition(
+                    position: _cardSlide,
+                    child: _PremiumLoginCard(
+                      formKey: _formKey,
+                      emailCtrl: _emailCtrl,
+                      passCtrl: _passCtrl,
+                      emailFocus: _emailFocus,
+                      passFocus: _passFocus,
+                      obscure: _obscure,
+                      onToggleObscure: () => setState(() => _obscure = !_obscure),
+                      onSubmit: _submit,
+                      isLoading: isLoading,
+                      isOnline: isOnline,
+                      lockSecondsLeft: _lockSecondsLeft,
+                      lockLabel: _lockLabel,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (!isOnline)
+            const Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: EdgeInsets.only(left: 24, right: 24, bottom: 18),
+                child: OfflineToast(),
+              ),
+            ),
         ],
       ),
     );
