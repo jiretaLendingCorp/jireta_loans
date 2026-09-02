@@ -6,6 +6,7 @@ import 'package:rive/rive.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
@@ -298,7 +299,7 @@ class _GoodMorningBubbleState extends State<_GoodMorningBubble>
 
   @override
   Widget build(BuildContext context) {
-    final hour = DateTime.now().hour;
+    final hour = nowManila().hour;
     final greeting = hour < 12
         ? 'Good morning'
         : hour < 18

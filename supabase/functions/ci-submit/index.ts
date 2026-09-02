@@ -17,6 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { notifyStaff } from '../_shared/notifications.ts';
+import { nowManilaISO } from '../_shared/timezone.ts';
 
 // ── [moved from ci-upload-documents] ────────────────────────────────────────
 const BUCKET = 'ci-documents';
@@ -92,7 +93,7 @@ async function handleCiSubmitReport(req: Request) {
   // The loan becomes ci_completed but still requires explicit CI approval
   // (ci -> approved) before loans-manage approve allows it to become 'approved'
   // and lender can select disbursement method.
-  await db.from('credit_investigations').update({ status: 'completed', report_summary: sanitizeString(report_summary), completed_at: new Date().toISOString() }).eq('id', ci_id);
+  await db.from('credit_investigations').update({ status: 'completed', report_summary: sanitizeString(report_summary), completed_at: nowManilaISO() }).eq('id', ci_id);
   await db.from('loans').update({ status: 'ci_completed' }).eq('id', ci.loan_id);
   await db.from('rider_profiles').update({ is_available: true }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_submit_report', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });

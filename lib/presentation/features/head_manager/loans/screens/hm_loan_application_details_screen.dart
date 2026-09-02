@@ -323,9 +323,6 @@ class _HmLoanApplicationDetailsScreenState
                   ? '₱${NumberFormat('#,##0.00').format(profile['monthly_income'])}'
                   : '-'),
           _KVRow(
-              label: 'GCash',
-              value: _maskPhone(profile['gcash_number'] as String? ?? '-')),
-          _KVRow(
               label: 'Address',
               value: _formatAddress(profile['address'])),
         ]));

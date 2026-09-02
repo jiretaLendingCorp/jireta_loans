@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../../../core/constants/route_constants.dart';
+import '../../../../../../core/utils/timezone.dart';
 import '../../../../../../core/theme/app_colors.dart';
 import '../../../../../../data/models/tracked_rider_model.dart';
 import '../../../../../shared/widgets/map/live_map_header.dart';
@@ -235,7 +236,7 @@ class _LenderRiderTrackingCardState extends ConsumerState<LenderRiderTrackingCar
 
   String _relativeTime(DateTime? updated) {
     if (updated == null) return 'Waiting for location';
-    final diff = DateTime.now().difference(updated);
+    final diff = nowManila().difference(updated);
     if (diff.inSeconds < 60) return 'Updated just now';
     if (diff.inMinutes < 60) return 'Updated ${diff.inMinutes}m ago';
     return 'Updated ${updated.hour}:${updated.minute.toString().padLeft(2, '0')}';

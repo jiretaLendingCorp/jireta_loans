@@ -406,9 +406,6 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
               label: 'Employment',
               value: _capitalize(profile['employment_type'] as String? ?? '-')),
           _KVRow(
-              label: 'GCash',
-              value: _maskPhone(profile['gcash_number'] as String? ?? '-')),
-          _KVRow(
               label: 'Address',
               value: _formatAddress(profile['address'])),
         ]));

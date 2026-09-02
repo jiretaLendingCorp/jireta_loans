@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/services/route_service.dart';
 import '../../../../../data/models/tracked_rider_model.dart';
@@ -291,7 +292,7 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
 
   String _relative(DateTime? dt) {
     if (dt == null) return 'Waiting';
-    final d = DateTime.now().difference(dt);
+    final d = nowManila().difference(dt);
     if (d.inSeconds < 60) return 'Just now';
     if (d.inMinutes < 60) return '${d.inMinutes}m ago';
     return '${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';

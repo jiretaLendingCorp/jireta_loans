@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/di/injection.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
@@ -324,7 +325,7 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
                     .clamp(0.0, 1.0)
                 : 0.0;
             final due = loan.dueDate;
-            final daysLeft = due?.difference(DateTime.now()).inDays;
+            final daysLeft = due?.difference(nowManila()).inDays;
 
             return Container(
               padding:

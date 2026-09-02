@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
@@ -216,9 +217,9 @@ class _NotifTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       timeago.format(createdAt is DateTime
-                          ? createdAt
-                          : DateTime.tryParse(createdAt.toString()) ??
-                              DateTime.now()),
+                          ? ensureManila(createdAt)
+                          : ensureManila(DateTime.tryParse(createdAt.toString()) ??
+                              nowManila())),
                       style: TextStyle(
                           fontSize: 11,
                           color: isRead

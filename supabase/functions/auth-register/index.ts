@@ -22,6 +22,7 @@ import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { guardRateLimit, checkRateLimit, checkBlock, blockKey, recordSecurityEvent } from '../_shared/rate_limiter.ts';
 import { sendRegistrationOtpEmail } from '../_shared/email.ts';
+import { nowManilaISO } from '../_shared/timezone.ts';
 
 const REGISTER_RATE_MAX = 5;
 const REGISTER_RATE_MINUTES = 60;
@@ -437,7 +438,7 @@ async function handleRegister(req: Request) {
   const { error: profileErr } = await db.from('employee_profiles').insert({
     id: userId,
     position: position ? sanitizeString(position) : DEFAULT_POSITION,
-    hired_at: hired_at ? String(hired_at).substring(0, 10) : new Date().toISOString().split('T')[0],
+    hired_at: hired_at ? String(hired_at).substring(0, 10) : nowManilaISO().split('T')[0],
     gender: gender ? sanitizeString(gender).toLowerCase() : null,
     civil_status: civil_status ? sanitizeString(civil_status).toLowerCase() : null,
   });

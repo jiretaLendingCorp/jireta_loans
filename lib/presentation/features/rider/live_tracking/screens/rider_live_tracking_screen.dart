@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/services/route_service.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -695,7 +696,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
 
   String _relative(DateTime? dt) {
     if (dt == null) return '—';
-    final d = DateTime.now().difference(dt);
+    final d = nowManila().difference(dt);
     if (d.inSeconds < 60) return 'Just now';
     if (d.inMinutes < 60) return '${d.inMinutes}m ago';
     return '${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';

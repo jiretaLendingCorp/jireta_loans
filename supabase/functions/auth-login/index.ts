@@ -15,6 +15,7 @@ import {
 } from '../_shared/validators.ts';
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
 import { guardRateLimit } from '../_shared/rate_limiter.ts';
+import { nowManilaISO } from '../_shared/timezone.ts';
 
 // ── Persistent, escalating login lockout ───────────────────────────────────
 // Stored in `login_lockouts` (keyed by user_id) so the lock survives a browser
@@ -301,7 +302,7 @@ serve(async (req) => {
     // Explicitly update last_login_at for 10m idle tracking (don't rely solely on trigger)
     // Ensures second login's timestamp is fresh even if trigger missed, prevents immediate 401 on refresh
     try {
-      await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
+      await db.from('users').update({ last_login_at: nowManilaISO() }).eq('id', user.id);
     } catch (e) {
       console.warn('[auth-login] last_login_at update failed', e);
     }

@@ -187,7 +187,6 @@ class _HmAccountUpgradeDetailsScreenState
                   _InfoRow('Employer', lender['employer_name'] ?? '—'),
                   _InfoRow('Monthly Income', lender['monthly_income'] != null ? '₱${lender['monthly_income']}' : '—', highlight: true),
                   const Divider(height: 20),
-                  _InfoRow('GCash', lender['gcash_number'] ?? '—'),
                   _InfoRow('Gender', lender['gender'] ?? '—'),
                   _InfoRow('Civil Status', lender['civil_status'] ?? '—'),
                   _InfoRow('Date of Birth', lender['date_of_birth'] ?? '—'),

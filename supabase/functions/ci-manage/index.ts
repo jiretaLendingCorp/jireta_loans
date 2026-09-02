@@ -18,6 +18,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID, sanitizeString } from '../_shared/validators.ts';
+import { nowManilaISO } from '../_shared/timezone.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'assign';
@@ -146,7 +147,7 @@ async function handleCiAccept(req: Request) {
   if (!ci) return errorResponse('CI assignment not found', 404, 'NOT_FOUND');
   if (ci.status !== 'assigned') return errorResponse('CI is not in assigned status', 400, 'INVALID_STATUS');
   // Rider wants accepted → immediately In Progress (no separate Accepted state)
-  await db.from('credit_investigations').update({ status: 'in_progress', response_at: new Date().toISOString() }).eq('id', ci_id);
+  await db.from('credit_investigations').update({ status: 'in_progress', response_at: nowManilaISO() }).eq('id', ci_id);
   await db.from('loans').update({ status: 'ci_assigned' }).eq('id', ci.loan_id);
   await db.from('rider_profiles').update({ is_available: false }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_accept', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
@@ -168,7 +169,7 @@ async function handleCiDecline(req: Request) {
   const { data: ci } = await db.from('credit_investigations').select('id, status, assigned_by, loan_id, rider_id').eq('id', ci_id).eq('rider_id', user.id).single();
   if (!ci) return errorResponse('CI not found', 404, 'NOT_FOUND');
   if (ci.status !== 'assigned') return errorResponse('CI is not in assigned status', 400, 'INVALID_STATUS');
-  await db.from('credit_investigations').update({ status: 'declined', response_at: new Date().toISOString(), notes: decline_reason ?? null }).eq('id', ci_id);
+  await db.from('credit_investigations').update({ status: 'declined', response_at: nowManilaISO(), notes: decline_reason ?? null }).eq('id', ci_id);
   await db.from('loans').update({ status: 'under_review' }).eq('id', ci.loan_id);
   await db.from('rider_profiles').update({ is_available: true }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_decline', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
@@ -194,7 +195,7 @@ async function handleCiApproveReport(req: Request) {
   const { data: ci } = await db.from('credit_investigations').select('id, status, loan_id, rider_id, assigned_by').eq('id', ci_id).single();
   if (!ci) return errorResponse('CI not found', 404, 'NOT_FOUND');
   if (ci.status !== 'completed') return errorResponse('CI report must be in completed (submitted) status to approve. Current: ' + ci.status, 400, 'INVALID_STATUS');
-  const now = new Date().toISOString();
+  const now = nowManilaISO();
   // Mark CI as approved
   await db.from('credit_investigations').update({
     status: 'approved',
@@ -249,7 +250,7 @@ async function handleCiRejectReport(req: Request) {
   const { data: ci } = await db.from('credit_investigations').select('id, status, loan_id, rider_id').eq('id', ci_id).single();
   if (!ci) return errorResponse('CI not found', 404, 'NOT_FOUND');
   if (ci.status !== 'completed') return errorResponse('CI report must be in completed status to reject. Current: ' + ci.status, 400, 'INVALID_STATUS');
-  const now = new Date().toISOString();
+  const now = nowManilaISO();
   await db.from('credit_investigations').update({
     status: 'rejected',
     reviewed_by: user.id,

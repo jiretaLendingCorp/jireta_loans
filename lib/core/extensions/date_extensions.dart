@@ -1,6 +1,7 @@
 // lib/core/extensions/date_extensions.dart
 import 'package:intl/intl.dart';
 import '../utils/formatters.dart';
+import '../utils/timezone.dart';
 
 extension DateExtensions on DateTime {
   String get formatted => DateFormat('MMM dd, yyyy').format(this);
@@ -17,15 +18,15 @@ extension DateExtensions on DateTime {
   String get toShortDate => AppFormatters.date(this);
 
   bool get isToday {
-    final now = DateTime.now();
+    final now = nowManila();
     return year == now.year && month == now.month && day == now.day;
   }
 
-  bool get isPast => isBefore(DateTime.now());
+  bool get isPast => isBefore(nowManila());
   bool get isOverdue => isPast && !isToday;
 
   String get timeAgo {
-    final now = DateTime.now();
+    final now = nowManila();
     final diff = now.difference(this);
     if (diff.inSeconds < 60) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';

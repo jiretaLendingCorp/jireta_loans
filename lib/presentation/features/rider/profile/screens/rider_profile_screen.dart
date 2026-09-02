@@ -756,21 +756,23 @@ class _CollapsibleSection extends StatelessWidget {
               ),
             ),
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            child: isExpanded
-                ? Column(
-                    children: [
-                      const Divider(height: 1, color: AppColors.border),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                        child: Column(children: children),
-                      ),
-                    ],
-                  )
-                : const SizedBox(width: double.infinity),
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: isExpanded
+                  ? Column(
+                      children: [
+                        const Divider(height: 1, color: AppColors.border),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                          child: Column(children: children),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
           ),
         ],
       ),

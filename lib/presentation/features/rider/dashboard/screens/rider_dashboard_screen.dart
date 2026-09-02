@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/asset_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -529,7 +530,7 @@ class _EnterpriseHeader extends StatelessWidget {
   const _EnterpriseHeader({required this.riderName, this.profilePhotoUrl, required this.taskCount});
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = nowManila();
     final h = now.hour;
     final String greeting;
     final IconData greetingIcon;

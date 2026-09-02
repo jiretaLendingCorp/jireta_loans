@@ -250,7 +250,6 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
             items: [
               _Kv('Phone', u.phoneNumber ?? '—'),
               _Kv('Email', u.email ?? '—'),
-              _Kv('GCash Number', u.gcashNumber ?? '—'),
             ],
           ),
           const SizedBox(height: 14),

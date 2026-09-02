@@ -26,6 +26,7 @@ import {
   validateEmail,
   validatePasswordComplexity,
 } from "../_shared/validators.ts";
+import { nowManilaISO } from '../_shared/timezone.ts';
 
 const PASSWORD_HISTORY_LIMIT = 5;
 
@@ -252,6 +253,7 @@ async function handleVerifyOtp(req: Request) {
   // Without this, if user verifies at 55s then spends 10s typing, reset would fail as "expired".
   const verifiedGraceExpiresAt = new Date(Date.now() + 10 * 60000).toISOString();
   await db.from("email_reset_otps").update({ verified: true, expires_at: verifiedGraceExpiresAt }).eq("id", otpRow.id);
+  // Note: OTP grace expiry uses UTC for consistent server-side comparison
   // Clear lockout
   await db.from("email_otp_lockouts").delete().eq("email", cleanEmail);
 

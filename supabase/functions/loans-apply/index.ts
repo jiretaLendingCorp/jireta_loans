@@ -8,6 +8,7 @@ import { validateLoanAmount, validateFrequency } from '../_shared/validators.ts'
 import { computeSchedule, generateLoanNumber, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { nowManila } from '../_shared/timezone.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -86,7 +87,7 @@ serve(async (req) => {
     }
 
     // 3-month cooldown after CI rejection: lender cannot re-apply within 3 months of a rejected CI loan.
-    const threeMonthsAgo = new Date();
+    const threeMonthsAgo = nowManila();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const { data: recentRejected } = await db
       .from('loans')

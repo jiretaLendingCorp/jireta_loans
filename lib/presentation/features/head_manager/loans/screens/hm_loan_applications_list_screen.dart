@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
@@ -975,7 +976,7 @@ class _HmLoanApplicationsListScreenState
 
   // ───────────────────────── Helpers ─────────────────────────
   String _timeAgo(DateTime d) {
-    final diff = DateTime.now().difference(d);
+    final diff = nowManila().difference(d);
     if (diff.inDays > 0) return '${diff.inDays}d ago';
     if (diff.inHours > 0) return '${diff.inHours}h ago';
     if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';

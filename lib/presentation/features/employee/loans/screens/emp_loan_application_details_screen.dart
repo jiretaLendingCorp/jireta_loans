@@ -199,7 +199,6 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                 profile['monthly_income'] != null
                     ? '₱${profile['monthly_income']}'
                     : '—'),
-            _row('GCash', profile['gcash_number'] ?? '—'),
             _row('Account Upgrade Status',
                 profile['account_upgrade_status'] ?? '—'),
           ],

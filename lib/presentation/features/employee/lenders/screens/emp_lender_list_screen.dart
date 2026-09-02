@@ -128,7 +128,6 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
         children: [
           Expanded(flex: 3, child: Text('Name', style: style)),
           Expanded(flex: 2, child: Text('Phone', style: style)),
-          Expanded(flex: 2, child: Text('GCash Number', style: style)),
           Expanded(
               flex: 2, child: Text('Account Upgrade Status', style: style)),
           Expanded(flex: 1, child: Text('Status', style: style)),
@@ -181,16 +180,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
                 ),
               ),
             ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.gcashNumber ?? '—',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
+
             Expanded(
               flex: 2,
               child: Text(

@@ -14,6 +14,7 @@ import { isAuthUser, requireAuth } from '../_shared/auth.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
+import { nowManilaISO } from '../_shared/timezone.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'refresh-session';
@@ -105,7 +106,7 @@ async function handleTermsAccept(req: Request) {
 
   const db = getAdminClient();
 
-  await db.from('users').update({ terms_accepted_at: new Date().toISOString() }).eq('id', user.id);
+  await db.from('users').update({ terms_accepted_at: nowManilaISO() }).eq('id', user.id);
 
   await db.from('terms_consent_logs').insert({
     user_id: user.id,
@@ -114,5 +115,5 @@ async function handleTermsAccept(req: Request) {
     app_version: appVersion,
   });
 
-  return jsonResponse({ message: 'Terms accepted', accepted_at: new Date().toISOString() });
+  return jsonResponse({ message: 'Terms accepted', accepted_at: nowManilaISO() });
 }

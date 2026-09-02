@@ -17,6 +17,7 @@ import { sendSms } from '../_shared/sms.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 import { guardRateLimit, recordSecurityEvent, blockKey, checkBlock } from '../_shared/rate_limiter.ts';
 import { sanitizeIpAddress } from '../_shared/audit.ts';
+import { nowManilaISO } from '../_shared/timezone.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 10;
@@ -289,6 +290,7 @@ async function handleSendOtp(req: Request) {
   const code = MOCK_OTP_CODE;
   const codeHash = await hashOtpCode(code, phone);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
+  // Note: OTP expiry uses UTC for consistent server-side comparison
 
   await db.from('otp_codes').insert({
     phone_number: phone,
@@ -537,7 +539,7 @@ async function handleVerifyOtp(req: Request) {
     event_type: 'login_success',
     ip_address: sanitizeIpAddress(req.headers.get('x-forwarded-for')),
   });
-  await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
+  await db.from('users').update({ last_login_at: nowManilaISO() }).eq('id', user.id);
 
   return jsonResponse({
     access_token: session.access_token,

@@ -111,7 +111,6 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
             items: [
               DetailsItem('Phone', data['phone_number'] ?? data['phone'] ?? '—'),
               DetailsItem('Email', data['email'] ?? '—'),
-              DetailsItem('GCash Number', lp?['gcash_number'] ?? '—'),
             ],
           ),
           const SizedBox(height: 20),

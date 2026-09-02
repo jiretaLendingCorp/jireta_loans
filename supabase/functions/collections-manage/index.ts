@@ -20,6 +20,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification, notifyStaff } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { nowManilaISO } from '../_shared/timezone.ts';
 import {
   getSchedulePayment,
   scheduleStatus,
@@ -345,7 +346,7 @@ async function handleCollectionAccept(req: Request) {
   const { data: assignment } = await db.from('collection_assignments').select('id, status, rider_id, assigned_by').eq('id', assignment_id).eq('rider_id', user.id).single();
   if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
   if (assignment.status !== 'assigned') return errorResponse('Assignment is not in assigned status', 400, 'INVALID_STATUS');
-  await db.from('collection_assignments').update({ status: 'accepted', response_at: new Date().toISOString() }).eq('id', assignment_id);
+  await db.from('collection_assignments').update({ status: 'accepted', response_at: nowManilaISO() }).eq('id', assignment_id);
   await writeAuditLog({ performedBy: user.id, action: 'collection_accept', tableName: 'collection_assignments', recordId: assignment_id, ipAddress: ip });
   if (assignment.assigned_by) await sendPushNotification({ userId: assignment.assigned_by, title: 'Collection Accepted', body: 'The rider has accepted the collection assignment.', type: 'collection_accepted', referenceId: assignment_id });
   return jsonResponse({ message: 'Assignment accepted' });
@@ -365,7 +366,7 @@ async function handleCollectionDecline(req: Request) {
   const { data: assignment } = await db.from('collection_assignments').select('id, status, rider_id, assigned_by').eq('id', assignment_id).eq('rider_id', user.id).single();
   if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
   if (assignment.status !== 'assigned') return errorResponse('Assignment is not pending', 400, 'INVALID_STATUS');
-  await db.from('collection_assignments').update({ status: 'declined', response_at: new Date().toISOString(), collection_notes: reason ?? null }).eq('id', assignment_id);
+  await db.from('collection_assignments').update({ status: 'declined', response_at: nowManilaISO(), collection_notes: reason ?? null }).eq('id', assignment_id);
   await writeAuditLog({ performedBy: user.id, action: 'collection_decline', tableName: 'collection_assignments', recordId: assignment_id, ipAddress: ip });
   if (assignment.assigned_by) await sendPushNotification({ userId: assignment.assigned_by, title: 'Collection Declined', body: 'The rider declined the collection assignment. Please reassign.', type: 'collection_declined', referenceId: assignment_id });
   return jsonResponse({ message: 'Assignment declined' });
@@ -421,7 +422,7 @@ async function handleCollectionRecord(req: Request) {
     recorded_by: user.id,
     collection_assignment_id: assignment_id,
     notes: notes ?? null,
-    paid_at: new Date().toISOString(),
+    paid_at: nowManilaISO(),
     idempotency_key: allocations.length > 1 ? `${idempotencyKey}-${i + 1}` : idempotencyKey,
   }));
 
@@ -437,7 +438,7 @@ async function handleCollectionRecord(req: Request) {
   if (newBalance <= 0) {
     await db.from('loans').update({ status: 'completed' }).eq('id', loanId);
   }
-  await db.from('collection_assignments').update({ status: 'in_progress', completed_at: new Date().toISOString(), amount_collected }).eq('id', assignment_id);
+  await db.from('collection_assignments').update({ status: 'in_progress', completed_at: nowManilaISO(), amount_collected }).eq('id', assignment_id);
 
   await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payments[0].id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });
   await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Collected', body: `Payment of ₱${amount_collected.toLocaleString()} has been collected. Remaining: ₱${newBalance.toLocaleString()}`, type: 'payment_collected', referenceId: payments[0].id });
@@ -537,7 +538,7 @@ async function handleCollectionUploadProof(req: Request) {
   const { error: updErr } = await db.from('collection_assignments').update({
     ...updates,
     status: 'completed',
-    completed_at: new Date().toISOString(),
+    completed_at: nowManilaISO(),
   }).eq('id', assignment_id);
   if (updErr) {
     console.error('assignment completion update failed:', updErr);

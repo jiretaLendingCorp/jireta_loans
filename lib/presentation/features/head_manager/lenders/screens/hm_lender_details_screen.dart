@@ -96,7 +96,6 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                 items: [
                   DetailsItem('Phone', user.phoneNumber ?? '—'),
                   DetailsItem('Email', user.email ?? '—'),
-                  DetailsItem('GCash Number', user.gcashNumber ?? '—'),
                 ],
               ),
               const SizedBox(height: 20),

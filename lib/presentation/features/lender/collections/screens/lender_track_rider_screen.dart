@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/errors/failure.dart';
 import '../../../../../core/services/location_service.dart';
@@ -198,7 +199,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
       if (rawUpdated is String) riderUpdatedAt = DateTime.tryParse(rawUpdated);
       bool isStale = isStaleFlag;
       if (!isStale && riderUpdatedAt != null) {
-        isStale = DateTime.now().difference(riderUpdatedAt).inSeconds > 120;
+        isStale = nowManila().difference(riderUpdatedAt).inSeconds > 120;
       }
       // If stale, hide the rider pin entirely — don't show ghost location.
       final lat = isStale ? null : rawLat;
@@ -215,7 +216,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
         _assignmentType = data?['assignment_type'] as String?;
         _isLoading = false;
         _error = null;
-        _lastUpdated = DateTime.now();
+        _lastUpdated = nowManila();
         _riderUpdatedAt = riderUpdatedAt;
         _isRiderStale = isStale && rawLat != null;
         // Update distance immediately (haversine) until route arrives

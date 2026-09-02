@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/models/kpi_head_manager_model.dart';
@@ -22,7 +23,7 @@ class HmDashboardState {
   }) : selectedMonth = selectedMonth ?? _currentMonth();
 
   static String _currentMonth() {
-    final now = DateTime.now();
+    final now = nowManila();
     return '${now.year}-${now.month.toString().padLeft(2, '0')}';
   }
 

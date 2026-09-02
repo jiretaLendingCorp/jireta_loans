@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/hm_lender_provider.dart';
 
@@ -249,7 +250,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
       );
 
   Future<void> _pickDob() async {
-    final now = DateTime.now();
+    final now = nowManila();
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime(now.year - 25, now.month, now.day),
