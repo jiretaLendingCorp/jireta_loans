@@ -178,7 +178,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => ConfirmationDialog(
+      builder: (_) => const ConfirmationDialog(
         title: 'Submit Loan Application',
         message:
             'Are you sure to apply this loan?',

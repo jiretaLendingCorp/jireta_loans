@@ -76,7 +76,7 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
 
   Future<void> createRider(Map<String, dynamic> data) async {
     await _ds.createRider(data);
-    await load();
+    await load(silent: true);
   }
 
   Future<void> updateRider({

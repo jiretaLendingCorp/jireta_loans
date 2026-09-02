@@ -85,7 +85,7 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
 
   Future<void> createRider(Map<String, dynamic> data) async {
     await _ds.createRider(data);
-    await load();
+    await load(silent: true);
   }
 
   Future<void> archive(String userId) async {

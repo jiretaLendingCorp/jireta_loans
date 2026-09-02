@@ -724,37 +724,61 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   }
 
   Widget _buildEmpty() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
-      child: Column(children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.riderGreen.withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: const Icon(Icons.delivery_dining_rounded, size: 40, color: AppColors.riderGreen)),
-        const SizedBox(height: 16),
-        const Text('No collections found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        const Text('Rider collection assignments will appear here once requested.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-      ]),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.delivery_dining_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No collections found',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildPaymentEmpty(_PaymentsState state) {
     final isFiltered = _searchCtrl.text.isNotEmpty || state.methodFilter != 'all';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
-      child: Column(children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.deepNavy.withValues(alpha: 0.10), AppColors.gold.withValues(alpha: 0.16)]), shape: BoxShape.circle, border: Border.all(color: AppColors.border)), child: Icon(isFiltered ? Icons.search_off_rounded : Icons.payments_outlined, size: 32, color: AppColors.deepNavy.withValues(alpha: 0.75))),
-        const SizedBox(height: 16),
-        Text(isFiltered ? 'No matching payments' : 'No payments found', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-        const SizedBox(height: 6),
-        Text(isFiltered ? 'Try a different search or method filter.' : 'Verified payments will appear here.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-        if (isFiltered) ...[
-          const SizedBox(height: 18),
-          OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod('all'); setState(() {}); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isFiltered ? Icons.search_off_rounded : Icons.payments_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isFiltered ? 'No matching payments' : 'No payments found',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
+          if (isFiltered) ...[
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchCtrl.clear();
+                ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod('all');
+                setState(() {});
+              },
+              icon: const Icon(Icons.clear_all_rounded, size: 16),
+              label: const Text('Clear filters'),
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 

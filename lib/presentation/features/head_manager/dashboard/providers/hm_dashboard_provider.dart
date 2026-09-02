@@ -120,9 +120,11 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
       state = state.copyWith(kpi: kpi, isLoading: false, selectedMonth: m);
     } catch (e) {
       if (seq != _loadSeq) return;
-      if (silent) return;
+      // Always reset loading state so the UI never gets stuck on shimmer.
+      // The silent flag only controls whether we surface the error message.
       state = state.copyWith(
-          isLoading: false, error: ErrorHandler.handle(e).message);
+          isLoading: false,
+          error: silent ? state.error : ErrorHandler.handle(e).message);
     }
   }
 

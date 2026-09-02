@@ -134,7 +134,7 @@ Future<void> pumpDashboard(WidgetTester tester, double width) async {
 
   await tester.pumpWidget(ProviderScope(
     overrides: [
-      hmDashboardProvider.overrideWith((ref, _) => FakeDashboardNotifier()),
+      hmDashboardProvider.overrideWith((ref) => FakeDashboardNotifier()),
       hmProfileProvider.overrideWith((ref) => FakeProfileNotifier()),
     ],
     child: const MaterialApp(home: HmDashboardScreen()),

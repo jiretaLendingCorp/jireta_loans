@@ -852,14 +852,14 @@ class _UploadStep extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.border, width: 2, strokeAlign: BorderSide.strokeAlignInside),
               ),
-              child: Column(
+              child: const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.cloud_upload_outlined, size: 40, color: AppColors.riderGreen),
-                  const SizedBox(height: 8),
-                  const Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                  const SizedBox(height: 4),
-                  const Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 8),
+                  Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  SizedBox(height: 4),
+                  Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
                 ],
               ),
             ),
@@ -1075,14 +1075,14 @@ class _UploadReportStep extends StatelessWidget {
                         );
                       },
                     )
-                  : Column(
+                  : const Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.cloud_upload_outlined, size: 40, color: AppColors.riderGreen),
-                        const SizedBox(height: 8),
-                        const Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                        const SizedBox(height: 4),
-                        const Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
+                        SizedBox(height: 8),
+                        Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                        SizedBox(height: 4),
+                        Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
                       ],
                     ),
             ),

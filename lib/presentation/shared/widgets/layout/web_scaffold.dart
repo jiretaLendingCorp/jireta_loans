@@ -346,7 +346,7 @@ class _UserAvatar extends ConsumerWidget {
 
     return PopupMenuButton<String>(
       offset: const Offset(0, 48),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -407,6 +407,9 @@ class _UserAvatar extends ConsumerWidget {
           final confirmed = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+              ),
               title: const Text('Log Out'),
               content: const Text('Do you want to logout?'),
               actions: [

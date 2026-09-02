@@ -836,84 +836,33 @@ class _HmLoanApplicationsListScreenState
 
   Widget _buildEmpty(HmLoanState state) {
     final isFiltered = state.search.isNotEmpty || state.tabFilter != 'all';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
+    return Center(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.deepNavy.withValues(alpha: 0.10),
-                  AppColors.gold.withValues(alpha: 0.16),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Icon(
-              isFiltered ? Icons.search_off_rounded : Icons.description_outlined,
-              size: 32,
-              color: AppColors.deepNavy.withValues(alpha: 0.75),
-            ),
+          Icon(
+            isFiltered ? Icons.search_off_rounded : Icons.description_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
           ),
           const SizedBox(height: 16),
           Text(
-            isFiltered ? 'No matching applications' : 'No loan applications',
+            isFiltered ? 'No matching applications' : 'No loan records',
             style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            isFiltered
-                ? 'Try adjusting your search or switch to a different pipeline stage.'
-                : 'New lender applications will appear here once submitted.',
-            textAlign: TextAlign.center,
-            style:
-                const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
           ),
           if (isFiltered) ...[
             const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _searchCtrl.clear();
-                    ref.read(hmLoanProvider.notifier).setSearch('');
-                    ref.read(hmLoanProvider.notifier).setTab('all');
-                  },
-                  icon: const Icon(Icons.clear_all_rounded, size: 16),
-                  label: const Text('Clear filters'),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: () =>
-                      ref.read(hmLoanProvider.notifier).fetchLoans(),
-                  icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text('Refresh'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.deepNavy,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchCtrl.clear();
+                ref.read(hmLoanProvider.notifier).setSearch('');
+                ref.read(hmLoanProvider.notifier).setTab('all');
+              },
+              icon: const Icon(Icons.clear_all_rounded, size: 16),
+              label: const Text('Clear filters'),
             ),
           ],
         ],

@@ -38,9 +38,10 @@ class HmProfileNotifier extends StateNotifier<HmProfileState>
       final user = await _userDs.getProfile();
       state = state.copyWith(user: user, isLoading: false);
     } catch (e) {
-      if (silent) return;
+      // Always reset loading state so the UI never gets stuck.
       state = state.copyWith(
-          isLoading: false, error: ErrorHandler.handle(e).message);
+          isLoading: false,
+          error: silent ? state.error : ErrorHandler.handle(e).message);
     }
   }
 

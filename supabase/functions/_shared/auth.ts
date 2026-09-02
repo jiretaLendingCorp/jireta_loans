@@ -167,7 +167,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
       .from('users')
       .update({ last_login_at: nowManilaISO() })
       .eq('id', dbUser.id)
-      .then(() => {}, () => {});
+      .then(() => {}, () => { /* fire-and-forget: ignore update errors */ });
   } catch (_) {}
 
   return {

@@ -284,21 +284,33 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
 
   Widget _buildEmpty(HmAccountUpgradeState state) {
     final isFiltered = state.statusFilter != 'all';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
-      child: Column(children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFF00838F).withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18)), child: const Icon(Icons.verified_user_rounded, size: 40, color: Color(0xFF00838F))),
-        const SizedBox(height: 16),
-        Text(isFiltered ? 'No matching submissions' : 'No account upgrade submissions found', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        Text(isFiltered ? 'Try a different filter.' : 'Lender KYC upgrade requests will appear here for review.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-        if (isFiltered) ...[
-          const SizedBox(height: 18),
-          OutlinedButton.icon(onPressed: () => ref.read(hmAccountUpgradeProvider.notifier).setStatus('all'), icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isFiltered ? Icons.search_off_rounded : Icons.verified_user_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isFiltered ? 'No matching submissions' : 'No account upgrade submissions found',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
+          if (isFiltered) ...[
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () => ref.read(hmAccountUpgradeProvider.notifier).setStatus('all'),
+              icon: const Icon(Icons.clear_all_rounded, size: 16),
+              label: const Text('Clear filters'),
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
