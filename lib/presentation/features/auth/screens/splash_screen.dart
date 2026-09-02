@@ -1,6 +1,7 @@
 // lib/presentation/features/auth/screens/splash_screen.dart
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -174,19 +175,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       }
     });
 
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0D1B2A), // deepNavy
-              Color(0xFF132A42),
-              Color(0xFF0A1420),
-            ],
-            stops: [0.0, 0.55, 1.0],
-          ),
+          color: Colors.white,
         ),
         child: Stack(
           children: [
@@ -202,7 +201,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      AppColors.gold.withValues(alpha: 0.10),
+                      AppColors.gold.withValues(alpha: 0.06),
                       Colors.transparent,
                     ],
                   ),
@@ -220,14 +219,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      AppColors.gold.withValues(alpha: 0.06),
+                      AppColors.deepNavy.withValues(alpha: 0.04),
                       Colors.transparent,
                     ],
                   ),
                 ),
               ),
-            ),
-            // Hairline top accent (gold)
+            ),                    // Hairline top accent
             Positioned(
               top: 0,
               left: 0,
@@ -238,7 +236,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   gradient: LinearGradient(
                     colors: [
                       Colors.transparent,
-                      AppColors.gold.withValues(alpha: 0.8),
+                      AppColors.deepNavy.withValues(alpha: 0.15),
                       Colors.transparent,
                     ],
                   ),
@@ -248,7 +246,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             // Fine grid pattern (very subtle)
             Positioned.fill(
               child: Opacity(
-                opacity: 0.025,
+                opacity: 0.03,
                 child: CustomPaint(painter: _GridPainter()),
               ),
             ),
@@ -287,8 +285,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                             shape: BoxShape.circle,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: AppColors.gold
-                                                    .withValues(alpha: 0.18),
+                                        color: AppColors.deepNavy
+                                            .withValues(alpha: 0.08),
                                                 blurRadius: 32,
                                                 spreadRadius: 4,
                                               ),
@@ -296,15 +294,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                           ),
                                         ),
                                       ),
-                                      // Thin gold outer ring
+                                      // Thin navy outer ring
                                       Container(
                                         width: 114,
                                         height: 114,
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
                                           border: Border.all(
-                                            color: AppColors.gold
-                                                .withValues(alpha: 0.9),
+                                            color: AppColors.deepNavy
+                                                .withValues(alpha: 0.2),
                                             width: 1.2,
                                           ),
                                         ),
@@ -316,9 +314,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                         decoration: BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: AppColors.gold
-                                                .withValues(alpha: 0.25),
+                                          border: Border.all(                          color: AppColors.gold
+                                                  .withValues(alpha: 0.35),
                                             width: 1,
                                           ),
                                           boxShadow: [
@@ -355,7 +352,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                       fontFamily: 'PlayfairDisplay',
                                       fontSize: 39,
                                       fontWeight: FontWeight.w700,
-                                      color: AppColors.gold,
+                                      color: AppColors.deepNavy,
                                       letterSpacing: 7.5,
                                       height: 1.0,
                                     ),
@@ -372,9 +369,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                               BorderRadius.circular(99),
                                           child: Stack(
                                             children: [
-                                              Container(
-                                                color: Colors.white
-                                                    .withValues(alpha: 0.08),
+                                              Container(                    color: AppColors.deepNavy.withValues(alpha: 0.08),
                                               ),
                                               // Animated shimmer bar (indeterminate simulation via gradient)
                                               LayoutBuilder(
@@ -420,9 +415,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                                   child:
                                                       const LinearProgressIndicator(
                                                     minHeight: 3,
-                                                    color: AppColors.gold,
-                                                    backgroundColor:
-                                                        Colors.transparent,
+                                          color: AppColors.deepNavy,
+                                          backgroundColor:
+                                              Colors.transparent,
                                                   ),
                                                 ),
                                               ),
@@ -431,33 +426,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                         ),
                                       ),
                                       const SizedBox(height: 12),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          SizedBox(
-                                            width: 12,
-                                            height: 12,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 1.6,
-                                              color: AppColors.gold
-                                                  .withValues(alpha: 0.9),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            _waitingForConnection
-                                                ? 'Waiting for connection…'
-                                                : 'Preparing your experience…',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.62),
-                                              letterSpacing: 0.8,
-                                            ),
-                                          ),
-                                        ],
+                                      Text(
+                                        _waitingForConnection
+                                            ? 'Waiting for connection…'
+                                            : 'Preparing your experience…',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w500,
+                                          color: AppColors.deepNavy
+                                              .withValues(alpha: 0.55),
+                                          letterSpacing: 0.8,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -487,6 +466,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -495,7 +475,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFC9A84C)
+      ..color = const Color(0xFF0D1B2A)
       ..strokeWidth = 0.4
       ..style = PaintingStyle.stroke;
     const gap = 28.0;
