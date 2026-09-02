@@ -2,6 +2,7 @@
 import { getAdminClient } from './db.ts';
 import { errorResponse } from './cors.ts';
 import { singleWithObjectEmbeds } from './types.ts';
+import { nowManilaISO } from './timezone.ts';
 
 export interface AuthUser {
   id: string;
@@ -164,7 +165,7 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
   try {
     supabase
       .from('users')
-      .update({ last_login_at: new Date().toISOString() })
+      .update({ last_login_at: nowManilaISO() })
       .eq('id', dbUser.id)
       .then(() => {}, () => {});
   } catch (_) {}

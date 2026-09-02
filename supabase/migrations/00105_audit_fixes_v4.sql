@@ -60,9 +60,19 @@ SET search_path = public, extensions;
 -- Backfill: 00030 widened code to TEXT and edge function now writes SHA-256 hex
 -- into `code`. If a legacy plaintext row still exists, it will be 6 chars and
 -- violate the new CHECK — those rows are already expired/used; clear them.
-DELETE FROM public.otp_codes
-WHERE char_length(code) != 64
-  AND code !~ '^[0-9a-f]{64}$';
+-- Idempotent: skip if column 'code' doesn't exist (already renamed to otp_hash).
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='otp_codes' AND column_name='code'
+  ) THEN
+    DELETE FROM public.otp_codes
+    WHERE char_length(code) != 64
+      AND code !~ '^[0-9a-f]{64}$';
+  END IF;
+END
+$$;
 
 -- Rename column `code` -> `otp_hash` (IF NOT EXISTS guard via catalog check).
 DO $$

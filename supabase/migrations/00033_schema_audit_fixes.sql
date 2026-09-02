@@ -62,8 +62,10 @@ CREATE INDEX IF NOT EXISTS idx_xendit_logs_disbursement_id
 
 CREATE INDEX IF NOT EXISTS idx_in_office_lender_id
   ON in_office_applications(lender_id);
-CREATE INDEX IF NOT EXISTS idx_in_office_loan_id
-  ON in_office_applications(loan_id);
+
+-- loan_id column does not exist on in_office_applications;
+-- the FK is loans.in_office_application_id -> in_office_applications(id).
+-- This index is intentionally skipped.
 
 CREATE INDEX IF NOT EXISTS idx_audit_table_record
   ON audit_logs(table_name, record_id);

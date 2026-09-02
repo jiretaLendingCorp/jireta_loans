@@ -13,6 +13,9 @@
 -- Also widens auth_logs.event_type so rate-limit / block events can be
 -- stored alongside the existing login_* events.
 
+BEGIN;
+SET search_path = public, extensions;
+
 -- ─────────────────────────────────────────────────────────────────────
 -- 1) security_blocks
 -- ─────────────────────────────────────────────────────────────────────
@@ -79,3 +82,5 @@ BEGIN
   DELETE FROM security_events WHERE created_at < NOW() - INTERVAL '30 days';
 END;
 $$;
+
+COMMIT;
