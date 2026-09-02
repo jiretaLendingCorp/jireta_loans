@@ -137,24 +137,51 @@ async function handleHeadManager(req: Request) {
     { count: totalCollectionTx },
   ] = await buildCounts();
 
+  // ── Fire all independent queries in parallel ───────────────────────────
   // Loan subset for financials — filtered to month when isMonthly (loans originated that month)
   let loanRowsQuery: any = db.from('loans').select('id, principal_amount, created_at').in('status', ['active', 'completed', 'overdue']);
   if (isMonthly) loanRowsQuery = loanRowsQuery.gte('created_at', isoStart!).lt('created_at', isoEnd!);
-  const { data: loanRows } = await loanRowsQuery;
-
-  const financials = await getLoanFinancialsBatch(
-    db,
-    (loanRows ?? []).map((l: any) => l.id),
-  );
 
   // Payments / penalties — monthly filtered on paid_at / applied_at
   let paymentsQuery: any = db.from('payments').select('amount, payment_method, paid_at').eq('status', 'verified');
   if (isMonthly) paymentsQuery = paymentsQuery.gte('paid_at', isoStart!).lt('paid_at', isoEnd!);
-  const { data: payments } = await paymentsQuery;
 
   let penaltiesQuery: any = db.from('penalty_logs').select('penalty_amount, applied_at');
   if (isMonthly) penaltiesQuery = penaltiesQuery.gte('applied_at', isoStart!).lt('applied_at', isoEnd!);
-  const { data: penalties } = await penaltiesQuery;
+
+  // Trend series queries — independent, no dependencies
+  // Only fetch records within the 6-month trend window to avoid full table scans.
+  const trendAnchor = isMonthly && monthStart ? new Date(monthStart) : new Date();
+  const trendStart = new Date(Date.UTC(trendAnchor.getFullYear(), trendAnchor.getMonth() - 5, 1));
+  const trendEnd = new Date(Date.UTC(trendAnchor.getFullYear(), trendAnchor.getMonth() + 1, 1));
+  const trendIsoStart = trendStart.toISOString();
+  const trendIsoEnd = trendEnd.toISOString();
+  const trendLoansRawP = db.from('loans').select('created_at, status, principal_amount').gte('created_at', trendIsoStart).lt('created_at', trendIsoEnd);
+  const trendDisbursementsP = db.from('disbursements').select('disbursed_at, amount').eq('status', 'completed').gte('disbursed_at', trendIsoStart).lt('disbursed_at', trendIsoEnd);
+  const trendPaymentsP = db.from('payments').select('paid_at, amount').eq('status', 'verified').gte('paid_at', trendIsoStart).lt('paid_at', trendIsoEnd);
+
+  // Run all 6 queries in parallel
+  const [
+    { data: loanRows },
+    { data: payments },
+    { data: penalties },
+    { data: trendLoansRaw },
+    { data: trendDisbursements },
+    { data: trendPayments },
+  ] = await Promise.all([
+    loanRowsQuery,
+    paymentsQuery,
+    penaltiesQuery,
+    trendLoansRawP,
+    trendDisbursementsP,
+    trendPaymentsP,
+  ]);
+
+  // Financials depends on loanRows — compute after parallel batch resolves
+  const financials = await getLoanFinancialsBatch(
+    db,
+    (loanRows ?? []).map((l: any) => l.id),
+  );
 
   let totalReleased = 0, totalOutstanding = 0, totalInterest = 0;
   (loanRows ?? []).forEach((l: any) => {
@@ -169,20 +196,6 @@ async function handleHeadManager(req: Request) {
 
   let totalPenalties = 0;
   (penalties ?? []).forEach((p: any) => { totalPenalties += Number(p.penalty_amount); });
-
-  // ── Monthly trend series (last 6 months, oldest → newest) ──────────────
-  // If monthly mode, the 6-month window ends at selectedMonth; otherwise ends at now.
-  const { data: trendLoansRaw } = await db
-    .from('loans')
-    .select('created_at, status, principal_amount');
-  const { data: trendDisbursements } = await db
-    .from('disbursements')
-    .select('disbursed_at, amount')
-    .eq('status', 'completed');
-  const { data: trendPayments } = await db
-    .from('payments')
-    .select('paid_at, amount')
-    .eq('status', 'verified');
 
   // For isMonthly we restrict trendLoans to subset? No — monthlySeries still shows full 6-month history for context.
   // But loanStatusBreakdown should reflect only selectedMonth's loans when monthly, so we filter a copy.

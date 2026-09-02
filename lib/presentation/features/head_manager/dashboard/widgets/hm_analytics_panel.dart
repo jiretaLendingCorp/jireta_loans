@@ -176,6 +176,7 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
     final segs = _segments(widget.kpi);
     if (index < 0 || index >= segs.length) return;
     final total = segs.fold<int>(0, (s, e) => s + e.count);
+    if (total == 0) return; // no data to drill into
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -201,15 +202,6 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
   Widget build(BuildContext context) {
     final segs = _segments(widget.kpi);
     final total = segs.fold<int>(0, (s, e) => s + e.count);
-
-    if (total == 0) {
-      return const Center(
-        child: Text(
-          'No loan data yet',
-          style: TextStyle(color: AppColors.textTertiary),
-        ),
-      );
-    }
 
     return LayoutBuilder(
       builder: (context, constraints) {

@@ -255,20 +255,16 @@ export async function getLoanFinancialsBatch(db: DbClient, loanIds: string[]): P
   const map: Record<string, LoanFinancials> = {};
   if (ids.length === 0) return map;
 
-  const { data: loanRows } = await db
-    .from('loans')
-    .select('id, principal_amount, interest_rate')
-    .in('id', ids);
-
-  const { data: penaltyRows } = await db
-    .from('penalty_logs')
-    .select('loan_id, penalty_amount')
-    .in('loan_id', ids);
-
-  const { data: scheduleRows } = await db
-    .from('loan_schedules')
-    .select('id, loan_id')
-    .in('loan_id', ids);
+  // Fire first 3 queries in parallel (no dependencies)
+  const [
+    { data: loanRows },
+    { data: penaltyRows },
+    { data: scheduleRows },
+  ] = await Promise.all([
+    db.from('loans').select('id, principal_amount, interest_rate').in('id', ids),
+    db.from('penalty_logs').select('loan_id, penalty_amount').in('loan_id', ids),
+    db.from('loan_schedules').select('id, loan_id').in('loan_id', ids),
+  ]);
 
   const scheduleIds = (scheduleRows ?? []).map((s: ScheduleRow) => s.id);
   let payRows: PaymentRow[] = [];
