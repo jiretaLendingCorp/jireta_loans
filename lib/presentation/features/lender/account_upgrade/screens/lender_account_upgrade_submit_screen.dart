@@ -598,14 +598,16 @@ class _LenderAccountUpgradeSubmitScreenState
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + bottomInset),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: _buildStepContent(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildStepContent(),
+                const SizedBox(height: 14),
+                _buildWizardBar(state),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
-        ),
-        AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(bottom: bottomInset),
-          child: _buildWizardBar(state),
         ),
       ],
     );
@@ -1030,15 +1032,8 @@ class _LenderAccountUpgradeSubmitScreenState
   Widget _buildWizardBar(LenderAccountUpgradeState state) {
     final isLast = _step == 2;
     final canProceed = _canGoNext && !_isSubmitting && !state.isLoading;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
           if (_step > 0) ...[

@@ -310,7 +310,7 @@ class _DisbursementChoiceCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF0D47A1), Color(0xFF1976D2)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A3658)], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [BoxShadow(color: AppColors.lenderBlue.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))],
       ),

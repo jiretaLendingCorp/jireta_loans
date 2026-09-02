@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -98,6 +99,15 @@ class MobileScaffold extends ConsumerWidget {
                     )
                   : null),
           actions: [
+            if (isLender)
+              IconButton(
+                tooltip: 'Contact',
+                onPressed: () => _showLenderContactSheet(context),
+                icon: const Icon(
+                  Icons.support_agent_rounded,
+                  color: Colors.white,
+                ),
+              ),
             if (showNotificationsBell) ...[
               IconButton(
                 onPressed: () {
@@ -444,3 +454,142 @@ List<MobileNavItem> lenderNavItems() => [
         route: RouteConstants.lenderProfile,
       ),
     ];
+
+void _showLenderContactSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.deepNavy,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.support_agent_rounded, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Contact Us', style: TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
+                      Text('We\'re here to help', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  icon: const Icon(Icons.close_rounded, color: AppColors.textTertiary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Divider(color: AppColors.border, height: 1),
+            const SizedBox(height: 16),
+            _ContactSheetRow(
+              icon: Icons.mail_outline_rounded,
+              title: 'Email',
+              subtitle: 'jireyalendingcorp@gmail.com',
+              onTap: () async {
+                final uri = Uri.parse('mailto:jireyalendingcorp@gmail.com');
+                if (await canLaunchUrl(uri)) await launchUrl(uri);
+              },
+            ),
+            const SizedBox(height: 12),
+            _ContactSheetRow(
+              icon: Icons.phone_outlined,
+              title: 'Phone',
+              subtitle: '09755849954',
+              onTap: () async {
+                final uri = Uri.parse('tel:09755849954');
+                if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+            ),
+            const SizedBox(height: 12),
+            _ContactSheetRow(
+              icon: Icons.access_time_rounded,
+              title: 'Office Hours',
+              subtitle: 'Mon - Fri, 8:00 AM - 5:00 PM',
+              onTap: null,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _ContactSheetRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  const _ContactSheetRow({required this.icon, required this.title, required this.subtitle, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F8FA),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Icon(icon, size: 18, color: AppColors.deepNavy),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.3)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
+                ],
+              ),
+            ),
+            if (onTap != null) const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}

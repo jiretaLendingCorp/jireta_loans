@@ -8,6 +8,8 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/num_extensions.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
@@ -18,6 +20,29 @@ import '../../loans/providers/lender_loan_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
 import 'widgets/lender_rider_tracking_card.dart';
+
+final lenderAmountObscuredProvider =
+    StateNotifierProvider<LenderAmountObscuredNotifier, bool>(
+        (ref) => LenderAmountObscuredNotifier());
+
+class LenderAmountObscuredNotifier extends StateNotifier<bool> {
+  static const _key = 'lender_amount_obscured';
+  LenderAmountObscuredNotifier() : super(false) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final v = prefs.getBool(_key) ?? false;
+    if (mounted) state = v;
+  }
+
+  Future<void> toggle() async {
+    state = !state;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, state);
+  }
+}
 
 class LenderDashboardScreen extends ConsumerStatefulWidget {
   const LenderDashboardScreen({super.key});
@@ -178,7 +203,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
   }
 }
 
-class _WelcomeBanner extends StatelessWidget {
+class _WelcomeBanner extends ConsumerStatefulWidget {
   final dynamic kpi;
   final String? firstName;
   final bool showBalance;
@@ -186,11 +211,17 @@ class _WelcomeBanner extends StatelessWidget {
       {required this.kpi, this.firstName, this.showBalance = true});
 
   @override
+  ConsumerState<_WelcomeBanner> createState() => _WelcomeBannerState();
+}
+
+class _WelcomeBannerState extends ConsumerState<_WelcomeBanner> {
+  @override
   Widget build(BuildContext context) {
-    if (!showBalance) {
+    final obscured = ref.watch(lenderAmountObscuredProvider);
+    if (!widget.showBalance) {
       return Align(
         alignment: Alignment.topRight,
-        child: _FoxyRiveGroup(firstName: firstName),
+        child: _FoxyRiveGroup(firstName: widget.firstName),
       );
     }
     return Stack(
@@ -199,7 +230,7 @@ class _WelcomeBanner extends StatelessWidget {
         Positioned(
           top: -10,
           right: 4,
-          child: _FoxyRiveGroup(firstName: firstName),
+          child: _FoxyRiveGroup(firstName: widget.firstName),
         ),
         Container(
           width: double.infinity,
@@ -224,22 +255,50 @@ class _WelcomeBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              const Text(
-                'Outstanding Balance',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Outstanding Balance',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  InkWell(
+                    onTap: () => ref.read(lenderAmountObscuredProvider.notifier).toggle(),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
-              CountUpAnimation(
-                value: (kpi?.remainingBalance ?? 0).toDouble(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'PlayfairDisplay',
-                ),
-                prefix: '₱',
-                decimalPlaces: 2,
-              ),
+              obscured
+                  ? const Text(
+                      '₱ ••••••',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'PlayfairDisplay',
+                        letterSpacing: 2,
+                      ),
+                    )
+                  : CountUpAnimation(
+                      value: (widget.kpi?.remainingBalance ?? 0).toDouble(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'PlayfairDisplay',
+                      ),
+                      prefix: '₱',
+                      decimalPlaces: 2,
+                    ),
             ],
           ),
         ),
@@ -629,12 +688,19 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _MyLoanCard extends StatelessWidget {
+class _MyLoanCard extends ConsumerStatefulWidget {
   final LoanModel loan;
   const _MyLoanCard({required this.loan});
 
   @override
+  ConsumerState<_MyLoanCard> createState() => _MyLoanCardState();
+}
+
+class _MyLoanCardState extends ConsumerState<_MyLoanCard> {
+  @override
   Widget build(BuildContext context) {
+    final loan = widget.loan;
+    final obscured = ref.watch(lenderAmountObscuredProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -682,22 +748,50 @@ class _MyLoanCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Outstanding Balance',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Outstanding Balance',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    InkWell(
+                      onTap: () => ref.read(lenderAmountObscuredProvider.notifier).toggle(),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
-                CountUpAnimation(
-                  value: loan.outstandingBalance,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'PlayfairDisplay',
-                  ),
-                  prefix: '₱',
-                  decimalPlaces: 2,
-                ),
+                obscured
+                    ? const Text(
+                        '₱ ••••••',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'PlayfairDisplay',
+                          letterSpacing: 2,
+                        ),
+                      )
+                    : CountUpAnimation(
+                        value: loan.outstandingBalance,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'PlayfairDisplay',
+                        ),
+                        prefix: '₱',
+                        decimalPlaces: 2,
+                      ),
                 const SizedBox(height: 14),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -710,7 +804,7 @@ class _MyLoanCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      loan.totalPayable.toCurrency,
+                      obscured ? '₱ ••••••' : loan.totalPayable.toCurrency,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
