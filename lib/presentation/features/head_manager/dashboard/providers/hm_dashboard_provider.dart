@@ -104,22 +104,14 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
     try {
       // Head manager dashboard is MONTHLY: always pass selectedMonth
       final kpi = await _ds.getHeadManagerKpis(month: m);
-      // Stale guard: if a newer request started after this one, discard result
-      // This prevents the initial load for the current month from overwriting
-      // a user-selected month when the user switches months quickly.
-      if (seq != _loadSeq) return;
-      // Also discard if selectedMonth was changed externally to a different month
-      // while this request was in flight — the KPI belongs to the old month.
-      if (state.selectedMonth != m && month != null) {
-        // If caller explicitly asked for m, but state is now different, still
-        // apply only if nothing newer is pending (seq check above passed).
-        // For explicit month loads we honour the requested month to avoid
-        // the "always snaps back to current month" bug; silent refreshes that
-        // happen concurrently are discarded above via seq guard.
-      }
+      // Stale guard: discard only when the result is for a DIFFERENT month
+      // than what's currently selected.  This avoids a livelock where
+      // concurrent realtime/poll calls keep incrementing _loadSeq and
+      // discarding each other's results, leaving isLoading stuck at true.
+      if (seq != _loadSeq && state.selectedMonth != m) return;
       state = state.copyWith(kpi: kpi, isLoading: false, selectedMonth: m);
     } catch (e) {
-      if (seq != _loadSeq) return;
+      if (seq != _loadSeq && state.selectedMonth != m) return;
       // Always reset loading state so the UI never gets stuck on shimmer.
       // The silent flag only controls whether we surface the error message.
       state = state.copyWith(
