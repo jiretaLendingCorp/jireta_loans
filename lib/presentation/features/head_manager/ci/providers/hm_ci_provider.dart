@@ -63,6 +63,7 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
     try {
       final res = await _ds.getList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
+        search: state.search.isEmpty ? null : state.search,
         page: page,
       );
       final list = (res['data'] as List? ?? [])
@@ -86,6 +87,11 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
 
   void setStatus(String s) {
     state = state.copyWith(statusFilter: s);
+    fetch();
+  }
+
+  void setSearch(String v) {
+    state = state.copyWith(search: v);
     fetch();
   }
 

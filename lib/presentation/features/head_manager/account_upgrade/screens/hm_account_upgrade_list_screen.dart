@@ -59,7 +59,7 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
               else if (state.docs.isEmpty)
                 _buildEmpty(state)
               else
-                _Entrance(child: _buildPremiumTable(_filtered(state.docs))),
+                _Entrance(child: _buildPremiumTable(state.docs)),
               if (state.totalPages > 1) ...[
                 const SizedBox(height: 16),
                 _buildPagination(state),
@@ -72,11 +72,7 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
     );
   }
 
-  List<dynamic> _filtered(List<dynamic> docs) {
-    final q = _searchCtrl.text.toLowerCase().trim();
-    if (q.isEmpty) return docs;
-    return docs.where((d) => d.lenderName.toString().toLowerCase().contains(q) || (d.lender?['email']?.toString().toLowerCase().contains(q) ?? false)).toList();
-  }
+
 
   Widget _buildTabPills(String active) {
     final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
@@ -131,44 +127,41 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
     );
   }
 
-  Widget _buildToolbar(HmAccountUpgradeState state) {
-    final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = _filtered(state.docs).length;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2))]),
-      child: Row(children: [
-        Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-        const SizedBox(width: 10),
-        Expanded(
-          child: TextField(
-            controller: _searchCtrl,
-            onChanged: (_) => setState(() {}),
-            style: const TextStyle(fontSize: 13),
-            decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)),
-          ),
+  Widget _buildToolbar(HmAccountUpgradeState state) => Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search account upgrades...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (v) => ref.read(hmAccountUpgradeProvider.notifier).setSearch(v),
+              ),
+            ),
+            const SizedBox(width: 12),
+            DropdownButton<String>(
+              value: state.statusFilter,
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All')),
+                DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
+                DropdownMenuItem(value: 'verified', child: Text('Verified')),
+                DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+              ],
+              onChanged: (v) =>
+                  ref.read(hmAccountUpgradeProvider.notifier).setStatus(v!),
+            ),
+          ],
         ),
-        if (hasSearch)
-          InkWell(
-            onTap: () => setState(() => _searchCtrl.clear()),
-            borderRadius: BorderRadius.circular(20),
-            child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary)),
-          ),
-        if (hasSearch) const SizedBox(width: 10),
-        _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(hmAccountUpgradeProvider.notifier).fetch()),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(10)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.layers_outlined, size: 14, color: Colors.white),
-            const SizedBox(width: 6),
-            Text('$resultsCount results', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-          ]),
-        ),
-      ]),
-    );
-  }
+      );
 
   Widget _buildPremiumTable(List<dynamic> docs) {
     return Container(
@@ -283,7 +276,7 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
   }
 
   Widget _buildEmpty(HmAccountUpgradeState state) {
-    final isFiltered = state.statusFilter != 'all';
+    final isFiltered = state.statusFilter != 'all' || state.search.isNotEmpty;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -304,7 +297,11 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
           if (isFiltered) ...[
             const SizedBox(height: 18),
             OutlinedButton.icon(
-              onPressed: () => ref.read(hmAccountUpgradeProvider.notifier).setStatus('all'),
+              onPressed: () {
+                _searchCtrl.clear();
+                ref.read(hmAccountUpgradeProvider.notifier).setSearch('');
+                ref.read(hmAccountUpgradeProvider.notifier).setStatus('all');
+              },
               icon: const Icon(Icons.clear_all_rounded, size: 16),
               label: const Text('Clear filters'),
             ),
@@ -383,17 +380,6 @@ class _StatusInline extends StatelessWidget {
       default: c = AppColors.warning; label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
     }
     return Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 7, height: 7, decoration: BoxDecoration(color: c, shape: BoxShape.circle)), const SizedBox(width: 6), Flexible(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c), overflow: TextOverflow.ellipsis))]);
-  }
-}
-
-class _ToolbarIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _ToolbarIcon({required this.icon, required this.tooltip, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(message: tooltip, child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(9), child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 16, color: AppColors.textSecondary))));
   }
 }
 

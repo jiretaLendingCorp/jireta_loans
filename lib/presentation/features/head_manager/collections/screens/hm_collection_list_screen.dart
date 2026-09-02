@@ -147,6 +147,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     if (key == 'payments') {
       ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(method: 'all');
     } else {
+      ref.read(hmCollectionProvider.notifier).setSearch('');
       ref.read(hmCollectionProvider.notifier).setStatus(key);
     }
   }
@@ -337,81 +338,37 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   }
 
   // ── Toolbar: single outer box with Search (hint "Search"), refresh, results badge ──
-  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState, bool isPayments) {
-    final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = isPayments
-        ? _filteredPayments(pState.payments).length
-        : _filteredCollections(cState.items).length;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
+  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState, bool isPayments) => Container(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2))],
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() {}),
-              style: const TextStyle(fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: 'Search',
-                hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: isPayments ? 'Search payments...' : 'Search collections...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (v) {
+                  if (isPayments) {
+                    setState(() {});
+                  } else {
+                    ref.read(hmCollectionProvider.notifier).setSearch(v);
+                  }
+                },
               ),
             ),
-          ),
-          if (hasSearch)
-            InkWell(
-              onTap: () {
-                _searchCtrl.clear();
-                setState(() {});
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle),
-                child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary),
-              ),
-            ),
-          if (hasSearch) const SizedBox(width: 10),
-          _ToolbarIcon(
-            icon: Icons.refresh_rounded,
-            tooltip: 'Refresh',
-            onTap: () => isPayments
-                ? ref.read(_hmPaymentsInCollectionProvider.notifier).fetch()
-                : ref.read(hmCollectionProvider.notifier).fetch(),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(10)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.layers_outlined, size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-                Text('$resultsCount results', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 
-  List<dynamic> _filteredCollections(List<dynamic> items) {
-    final q = _searchCtrl.text.toLowerCase().trim();
-    if (q.isEmpty) return items;
-    return items.where((c) => c.loanNumber.toString().toLowerCase().contains(q) || c.lenderName.toString().toLowerCase().contains(q) || c.riderName.toString().toLowerCase().contains(q)).toList();
-  }
+
 
   List<Map<String, dynamic>> _filteredPayments(List<Map<String, dynamic>> payments) {
     final q = _searchCtrl.text.toLowerCase().trim();
@@ -428,9 +385,9 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
 
   // ── Collections content ──
   Widget _buildCollectionsContent(HmCollectionState state) {
-    final items = _filteredCollections(state.items);
+    final items = state.items;
     if (items.isEmpty) {
-      final isFiltered = _searchCtrl.text.isNotEmpty || state.statusFilter != 'all';
+      final isFiltered = state.search.isNotEmpty || state.statusFilter != 'all';
       if (isFiltered) {
         return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -441,7 +398,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
             const SizedBox(height: 4),
             const Text('Try a different search or status filter', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             const SizedBox(height: 14),
-            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(hmCollectionProvider.notifier).setStatus('all'); setState(() {}); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(hmCollectionProvider.notifier).setSearch(''); ref.read(hmCollectionProvider.notifier).setStatus('all'); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
           ]),
         );
       }
@@ -903,24 +860,6 @@ class _PaymentMethodInline extends StatelessWidget {
       const SizedBox(width: 6),
       Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c)),
     ]);
-  }
-}
-
-class _ToolbarIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _ToolbarIcon({required this.icon, required this.tooltip, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 16, color: AppColors.textSecondary)),
-      ),
-    );
   }
 }
 

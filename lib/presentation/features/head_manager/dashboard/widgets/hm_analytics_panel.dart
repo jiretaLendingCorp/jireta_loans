@@ -140,8 +140,6 @@ class _LoanStatusDonut extends StatefulWidget {
 }
 
 class _LoanStatusDonutState extends State<_LoanStatusDonut> {
-  int _hovered = -1;
-
   List<_DonutSegment> _segments(KpiHeadManagerModel kpi) {
     // Prefer backend breakdown when available for exact "pending" bucket;
     // fallback to derived count for backwards-compatibility.
@@ -172,32 +170,6 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
     ];
   }
 
-  void _openDrill(int index) {
-    final segs = _segments(widget.kpi);
-    if (index < 0 || index >= segs.length) return;
-    final total = segs.fold<int>(0, (s, e) => s + e.count);
-    if (total == 0) return; // no data to drill into
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _PortfolioDrillSheet(
-        kpi: widget.kpi,
-        segments: segs,
-        total: total,
-        initialIndex: index,
-        onNavigate: (statusKey) {
-          Navigator.pop(ctx);
-          // Navigate to loan records; filter hint passed via extra is best-effort
-          // (route itself doesn't require it — sheet still shows correct detail).
-          try {
-            GoRouter.of(context).go(RouteConstants.hmLoanApplications);
-          } catch (_) {}
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final segs = _segments(widget.kpi);
@@ -208,206 +180,126 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
         final isNarrow = constraints.maxWidth < 360;
         final compactLegend =
             constraints.maxWidth < 400 || constraints.maxHeight < 220;
-        return Stack(
+        return Column(
           children: [
-            Column(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      // Donut chart with fl_chart — fully interactive
-                      Expanded(
-                        flex: isNarrow ? 5 : 4,
-                        child: PieChart(
-                          PieChartData(
-                            sectionsSpace: 2,
-                            centerSpaceRadius: compactLegend ? 28 : 34,
-                            startDegreeOffset: -90,
-                            pieTouchData: PieTouchData(
-                              touchCallback:
-                                  (FlTouchEvent event, PieTouchResponse? resp) {
-                                final idx =
-                                    resp?.touchedSection?.touchedSectionIndex ??
-                                        -1;
-                                if (event is FlTapUpEvent && idx >= 0) {
-                                  _openDrill(idx);
-                                  return;
-                                }
-                                if (event is FlLongPressEnd ||
-                                    event is FlPanEndEvent) {
-                                  setState(() => _hovered = -1);
-                                  return;
-                                }
-                                if (_hovered != idx) {
-                                  setState(() => _hovered = idx);
-                                }
-                              },
+            Expanded(
+              child: Row(
+                children: [
+                  // Donut chart — static, no interaction
+                  Expanded(
+                    flex: isNarrow ? 5 : 4,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: compactLegend ? 28 : 34,
+                        startDegreeOffset: -90,
+                        sections: List.generate(segs.length, (i) {
+                          final s = segs[i];
+                          final pct =
+                              total == 0 ? 0 : s.count / total * 100;
+                          return PieChartSectionData(
+                            color: s.color,
+                            value: s.count
+                                .toDouble()
+                                .clamp(0.5, double.infinity),
+                            title:
+                                pct < 6 ? '' : '${pct.toStringAsFixed(0)}%',
+                            titleStyle: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              shadows: const [
+                                Shadow(
+                                    color: Color(0x47000000),
+                                    blurRadius: 4),
+                              ],
                             ),
-                            sections: List.generate(segs.length, (i) {
-                              final s = segs[i];
-                              final isHovered = _hovered == i;
-                              final pct =
-                                  total == 0 ? 0 : s.count / total * 100;
-                              return PieChartSectionData(
-                                color: s.color,
-                                value: s.count
-                                    .toDouble()
-                                    .clamp(0.5, double.infinity),
-                                title:
-                                    pct < 6 ? '' : '${pct.toStringAsFixed(0)}%',
-                                titleStyle: TextStyle(
-                                  fontSize: isHovered ? 12 : 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  shadows: [
-                                    Shadow(
-                                        color: Colors.black
-                                            .withValues(alpha: 0.28),
-                                        blurRadius: 4),
-                                  ],
-                                ),
-                                radius: isHovered
-                                    ? (compactLegend ? 32 : 38)
-                                    : (compactLegend ? 26 : 30),
-                                borderSide: isHovered
-                                    ? const BorderSide(
-                                        color: Colors.white, width: 1.5)
-                                    : BorderSide.none,
-                                badgeWidget: null,
-                              );
-                            }),
-                          ),
-                          // ignore: deprecated_member_use
-                          swapAnimationDuration:
-                              const Duration(milliseconds: 420),
-                          // ignore: deprecated_member_use
-                          swapAnimationCurve: Curves.easeOutCubic,
-                        ),
+                            radius: compactLegend ? 26 : 30,
+                            badgeWidget: null,
+                          );
+                        }),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: isNarrow ? 5 : 4,
-                        child: SingleChildScrollView(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: List.generate(segs.length, (i) {
-                              final s = segs[i];
-                              final isHovered = _hovered == i;
-                              final pct =
-                                  total == 0 ? 0 : s.count / total * 100;
-                              return MouseRegion(
-                                onEnter: (_) => setState(() => _hovered = i),
-                                onExit: (_) => setState(() => _hovered = -1),
-                                child: GestureDetector(
-                                  onTap: () => _openDrill(i),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 160),
-                                    margin: EdgeInsets.symmetric(
-                                        vertical: compactLegend ? 1.5 : 2.5),
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: compactLegend ? 4 : 5),
-                                    decoration: BoxDecoration(
-                                      color: isHovered
-                                          ? s.color.withValues(alpha: 0.10)
-                                          : Colors.white,
-                                      borderRadius: BorderRadius.circular(7),
-                                      border: Border.all(
-                                        color: isHovered
-                                            ? s.color.withValues(alpha: 0.32)
-                                            : AppColors.border
-                                                .withValues(alpha: 0.6),
+                      swapAnimationDuration:
+                          const Duration(milliseconds: 420),
+                      swapAnimationCurve: Curves.easeOutCubic,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: isNarrow ? 5 : 4,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: List.generate(segs.length, (i) {
+                          final s = segs[i];
+                          final pct =
+                              total == 0 ? 0 : s.count / total * 100;
+                          return Container(
+                            margin: EdgeInsets.symmetric(
+                                vertical: compactLegend ? 1.5 : 2.5),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: compactLegend ? 4 : 5),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(7),
+                              border: Border.all(
+                                color: AppColors.border.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: compactLegend ? 20 : 22,
+                                  height: compactLegend ? 20 : 22,
+                                  decoration: BoxDecoration(
+                                    color: s.color,
+                                    borderRadius:
+                                        BorderRadius.circular(5),
+                                  ),
+                                  child: Icon(s.icon,
+                                      size: compactLegend ? 10 : 11,
+                                      color: Colors.white),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        s.label,
+                                        style: TextStyle(
+                                          fontSize:
+                                              compactLegend ? 10.5 : 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: compactLegend ? 20 : 22,
-                                          height: compactLegend ? 20 : 22,
-                                          decoration: BoxDecoration(
-                                            color: s.color,
-                                            borderRadius:
-                                                BorderRadius.circular(5),
-                                            boxShadow: isHovered
-                                                ? [
-                                                    BoxShadow(
-                                                        color: s.color
-                                                            .withValues(
-                                                                alpha: 0.24),
-                                                        blurRadius: 6,
-                                                        offset:
-                                                            const Offset(0, 2))
-                                                  ]
-                                                : null,
-                                          ),
-                                          child: Icon(s.icon,
-                                              size: compactLegend ? 10 : 11,
-                                              color: Colors.white),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(
-                                                s.label,
-                                                style: TextStyle(
-                                                  fontSize:
-                                                      compactLegend ? 10.5 : 11,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: isHovered
-                                                      ? s.color
-                                                      : AppColors.textPrimary,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                              Text(
-                                                '${s.count} · ${pct.toStringAsFixed(0)}%',
-                                                style: const TextStyle(
-                                                    fontSize: 9.5,
-                                                    color:
-                                                        AppColors.textTertiary),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(Icons.chevron_right_rounded,
-                                            size: 12,
-                                            color: isHovered
-                                                ? s.color
-                                                : AppColors.textTertiary),
-                                      ],
-                                    ),
+                                      Text(
+                                        '${s.count} · ${pct.toStringAsFixed(0)}%',
+                                        style: const TextStyle(
+                                            fontSize: 9.5,
+                                            color:
+                                                AppColors.textTertiary),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              );
-                            }),
-                          ),
-                        ),
+                              ],
+                            ),
+                          );
+                        }),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-
-              ],
-            ),
-            // Overlay tooltip — does not affect layout so legend never overflows
-            if (_hovered >= 0 && _hovered < segs.length)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: _DonutTooltip(
-                  key: ValueKey(_hovered),
-                  segment: segs[_hovered],
-                  total: total,
-                  kpi: widget.kpi,
-                ),
+                ],
               ),
+            ),
           ],
         );
       },
@@ -415,420 +307,6 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
   }
 }
 
-class _DonutTooltip extends StatelessWidget {
-  final _DonutSegment segment;
-  final int total;
-  final KpiHeadManagerModel kpi;
-  const _DonutTooltip(
-      {super.key,
-      required this.segment,
-      required this.total,
-      required this.kpi});
-
-  @override
-  Widget build(BuildContext context) {
-    final pct = total == 0 ? 0.0 : segment.count / total * 100;
-    final remaining = total - segment.count;
-    String desc;
-    switch (segment.statusKey) {
-      case 'active':
-        desc = 'Currently repaying · generates interest';
-        break;
-      case 'completed':
-        desc = 'Fully repaid · closed successfully';
-        break;
-      case 'overdue':
-        desc = 'Past due · requires collection focus';
-        break;
-      case 'rejected':
-        desc = 'Declined applications · policy / risk';
-        break;
-      default:
-        desc = 'In pipeline · pending review / CI / approval';
-    }
-    // Estimate share of released amount per status proportionally when possible
-    final avgPrincipal = kpi.totalLoanApplications == 0
-        ? 0
-        : kpi.totalLoanAmountReleased /
-            kpi.totalLoanApplications.clamp(1, 1 << 31);
-    final estAmount = segment.count * avgPrincipal;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.deepNavy,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 12,
-              offset: const Offset(0, 6))
-        ],
-        border: Border.all(color: segment.color.withValues(alpha: 0.45)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-                color: segment.color, borderRadius: BorderRadius.circular(8)),
-            child: Icon(segment.icon, size: 18, color: Colors.white),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      segment.label,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: segment.color,
-                          borderRadius: BorderRadius.circular(99)),
-                      child: Text(
-                        '${pct.toStringAsFixed(1)}% of portfolio',
-                        style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${segment.count} loans · $remaining others · est. ${estAmount.toCurrency} principal',
-                  style: TextStyle(
-                      fontSize: 10.5,
-                      color: Colors.white.withValues(alpha: 0.82)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  desc,
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.white.withValues(alpha: 0.62),
-                      fontStyle: FontStyle.italic),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6)),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.open_in_new_rounded,
-                    size: 11, color: Colors.white70),
-                SizedBox(width: 4),
-                Text('View',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PortfolioDrillSheet extends StatelessWidget {
-  final KpiHeadManagerModel kpi;
-  final List<_DonutSegment> segments;
-  final int total;
-  final int initialIndex;
-  final void Function(String statusKey) onNavigate;
-  const _PortfolioDrillSheet({
-    required this.kpi,
-    required this.segments,
-    required this.total,
-    required this.initialIndex,
-    required this.onNavigate,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = segments[initialIndex];
-    final pct = total == 0 ? 0.0 : selected.count / total * 100;
-    return DraggableScrollableSheet(
-      initialChildSize: 0.62,
-      minChildSize: 0.42,
-      maxChildSize: 0.92,
-      expand: false,
-      builder: (ctx, scrollCtrl) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 10),
-              Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(99))),
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                          color: selected.color,
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Icon(selected.icon, color: Colors.white),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${selected.label} Loans — Drill Down',
-                            style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary),
-                          ),
-                          Text(
-                            '${selected.count} of $total loans · ${pct.toStringAsFixed(1)}% of portfolio',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.close_rounded,
-                          size: 20, color: AppColors.textTertiary),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 20, color: AppColors.divider),
-              Expanded(
-                child: ListView(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                  children: [
-                    // Summary cards
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _DrillStatCard(
-                            label: 'Selected Bucket',
-                            value: '${selected.count}',
-                            sub: '${pct.toStringAsFixed(1)}% share',
-                            icon: selected.icon,
-                            color: selected.color,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _DrillStatCard(
-                            label: 'Total Portfolio',
-                            value: '$total',
-                            sub: '${kpi.totalLoanApplications} applications',
-                            icon: Icons.pie_chart_rounded,
-                            color: AppColors.deepNavy,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _DrillStatCard(
-                            label: 'Est. Principal (bucket)',
-                            value: (selected.count *
-                                    (kpi.totalLoanApplications == 0
-                                        ? 0
-                                        : kpi.totalLoanAmountReleased /
-                                            kpi.totalLoanApplications
-                                                .clamp(1, 1 << 31)))
-                                .toCurrency,
-                            sub: 'Pro-rata of released',
-                            icon: Icons.payments_rounded,
-                            color: AppColors.gold,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _DrillStatCard(
-                            label: 'Avg per Loan',
-                            value: (kpi.totalLoanApplications == 0
-                                    ? 0
-                                    : kpi.totalLoanAmountReleased /
-                                        kpi.totalLoanApplications)
-                                .toCurrency,
-                            sub: 'Portfolio average',
-                            icon: Icons.calculate_rounded,
-                            color: AppColors.info,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('Breakdown by Status',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
-                    const SizedBox(height: 8),
-                    ...segments.map((s) {
-                      final p = total == 0 ? 0.0 : s.count / total * 100;
-                      final isSelected = s.label == selected.label;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? s.color.withValues(alpha: 0.08)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: isSelected
-                                  ? s.color.withValues(alpha: 0.28)
-                                  : AppColors.border),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                    color: s.color, shape: BoxShape.circle)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(s.label,
-                                  style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w800
-                                          : FontWeight.w600,
-                                      color: isSelected
-                                          ? s.color
-                                          : AppColors.textPrimary)),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text('${s.count} loans',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: isSelected
-                                            ? s.color
-                                            : AppColors.textPrimary)),
-                                Text('${p.toStringAsFixed(1)}%',
-                                    style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textTertiary)),
-                              ],
-                            ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              width: 80,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(99),
-                                child: LinearProgressIndicator(
-                                  value: (p / 100).clamp(0.0, 1.0),
-                                  minHeight: 6,
-                                  backgroundColor: AppColors.surfaceVariant,
-                                  valueColor:
-                                      AlwaysStoppedAnimation<Color>(s.color),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 16),
-                    // Backend breakdown expander
-                    if (kpi.loanStatusBreakdown.isNotEmpty) ...[
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        title: const Text('Detailed status keys (backend)',
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textSecondary)),
-                        subtitle: const Text(
-                            'Tap to view raw counts per status key from server',
-                            style: TextStyle(
-                                fontSize: 11, color: AppColors.textTertiary)),
-                        children: kpi.loanStatusBreakdown.entries.map((e) {
-                          return ListTile(
-                            dense: true,
-                            title: Text(e.key,
-                                style: const TextStyle(
-                                    fontSize: 12, fontWeight: FontWeight.w600)),
-                            trailing: Text('${e.value}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.deepNavy)),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => onNavigate(selected.statusKey),
-                        icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                        label: const Text('Open Loan Records'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.deepNavy,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ),
-
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
 
 class _DrillStatCard extends StatelessWidget {
   final String label;

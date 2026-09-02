@@ -218,107 +218,36 @@ class _HmLoanApplicationsListScreenState
   // ─────────────────────────────── Toolbar ───────────────────────────────
   // No inner box — single outer container with flat Search field (hint "Search").
   Widget _buildToolbar(
-      HmLoanState loanState, HmInOfficeState inOfficeState, bool isInOffice) {
-    final hasSearch =
-        isInOffice ? _inOfficeSearch.isNotEmpty : loanState.search.isNotEmpty;
-    final resultsCount = isInOffice
-        ? _filteredInOffice(inOfficeState.applications).length
-        : loanState.loans.length;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
+      HmLoanState loanState, HmInOfficeState inOfficeState, bool isInOffice) => Container(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded,
-              size: 18,
-              color:
-                  hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) {
-                if (isInOffice) {
-                  setState(() => _inOfficeSearch = v);
-                } else {
-                  ref.read(hmLoanProvider.notifier).setSearch(v);
-                }
-              },
-              style: const TextStyle(fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: 'Search',
-                hintStyle: TextStyle(
-                    fontSize: 13, color: AppColors.textTertiary),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search loan applications...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: const Icon(Icons.search, size: 20, color: AppColors.textTertiary),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (v) {
+                  if (isInOffice) {
+                    setState(() => _inOfficeSearch = v);
+                  } else {
+                    ref.read(hmLoanProvider.notifier).setSearch(v);
+                  }
+                },
               ),
             ),
-          ),
-          if (hasSearch)
-            InkWell(
-              onTap: () {
-                _searchCtrl.clear();
-                if (isInOffice) {
-                  setState(() => _inOfficeSearch = '');
-                } else {
-                  ref.read(hmLoanProvider.notifier).setSearch('');
-                }
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.textTertiary.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.close_rounded,
-                    size: 14, color: AppColors.textSecondary),
-              ),
-            ),
-          if (hasSearch) const SizedBox(width: 10),
-          _ToolbarIcon(
-            icon: Icons.refresh_rounded,
-            tooltip: 'Refresh',
-            onTap: () => isInOffice
-                ? ref.read(hmInOfficeProvider.notifier).load()
-                : ref.read(hmLoanProvider.notifier).fetchLoans(),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.deepNavy,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.layers_outlined,
-                    size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-                Text(
-                  '$resultsCount results',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 
   List<Map<String, dynamic>> _filteredInOffice(
       List<Map<String, dynamic>> apps) {
@@ -1226,35 +1155,6 @@ class _StatusInline extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ToolbarIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _ToolbarIcon(
-      {required this.icon, required this.tooltip, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Icon(icon, size: 16, color: AppColors.textSecondary),
-        ),
-      ),
     );
   }
 }

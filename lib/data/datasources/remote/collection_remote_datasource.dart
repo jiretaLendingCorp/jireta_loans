@@ -12,6 +12,7 @@ class CollectionRemoteDataSource {
     String? riderId,
     String? startDate,
     String? endDate,
+    String? search,
     int page = 1,
     int limit = 20,
   }) async {
@@ -22,6 +23,7 @@ class CollectionRemoteDataSource {
         if (riderId != null) 'rider_id': riderId,
         if (startDate != null) 'start_date': startDate,
         if (endDate != null) 'end_date': endDate,
+        if (search != null) 'search': search,
         'page': page,
         'limit': limit,
       },
@@ -39,6 +41,7 @@ class CollectionRemoteDataSource {
     String? riderId,
     String? startDate,
     String? endDate,
+    String? search,
     int page = 1,
     int limit = 20,
   }) async {
@@ -49,6 +52,7 @@ class CollectionRemoteDataSource {
         if (riderId != null) 'rider_id': riderId,
         if (startDate != null) 'start_date': startDate,
         if (endDate != null) 'end_date': endDate,
+        if (search != null) 'search': search,
         'page': page,
         'limit': limit,
       },

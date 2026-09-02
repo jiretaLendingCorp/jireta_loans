@@ -586,32 +586,19 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
 
     return Container(
       decoration: BoxDecoration(
-        // Gradient UI card — white to warm gold wash
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Colors.white, Color(0xFFFFFBF0)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE9E9EE)),
+        color: Colors.white,
+        border: Border.all(color: Colors.black.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.08), blurRadius: 32, offset: const Offset(0, 16)),
           BoxShadow(color: AppColors.gold.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 4)),
           BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+      child: ClipRect(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // gradient top accent — gold → navy
-            Container(
-              height: 3,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: [Color(0xFFC9A84C), Color(0xFFE0C270), Color(0xFFC9A84C)]),
-              ),
-            ),
+
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 26, 28, 24),
               child: Form(
@@ -620,30 +607,21 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header — Sign in at left upper corner as requested
+                    // Header
                     TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0, end: 1),
                       duration: const Duration(milliseconds: 420),
                       curve: Curves.easeOutCubic,
                       builder: (context, t, child) => Opacity(opacity: t, child: Transform.translate(offset: Offset(0, 8 * (1 - t)), child: child)),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Text('Sign in', style: TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.deepNavy, height: 1.1, letterSpacing: -0.2)),
+                          const Text('Login', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.deepNavy, height: 1.1, letterSpacing: -0.2)),
                           const SizedBox(height: 4),
-                          const Text('Access your account to continue', style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
-                          const SizedBox(height: 12),
-                          Container(
-                            width: 32, height: 2.5,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(colors: [Color(0xFFC9A84C), Color(0xFFE0C270), Color(0xFFC9A84C)]),
-                              borderRadius: BorderRadius.all(Radius.circular(2)),
-                            ),
-                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 10),
                     // Email — staggered
                     TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0, end: 1),
@@ -680,15 +658,15 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                                 decoration: InputDecoration(
                                   hintText: 'you@example.com',
                                   hintStyle: TextStyle(fontSize: 13.5, color: AppColors.textTertiary.withValues(alpha: 0.75)),
-                                  prefixIcon: Icon(Icons.mail_outlined, size: 18, color: widget.emailFocus.hasFocus ? AppColors.gold : AppColors.textTertiary),
+                                  prefixIcon: Icon(Icons.mail_outlined, size: 18, color: widget.emailFocus.hasFocus ? AppColors.deepNavy : AppColors.textTertiary),
                                   counterText: '',
                                   filled: true,
                                   fillColor: widget.emailFocus.hasFocus ? Colors.white : const Color(0xFFFAFAFC),
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _emailHovered ? const Color(0xFFE0E0E8) : const Color(0xFFE9E9EE))),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.gold, width: 1.6)),
-                                  errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error)),
-                                  focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 1.6)),
+                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: _emailHovered ? Colors.black.withValues(alpha: 0.45) : Colors.black.withValues(alpha: 0.35))),
+                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: const BorderSide(color: Colors.black, width: 1.0)),
+                                  errorBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: const BorderSide(color: AppColors.error)),
+                                  focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: const BorderSide(color: AppColors.error, width: 1.0)),
                                 ),
                                 validator: (v) {
                                   if (v == null || v.isEmpty) return 'Email is required';
@@ -738,15 +716,15 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                                 decoration: InputDecoration(
                                   hintText: '••••••••',
                                   hintStyle: TextStyle(fontSize: 13.5, color: AppColors.textTertiary.withValues(alpha: 0.75)),
-                                  prefixIcon: Icon(Icons.lock_outline_rounded, size: 18, color: widget.passFocus.hasFocus ? AppColors.gold : AppColors.textTertiary),
+                                  prefixIcon: Icon(Icons.lock_outline_rounded, size: 18, color: widget.passFocus.hasFocus ? AppColors.deepNavy : AppColors.textTertiary),
                                   counterText: '',
                                   filled: true,
                                   fillColor: widget.passFocus.hasFocus ? Colors.white : const Color(0xFFFAFAFC),
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _passHovered ? const Color(0xFFE0E0E8) : const Color(0xFFE9E9EE))),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.gold, width: 1.6)),
-                                  errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error)),
-                                  focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 1.6)),
+                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: _passHovered ? Colors.black.withValues(alpha: 0.45) : Colors.black.withValues(alpha: 0.35))),
+                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: const BorderSide(color: Colors.black, width: 1.0)),
+                                  errorBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: const BorderSide(color: AppColors.error)),
+                                  focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: const BorderSide(color: AppColors.error, width: 1.0)),
                                   suffixIcon: IconButton(
                                     icon: Icon(widget.obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18, color: AppColors.textSecondary),
                                     onPressed: widget.onToggleObscure,
@@ -768,7 +746,11 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () => context.go(RouteConstants.forgotPassword),
-                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6), foregroundColor: AppColors.deepNavy),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          foregroundColor: AppColors.deepNavy,
+                          shape: const RoundedRectangleBorder(),
+                        ),
                         child: const Text('Forgot password?', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                       ),
                     ),
@@ -794,7 +776,8 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                         ),
                       ),
                     // Premium gradient button — deepNavy → navy gradient
-                    TweenAnimationBuilder<double>(
+                    Center(
+                    child: TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0, end: 1),
                       duration: const Duration(milliseconds: 640),
                       curve: Curves.easeOutCubic,
@@ -805,10 +788,8 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                         child: AnimatedScale(
                           scale: _btnHovered && !isDisabled ? 1.015 : 1.0,
                           duration: const Duration(milliseconds: 140),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 160),
+                          child: Container(
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
                               gradient: isDisabled
                                   ? null
                                   : const LinearGradient(
@@ -826,46 +807,45 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                                         ]
                                       : [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.14), blurRadius: 10, offset: const Offset(0, 4))],
                             ),
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: 48,
-                              child: ElevatedButton(
-                                onPressed: isDisabled ? null : widget.onSubmit,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  foregroundColor: Colors.white,
-                                  disabledBackgroundColor: Colors.transparent,
-                                  disabledForegroundColor: Colors.white.withValues(alpha: 0.9),
-                                  shadowColor: Colors.transparent,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.1),
-                                ),
-                                child: widget.isLoading
-                                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                    : Text(isLocked ? 'Try again in ${widget.lockLabel}' : 'Sign in'),
+                            child: ElevatedButton(
+                              onPressed: isDisabled ? null : widget.onSubmit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.transparent,
+                                disabledForegroundColor: Colors.white.withValues(alpha: 0.9),
+                                shadowColor: Colors.transparent,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.1),
                               ),
+                              child: widget.isLoading
+                                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                  : Text(isLocked ? 'Try again in ${widget.lockLabel}' : 'Login'),
                             ),
                           ),
                         ),
                       ),
+                    ),
                     ),
                     const SizedBox(height: 18),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text("Don't have an account?", style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
+                        const SizedBox(width: 4),
                         TextButton(
                           onPressed: () => context.go(RouteConstants.webRegister),
-                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), foregroundColor: AppColors.deepNavy),
-                          child: const Text('Sign up', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            foregroundColor: AppColors.deepNavy,
+                            shape: const RoundedRectangleBorder(),
+                          ),
+                          child: const Text('Register', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Center(
-                      child: Text('Having trouble? Contact your administrator.', style: TextStyle(fontSize: 11.5, color: AppColors.textTertiary.withValues(alpha: 0.95))),
-                    ),
+
                   ],
                 ),
               ),

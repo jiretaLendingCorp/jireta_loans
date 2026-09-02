@@ -28,6 +28,12 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _positionCtrl.text = 'Staff';
+  }
+
+  @override
   void dispose() {
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
@@ -69,7 +75,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                     ),
                     const SizedBox(width: 12),
                     const Text(
-                      'Add New Employee',
+                      'Create Employee',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -195,11 +201,10 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   maxLength: 11,
                 ),
                 const SizedBox(height: 12),
-                _field(
-                  'Position',
-                  _positionCtrl,
-                  required: true,
-                  maxLength: 100,
+                TextFormField(
+                  controller: _positionCtrl,
+                  readOnly: true,
+                  decoration: _dec('Position'),
                 ),
                 const SizedBox(height: 24),
                 Row(

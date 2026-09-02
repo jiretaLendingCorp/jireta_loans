@@ -138,128 +138,53 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
   }
 
   // ───────────────────────── Toolbar ─────────────────────────
-  Widget _buildToolbar(HmLoanState state) {
-    final hasSearch = state.search.isNotEmpty;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+  Widget _buildToolbar(HmLoanState state) => Container(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 42,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F9FB),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: hasSearch
-                        ? AppColors.deepNavy.withValues(alpha: 0.22)
-                        : AppColors.border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Icon(Icons.search_rounded,
-                      size: 18,
-                      color: hasSearch
-                          ? AppColors.deepNavy
-                          : AppColors.textTertiary),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (v) => ref
-                          .read(hmActiveLoanProvider.notifier)
-                          .setSearch(v),
-                      style: const TextStyle(fontSize: 13),
-                      decoration: const InputDecoration(
-                        hintText: 'Search by loan # or lender name…',
-                        hintStyle: TextStyle(
-                            fontSize: 13, color: AppColors.textTertiary),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search loans...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
                   ),
-                  if (hasSearch)
-                    InkWell(
-                      onTap: () {
-                        _searchCtrl.clear();
-                        ref
-                            .read(hmActiveLoanProvider.notifier)
-                            .setSearch('');
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: AppColors.textTertiary.withValues(alpha: 0.14),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.close_rounded,
-                            size: 14, color: AppColors.textSecondary),
-                      ),
-                    ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (v) =>
+                    ref.read(hmActiveLoanProvider.notifier).setSearch(v),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.deepNavy,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined,
+                      size: 14, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${state.loans.length} results',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Tooltip(
-            message: 'Refresh',
-            child: InkWell(
-              onTap: () =>
-                  ref.read(hmActiveLoanProvider.notifier).fetchLoans(),
-              borderRadius: BorderRadius.circular(9),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(9),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Icon(Icons.refresh_rounded,
-                    size: 16, color: AppColors.textSecondary),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.deepNavy,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.account_balance_wallet_outlined,
-                    size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-                Text(
-                  '${state.loans.length} results',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      );
 
   // ───────────────────────── Table ─────────────────────────
   Widget _buildTable(List<LoanModel> loans) {
