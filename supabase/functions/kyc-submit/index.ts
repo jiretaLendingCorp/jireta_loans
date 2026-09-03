@@ -15,6 +15,7 @@ function normalizeEnum(value: string | undefined | null): string | null {
 
 const ALLOWED_TYPES = [
   "valid_id",
+  "valid_id_back",
   "selfie",
   "proof_of_billing",
   "proof_of_income",
@@ -23,9 +24,38 @@ const ALLOWED_TYPES = [
   "certificate_of_employment",
   "itr",
   "business_registration",
+  "mayors_permit",
+  "birth_certificate",
   "co_maker",
   "other",
 ];
+
+// Lookup allowlists mirror the DB FK tables (gender_types, civil_statuses,
+// employment_types). Unknown "Other" free-text must map to "other" instead
+// of failing the FK and 500-ing the whole submit.
+const ALLOWED_GENDER = ["male", "female", "other"];
+const ALLOWED_CIVIL = ["single", "married", "widowed", "separated"];
+const ALLOWED_EMPLOYMENT = [
+  "employed",
+  "self_employed",
+  "business_owner",
+  "ofw",
+  "freelancer",
+  "unemployed",
+  "student",
+  "other",
+];
+
+function coerceLookup(
+  value: string | undefined | null,
+  allowed: string[],
+): string | null {
+  const n = normalizeEnum(value);
+  if (!n) return null;
+  if (allowed.includes(n)) return n;
+  // Free-text "Other" (e.g. "Retired") has no lookup row — fall back to other.
+  return "other";
+}
 
 function mimeFromExt(ext: string): string {
   switch (ext) {
@@ -74,9 +104,23 @@ serve(async (req) => {
       emergency_contact,
     } = body;
 
-    if (!documents || !Array.isArray(documents) || documents.length === 0) {
+    // Valid ID gallery always produces 2 images (front + back), so a
+    // complete Account Upgrade submit needs at least 2 documents.
+    if (!documents || !Array.isArray(documents) || documents.length < 2) {
       return errorResponse(
-        "At least one document is required",
+        "2 documents required",
+        400,
+        "VALIDATION_ERROR",
+      );
+    }
+
+    // Valid ID must have both sides — front alone is not enough.
+    const docTypes = documents.map((d) =>
+      String(d?.document_type ?? "").toLowerCase()
+    );
+    if (docTypes.includes("valid_id") && !docTypes.includes("valid_id_back")) {
+      return errorResponse(
+        "Valid ID needs both sides — front and back required",
         400,
         "VALIDATION_ERROR",
       );
@@ -206,10 +250,10 @@ serve(async (req) => {
     // violations silently wipe every field, which is exactly how a lender
     // "submits Account Upgrade but staff sees nothing". Surface it so it can be fixed.
     const { error: profileErr } = await db.from("lender_profiles").update({
-      gender: normalizeEnum(p.gender),
-      civil_status: normalizeEnum(p.civil_status),
+      gender: coerceLookup(p.gender, ALLOWED_GENDER),
+      civil_status: coerceLookup(p.civil_status, ALLOWED_CIVIL),
       date_of_birth: String(p.dob).substring(0, 10),
-      employment_type: normalizeEnum(p.employment_type),
+      employment_type: coerceLookup(p.employment_type, ALLOWED_EMPLOYMENT),
       employer_name: sanitizeString(p.employer_name),
       monthly_income: Number(p.monthly_income),
       source_of_funds: source_of_funds

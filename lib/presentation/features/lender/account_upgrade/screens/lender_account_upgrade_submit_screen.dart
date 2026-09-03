@@ -135,6 +135,7 @@ class _LenderAccountUpgradeSubmitScreenState
   String? _ecRelationship;
   DateTime? _dob;
   String? _dobError;
+  bool _showDocsError = false;
 
   int _step = 0;
   bool _isSubmitting = false;
@@ -385,12 +386,6 @@ class _LenderAccountUpgradeSubmitScreenState
           }
         }
       });
-      if (mounted && !_hasValidIdComplete) {
-        context.showSnackBarAsToast(const SnackBar(
-          content: Text(
-              'Valid ID needs both sides — pick the back side image too.'),
-        ));
-      }
       return;
     }
     final result = await FilePicker.platform.pickFiles(
@@ -483,96 +478,121 @@ class _LenderAccountUpgradeSubmitScreenState
     return true;
   }
 
-  bool _isEmergencyAndDocsValid() {
-    if (_ecNameCtrl.text.trim().isEmpty) return false;
-    if (_ecRelationship == null) return false;
-    final phone = _ecPhoneCtrl.text.trim();
-    if (phone.length != 11 ||
-        !phone.startsWith('09') ||
-        int.tryParse(phone) == null) return false;
-    // all 4 docs must be uploaded (Valid ID needs front + back)
-    if (_selectedFiles.values.any((f) => f == null)) return false;
-    if (!_hasValidIdComplete) return false;
-    return true;
-  }
+  // NOTE: Next/Submit buttons stay active on purpose — tapping them runs
+  // inline Form validation (field error text only, no toast) instead of
+  // disabling the button.
 
-  bool get _canGoNext {
-    // 3-step flow: 0 Personal, 1 Financial + Residence, 2 Emergency & Docs
-    if (_step == 0) return _isPersonalInfoValid();
-    if (_step == 1) return _isFinancialInfoValid();
-    if (_step == 2) {
-      return _isPersonalInfoValid() &&
-          _isFinancialInfoValid() &&
-          _isEmergencyAndDocsValid();
-    }
-    return false;
+  void _scrollToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
   }
 
   void _goNext() {
     if (!_formKey.currentState!.validate()) return;
     if (_step == 0) {
+      // Inline field error only (no toast — DOB field already shows _dobError).
       if (_dob == null) {
         setState(() => _dobError = 'Date of birth is required');
-        context.showSnackBarAsToast(const SnackBar(
-          content: Text('Please select your date of birth to continue.'),
-          backgroundColor: AppColors.error,
-        ));
         return;
       }
       if (!_isAdult(_dob!)) {
         setState(() => _dobError =
             'You must be at least 18 years old to submit account upgrade.');
-        context.showSnackBarAsToast(const SnackBar(
-          content: Text('You must be at least 18 years old to continue.'),
-          backgroundColor: AppColors.error,
-        ));
         return;
       }
     }
     setState(() => _step = _step + 1);
+    // Always start the next step at the top (e.g. Emergency & Docs should
+    // show Emergency Contact first, not jump straight to Required Documents).
+    _scrollToTop();
   }
 
-  void _goBack() => setState(() => _step = _step - 1);
+  void _goBack() {
+    setState(() => _step = _step - 1);
+    _scrollToTop();
+  }
+
+  void _showInlineErrorsOnCurrentStep() {
+    // Trigger inline validators of the currently visible Form (no toast).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _formKey.currentState?.validate();
+    });
+  }
+
+  String? _validIdError() {
+    if (!_showDocsError) return null;
+    if (!_hasValidIdFront) return 'Valid Government ID is required';
+    if (!_hasValidIdBack) return 'Back side of Valid ID is required';
+    return null;
+  }
+
+  String? _docError(String key) {
+    if (!_showDocsError) return null;
+    if (_selectedFiles[key] != null) return null;
+    final label = (_docLabels[key] ?? 'Document').replaceAll(' *', '');
+    return '$label is required';
+  }
+
+  bool get _hasMissingDocs {
+    if (_selectedFiles.values.any((f) => f == null)) return true;
+    if (!_hasValidIdComplete) return true;
+    return false;
+  }
 
   Future<void> _submit() async {
-    final missing = _selectedFiles.entries
-        .where((e) => e.value == null)
-        .map((e) => _docLabels[e.key]!)
-        .toList();
-    if (_hasValidIdFront && !_hasValidIdBack) {
-      missing.add('Valid Government ID (Back side)');
-    }
-    if (missing.isNotEmpty) {
-      context.showSnackBarAsToast(
-          SnackBar(content: Text('Please upload: ${missing.join(', ')}')));
+    // Docs show inline error text below each card (no toast — same as fields).
+    if (_hasMissingDocs) {
+      setState(() => _showDocsError = true);
       return;
     }
-    // Full validation across all 3 steps (since final Form only holds residence+emergency)
-    if (!_isPersonalInfoValid() ||
-        !_isFinancialInfoValid() ||
-        !_isResidenceValid() ||
-        !_isEmergencyAndDocsValid()) {
-      context.showSnackBarAsToast(const SnackBar(
-        content: Text('Please complete all required fields in each step.'),
-        backgroundColor: AppColors.error,
-      ));
+    // Full validation across all 3 steps — no toast here since every text/
+    // dropdown/date field already shows its own inline error. Jump back to
+    // the offending step so the user sees the field errors.
+    if (!_isPersonalInfoValid()) {
+      setState(() {
+        _step = 0;
+        if (_dob == null) {
+          _dobError = 'Date of birth is required';
+        } else if (!_isAdult(_dob!)) {
+          _dobError =
+              'You must be at least 18 years old to submit account upgrade.';
+        }
+      });
+      _scrollToTop();
+      _showInlineErrorsOnCurrentStep();
+      return;
+    }
+    if (!_isFinancialInfoValid() || !_isResidenceValid()) {
+      setState(() => _step = 1);
+      _scrollToTop();
+      _showInlineErrorsOnCurrentStep();
       return;
     }
     if (!_formKey.currentState!.validate()) return;
     if (_dob == null) {
-      setState(() => _dobError = 'Date of birth is required');
+      setState(() {
+        _step = 0;
+        _dobError = 'Date of birth is required';
+      });
+      _scrollToTop();
       return;
     }
     if (!_isAdult(_dob!)) {
-      setState(() => _dobError =
-          'You must be at least 18 years old to submit account upgrade.');
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text(
-              'You must be at least 18 years old to submit account upgrade documents.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      setState(() {
+        _step = 0;
+        _dobError =
+            'You must be at least 18 years old to submit account upgrade.';
+      });
+      _scrollToTop();
       return;
     }
 
@@ -864,6 +884,7 @@ class _LenderAccountUpgradeSubmitScreenState
             hasFront: _hasValidIdFront,
             hasBack: _hasValidIdBack,
             onPick: () => _pickFile('valid_id'),
+            errorText: _validIdError(),
           ),
         ),
         ..._selectedFiles.entries
@@ -877,6 +898,7 @@ class _LenderAccountUpgradeSubmitScreenState
                     assetPath: _docAssetIcons[e.key],
                     file: e.value,
                     onPick: () => _pickFile(e.key),
+                    errorText: _docError(e.key),
                   ),
                 )),
       ],
@@ -1193,7 +1215,9 @@ class _LenderAccountUpgradeSubmitScreenState
 
   Widget _buildWizardBar(LenderAccountUpgradeState state) {
     final isLast = _step == 2;
-    final canProceed = _canGoNext && !_isSubmitting && !state.isLoading;
+    // Buttons stay active even when the form is incomplete — tapping them
+    // triggers inline Form validation (field error text only, no toast).
+    final isBusy = _isSubmitting || state.isLoading;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
@@ -1217,7 +1241,7 @@ class _LenderAccountUpgradeSubmitScreenState
             icon: isLast ? Icons.send : Icons.arrow_forward,
             color: AppColors.lenderBlue,
             isLoading: _isSubmitting,
-            onTap: canProceed ? (isLast ? _submit : _goNext) : null,
+            onTap: isBusy ? null : (isLast ? _submit : _goNext),
           ),
         ],
       ),
@@ -1691,77 +1715,96 @@ class _ValidIdCard extends StatelessWidget {
   final bool hasFront;
   final bool hasBack;
   final VoidCallback onPick;
+  final String? errorText;
 
   const _ValidIdCard({
     required this.hasFront,
     required this.hasBack,
     required this.onPick,
+    this.errorText,
   });
 
   @override
   Widget build(BuildContext context) {
     final complete = hasFront && hasBack;
+    final hasError = errorText != null && errorText!.isNotEmpty;
     final subtitle = complete
         ? 'Front ✓  •  Back ✓'
         : hasFront
             ? 'Front ✓  •  Back missing — tap to add'
             : 'Front + Back of your government-issued ID';
-    return InkWell(
-      onTap: onPick,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: complete
-              ? AppColors.lenderBlue.withValues(alpha: 0.04)
-              : Colors.white,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onPick,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
               color: complete
-                  ? AppColors.lenderBlue.withValues(alpha: 0.3)
-                  : AppColors.border),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: Image.asset(
-                'assets/icons/id_card.png',
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-              ),
+                  ? AppColors.lenderBlue.withValues(alpha: 0.04)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: hasError
+                      ? AppColors.error
+                      : complete
+                          ? AppColors.lenderBlue.withValues(alpha: 0.3)
+                          : AppColors.border),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Valid Government ID *',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: complete
-                            ? AppColors.lenderBlue
-                            : AppColors.textSecondary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Image.asset(
+                    'assets/icons/id_card.png',
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Valid Government ID *',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: complete
+                                ? AppColors.lenderBlue
+                                : AppColors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(complete ? Icons.check_circle : Icons.upload_file_outlined,
+                    color: complete
+                        ? AppColors.success
+                        : AppColors.textTertiary),
+              ],
             ),
-            Icon(complete ? Icons.check_circle : Icons.upload_file_outlined,
-                color:
-                    complete ? AppColors.success : AppColors.textTertiary),
-          ],
+          ),
         ),
-      ),
+        if (hasError)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 12),
+            child: Text(
+              errorText!,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1773,6 +1816,7 @@ class _DocUploadCard extends StatelessWidget {
   final String? assetPath;
   final PlatformFile? file;
   final VoidCallback onPick;
+  final String? errorText;
 
   const _DocUploadCard({
     required this.label,
@@ -1781,85 +1825,105 @@ class _DocUploadCard extends StatelessWidget {
     this.assetPath,
     this.file,
     required this.onPick,
+    this.errorText,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasFile = file != null;
     final useAsset = assetPath != null;
-    return InkWell(
-      onTap: onPick,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: hasFile
-              ? AppColors.lenderBlue.withValues(alpha: 0.04)
-              : Colors.white,
+    final hasError = errorText != null && errorText!.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onPick,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
               color: hasFile
-                  ? AppColors.lenderBlue.withValues(alpha: 0.3)
-                  : AppColors.border),
-        ),
-        child: Row(
-          children: [
-            if (useAsset)
-              // Asset icon without background — transparent, no container fill
-              SizedBox(
-                width: 44,
-                height: 44,
-                child: Image.asset(
-                  assetPath!,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                ),
-              )
-            else
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: hasFile
-                      ? AppColors.lenderBlue.withValues(alpha: 0.1)
-                      : AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon,
-                    color: hasFile
-                        ? AppColors.lenderBlue
-                        : AppColors.textTertiary,
-                    size: 22),
-              ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text(
-                    hasFile ? file!.name : hint,
-                    style: TextStyle(
-                        fontSize: 12,
+                  ? AppColors.lenderBlue.withValues(alpha: 0.04)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: hasError
+                      ? AppColors.error
+                      : hasFile
+                          ? AppColors.lenderBlue.withValues(alpha: 0.3)
+                          : AppColors.border),
+            ),
+            child: Row(
+              children: [
+                if (useAsset)
+                  // Asset icon without background — transparent, no container fill
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Image.asset(
+                      assetPath!,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  )
+                else
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: hasFile
+                          ? AppColors.lenderBlue.withValues(alpha: 0.1)
+                          : AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon,
                         color: hasFile
                             ? AppColors.lenderBlue
-                            : AppColors.textSecondary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                            : AppColors.textTertiary,
+                        size: 22),
                   ),
-                ],
-              ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text(
+                        hasFile ? file!.name : hint,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: hasFile
+                                ? AppColors.lenderBlue
+                                : AppColors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                    hasFile ? Icons.check_circle : Icons.upload_file_outlined,
+                    color: hasFile
+                        ? AppColors.success
+                        : AppColors.textTertiary),
+              ],
             ),
-            Icon(hasFile ? Icons.check_circle : Icons.upload_file_outlined,
-                color: hasFile ? AppColors.success : AppColors.textTertiary),
-          ],
+          ),
         ),
-      ),
+        if (hasError)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 12),
+            child: Text(
+              errorText!,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
+          ),
+      ],
     );
   }
 }

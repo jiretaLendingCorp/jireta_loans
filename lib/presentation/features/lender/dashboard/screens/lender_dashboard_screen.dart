@@ -175,6 +175,10 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         else if (approvedLoan == null)
                           _QuickActions(context: context),
                         const SizedBox(height: 20),
+                        // Always visible even without an active loan —
+                        // taps route to a No Active Loan notice.
+                        const _PayWithSection(loan: null),
+                        const SizedBox(height: 20),
                       ],
                       if (activeLoan != null) ...[
                         Transform.translate(
@@ -817,37 +821,213 @@ class _MyLoanCardState extends ConsumerState<_MyLoanCard> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Center(
-          child: GestureDetector(
-            onTap: () => context.push(
-              RouteConstants.lenderPaymentMethod,
-              extra: {'loan_id': loan.id},
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 44, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.lenderBlue),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.payment, size: 18, color: AppColors.lenderBlue),
-                  SizedBox(width: 8),
-                  Text('Pay',
-                      style: TextStyle(
-                        color: AppColors.lenderBlue,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      )),
-                ],
-              ),
-            ),
+        _PayWithSection(loan: loan),
+      ],
+    );
+  }
+}
+
+class _PayWithBubble extends StatefulWidget {
+  final String text;
+  const _PayWithBubble({required this.text});
+
+  @override
+  State<_PayWithBubble> createState() => _PayWithBubbleState();
+}
+
+class _PayWithBubbleState extends State<_PayWithBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(-0.3, 0.2),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut)),
+      child: FadeTransition(
+        opacity: _ctrl,
+        child: Text(
+          widget.text,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PayWithSection extends StatelessWidget {
+  final LoanModel? loan;
+  const _PayWithSection({required this.loan});
+
+  void _showNoActiveLoan(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('No Active Loan'),
+        content: const Text(
+          'You don\'t have an active loan yet. Apply for a loan first to use rider or office payments.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push(RouteConstants.lenderLoans);
+            },
+            child: const Text('Apply Now'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const _PayWithBubble(text: 'Pay with'),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _PayWithCard(
+                assetPath: 'assets/icons/paywithrider.jpg',
+                color: AppColors.riderGreen,
+                title: 'Rider',
+                onTap: () {
+                  final current = loan;
+                  if (current == null) {
+                    _showNoActiveLoan(context);
+                  } else {
+                    context.push(
+                      RouteConstants.lenderPaymentMethod,
+                      extra: {'loan_id': current.id},
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PayWithCard(
+                assetPath: 'assets/icons/pay_with_office.jpg',
+                color: AppColors.info,
+                title: 'Office',
+                onTap: () {
+                  final current = loan;
+                  if (current == null) {
+                    _showNoActiveLoan(context);
+                  } else {
+                    context.push(
+                      RouteConstants.lenderOfficePayment,
+                      extra: {'loan_id': current.id},
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
       ],
+    );
+  }
+}
+
+class _PayWithCard extends StatelessWidget {
+  final String assetPath;
+  final Color color;
+  final String title;
+  final VoidCallback onTap;
+
+  const _PayWithCard({
+    required this.assetPath,
+    required this.color,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: Image.asset(
+                  assetPath,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'Select',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward, size: 14, color: color),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1193,6 +1373,17 @@ class _LenderDashboardSkeleton extends StatelessWidget {
             const SizedBox(height: 20),
             // Active loan card skeleton (if any)
             Container(width: double.infinity, height: 180, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
+            const SizedBox(height: 16),
+            // You can pay with (2 cards) skeleton
+            Container(width: 120, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: Container(height: 150, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)))),
+                const SizedBox(width: 12),
+                Expanded(child: Container(height: 150, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)))),
+              ],
+            ),
             const SizedBox(height: 16),
             // Loan history title skeleton
             Row(

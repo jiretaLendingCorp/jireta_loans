@@ -532,6 +532,9 @@ class _ValidIdScannerScreenState extends State<ValidIdScannerScreen>
     }
   }
 
+  /// Gallery picks bypass the live/still quality validation on purpose —
+  /// any user-chosen image (front or back) is accepted directly so the
+  /// Valid ID flow never gets stuck on "Scan Failed" for gallery files.
   Future<void> _pickFromGallery() async {
     if (_analyzing || _phase == _ScanPhase.complete) return;
     setState(() => _analyzing = true);
@@ -539,7 +542,17 @@ class _ValidIdScannerScreenState extends State<ValidIdScannerScreen>
     try {
       final bytes = await _pickImageBytes(ImageSource.gallery);
       if (bytes == null || !mounted) return;
-      await _validateAndAccept(bytes);
+      // No validation for gallery: accept as-is with a passing quality.
+      setState(() {
+        if (_isBack) {
+          _backBytes = bytes;
+          _backQuality = 95;
+        } else {
+          _frontBytes = bytes;
+          _frontQuality = 95;
+        }
+      });
+      _advanceAfterCapture();
     } finally {
       if (mounted) setState(() => _analyzing = false);
       _startStream();
