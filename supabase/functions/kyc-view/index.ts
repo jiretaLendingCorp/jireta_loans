@@ -68,9 +68,8 @@ async function handleVerify(req: Request) {
     if (!['verified', 'rejected'].includes(action)) {
       return errorResponse('action (verified|rejected) is required', 400, 'VALIDATION_ERROR');
     }
-    if (action === 'rejected' && !rejection_notes) {
-      return errorResponse('rejection_notes required when rejecting', 400, 'VALIDATION_ERROR');
-    }
+    // Reject requires NO reason — simple Yes / No confirm from staff UI.
+    // rejection_notes is optional and may be omitted entirely.
     if (!account_upgrade_doc_id && !lender_id) {
       return errorResponse('account_upgrade_doc_id or lender_id is required', 400, 'VALIDATION_ERROR');
     }
@@ -109,7 +108,15 @@ async function handleVerify(req: Request) {
     if (anyRejected) newAccountUpgradeStatus = 'rejected';
     else if (allVerified) newAccountUpgradeStatus = 'verified';
 
-    await db.from('lender_profiles').update({ account_upgrade_status: newAccountUpgradeStatus }).eq('id', targetLenderId);
+    // Track rejection time via updated_at so the 1-month resubmit cooldown
+    // can be enforced in kyc-submit / kyc-get-status without a migration.
+    // rejection_notes stays optional (null when staff rejects via Yes/No).
+    await db.from('lender_profiles').update({
+      account_upgrade_status: newAccountUpgradeStatus,
+      updated_at: now,
+      account_upgrade_rejection_notes:
+        action === 'rejected' ? (rejection_notes ?? null) : null,
+    }).eq('id', targetLenderId);
 
     // ── AUTO-CONVERT pending Walk-in (in_office) to Loan after verification ──────
     // Business rule: in-office application STOPPED at account creation until KYC verified.
@@ -236,16 +243,26 @@ async function handleVerify(req: Request) {
       title: action === 'verified' ? 'Account Upgrade Verified' : 'Account Upgrade Rejected',
       body: action === 'verified'
         ? 'All of your Account Upgrade documents have been verified.'
-        : `Account Upgrade rejected: ${rejection_notes}`,
+        : (rejection_notes
+            ? `Account Upgrade rejected: ${rejection_notes}`
+            : 'Account Upgrade rejected. You may resubmit after 1 month.'),
       type: 'account_upgrade_update',
       referenceId: singleDocId ?? targetLenderId ?? '',
       sentBy: user.id,
     });
 
+    // 1-month cooldown anchors on this rejection timestamp.
+    const rejectedAt = newAccountUpgradeStatus === 'rejected' ? now : null;
+    const resubmitAfter = rejectedAt
+      ? new Date(new Date(rejectedAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
     return jsonResponse({
       message: singleDocId ? `Document ${action}` : `All documents ${action}`,
       account_upgrade_status: newAccountUpgradeStatus,
       lender_id: targetLenderId,
+      rejected_at: rejectedAt,
+      resubmit_after: resubmitAfter,
       auto_converted_loan_id: autoConvertedLoanId,
     });
 }
@@ -433,6 +450,33 @@ async function handleGetStatus(req: Request) {
       }
     } catch (_) { /* ignore */ }
 
+    // 1-month resubmit cooldown after rejection (anchored on latest
+    // rejected reviewed_at, fallback to profile updated_at).
+    let rejectedAt: string | null = null;
+    let resubmitAfter: string | null = null;
+    let daysRemaining: number | null = null;
+    let canResubmit = true;
+    if ((profile?.account_upgrade_status ?? 'not_submitted') === 'rejected') {
+      const rejReviewed = (docs ?? [])
+        .filter((d: any) => d.status === 'rejected' && d.reviewed_at)
+        .map((d: any) => new Date(d.reviewed_at).getTime())
+        .filter((t: number) => !Number.isNaN(t));
+      const anchorMs = rejReviewed.length
+        ? Math.max(...rejReviewed)
+        : (profile?.updated_at ? new Date(profile.updated_at).getTime() : NaN);
+      if (!Number.isNaN(anchorMs)) {
+        rejectedAt = new Date(anchorMs).toISOString();
+        const afterMs = anchorMs + 30 * 24 * 60 * 60 * 1000;
+        resubmitAfter = new Date(afterMs).toISOString();
+        const remaining = Math.ceil((afterMs - Date.now()) / (24 * 60 * 60 * 1000));
+        daysRemaining = remaining > 0 ? remaining : 0;
+        canResubmit = Date.now() >= afterMs;
+      } else {
+        // No timestamp available — allow resubmit to avoid locking lenders out.
+        canResubmit = true;
+      }
+    }
+
     return jsonResponse({
       account_upgrade_status: profile?.account_upgrade_status ?? 'not_submitted',
       lender_id: lenderId,
@@ -441,6 +485,10 @@ async function handleGetStatus(req: Request) {
       emergency_contacts: emergencyContacts ?? [],
       in_office_application: inOfficeApplication,
       is_walk_in: inOfficeApplication != null,
+      rejected_at: rejectedAt,
+      resubmit_after: resubmitAfter,
+      days_remaining: daysRemaining,
+      can_resubmit: canResubmit,
     });
 }
 
@@ -574,6 +622,27 @@ async function handleGetDetails(req: Request) {
       signed_url: signedUrls.get(d.id) ?? null,
     }));
 
+    // Cooldown anchors for staff view (same 30-day rule as get-status).
+    let rejectedAt: string | null = null;
+    let resubmitAfter: string | null = null;
+    if ((lenderProfile?.account_upgrade_status ?? '') === 'rejected') {
+      const times = (docs ?? [])
+        .filter((d: any) => d.status === 'rejected' && d.reviewed_at)
+        .map((d: any) => new Date(d.reviewed_at).getTime())
+        .filter((t: number) => !Number.isNaN(t));
+      const anchor = times.length
+        ? Math.max(...times)
+        : (lenderProfile?.updated_at
+            ? new Date(lenderProfile.updated_at).getTime()
+            : NaN);
+      if (!Number.isNaN(anchor)) {
+        rejectedAt = new Date(anchor).toISOString();
+        resubmitAfter = new Date(
+          anchor + 30 * 24 * 60 * 60 * 1000,
+        ).toISOString();
+      }
+    }
+
     return jsonResponse({
       document,
       lender_id: targetLenderId,
@@ -581,5 +650,7 @@ async function handleGetDetails(req: Request) {
       lender,
       documents,
       emergency_contacts: emergencyContacts ?? [],
+      rejected_at: rejectedAt,
+      resubmit_after: resubmitAfter,
     });
 }

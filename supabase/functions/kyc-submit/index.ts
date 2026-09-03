@@ -95,6 +95,50 @@ serve(async (req) => {
     const roleCheck = requireRole(user, ROLES.LENDER);
     if (roleCheck) return roleCheck;
 
+    const db = getAdminClient();
+
+    // ── 1-month resubmit cooldown after rejection ─────────────────────────
+    // Rejected lenders may only resubmit once 30 days have passed since the
+    // latest rejection (anchored on account_upgrade_documents.reviewed_at,
+    // fallback to lender_profiles.updated_at).
+    const { data: curProfile } = await db
+      .from("lender_profiles")
+      .select("account_upgrade_status, updated_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (curProfile?.account_upgrade_status === "rejected") {
+      const { data: rejDocs } = await db
+        .from("account_upgrade_documents")
+        .select("reviewed_at")
+        .eq("lender_id", user.id)
+        .eq("status", "rejected")
+        .order("reviewed_at", { ascending: false })
+        .limit(1);
+      const rawRejectedAt =
+        rejDocs?.[0]?.reviewed_at ?? curProfile?.updated_at ?? null;
+      if (rawRejectedAt) {
+        const rejectedAt = new Date(rawRejectedAt);
+        const resubmitAfter = new Date(
+          rejectedAt.getTime() + 30 * 24 * 60 * 60 * 1000,
+        );
+        if (new Date() < resubmitAfter) {
+          const daysLeft = Math.ceil(
+            (resubmitAfter.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+          );
+          return errorResponse(
+            `Account upgrade rejected. You may resubmit after 1 month (${resubmitAfter.toISOString().substring(0, 10)}). ${daysLeft} day(s) remaining.`,
+            403,
+            "ACCOUNT_UPGRADE_COOLDOWN",
+            {
+              rejected_at: rejectedAt.toISOString(),
+              resubmit_after: resubmitAfter.toISOString(),
+              days_remaining: daysLeft,
+            },
+          );
+        }
+      }
+    }
+
     const body = await req.json();
     const {
       profile,
@@ -169,7 +213,6 @@ serve(async (req) => {
       }
     }
 
-    const db = getAdminClient();
     const ip = req.headers.get("x-forwarded-for") ?? "unknown";
 
     // ── 1) Identity (users) — names are captured here in Account Upgrade, never auto-filled.

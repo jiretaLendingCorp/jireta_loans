@@ -90,12 +90,96 @@ class _LenderAccountUpgradeStatusScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Only Verification Timeline per request — remove status banner, submitted docs, and button
-                    _buildTimeline(state),
+                    // Rejected: no icon, text + button only per request.
+                    if (state.status == 'rejected')
+                      _buildRejectedView(state)
+                    else
+                      // Only Verification Timeline per request — remove status banner, submitted docs, and button
+                      _buildTimeline(state),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  /// Rejected view: no icon, text "Account upgrade submission rejected" + button only.
+  /// Button is disabled during the 1-month cooldown, enabled after it expires.
+  Widget _buildRejectedView(LenderAccountUpgradeState state) {
+    final days = state.cooldownDaysRemaining;
+    final inCooldown = state.isInCooldown;
+    final resubmit = state.resubmitAfter;
+    String? cooldownLine;
+    if (inCooldown) {
+      cooldownLine = (days != null && days > 0)
+          ? (resubmit != null
+              ? 'You may resubmit after 1 month (${resubmit.toLocal().toString().substring(0, 10)}). $days day(s) remaining.'
+              : 'You may resubmit after 1 month. $days day(s) remaining.')
+          : 'You may resubmit after 1 month.';
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.errorLight,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            children: [
+              const Text(
+                'Account upgrade submission rejected',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w700),
+              ),
+              if (cooldownLine != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  cooldownLine,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        if (inCooldown)
+          ElevatedButton(
+            onPressed: null,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              days != null && days > 0
+                  ? 'Resubmit after $days day(s)'
+                  : 'Resubmit unavailable',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          )
+        else
+          ElevatedButton(
+            onPressed: () =>
+                context.push(RouteConstants.lenderAccountUpgrade),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.lenderBlue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Resubmit Account Upgrade',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+      ],
     );
   }
 

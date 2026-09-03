@@ -19,10 +19,10 @@ class JiretaApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: router,
-      // Global overlays: Connectivity (offline) + Logout (signing out).
-      // Logout is outermost so its full-screen "Logging out..." blocks
-      // everything even while offline dim is active. Both are role-agnostic
-      // and sit above every route.
+      // Global overlays: Connectivity (offline) + Logout passthrough.
+      // Logout no longer shows a full-screen modal — the pressed logout
+      // button itself shows the loading spinner. Both wrappers are
+      // role-agnostic and sit above every route.
       builder: (context, child) => SessionIdleDetector(
         child: LogoutOverlay(
           child: ConnectivityOverlay(child: child ?? const SizedBox.shrink()),

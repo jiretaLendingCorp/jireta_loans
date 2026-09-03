@@ -466,8 +466,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }
 
   Future<void> logout() async {
-    // Expose loading via AsyncValue so LogoutOverlay can also react to
-    // authProvider.isLoading if some callers watch that provider.
+    // Expose loading via AsyncValue so any watcher can react to
+    // authProvider.isLoading. The pressed logout button itself shows the
+    // spinner — no full-screen "Logging out" modal is used.
     state = const AsyncLoading();
     try {
       try {

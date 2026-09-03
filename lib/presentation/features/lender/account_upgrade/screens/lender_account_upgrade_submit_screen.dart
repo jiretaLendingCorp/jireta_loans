@@ -549,6 +549,15 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Future<void> _submit() async {
+    // 1-month cooldown: blocked resubmit when rejected and still in cooldown.
+    final upgradeState = ref.read(lenderAccountUpgradeProvider);
+    if (upgradeState.isInCooldown) {
+      final days = upgradeState.cooldownDaysRemaining;
+      context.showErrorToast(days != null && days > 0
+          ? 'Account upgrade rejected. You may resubmit after 1 month. $days day(s) remaining.'
+          : 'Account upgrade rejected. You may resubmit after 1 month.');
+      return;
+    }
     // Docs show inline error text below each card (no toast — same as fields).
     if (_hasMissingDocs) {
       setState(() => _showDocsError = true);
@@ -686,22 +695,17 @@ class _LenderAccountUpgradeSubmitScreenState
       // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
         if (!mounted) return;
-        context.showSnackBarAsToast(
-          const SnackBar(
-            content: Text('Account upgrade documents submitted successfully. Under review.'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        // Show "Submitted" toast first, then direct to home.
+        context.showSuccessToast('Submitted');
         if (!mounted) return;
         context.go(RouteConstants.lenderDashboard);
       } else {
         if (!mounted) return;
+        final errMsg = ref.read(lenderAccountUpgradeProvider).error ??
+            'Failed to submit account upgrade documents. Please try again.';
         showDialog(
           context: context,
-          builder: (_) => const ErrorDialog(
-            message:
-                'Failed to submit account upgrade documents. Please try again.',
-          ),
+          builder: (_) => ErrorDialog(message: errMsg),
         );
       }
     } finally {
@@ -744,6 +748,12 @@ class _LenderAccountUpgradeSubmitScreenState
     }
     if (status == 'submitted' || status == 'under_review') {
       return _buildSubmittedView(state);
+    }
+    // Rejected: 1-month cooldown before resubmit.
+    // Still in cooldown → blocked view (text + button only, no icon).
+    // Cooldown expired → fall through to the form so the lender can resubmit.
+    if (status == 'rejected' && state.isInCooldown) {
+      return _buildRejectedCooldownView(state);
     }
 
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -1392,10 +1402,64 @@ class _LenderAccountUpgradeSubmitScreenState
     );
   }
 
+  /// Rejected + still in 1-month cooldown: no icon, text only + button only.
+  Widget _buildRejectedCooldownView(LenderAccountUpgradeState state) {
+    final days = state.cooldownDaysRemaining;
+    final resubmit = state.resubmitAfter;
+    String cooldownLine;
+    if (days != null && days > 0) {
+      cooldownLine = resubmit != null
+          ? 'You may resubmit after 1 month (${resubmit.toLocal().toString().substring(0, 10)}). $days day(s) remaining.'
+          : 'You may resubmit after 1 month. $days day(s) remaining.';
+    } else {
+      cooldownLine = 'You may resubmit after 1 month.';
+    }
+    return SingleChildScrollView(
+      padding:
+          EdgeInsets.fromLTRB(16, 16, 16, 100 + MediaQuery.of(context).viewInsets.bottom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: BorderRadius.circular(10)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const Text('Account upgrade submission rejected',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Text(cooldownLine,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          AppButton(
+            label: days != null && days > 0
+                ? 'Resubmit after $days day(s)'
+                : 'Resubmit unavailable',
+            onPressed: null,
+            color: AppColors.lenderBlue,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatusBanner(LenderAccountUpgradeState state) {
     Color bgColor;
     Color textColor;
-    IconData icon;
+    IconData? icon;
     String message;
 
     switch (state.status) {
@@ -1413,11 +1477,11 @@ class _LenderAccountUpgradeSubmitScreenState
         message = 'Documents under review';
         break;
       case 'rejected':
+        // No icon — text only per request.
         bgColor = AppColors.errorLight;
         textColor = AppColors.error;
-        icon = Icons.cancel_outlined;
-        message = state.rejectionNotes ??
-            'Account upgrade rejected. Please resubmit.';
+        icon = null;
+        message = 'Account upgrade submission rejected';
         break;
       default:
         // Per request: remove icon + text "Complete Account Upgrade to apply for a loan"
@@ -1430,18 +1494,25 @@ class _LenderAccountUpgradeSubmitScreenState
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
           color: bgColor, borderRadius: BorderRadius.circular(10)),
-      child: Row(
-        children: [
-          Icon(icon, color: textColor, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Text(message,
-                  style: TextStyle(
-                      fontSize: 13,
-                      color: textColor,
-                      fontWeight: FontWeight.w600))),
-        ],
-      ),
+      child: icon == null
+          ? Text(message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: textColor,
+                  fontWeight: FontWeight.w600))
+          : Row(
+              children: [
+                Icon(icon, color: textColor, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: Text(message,
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: textColor,
+                            fontWeight: FontWeight.w600))),
+              ],
+            ),
     );
   }
 }

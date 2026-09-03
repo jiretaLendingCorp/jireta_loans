@@ -28,19 +28,12 @@ class _HmAccountUpgradeDetailsScreenState
   Map<String, dynamic>? _data;
   bool _loading = true;
   String? _error;
-  final _rejectionCtrl = TextEditingController();
   bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
     _load();
-  }
-
-  @override
-  void dispose() {
-    _rejectionCtrl.dispose();
-    super.dispose();
   }
 
   Future<void> _load() async {
@@ -60,27 +53,97 @@ class _HmAccountUpgradeDetailsScreenState
   }
 
   Future<void> _verifyAll(String action) async {
-    if (action == 'rejected' && _rejectionCtrl.text.trim().isEmpty) {
-      showErrorSnackBar(context, 'Please enter rejection notes.');
-      return;
+    // Reject requires no reason — simple Yes / No confirm.
+    // Yes => reject, No => cancel (do not reject).
+    if (action == 'rejected') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                              color: AppColors.error
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: const Icon(Icons.cancel_rounded,
+                              color: AppColors.error)),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                          child: Text('Reject Account Upgrade?',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16))),
+                    ]),
+                    const SizedBox(height: 12),
+                    const Text(
+                        'Do you want to reject this lender\'s account upgrade submission?',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary)),
+                    const SizedBox(height: 20),
+                    Row(children: [
+                      Expanded(
+                          child: OutlinedButton(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(false),
+                              style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10))),
+                              child: const Text('No'))),
+                      const SizedBox(width: 12),
+                      Expanded(
+                          child: ElevatedButton(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(true),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.error,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(10))),
+                              child: const Text('Yes',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700)))),
+                    ]),
+                  ]),
+            ),
+          ),
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    } else {
+      final confirmed = await showConfirmationDialog(
+        context,
+        title: 'Verify All Documents',
+        message:
+            'Verify the lender\'s entire account upgrade submission at once?',
+        confirmLabel: 'Verify All',
+      );
+      if (confirmed != true || !mounted) return;
     }
-    final confirmed = await showConfirmationDialog(
-      context,
-      title: action == 'verified' ? 'Verify All Documents' : 'Reject All Documents',
-      message: action == 'verified'
-          ? 'Verify the lender\'s entire account upgrade submission at once?'
-          : 'Reject the lender\'s entire account upgrade submission? They will be notified.',
-      confirmLabel: action == 'verified' ? 'Verify All' : 'Reject All',
-      isDangerous: action == 'rejected',
-    );
-    if (confirmed != true || !mounted) return;
 
     setState(() => _submitting = true);
     try {
       await _ds.verifyAllAccountUpgrade(
         lenderId: widget.lenderId,
         action: action,
-        rejectionNotes: action == 'rejected' ? _rejectionCtrl.text.trim() : null,
       );
       if (mounted) {
         showSuccessSnackBar(context, action == 'verified' ? 'All documents verified successfully.' : 'All documents rejected.');
@@ -304,60 +367,95 @@ class _HmAccountUpgradeDetailsScreenState
                     ),
                     Padding(
                       padding: const EdgeInsets.all(16),
-                      child: pendingDocs.isEmpty
-                          ? Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.2))),
-                              child: const Row(children: [Icon(Icons.check_circle_rounded, color: AppColors.riderGreen, size: 20), SizedBox(width: 10), Expanded(child: Text('All documents reviewed.', style: TextStyle(color: AppColors.riderGreen, fontWeight: FontWeight.w700, fontSize: 13)))]),
-                            )
-                          : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: AppColors.warningLight, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.warning.withValues(alpha: 0.2))),
-                                child: Row(children: [
-                                  Container(width: 32, height: 32, decoration: BoxDecoration(color: AppColors.warning, borderRadius: BorderRadius.circular(8)), child: Center(child: Text('${pendingDocs.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)))),
-                                  const SizedBox(width: 10),
-                                  const Expanded(child: Text('Pending documents require your decision.', style: TextStyle(fontSize: 12, color: Color(0xFF6D4C00), fontWeight: FontWeight.w600))),
+                      child: Builder(builder: (_) {
+                        final s = accountUpgradeStatus.toLowerCase();
+                        final isRejected = s == 'rejected';
+                        final isVerified = s == 'verified';
+                        // Rejected: Verify must NOT appear. No further action.
+                        if (isRejected) {
+                          final resubmitAfter =
+                              (_data?['resubmit_after'] as String?);
+                          final dateStr =
+                              (resubmitAfter != null &&
+                                      resubmitAfter.length >= 10)
+                                  ? resubmitAfter.substring(0, 10)
+                                  : null;
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                                color: AppColors.error
+                                    .withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                    color: AppColors.error
+                                        .withValues(alpha: 0.2))),
+                            child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  const Row(children: [
+                                    Icon(Icons.cancel_rounded,
+                                        color: AppColors.error, size: 20),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                        child: Text(
+                                            'Account upgrade rejected.',
+                                            style: TextStyle(
+                                                color: AppColors.error,
+                                                fontWeight:
+                                                    FontWeight.w700,
+                                                fontSize: 13))),
+                                  ]),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                      dateStr != null
+                                          ? 'Lender may resubmit after 1 month ($dateStr).'
+                                          : 'Lender may resubmit after the 1-month cooldown.',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color:
+                                              AppColors.textSecondary)),
                                 ]),
-                              ),
-                              const SizedBox(height: 14),
-                              const Text('One action verifies the lender\'s entire account upgrade submission.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                              const SizedBox(height: 12),
-                              Container(
-                                decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.riderGreen, AppColors.riderGreenDark]), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))]),
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                                  onPressed: _submitting ? null : () => _verifyAll('verified'),
-                                  icon: _submitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.verified_rounded, size: 18, color: Colors.white),
-                                  label: Text('Verify All (${pendingDocs.length})', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Divider(),
-                              const SizedBox(height: 12),
-                              const Text('Rejection Notes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                              const SizedBox(height: 6),
-                              TextFormField(
-                                controller: _rejectionCtrl,
-                                maxLines: 3,
-                                decoration: InputDecoration(
-                                  hintText: 'Required when rejecting… explain clearly for audit trail',
-                                  hintStyle: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
-                                  filled: true,
-                                  fillColor: AppColors.surfaceVariant,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.error)),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(foregroundColor: AppColors.error, side: const BorderSide(color: AppColors.error), padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                                onPressed: _submitting ? null : () => _verifyAll('rejected'),
-                                icon: const Icon(Icons.cancel_rounded, size: 18),
-                                label: const Text('Reject All', style: TextStyle(fontWeight: FontWeight.w800)),
-                              ),
+                          );
+                        }
+                        if (isVerified || pendingDocs.isEmpty) {
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.2))),
+                            child: const Row(children: [Icon(Icons.check_circle_rounded, color: AppColors.riderGreen, size: 20), SizedBox(width: 10), Expanded(child: Text('All documents reviewed.', style: TextStyle(color: AppColors.riderGreen, fontWeight: FontWeight.w700, fontSize: 13)))]),
+                          );
+                        }
+                        return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(color: AppColors.warningLight, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.warning.withValues(alpha: 0.2))),
+                            child: Row(children: [
+                              Container(width: 32, height: 32, decoration: BoxDecoration(color: AppColors.warning, borderRadius: BorderRadius.circular(8)), child: Center(child: Text('${pendingDocs.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)))),
+                              const SizedBox(width: 10),
+                              const Expanded(child: Text('Pending documents require your decision.', style: TextStyle(fontSize: 12, color: Color(0xFF6D4C00), fontWeight: FontWeight.w600))),
                             ]),
+                          ),
+                          const SizedBox(height: 14),
+                          const Text('One action verifies the lender\'s entire account upgrade submission.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.riderGreen, AppColors.riderGreenDark]), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.25), blurRadius: 10, offset: const Offset(0, 4))]),
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                              onPressed: _submitting ? null : () => _verifyAll('verified'),
+                              icon: _submitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.verified_rounded, size: 18, color: Colors.white),
+                              label: Text('Verify All (${pendingDocs.length})', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(foregroundColor: AppColors.error, side: const BorderSide(color: AppColors.error), padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                            onPressed: _submitting ? null : () => _verifyAll('rejected'),
+                            icon: const Icon(Icons.cancel_rounded, size: 18),
+                            label: const Text('Reject All', style: TextStyle(fontWeight: FontWeight.w800)),
+                          ),
+                        ]);
+                      }),
                     ),
                   ]),
                 ),

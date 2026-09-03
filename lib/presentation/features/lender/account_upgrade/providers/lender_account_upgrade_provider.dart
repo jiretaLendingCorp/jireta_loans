@@ -38,10 +38,18 @@ class LenderAccountUpgradeState {
       accountUpgradeStatus?.documents ?? const [];
   String? get rejectionNotes {
     for (final d in documents) {
-      if (d.rejectionNotes != null) return d.rejectionNotes;
+      if (d.rejectionNotes != null && d.rejectionNotes!.trim().isNotEmpty) {
+        return d.rejectionNotes;
+      }
     }
     return null;
   }
+
+  bool get isRejected => accountUpgradeStatus?.isRejected ?? false;
+  bool get isInCooldown => accountUpgradeStatus?.isInCooldown ?? false;
+  bool get canResubmit => accountUpgradeStatus?.canResubmit ?? true;
+  DateTime? get resubmitAfter => accountUpgradeStatus?.resubmitAfter;
+  int? get cooldownDaysRemaining => accountUpgradeStatus?.daysRemaining;
 }
 
 class LenderAccountUpgradeNotifier

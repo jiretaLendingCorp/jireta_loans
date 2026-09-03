@@ -691,7 +691,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     }
 
     if (accountUpgrade != 'verified' && accountUpgrade != 'approved') {
-      return _AccountUpgradeGate(status: accountUpgrade);
+      return _AccountUpgradeGate(state: accountUpgradeState);
     }
     // Approved-but-not-yet-released loan → lender chooses how to receive funds.
     final approvedLoan = _approvedUnreleasedLoan(loans);
@@ -1399,13 +1399,78 @@ class _ReviewCard extends StatelessWidget {
 }
 
 class _AccountUpgradeGate extends StatelessWidget {
-  final String status;
-  const _AccountUpgradeGate({required this.status});
+  final LenderAccountUpgradeState state;
+  const _AccountUpgradeGate({required this.state});
 
   @override
   Widget build(BuildContext context) {
+    final status = state.status;
     final isSubmitted = status == 'submitted' || status == 'pending';
     final isRejected = status == 'rejected';
+
+    // Rejected: no icon, text "Account upgrade submission rejected" + button only.
+    if (isRejected) {
+      final inCooldown = state.isInCooldown;
+      final days = state.cooldownDaysRemaining;
+      final resubmit = state.resubmitAfter;
+      String? cooldownLine;
+      if (inCooldown) {
+        cooldownLine = (days != null && days > 0)
+            ? (resubmit != null
+                ? 'You may resubmit after 1 month (${resubmit.toLocal().toString().substring(0, 10)}). $days day(s) remaining.'
+                : 'You may resubmit after 1 month. $days day(s) remaining.')
+            : 'You may resubmit after 1 month.';
+      }
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Account upgrade submission rejected',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (cooldownLine != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  cooldownLine,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              if (inCooldown)
+                AppButton(
+                  label: days != null && days > 0
+                      ? 'Resubmit after $days day(s)'
+                      : 'Resubmit unavailable',
+                  onPressed: null,
+                  color: AppColors.lenderBlue,
+                  icon: Icons.arrow_forward,
+                )
+              else
+                AppButton(
+                  label: 'Resubmit Account Upgrade',
+                  onPressed: () =>
+                      context.push(RouteConstants.lenderAccountUpgrade),
+                  color: AppColors.lenderBlue,
+                  icon: Icons.arrow_forward,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
 
     final Color fg;
     final IconData icon;
@@ -1414,15 +1479,7 @@ class _AccountUpgradeGate extends StatelessWidget {
     final String actionLabel;
     final VoidCallback onAction;
 
-    if (isRejected) {
-      fg = AppColors.error;
-      icon = Icons.gpp_bad_outlined;
-      title = 'Account Upgrade Submission Rejected';
-      subtitle =
-          'Your account upgrade documents could not be approved. Please resubmit to continue.';
-      actionLabel = 'Resubmit Account Upgrade';
-      onAction = () => context.push(RouteConstants.lenderAccountUpgrade);
-    } else if (isSubmitted) {
+    if (isSubmitted) {
       fg = AppColors.warning;
       icon = Icons.hourglass_top_rounded;
       title = 'Account Upgrade Under Review';
@@ -1449,7 +1506,7 @@ class _AccountUpgradeGate extends StatelessWidget {
             // Icon + title/subtitle are hidden for the default unverified state
             // per request: remove icon and texts "Verify your identity..." /
             // "Complete Your Account Upgrade". Only the action button remains
-            // for that state; submitted/rejected keep their info.
+            // for that state; submitted keeps its info.
             if (!isDefaultGate) ...[
               Container(
                 width: 84,

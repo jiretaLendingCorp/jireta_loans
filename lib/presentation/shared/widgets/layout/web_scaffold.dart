@@ -402,33 +402,57 @@ class _UserAvatar extends ConsumerWidget {
             context.go(RouteConstants.empProfile);
           }
         } else if (val == 'logout') {
-          // Prevent double-tap while logout overlay is visible.
+          // Prevent double-tap while a logout is already running.
           if (ref.read(authStateProvider).isLoggingOut) return;
+          // The pressed Yes button itself shows loading while logging out —
+          // no "Logging out" modal is shown.
           final confirmed = await showDialog<bool>(
             context: context,
-            builder: (ctx) => AlertDialog(
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.zero,
-              ),
-              title: const Text('Log Out'),
-              content: const Text('Do you want to logout?'),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('No')),
-                ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Yes'),
+            builder: (ctx) {
+              var isBusy = false;
+              return StatefulBuilder(
+                builder: (ctx, setDialogState) => AlertDialog(
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
+                  ),
+                  title: const Text('Log Out'),
+                  content: const Text('Do you want to logout?'),
+                  actions: [
+                    TextButton(
+                        onPressed: isBusy
+                            ? null
+                            : () => Navigator.pop(ctx, false),
+                        child: const Text('No')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.error),
+                      onPressed: isBusy
+                          ? null
+                          : () async {
+                              setDialogState(() => isBusy = true);
+                              try {
+                                await ref
+                                    .read(authProvider.notifier)
+                                    .logout();
+                                if (ctx.mounted) Navigator.pop(ctx, true);
+                              } catch (_) {
+                                setDialogState(() => isBusy = false);
+                              }
+                            },
+                      child: isBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Yes'),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           );
           if (confirmed != true) return;
-          // Global [LogoutOverlay] appears automatically via
-          // authStateProvider.isLoggingOut — no manual dialog needed.
-          await ref.read(authProvider.notifier).logout();
           if (context.mounted) context.go(RouteConstants.webLogin);
         }
       },
