@@ -74,6 +74,14 @@ class _LenderAccountUpgradeSubmitScreenState
     'birth_certificate': null,
   };
 
+  // Back side of the Valid ID, captured together with the front by the
+  // scanner but shown as a single "Valid ID" document in the UI.
+  PlatformFile? _validIdBackFile;
+
+  bool get _hasValidIdFront => _selectedFiles['valid_id'] != null;
+  bool get _hasValidIdBack => _validIdBackFile != null;
+  bool get _hasValidIdComplete => _hasValidIdFront && _hasValidIdBack;
+
   final Map<String, String> _docLabels = {
     'valid_id': 'Valid Government ID *',
     'selfie': 'Selfie with ID *',
@@ -98,9 +106,9 @@ class _LenderAccountUpgradeSubmitScreenState
   // Asset icons for verification docs — rendered without background per design
   final Map<String, String?> _docAssetIcons = {
     'valid_id': 'assets/icons/id_card.png',
-    'selfie': null,
+    'selfie': 'assets/icons/selfie with id.png',
     'mayors_permit': 'assets/icons/PERMIT.png',
-    'birth_certificate': null,
+    'birth_certificate': 'assets/icons/birth certificate.jpg',
   };
 
   final _formKey = GlobalKey<FormState>();
@@ -315,16 +323,23 @@ class _LenderAccountUpgradeSubmitScreenState
 
   Future<void> _pickFromCamera(String docType) async {
     if (docType == 'valid_id') {
-      // Launch the dedicated Valid ID Scanner UI.
-      final bytes = await Navigator.of(context).push<Uint8List>(
+      // Single Valid ID document: the scanner captures Front + Back in
+      // one flow and returns both sides together.
+      final result = await Navigator.of(context).push<IdScanResult>(
         MaterialPageRoute(builder: (_) => const ValidIdScannerScreen()),
       );
-      if (bytes != null && mounted) {
+      if (result != null && mounted) {
+        final stamp = DateTime.now().millisecondsSinceEpoch;
         setState(() {
-          _selectedFiles[docType] = PlatformFile(
-            name: 'valid_id_${DateTime.now().millisecondsSinceEpoch}.jpg',
-            size: bytes.length,
-            bytes: bytes,
+          _selectedFiles['valid_id'] = PlatformFile(
+            name: 'valid_id_front_$stamp.jpg',
+            size: result.frontBytes.length,
+            bytes: result.frontBytes,
+          );
+          _validIdBackFile = PlatformFile(
+            name: 'valid_id_back_$stamp.jpg',
+            size: result.backBytes.length,
+            bytes: result.backBytes,
           );
         });
       }
@@ -347,6 +362,37 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Future<void> _pickFromGallery(String docType) async {
+    if (docType == 'valid_id') {
+      // Single Valid ID document: accept up to 2 images (front + back).
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+        allowMultiple: true,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      setState(() {
+        final files = result.files;
+        if (_hasValidIdFront && !_hasValidIdBack && files.length == 1) {
+          // Front already captured — this one completes the back side.
+          _validIdBackFile = files.first;
+        } else {
+          _selectedFiles['valid_id'] = files.first;
+          if (files.length > 1) {
+            _validIdBackFile = files[1];
+          } else {
+            _validIdBackFile = null;
+          }
+        }
+      });
+      if (mounted && !_hasValidIdComplete) {
+        context.showSnackBarAsToast(const SnackBar(
+          content: Text(
+              'Valid ID needs both sides — pick the back side image too.'),
+        ));
+      }
+      return;
+    }
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
@@ -444,8 +490,9 @@ class _LenderAccountUpgradeSubmitScreenState
     if (phone.length != 11 ||
         !phone.startsWith('09') ||
         int.tryParse(phone) == null) return false;
-    // all 4 docs must be uploaded
+    // all 4 docs must be uploaded (Valid ID needs front + back)
     if (_selectedFiles.values.any((f) => f == null)) return false;
+    if (!_hasValidIdComplete) return false;
     return true;
   }
 
@@ -492,6 +539,9 @@ class _LenderAccountUpgradeSubmitScreenState
         .where((e) => e.value == null)
         .map((e) => _docLabels[e.key]!)
         .toList();
+    if (_hasValidIdFront && !_hasValidIdBack) {
+      missing.add('Valid Government ID (Back side)');
+    }
     if (missing.isNotEmpty) {
       context.showSnackBarAsToast(
           SnackBar(content: Text('Please upload: ${missing.join(', ')}')));
@@ -546,6 +596,23 @@ class _LenderAccountUpgradeSubmitScreenState
           'file_name': f.name,
           'file_size': f.size,
           if (fileBytes != null) 'content_base64': base64Encode(fileBytes),
+        });
+      }
+      // Back side of the Valid ID rides along with the single Valid ID card.
+      final backFile = _validIdBackFile;
+      if (backFile != null) {
+        Uint8List? backBytes = backFile.bytes;
+        if (backBytes == null) {
+          final path = backFile.path;
+          if (path != null) {
+            backBytes = await File(path).readAsBytes();
+          }
+        }
+        docs.add({
+          'document_type': 'valid_id_back',
+          'file_name': backFile.name,
+          'file_size': backFile.size,
+          if (backBytes != null) 'content_base64': base64Encode(backBytes),
         });
       }
 
@@ -787,21 +854,31 @@ class _LenderAccountUpgradeSubmitScreenState
         ),
         const SizedBox(height: 8),
         const Text(
-          'Tap each document to capture with your camera or choose from your gallery. Files must be JPG, PNG, or PDF under 5MB.',
+          'Files must be JPG, PNG, or PDF under 5MB.',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 20),
-        ..._selectedFiles.entries.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _DocUploadCard(
-                label: _docLabels[e.key]!,
-                hint: _docHints[e.key]!,
-                icon: _docIcons[e.key]!,
-                assetPath: _docAssetIcons[e.key],
-                file: e.value,
-                onPick: () => _pickFile(e.key),
-              ),
-            )),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: _ValidIdCard(
+            hasFront: _hasValidIdFront,
+            hasBack: _hasValidIdBack,
+            onPick: () => _pickFile('valid_id'),
+          ),
+        ),
+        ..._selectedFiles.entries
+            .where((e) => e.key != 'valid_id')
+            .map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _DocUploadCard(
+                    label: _docLabels[e.key]!,
+                    hint: _docHints[e.key]!,
+                    icon: _docIcons[e.key]!,
+                    assetPath: _docAssetIcons[e.key],
+                    file: e.value,
+                    onPick: () => _pickFile(e.key),
+                  ),
+                )),
       ],
     );
   }
@@ -1602,6 +1679,86 @@ class _SourceOption extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Single Valid ID card showing combined Front + Back capture status.
+class _ValidIdCard extends StatelessWidget {
+  final bool hasFront;
+  final bool hasBack;
+  final VoidCallback onPick;
+
+  const _ValidIdCard({
+    required this.hasFront,
+    required this.hasBack,
+    required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final complete = hasFront && hasBack;
+    final subtitle = complete
+        ? 'Front ✓  •  Back ✓'
+        : hasFront
+            ? 'Front ✓  •  Back missing — tap to add'
+            : 'Front + Back of your government-issued ID';
+    return InkWell(
+      onTap: onPick,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: complete
+              ? AppColors.lenderBlue.withValues(alpha: 0.04)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: complete
+                  ? AppColors.lenderBlue.withValues(alpha: 0.3)
+                  : AppColors.border),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: Image.asset(
+                'assets/icons/id_card.png',
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Valid Government ID *',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: complete
+                            ? AppColors.lenderBlue
+                            : AppColors.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(complete ? Icons.check_circle : Icons.upload_file_outlined,
+                color:
+                    complete ? AppColors.success : AppColors.textTertiary),
           ],
         ),
       ),

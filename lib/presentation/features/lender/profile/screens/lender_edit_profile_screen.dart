@@ -11,6 +11,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
+import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../providers/lender_profile_provider.dart';
 
 class LenderProfileEditScreen extends ConsumerStatefulWidget {
@@ -428,56 +429,33 @@ class _LenderEditProfileScreenState
                         ),
                       ],
                     ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: state.isSaving ? null : _submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.lenderBlue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 0,
-                        ),
-                        child: state.isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Save Changes',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                      ),
+                    const SizedBox(height: 24),
+                    ModernPrimaryButton(
+                      label: 'Save Changes',
+                      color: AppColors.lenderBlue,
+                      loading: state.isSaving,
+                      onPressed: _submit,
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
+                      height: 48,
                       child: OutlinedButton(
                         onPressed: () =>
                             context.go(RouteConstants.lenderProfile),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.textSecondary,
-                          side: const BorderSide(color: AppColors.border),
+                          backgroundColor: Colors.white,
+                          side: const BorderSide(
+                              color: ModernProfileStyles.cardBorder),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                         child: const Text(
                           'Cancel',
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -496,35 +474,41 @@ class _LenderEditProfileScreenState
   }
 
   Widget _buildSectionCard(String title, IconData icon, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.lenderBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+    return Container(
+      width: double.infinity,
+      decoration: ModernProfileStyles.card,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: ModernProfileStyles.iconBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon,
+                    size: 16, color: ModernProfileStyles.iconColor),
               ),
-              child: Icon(icon, size: 18, color: AppColors.lenderBlue),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const Divider(height: 1, color: AppColors.border),
-        const SizedBox(height: 16),
-        ...children,
-      ],
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...children,
+        ],
+      ),
     );
   }
 
