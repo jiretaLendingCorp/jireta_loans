@@ -138,12 +138,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 const SizedBox(height: 16),
                 _buildEditProfileButton(),
               ],
-              if (!isVerified) ...[
-                const SizedBox(height: 22),
-                _sectionTitle('Verification'),
-                const SizedBox(height: 10),
-                _buildAccountUpgradeCard(userModel?.accountUpgradeStatus),
-              ],
               if (isVerified) ...[
                 const SizedBox(height: 16),
                 _CollapsibleSection(
@@ -203,23 +197,116 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                   children: _buildEmergencyRows(userModel?.emergencyContacts),
                 ),
               ],
-              const SizedBox(height: 22),
-              _sectionTitle('Legal'),
-              const SizedBox(height: 10),
-              _buildLegalCard(context),
-              const SizedBox(height: 22),
-              _sectionTitle('Support'),
-              const SizedBox(height: 10),
-              _buildSupportCard(context),
-              const Spacer(),
-              const SizedBox(height: 22),
+              if (!isVerified) ...[
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  title: const Text('Account Upgrade Verification',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
+                  trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+                  onTap: () => context.push(RouteConstants.lenderAccountUpgradeStatus),
+                ),
+                const Divider(height: 1, indent: 4, endIndent: 4),
+              ],
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                title: const Text('Terms & Conditions',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const LegalInfoSheet(
+                    title: 'Terms & Conditions',
+                    sections: [
+                      LegalSection(title: '1. Agreement to Terms', body: 'By accessing and using the Jireta Loans & Credit Corp 1966 mobile application, you agree to be bound by these Terms and Conditions and our Privacy Policy.'),
+                      LegalSection(title: '2. Loan Services', body: 'Jireta Loans & Credit Corp 1966 offers lending services ranging from \u20B13,000 to \u20B1500,000 with an interest rate of 20% per loan term. Loan amounts and terms are subject to credit evaluation, account upgrade verification, and credit investigation.'),
+                      LegalSection(title: '3. Interest & Penalties', body: 'All loans carry a 20% interest rate on the principal amount. A penalty of 20% on the total payable amount will be applied if payment is delayed by one (1) month or more.'),
+                      LegalSection(title: '4. Account Upgrade Requirements', body: 'You are required to submit valid government-issued identification, proof of billing, selfie verification, and proof of income. All documents are subject to verification by authorized personnel.'),
+                      LegalSection(title: '5. Credit Investigation', body: 'Loan applications are subject to a credit investigation conducted by authorized riders. You agree to cooperate with and receive visits from assigned investigators.'),
+                      LegalSection(title: '6. Payment Methods', body: 'Payments may be made through GCash (via Xendit payment gateway), office cash payment, or rider cash collection. All transactions are recorded and receipts are issued.'),
+                      LegalSection(title: '7. Data Privacy', body: 'We collect and process your personal information in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173) and our Privacy Policy. Your information is used solely for loan processing and account management.'),
+                      LegalSection(title: '8. Prohibited Acts', body: 'You agree not to provide false information, commit fraud, or use the application for any unlawful purpose. Violations may result in account suspension, blacklisting, and legal action.'),
+                      LegalSection(title: '9. Governing Law', body: 'These terms are governed by the laws of the Republic of the Philippines. Any disputes shall be resolved in the appropriate courts of the Philippines.'),
+                      LegalSection(title: '10. Contact', body: 'For inquiries, please visit our office or contact our authorized personnel. Do not share your OTP or account credentials with anyone.'),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1, indent: 4, endIndent: 4),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                title: const Text('Privacy Policy',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const LegalInfoSheet(
+                    title: 'Privacy Policy',
+                    sections: [
+                      LegalSection(title: 'Data We Collect', body: 'We collect your personal information including name, contact details, government IDs, financial information, and location data (for credit investigation and cash collection).'),
+                      LegalSection(title: 'How We Use Your Data', body: 'Your data is stored securely and used only for loan processing, identity verification, and regulatory compliance.'),
+                      LegalSection(title: 'Your Rights', body: 'You have the right to access, correct, and request deletion of your data in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).'),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1, indent: 4, endIndent: 4),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                title: const Text('Help Center',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const LegalInfoSheet(
+                    title: 'Help Center',
+                    sections: [
+                      LegalSection(title: 'How do I log in to the app?', body: 'Enter your registered mobile number and tap Send OTP. You will receive a one-time password (OTP) to verify your account.'),
+                      LegalSection(title: 'What if I do not receive my OTP?', body: 'Wait at least 60 seconds before requesting a new OTP. Make sure your mobile number is correct and you have a stable connection.'),
+                      LegalSection(title: 'How do I apply for a loan?', body: 'After logging in, go to the Loans section and tap Apply. Fill out the required details and submit your application for review.'),
+                      LegalSection(title: 'What are the loan requirements?', body: 'You need a valid government-issued ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.'),
+                      LegalSection(title: 'How do I pay for my loan?', body: 'Payments can be made through GCash (via Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.'),
+                      LegalSection(title: 'Is my personal data safe?', body: 'Yes. We protect your personal information in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).'),
+                      LegalSection(title: 'Who can I contact for support?', body: 'Visit our office during business hours or reach out to our authorized personnel. Never share your OTP or account credentials with anyone.'),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 1, indent: 4, endIndent: 4),
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                title: const Text('About Jireta',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const LegalInfoSheet(
+                    title: 'About Jireta',
+                    sections: [
+                      LegalSection(title: 'Company', body: 'Jireta Loans & Credit Corp 1966 is a lending company offering financial assistance to Filipinos.'),
+                      LegalSection(title: 'Our Services', body: 'We provide loans ranging from \u20B13,000 to \u20B1500,000 with clear terms and transparent interest rates.'),
+                      LegalSection(title: 'Our History', body: 'Founded in 1966, we have served our clients for decades with reliable and accessible lending services.'),
+                      LegalSection(title: 'Our Commitment', body: 'We are committed to providing fast, secure, and convenient loan processing through the mobile app.'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildLogoutButton(),
+              const SizedBox(height: 12),
               const Text(
                 'Version ${AppConfig.appVersion}',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
               ),
               const SizedBox(height: 12),
-              _buildLogoutButton(),
             ]),
           ),
         ),
@@ -335,28 +422,14 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       'suspended' => AppColors.warning,
       'blacklisted' || 'deactivated' => AppColors.error,
       'whitelisted' => AppColors.success,
-      _ => AppColors.goldLight,
+      _ => AppColors.textSecondary,
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.lenderBlue.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.lenderBlue.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.circle, size: 8, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.lenderBlue),
-          ),
-        ],
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: color,
       ),
     );
   }
@@ -447,345 +520,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
-  Widget _buildAccountUpgradeCard(String? accountUpgradeStatus) {
-    final status = (accountUpgradeStatus ?? 'not_submitted').toLowerCase();
-    final (Color color, IconData icon, String label) = switch (status) {
-      'verified' => (AppColors.success, Icons.verified_user, 'Verified'),
-      'rejected' => (AppColors.error, Icons.cancel_outlined, 'Rejected'),
-      'submitted' || 'under_review' => (
-          AppColors.warning,
-          Icons.pending_outlined,
-          'Under Review'
-        ),
-      _ => (AppColors.textSecondary, Icons.badge_outlined, 'Not Submitted'),
-    };
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ListTile(
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, color: color, size: 22),
-        ),
-        title: const Text('Account Upgrade Verification',
-            style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.deepNavy)),
-        subtitle: Text('Status: $label',
-            style: TextStyle(fontSize: 12, color: color)),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-        ),
-        onTap: () => context.push(RouteConstants.lenderAccountUpgradeStatus),
-      ),
-    );
-  }
-
-  Widget _buildLegalCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(children: [
-        ListTile(
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-                color: AppColors.lenderBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.description_outlined,
-                color: AppColors.lenderBlue, size: 22),
-          ),
-          title: const Text('Terms & Conditions',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.deepNavy)),
-          subtitle: const Text('Review the terms of the loan service',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing:
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-          onTap: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => const LegalInfoSheet(
-              title: 'Terms & Conditions',
-              sections: [
-                LegalSection(
-                  title: '1. Agreement to Terms',
-                  body:
-                      'By accessing and using the Jireta Loans & Credit Corp 1966 mobile application, you agree to be bound by these Terms and Conditions and our Privacy Policy.',
-                ),
-                LegalSection(
-                  title: '2. Loan Services',
-                  body:
-                      'Jireta Loans & Credit Corp 1966 offers lending services ranging from \u20B13,000 to \u20B1500,000 with an interest rate of 20% per loan term. Loan amounts and terms are subject to credit evaluation, account upgrade verification, and credit investigation.',
-                ),
-                LegalSection(
-                  title: '3. Interest & Penalties',
-                  body:
-                      'All loans carry a 20% interest rate on the principal amount. A penalty of 20% on the total payable amount will be applied if payment is delayed by one (1) month or more.',
-                ),
-                LegalSection(
-                  title: '4. Account Upgrade Requirements',
-                  body:
-                      'You are required to submit valid government-issued identification, proof of billing, selfie verification, and proof of income. All documents are subject to verification by authorized personnel.',
-                ),
-                LegalSection(
-                  title: '5. Credit Investigation',
-                  body:
-                      'Loan applications are subject to a credit investigation conducted by authorized riders. You agree to cooperate with and receive visits from assigned investigators.',
-                ),
-                LegalSection(
-                  title: '6. Payment Methods',
-                  body:
-                      'Payments may be made through GCash (via Xendit payment gateway), office cash payment, or rider cash collection. All transactions are recorded and receipts are issued.',
-                ),
-                LegalSection(
-                  title: '7. Data Privacy',
-                  body:
-                      'We collect and process your personal information in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173) and our Privacy Policy. Your information is used solely for loan processing and account management.',
-                ),
-                LegalSection(
-                  title: '8. Prohibited Acts',
-                  body:
-                      'You agree not to provide false information, commit fraud, or use the application for any unlawful purpose. Violations may result in account suspension, blacklisting, and legal action.',
-                ),
-                LegalSection(
-                  title: '9. Governing Law',
-                  body:
-                      'These terms are governed by the laws of the Republic of the Philippines. Any disputes shall be resolved in the appropriate courts of the Philippines.',
-                ),
-                LegalSection(
-                  title: '10. Contact',
-                  body:
-                      'For inquiries, please visit our office or contact our authorized personnel. Do not share your OTP or account credentials with anyone.',
-                ),
-              ],
-            ),
-          ),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-                color: AppColors.lenderBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.privacy_tip_outlined,
-                color: AppColors.lenderBlue, size: 22),
-          ),
-          title: const Text('Privacy Policy',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.deepNavy)),
-          subtitle: const Text('How we collect and protect your data',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing:
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-          onTap: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => const LegalInfoSheet(
-              title: 'Privacy Policy',
-              sections: [
-                LegalSection(
-                  title: 'Data We Collect',
-                  body:
-                      'We collect your personal information including name, contact details, government IDs, financial information, and location data (for credit investigation and cash collection).',
-                ),
-                LegalSection(
-                  title: 'How We Use Your Data',
-                  body:
-                      'Your data is stored securely and used only for loan processing, identity verification, and regulatory compliance.',
-                ),
-                LegalSection(
-                  title: 'Your Rights',
-                  body:
-                      'You have the right to access, correct, and request deletion of your data in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).',
-                ),
-              ],
-            ),
-          ),
-        ),
-      ]),
-    );
-  }
-
-  Widget _buildSupportCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(children: [
-        ListTile(
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-                color: AppColors.lenderBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.support_agent,
-                color: AppColors.lenderBlue, size: 22),
-          ),
-          title: const Text('Help Center',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.deepNavy)),
-          subtitle: const Text('Frequently asked questions and support',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing:
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-          onTap: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => const LegalInfoSheet(
-              title: 'Help Center',
-              sections: [
-                LegalSection(
-                  title: 'How do I log in to the app?',
-                  body:
-                      'Enter your registered mobile number and tap Send OTP. You will receive a one-time password (OTP) to verify your account.',
-                ),
-                LegalSection(
-                  title: 'What if I do not receive my OTP?',
-                  body:
-                      'Wait at least 60 seconds before requesting a new OTP. Make sure your mobile number is correct and you have a stable connection.',
-                ),
-                LegalSection(
-                  title: 'How do I apply for a loan?',
-                  body:
-                      'After logging in, go to the Loans section and tap Apply. Fill out the required details and submit your application for review.',
-                ),
-                LegalSection(
-                  title: 'What are the loan requirements?',
-                  body:
-                      'You need a valid government-issued ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.',
-                ),
-                LegalSection(
-                  title: 'How do I pay for my loan?',
-                  body:
-                      'Payments can be made through GCash (via Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.',
-                ),
-                LegalSection(
-                  title: 'Is my personal data safe?',
-                  body:
-                      'Yes. We protect your personal information in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).',
-                ),
-                LegalSection(
-                  title: 'Who can I contact for support?',
-                  body:
-                      'Visit our office during business hours or reach out to our authorized personnel. Never share your OTP or account credentials with anyone.',
-                ),
-              ],
-            ),
-          ),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-                color: AppColors.lenderBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.info_outline,
-                color: AppColors.lenderBlue, size: 22),
-          ),
-          title: const Text('About Jireta',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.deepNavy)),
-          subtitle: const Text('Learn more about our company',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          trailing:
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-          onTap: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => const LegalInfoSheet(
-              title: 'About Jireta',
-              sections: [
-                LegalSection(
-                  title: 'Company',
-                  body:
-                      'Jireta Loans & Credit Corp 1966 is a lending company offering financial assistance to Filipinos.',
-                ),
-                LegalSection(
-                  title: 'Our Services',
-                  body:
-                      'We provide loans ranging from \u20B13,000 to \u20B1500,000 with clear terms and transparent interest rates.',
-                ),
-                LegalSection(
-                  title: 'Our History',
-                  body:
-                      'Founded in 1966, we have served our clients for decades with reliable and accessible lending services.',
-                ),
-                LegalSection(
-                  title: 'Our Commitment',
-                  body:
-                      'We are committed to providing fast, secure, and convenient loan processing through the mobile app.',
-                ),
-              ],
-            ),
-          ),
-        ),
-      ]),
-    );
-  }
-
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -840,55 +574,57 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   Widget _buildLogoutButton() {
     final isLoggingOut =
         ref.watch(authStateProvider.select((s) => s.isLoggingOut));
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.error,
-          side: const BorderSide(color: AppColors.error),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        icon: isLoggingOut
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppColors.error),
+    return InkWell(
+      onTap: isLoggingOut
+          ? null
+          : () async {
+              if (ref.read(authStateProvider).isLoggingOut) return;
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Log Out'),
+                  content: const Text('Do you want to logout?'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('No')),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.deepNavy),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Yes', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+              await ref.read(authProvider.notifier).logout();
+              if (mounted && context.mounted) {
+                context.go(RouteConstants.mobileLogin);
+              }
+            },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(
+          children: [
+            if (isLoggingOut)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
               )
-            : const Icon(Icons.logout),
-        label: Text(isLoggingOut ? 'Logging out...' : 'Log Out',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        onPressed: isLoggingOut
-            ? null
-            : () async {
-                if (ref.read(authStateProvider).isLoggingOut) return;
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Log Out'),
-                    content: const Text('Do you want to logout?'),
-                    actions: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('No')),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error),
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Yes'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed != true) return;
-                // Global LogoutOverlay appears via authStateProvider.isLoggingOut
-                await ref.read(authProvider.notifier).logout();
-                if (mounted && context.mounted) {
-                  context.go(RouteConstants.mobileLogin);
-                }
-              },
+            else
+              const Text(
+                'Log out',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

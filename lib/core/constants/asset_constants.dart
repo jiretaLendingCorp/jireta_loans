@@ -9,5 +9,7 @@ class AssetConstants {
   static const String splashBg = 'assets/images/splash_background.png';
   static const String emptyState = 'assets/images/empty_state.svg';
   static const String appIcon = 'assets/icons/app_icon.png';
+  static const String idCardIcon = 'assets/icons/id_card.png';
+  static const String permitIcon = 'assets/icons/PERMIT.png';
   static const String envFile = 'assets/env/.env';
 }

@@ -280,11 +280,15 @@ class _LenderEditProfileScreenState
                         AppTextField(
                           label: 'Middle Name (Optional)',
                           controller: _middleNameCtrl,
-                          maxLength: 100,
+                          maxLength: 2,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z.]')),
+                            LengthLimitingTextInputFormatter(2),
+                          ],
                           validator: (v) {
                             if (v == null || v.isEmpty) return null;
-                            if (v.trim().length < 2) {
-                              return 'Middle name must be at least 2 characters';
+                            if (!RegExp(r'^[a-zA-Z.]{1,2}$').hasMatch(v)) {
+                              return 'Max 2 letters or "." only';
                             }
                             return null;
                           },

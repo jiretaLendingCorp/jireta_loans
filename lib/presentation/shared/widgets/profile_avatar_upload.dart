@@ -101,6 +101,13 @@ class _ProfileAvatarUploadState extends State<ProfileAvatarUpload> {
 
   Widget _buildFallback() {
     final initials = _initials(widget.name);
+    if (initials == '?') {
+      return Icon(
+        Icons.person_rounded,
+        size: widget.radius * 1.1,
+        color: widget.color,
+      );
+    }
     final isSingle = initials.length == 1;
     return Text(
       initials,

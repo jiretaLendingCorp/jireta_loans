@@ -17,8 +17,9 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
+import 'package:shimmer/shimmer.dart';
+
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
-import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_account_upgrade_provider.dart';
 import 'valid_id_scanner_screen.dart';
 
@@ -69,29 +70,37 @@ class _LenderAccountUpgradeSubmitScreenState
   final Map<String, PlatformFile?> _selectedFiles = {
     'valid_id': null,
     'selfie': null,
-    'proof_of_billing': null,
-    'proof_of_income': null,
+    'mayors_permit': null,
+    'birth_certificate': null,
   };
 
   final Map<String, String> _docLabels = {
     'valid_id': 'Valid Government ID *',
     'selfie': 'Selfie with ID *',
-    'proof_of_billing': 'Proof of Billing *',
-    'proof_of_income': 'Proof of Income *',
+    'mayors_permit': "Mayor's Permit *",
+    'birth_certificate': 'Birth Certificate *',
   };
 
   final Map<String, String> _docHints = {
-    'valid_id': 'A valid government-issued ID',
-    'selfie': 'A clear selfie holding your ID',
-    'proof_of_billing': 'Recent utility or billing statement',
-    'proof_of_income': 'Pay slip, bank statement, or COE',
+    'valid_id': 'Philippine government-issued ID (UMID, PhilSys, Driver\'s License, Passport, etc.)',
+    'selfie': 'A clear selfie holding your Valid ID',
+    'mayors_permit': "Valid Mayor's Permit / Business Permit",
+    'birth_certificate': 'PSA/NSO Birth Certificate',
   };
 
   final Map<String, IconData> _docIcons = {
-    'valid_id': Icons.badge_outlined,
-    'selfie': Icons.face_outlined,
-    'proof_of_billing': Icons.receipt_outlined,
-    'proof_of_income': Icons.work_outline,
+    'valid_id': Icons.contact_page_rounded,
+    'selfie': Icons.face_retouching_natural_rounded,
+    'mayors_permit': Icons.business_rounded,
+    'birth_certificate': Icons.child_care_rounded,
+  };
+
+  // Asset icons for verification docs — rendered without background per design
+  final Map<String, String?> _docAssetIcons = {
+    'valid_id': 'assets/icons/id_card.png',
+    'selfie': null,
+    'mayors_permit': 'assets/icons/PERMIT.png',
+    'birth_certificate': null,
   };
 
   final _formKey = GlobalKey<FormState>();
@@ -121,6 +130,14 @@ class _LenderAccountUpgradeSubmitScreenState
 
   int _step = 0;
   bool _isSubmitting = false;
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _streetFocusNode = FocusNode();
+  final FocusNode _barangayFocusNode = FocusNode();
+  final FocusNode _cityFocusNode = FocusNode();
+  final FocusNode _provinceFocusNode = FocusNode();
+  final FocusNode _zipFocusNode = FocusNode();
+  final FocusNode _ecNameFocusNode = FocusNode();
+  final FocusNode _ecPhoneFocusNode = FocusNode();
 
   static const _genderOptions = ['Male', 'Female', 'Prefer not to say'];
   static const _civilOptions = ['Single', 'Married', 'Widowed', 'Separated'];
@@ -171,6 +188,44 @@ class _LenderAccountUpgradeSubmitScreenState
     _zipCtrl.addListener(_onFieldChanged);
     _ecNameCtrl.addListener(_onFieldChanged);
     _ecPhoneCtrl.addListener(_onFieldChanged);
+    _streetFocusNode.addListener(_onBottomFieldFocus);
+    _barangayFocusNode.addListener(_onBottomFieldFocus);
+    _cityFocusNode.addListener(_onBottomFieldFocus);
+    _provinceFocusNode.addListener(_onBottomFieldFocus);
+    _zipFocusNode.addListener(_onBottomFieldFocus);
+    _ecNameFocusNode.addListener(_onBottomFieldFocus);
+    _ecPhoneFocusNode.addListener(_onBottomFieldFocus);
+  }
+
+  void _onBottomFieldFocus() {
+    FocusNode? focused;
+    if (_streetFocusNode.hasFocus) focused = _streetFocusNode;
+    else if (_barangayFocusNode.hasFocus) focused = _barangayFocusNode;
+    else if (_cityFocusNode.hasFocus) focused = _cityFocusNode;
+    else if (_provinceFocusNode.hasFocus) focused = _provinceFocusNode;
+    else if (_zipFocusNode.hasFocus) focused = _zipFocusNode;
+    else if (_ecNameFocusNode.hasFocus) focused = _ecNameFocusNode;
+    else if (_ecPhoneFocusNode.hasFocus) focused = _ecPhoneFocusNode;
+    if (focused == null) return;
+    final ctx = focused.context;
+    Future.delayed(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      if (ctx != null && ctx.mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          alignment: 0.25,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+        );
+      } else if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
   }
 
   void _onFieldChanged() {
@@ -195,6 +250,13 @@ class _LenderAccountUpgradeSubmitScreenState
     _zipCtrl.removeListener(_onFieldChanged);
     _ecNameCtrl.removeListener(_onFieldChanged);
     _ecPhoneCtrl.removeListener(_onFieldChanged);
+    _streetFocusNode.removeListener(_onBottomFieldFocus);
+    _barangayFocusNode.removeListener(_onBottomFieldFocus);
+    _cityFocusNode.removeListener(_onBottomFieldFocus);
+    _provinceFocusNode.removeListener(_onBottomFieldFocus);
+    _zipFocusNode.removeListener(_onBottomFieldFocus);
+    _ecNameFocusNode.removeListener(_onBottomFieldFocus);
+    _ecPhoneFocusNode.removeListener(_onBottomFieldFocus);
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
@@ -211,6 +273,14 @@ class _LenderAccountUpgradeSubmitScreenState
     _zipCtrl.dispose();
     _ecNameCtrl.dispose();
     _ecPhoneCtrl.dispose();
+    _scrollController.dispose();
+    _streetFocusNode.dispose();
+    _barangayFocusNode.dispose();
+    _cityFocusNode.dispose();
+    _provinceFocusNode.dispose();
+    _zipFocusNode.dispose();
+    _ecNameFocusNode.dispose();
+    _ecPhoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -566,7 +636,7 @@ class _LenderAccountUpgradeSubmitScreenState
         accentColor: AppColors.lenderBlue,
         navItems: _navItems,
         showBackButton: true,
-        body: ShimmerLoader(),
+        body: _AccountUpgradeVerificationSkeleton(),
       );
     }
 
@@ -575,7 +645,7 @@ class _LenderAccountUpgradeSubmitScreenState
       accentColor: AppColors.lenderBlue,
       navItems: _navItems,
       showBackButton: true,
-      body: state.isLoading ? const ShimmerLoader() : _buildFlow(state),
+      body: state.isLoading ? const _AccountUpgradeVerificationSkeleton() : _buildFlow(state),
     );
   }
 
@@ -596,6 +666,7 @@ class _LenderAccountUpgradeSubmitScreenState
         _StepIndicator(current: _step, labels: _steps),
         Expanded(
           child: SingleChildScrollView(
+            controller: _scrollController,
             padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + bottomInset),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(
@@ -726,6 +797,7 @@ class _LenderAccountUpgradeSubmitScreenState
                 label: _docLabels[e.key]!,
                 hint: _docHints[e.key]!,
                 icon: _docIcons[e.key]!,
+                assetPath: _docAssetIcons[e.key],
                 file: e.value,
                 onPick: () => _pickFile(e.key),
               ),
@@ -751,7 +823,18 @@ class _LenderAccountUpgradeSubmitScreenState
           AppTextField(
             label: 'Middle Name (Optional)',
             controller: _middleNameCtrl,
-            maxLength: 100,
+            maxLength: 2,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z.]')),
+              LengthLimitingTextInputFormatter(2),
+            ],
+            validator: (v) {
+              if (v == null || v.isEmpty) return null;
+              if (!RegExp(r'^[a-zA-Z.]{1,2}$').hasMatch(v)) {
+                return 'Max 2 letters or "." only';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 12),
           AppTextField(
@@ -909,6 +992,7 @@ class _LenderAccountUpgradeSubmitScreenState
         AppTextField(
           label: 'Street Address *',
           controller: _streetCtrl,
+          focusNode: _streetFocusNode,
           maxLength: 100,
           validator: _required('Street address'),
         ),
@@ -916,6 +1000,7 @@ class _LenderAccountUpgradeSubmitScreenState
         AppTextField(
           label: 'Barangay *',
           controller: _barangayCtrl,
+          focusNode: _barangayFocusNode,
           maxLength: 100,
           validator: _required('Barangay'),
         ),
@@ -926,6 +1011,7 @@ class _LenderAccountUpgradeSubmitScreenState
               child: AppTextField(
                 label: 'City / Municipality *',
                 controller: _cityCtrl,
+                focusNode: _cityFocusNode,
                 maxLength: 100,
                 validator: _required('City / municipality'),
               ),
@@ -935,6 +1021,7 @@ class _LenderAccountUpgradeSubmitScreenState
               child: AppTextField(
                 label: 'Province *',
                 controller: _provinceCtrl,
+                focusNode: _provinceFocusNode,
                 maxLength: 100,
                 validator: _required('Province'),
               ),
@@ -945,6 +1032,7 @@ class _LenderAccountUpgradeSubmitScreenState
         AppTextField(
           label: 'ZIP Code *',
           controller: _zipCtrl,
+          focusNode: _zipFocusNode,
           keyboardType: TextInputType.number,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
@@ -972,14 +1060,10 @@ class _LenderAccountUpgradeSubmitScreenState
       'Emergency Contact',
       Icons.emergency_outlined,
       [
-        const Text(
-          'In case we need to reach someone related to you.',
-          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 12),
         AppTextField(
           label: 'Contact Name *',
           controller: _ecNameCtrl,
+          focusNode: _ecNameFocusNode,
           maxLength: 100,
           validator: _required('Contact name'),
         ),
@@ -995,6 +1079,7 @@ class _LenderAccountUpgradeSubmitScreenState
         AppTextField(
           label: 'Contact Phone Number *',
           controller: _ecPhoneCtrl,
+          focusNode: _ecPhoneFocusNode,
           keyboardType: TextInputType.phone,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
@@ -1036,30 +1121,26 @@ class _LenderAccountUpgradeSubmitScreenState
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
+          const Spacer(),
           if (_step > 0) ...[
-            Expanded(
-              child: AppButton(
-                label: 'Back',
-                variant: AppButtonVariant.outlined,
-                color: AppColors.lenderBlue,
-                onTap: _goBack,
-              ),
+            AppButton(
+              label: 'Back',
+              variant: AppButtonVariant.outlined,
+              color: AppColors.lenderBlue,
+              onTap: _goBack,
             ),
             const SizedBox(width: 12),
           ],
-          Expanded(
-            flex: 2,
-            child: AppButton(
-              label: isLast
-                  ? (_isSubmitting
-                      ? 'Submitting...'
-                      : 'Submit')
-                  : 'Next',
-              icon: isLast ? Icons.send : Icons.arrow_forward,
-              color: AppColors.lenderBlue,
-              isLoading: _isSubmitting,
-              onTap: canProceed ? (isLast ? _submit : _goNext) : null,
-            ),
+          AppButton(
+            label: isLast
+                ? (_isSubmitting
+                    ? 'Submitting...'
+                    : 'Submit')
+                : 'Next',
+            icon: isLast ? Icons.send : Icons.arrow_forward,
+            color: AppColors.lenderBlue,
+            isLoading: _isSubmitting,
+            onTap: canProceed ? (isLast ? _submit : _goNext) : null,
           ),
         ],
       ),
@@ -1532,6 +1613,7 @@ class _DocUploadCard extends StatelessWidget {
   final String label;
   final String hint;
   final IconData icon;
+  final String? assetPath;
   final PlatformFile? file;
   final VoidCallback onPick;
 
@@ -1539,6 +1621,7 @@ class _DocUploadCard extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.icon,
+    this.assetPath,
     this.file,
     required this.onPick,
   });
@@ -1546,6 +1629,7 @@ class _DocUploadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasFile = file != null;
+    final useAsset = assetPath != null;
     return InkWell(
       onTap: onPick,
       borderRadius: BorderRadius.circular(12),
@@ -1563,20 +1647,33 @@ class _DocUploadCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: hasFile
-                    ? AppColors.lenderBlue.withValues(alpha: 0.1)
-                    : AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(10),
+            if (useAsset)
+              // Asset icon without background — transparent, no container fill
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: Image.asset(
+                  assetPath!,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              )
+            else
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: hasFile
+                      ? AppColors.lenderBlue.withValues(alpha: 0.1)
+                      : AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon,
+                    color: hasFile
+                        ? AppColors.lenderBlue
+                        : AppColors.textTertiary,
+                    size: 22),
               ),
-              child: Icon(icon,
-                  color:
-                      hasFile ? AppColors.lenderBlue : AppColors.textTertiary,
-                  size: 22),
-            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1603,6 +1700,82 @@ class _DocUploadCard extends StatelessWidget {
             ),
             Icon(hasFile ? Icons.check_circle : Icons.upload_file_outlined,
                 color: hasFile ? AppColors.success : AppColors.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountUpgradeVerificationSkeleton extends StatelessWidget {
+  const _AccountUpgradeVerificationSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Shimmer.fromColors(
+        baseColor: AppColors.shimmerBase,
+        highlightColor: AppColors.shimmerHighlight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Step indicator skeleton (3 steps)
+            Row(
+              children: List.generate(3, (i) => Expanded(
+                child: Column(
+                  children: [
+                    Container(width: i == 0 ? 32 : 24, height: i == 0 ? 32 : 24, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+                    const SizedBox(height: 6),
+                    Container(width: 60, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                    if (i < 2) Container(margin: const EdgeInsets.only(top: 14), height: 2, color: Colors.white),
+                  ],
+                ),
+              )),
+            ),
+            const SizedBox(height: 20),
+            // Section card skeleton: Personal Information
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [Container(width: 34, height: 34, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(8))), const SizedBox(width: 10), Container(width: 140, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))]),
+                  const SizedBox(height: 16),
+                  const Divider(height: 1, color: AppColors.border),
+                  const SizedBox(height: 16),
+                  Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(height: 12),
+                  Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(height: 12),
+                  Row(children: [Expanded(child: Container(height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)))), const SizedBox(width: 10), Expanded(child: Container(height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))))]),
+                  const SizedBox(height: 12),
+                  Container(width: double.infinity, height: 56, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Second card skeleton: Financial Info preview
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                children: [
+                  Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(height: 12),
+                  Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+                  const SizedBox(height: 12),
+                  Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Button skeleton (Next) - no box, directly below form
+            Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
           ],
         ),
       ),

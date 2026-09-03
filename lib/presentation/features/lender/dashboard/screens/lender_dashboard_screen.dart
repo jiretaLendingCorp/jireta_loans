@@ -9,12 +9,12 @@ import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
-import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
@@ -142,7 +142,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
       accentColor: AppColors.lenderBlue,
       navItems: _riderNavItems,
       body: state.isLoading || showLoanLoader
-          ? const ShimmerLoader()
+          ? const _LenderDashboardSkeleton()
           : RefreshIndicator(
               onRefresh: () async {
                 await ref.read(lenderDashboardProvider.notifier).load();
@@ -1141,6 +1141,90 @@ class _FoxyRiveState extends State<_FoxyRive> {
             alignment: Alignment.bottomCenter,
           ),
       },
+    );
+  }
+}
+
+class _LenderDashboardSkeleton extends StatelessWidget {
+  const _LenderDashboardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Shimmer.fromColors(
+        baseColor: AppColors.shimmerBase,
+        highlightColor: AppColors.shimmerHighlight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Welcome / Balance card skeleton
+            Container(
+              width: double.infinity,
+              height: 176,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Foxy + bubble placeholder row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(width: 110, height: 32, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
+                const SizedBox(width: 8),
+                Container(width: 80, height: 80, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Apply Now / Pending card skeleton
+            Container(width: double.infinity, height: 56, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+            const SizedBox(height: 20),
+            // My Loans overview skeleton
+            Center(child: Container(width: 120, height: 12, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            const SizedBox(height: 10),
+            Center(child: Container(width: 180, height: 22, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            const SizedBox(height: 10),
+            Center(child: Container(width: 220, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            const SizedBox(height: 10),
+            Center(child: Container(width: 160, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            const SizedBox(height: 20),
+            // Active loan card skeleton (if any)
+            Container(width: double.infinity, height: 180, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
+            const SizedBox(height: 16),
+            // Loan history title skeleton
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(width: 140, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+                Container(width: 60, height: 12, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 3 loan history tiles skeleton
+            ...List.generate(3, (_) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                    child: Row(
+                      children: [
+                        Container(width: 44, height: 44, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(11))),
+                        const SizedBox(width: 12),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(height: 10, width: 100, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))), const SizedBox(height: 6), Container(height: 9, width: 80, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6)))])),
+                        const SizedBox(width: 12),
+                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Container(width: 70, height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(width: 54, height: 18, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(10)))]),
+                      ],
+                    ),
+                  ),
+                )),
+            // Tracking card skeleton
+            Container(width: double.infinity, height: 120, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+          ],
+        ),
+      ),
     );
   }
 }

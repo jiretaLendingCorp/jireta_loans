@@ -8,8 +8,9 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import 'package:shimmer/shimmer.dart';
+
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
-import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../../data/models/loan_model.dart';
@@ -664,7 +665,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       showBackButton: true,
       centerTitle: scaffoldTitle == 'Account Upgrade Status',
       body: (loanState.isLoading || accountUpgradeState.isLoading)
-          ? const ShimmerLoader()
+          ? const _LenderApplyLoanSkeleton()
           : _buildFlow(loanState, accountUpgradeState, fmt),
     );
   }
@@ -2288,6 +2289,70 @@ class _ChooseDisbursementViewState
                   : AppColors.textTertiary,
               size: 20,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LenderApplyLoanSkeleton extends StatelessWidget {
+  const _LenderApplyLoanSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Shimmer.fromColors(
+        baseColor: AppColors.shimmerBase,
+        highlightColor: AppColors.shimmerHighlight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Step indicator skeleton (4 dots)
+            Row(
+              children: List.generate(4, (i) => Expanded(
+                child: Column(
+                  children: [
+                    Container(width: 28, height: 28, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+                    const SizedBox(height: 6),
+                    Container(width: 48, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+                    if (i < 3) Container(margin: const EdgeInsets.only(top: 14), height: 2, color: Colors.white),
+                  ],
+                ),
+              )),
+            ),
+            const SizedBox(height: 24),
+            // Account upgrade gate skeleton (when direct to upgrade)
+            Container(width: 140, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            const SizedBox(height: 12),
+            Container(width: double.infinity, height: 56, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+            const SizedBox(height: 12),
+            Container(width: double.infinity, height: 56, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+            const SizedBox(height: 20),
+            // Loan amount skeleton
+            Container(width: 100, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            const SizedBox(height: 12),
+            Container(width: 120, height: 28, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            const SizedBox(height: 12),
+            Container(width: double.infinity, height: 8, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+            const SizedBox(height: 20),
+            // Frequency selector skeleton
+            Container(width: 120, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            const SizedBox(height: 10),
+            Row(children: List.generate(3, (_) => Expanded(child: Container(margin: const EdgeInsets.only(right: 8), height: 44, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)))))),
+            const SizedBox(height: 20),
+            // Purpose field skeleton
+            Container(width: 80, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            const SizedBox(height: 10),
+            Container(width: double.infinity, height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+            const SizedBox(height: 20),
+            // Preview card skeleton
+            Container(width: double.infinity, height: 160, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
+            const SizedBox(height: 20),
+            // Button skeleton
+            Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
           ],
         ),
       ),
