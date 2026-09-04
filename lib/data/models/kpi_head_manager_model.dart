@@ -23,6 +23,7 @@ class MonthlyKpiPoint {
 }
 
 class KpiHeadManagerModel {
+  final int totalHeadManagers;
   final int totalEmployees;
   final int totalRiders;
   final int totalLenders;
@@ -50,6 +51,7 @@ class KpiHeadManagerModel {
   final bool isMonthly;
 
   const KpiHeadManagerModel({
+    this.totalHeadManagers = 0,
     required this.totalEmployees,
     required this.totalRiders,
     required this.totalLenders,
@@ -95,6 +97,7 @@ class KpiHeadManagerModel {
       breakdown = rawBreakdown.map((k, v) => MapEntry(k, (v as num).toInt()));
     }
     return KpiHeadManagerModel(
+      totalHeadManagers: (json['total_head_managers'] as num?)?.toInt() ?? 0,
       totalEmployees: (json['total_employees'] as num?)?.toInt() ?? 0,
       totalRiders: (json['total_riders'] as num?)?.toInt() ?? 0,
       totalLenders: (json['total_lenders'] as num?)?.toInt() ?? 0,

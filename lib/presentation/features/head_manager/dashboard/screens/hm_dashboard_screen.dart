@@ -128,6 +128,14 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     ),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
+                      Icons.people_rounded,
+                      'User Statistics — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                      'New registrations in selected month',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildUserStatsGrid(dashState.kpi),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
                       Icons.account_balance_wallet_rounded,
                       'Financial Metrics — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
                       'Money movements within selected month',
@@ -142,14 +150,6 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     ),
                     const SizedBox(height: 14),
                     _buildLoanStatsGrid(dashState.kpi),
-                    const SizedBox(height: 28),
-                    _buildSectionTitle(
-                      Icons.people_rounded,
-                      'User Statistics — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
-                      'New registrations in selected month',
-                    ),
-                    const SizedBox(height: 14),
-                    _buildUserStatsGrid(dashState.kpi),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -267,6 +267,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
 
   Widget _buildUserStatsGrid(KpiHeadManagerModel kpi) {
     return _buildGridRow([
+      _KpiCard(label: 'Head Managers', value: kpi.totalHeadManagers.toDouble(), icon: Icons.admin_panel_settings_rounded, color: AppColors.goldDark, isCurrency: false),
       _KpiCard(label: 'Total Employees', value: kpi.totalEmployees.toDouble(), icon: Icons.people_rounded, color: AppColors.deepNavy, isCurrency: false),
       _KpiCard(label: 'Total Riders', value: kpi.totalRiders.toDouble(), icon: Icons.delivery_dining_rounded, color: AppColors.riderGreen, isCurrency: false),
       _KpiCard(label: 'Total Lenders', value: kpi.totalLenders.toDouble(), icon: Icons.person_rounded, color: AppColors.lenderBlue, isCurrency: false),

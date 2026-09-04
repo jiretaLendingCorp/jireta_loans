@@ -105,6 +105,7 @@ async function handleHeadManager(req: Request) {
   // For lifetime mode we use the base query untouched.
   const buildCounts = async () => {
     // Build each head query with optional date range. Users filtered on created_at in month (new this month).
+    const qHeadManager = (() => { let q: any = db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'head_manager').neq('account_status', 'archived'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
     const qEmp = (() => { let q: any = db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'employee').neq('account_status', 'archived'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
     const qRider = (() => { let q: any = db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'rider').neq('account_status', 'archived'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
     const qLender = (() => { let q: any = db.from('users').select('*, roles!users_role_id_fkey!inner(name)', { count: 'exact', head: true }).eq('roles.name', 'lender').neq('account_status', 'archived'); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })();
@@ -118,10 +119,11 @@ async function handleHeadManager(req: Request) {
     const qReports = (() => { let q: any = db.from('reports').select('*', { count: 'exact', head: true }); if (isMonthly) q = q.gte('created_at', isoStart!).lt('created_at', isoEnd!); return q; })(); // use created_at to avoid missing generated_at index
     const qPendingUpgrade = (() => { let q: any = db.from('lender_profiles').select('*', { count: 'exact', head: true }).eq('account_upgrade_status', 'submitted'); if (isMonthly) q = q.gte('updated_at', isoStart!).lt('updated_at', isoEnd!); return q; })();
     const qCollTx = (() => { let q: any = db.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'verified'); if (isMonthly) q = q.gte('paid_at', isoStart!).lt('paid_at', isoEnd!); return q; })();
-    return await Promise.all([qEmp, qRider, qLender, qApps, qApproved, qRejected, qActive, qCompleted, qOverdue, qCi, qReports, qPendingUpgrade, qCollTx]);
+    return await Promise.all([qHeadManager, qEmp, qRider, qLender, qApps, qApproved, qRejected, qActive, qCompleted, qOverdue, qCi, qReports, qPendingUpgrade, qCollTx]);
   };
 
   const [
+    { count: totalHeadManagers },
     { count: totalEmployees },
     { count: totalRiders },
     { count: totalLenders },
@@ -268,6 +270,7 @@ async function handleHeadManager(req: Request) {
     (loanStatusBreakdown['cancelled'] ?? 0);
 
   return jsonResponse({
+    total_head_managers: totalHeadManagers ?? 0,
     total_employees: totalEmployees ?? 0,
     total_riders: totalRiders ?? 0,
     total_lenders: totalLenders ?? 0,
