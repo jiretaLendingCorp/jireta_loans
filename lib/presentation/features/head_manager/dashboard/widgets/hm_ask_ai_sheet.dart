@@ -77,17 +77,29 @@ class AskAiFab extends ConsumerWidget {
 /// Opens the Ask AI modal anchored to the right side, floating above the
 /// Ask AI button (bottom-right of the dashboard).
 void showAskAiDialog(BuildContext context, {required String month}) {
-  showDialog<void>(
+  // showGeneralDialog (not showDialog + Positioned) so the modal gets
+  // full-screen coordinates — the old Stack/Positioned inside a centered
+  // dialog box was clipping the header = "overlap".
+  showGeneralDialog<void>(
     context: context,
     barrierColor: Colors.black38,
-    builder: (_) => Stack(
-      children: [
-        Positioned(
-          right: 24,
-          bottom: 100,
+    barrierDismissible: true,
+    barrierLabel: 'Ask AI',
+    pageBuilder: (_, __, ___) => SafeArea(
+      child: Align(
+        alignment: Alignment.bottomRight,
+        child: Padding(
+          // Bottom offset clears the floating "Ask AI" pill (40px) +
+          // breathing room; top/left padding guarantees no screen overlap.
+          padding: const EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 76,
+          ),
           child: _AskAiModal(month: month),
         ),
-      ],
+      ),
     ),
   );
 }
@@ -103,12 +115,26 @@ class _AskAiModal extends ConsumerStatefulWidget {
 class _AskAiModalState extends ConsumerState<_AskAiModal> {
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   bool _showSuggestions = true;
   bool _showRecent = false;
+  bool _isFocused = false;
+  bool _hasText = false;
 
   @override
   void initState() {
     super.initState();
+    _focusNode.addListener(() {
+      if (mounted && _isFocused != _focusNode.hasFocus) {
+        setState(() => _isFocused = _focusNode.hasFocus);
+      }
+    });
+    _input.addListener(() {
+      final hasText = _input.text.trim().isNotEmpty;
+      if (mounted && hasText != _hasText) {
+        setState(() => _hasText = hasText);
+      }
+    });
     // Make sure the locally-persisted Recent list is loaded up front.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -121,6 +147,7 @@ class _AskAiModalState extends ConsumerState<_AskAiModal> {
   void dispose() {
     _input.dispose();
     _scroll.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -171,12 +198,22 @@ class _AskAiModalState extends ConsumerState<_AskAiModal> {
 
     final screenW = MediaQuery.of(context).size.width;
     final screenH = MediaQuery.of(context).size.height;
-    final modalW = screenW < 520 ? screenW - 48 : 480.0;
-    final modalH = screenH < 640 ? screenH - 160 : 560.0;
+    // Width: full-bleed with margins on phones, fixed 480 on desktop.
+    final modalW = screenW < 520 ? double.infinity : 480.0;
+    // Height: never taller than the space left by the dialog padding
+    // (top 16 + bottom 76 + SafeArea) so the header never gets clipped.
+    final maxH = (screenH - 16 - 76 - MediaQuery.of(context).padding.top - 12)
+        .clamp(320.0, 560.0);
+    final modalH = screenH < 640 ? maxH : 560.0;
 
-    return SizedBox(
-      width: modalW,
-      height: modalH,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: modalW,
+        maxHeight: modalH,
+      ),
+      child: SizedBox(
+        width: modalW,
+        height: modalH,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Material(
@@ -198,6 +235,7 @@ class _AskAiModalState extends ConsumerState<_AskAiModal> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -359,13 +397,6 @@ class _AskAiModalState extends ConsumerState<_AskAiModal> {
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Ask a question, then tap "New Chat" to save it here '
-                'so you can come back to it.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11.5, color: AppColors.textTertiary),
               ),
             ],
           ),
@@ -576,67 +607,141 @@ class _AskAiModalState extends ConsumerState<_AskAiModal> {
     );
   }
 
-  // ── Input bar — ONE unified box (no nested/divided boxes) ───────────────
+  // ── Input bar — single unified box, ChatGPT-style ─────────────────────
+  // NOTE: AppTheme defines enabledBorder/focusedBorder globally, so every
+  // border slot MUST be InputBorder.none here — setting only `border` leaves
+  // the themed outline painting INSIDE our outer Container (double border).
   Widget _inputBar(HmAiChatState chat) {
-    final canSend = !chat.isBusy;
-    const boxHeight = 46.0;
-    return Padding(
+    final canSend = !chat.isBusy && _hasText;
+    final isBusy = chat.isBusy;
+
+    return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Container(
-              height: boxHeight,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.deepNavy, width: 1.4),
-              ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
+        ),
+      ),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        // Fixed compact height — sakto sa button, hindi na lumalaki.
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _isFocused
+              ? Colors.white
+              : AppColors.surfaceGray.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _isFocused ? AppColors.deepNavy : AppColors.border,
+            width: _isFocused ? 1.6 : 1,
+          ),
+          boxShadow: _isFocused
+              ? [
+                  BoxShadow(
+                    color: AppColors.deepNavy.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
               child: TextField(
                 controller: _input,
-                enabled: canSend,
+                focusNode: _focusNode,
+                enabled: !isBusy,
+                // Single-line lang para laging compact at centered.
+                minLines: 1,
+                maxLines: 1,
+                expands: false,
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.send,
                 textCapitalization: TextCapitalization.sentences,
+                // True vertical centering for single-line text.
                 textAlignVertical: TextAlignVertical.center,
-                onSubmitted: (v) => _send(v),
+                onSubmitted: (_) {
+                  if (!isBusy) _send(_input.text);
+                },
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13.5,
+                  height: 1.0,
                   color: AppColors.textPrimary,
                 ),
+                strutStyle: const StrutStyle(
+                  fontSize: 13.5,
+                  height: 1.0,
+                  forceStrutHeight: true,
+                ),
+                cursorColor: AppColors.deepNavy,
+                cursorWidth: 1.6,
                 decoration: const InputDecoration(
                   hintText: 'Ask about your lending data...',
-                  hintStyle:
-                      TextStyle(fontSize: 14, color: AppColors.textHint),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+                  hintStyle: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.0,
+                    color: AppColors.textHint,
+                  ),
+                  // Symmetric padding = text sits dead-center.
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  // Kill ALL themed outlines — outer Container owns the border.
                   border: InputBorder.none,
-                  isCollapsed: false,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  filled: false,
                   isDense: true,
+                  isCollapsed: true,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: boxHeight,
-            height: boxHeight,
-            child: Material(
-              color: AppColors.deepNavy,
-              borderRadius: BorderRadius.circular(10),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: canSend ? () => _send(_input.text) : null,
-                child: Center(
-                  child: Icon(
-                    Icons.arrow_upward_rounded,
-                    size: 20,
-                    color: canSend ? Colors.white : Colors.white38,
+            Padding(
+              padding: const EdgeInsets.only(right: 6, left: 4),
+              child: SizedBox(
+                width: 30,
+                height: 30,
+                child: Material(
+                  color: canSend
+                      ? AppColors.deepNavy
+                      : AppColors.borderDark.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(10),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: canSend ? () => _send(_input.text) : null,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Center(
+                      child: isBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              Icons.arrow_upward_rounded,
+                              size: 16,
+                              color:
+                                  canSend ? Colors.white : Colors.white70,
+                            ),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
