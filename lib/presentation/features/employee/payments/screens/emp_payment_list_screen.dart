@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -274,11 +275,9 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen>
 
   String _formatDate(dynamic d) {
     if (d == null) return '-';
-    try {
-      return DateFormat('MMM dd, yyyy').format(DateTime.parse(d.toString()));
-    } catch (_) {
-      return d.toString();
-    }
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';

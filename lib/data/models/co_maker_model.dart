@@ -1,4 +1,6 @@
 // lib/data/models/co_maker_model.dart
+import '../../core/utils/timezone.dart';
+
 class CoMakerModel {
   final String id;
   final String loanId;
@@ -33,12 +35,12 @@ class CoMakerModel {
       relationship: json['relationship'] ?? '',
       phone: json['phone_number'] ?? json['phone'],
       dateOfBirth: json['date_of_birth'] != null
-          ? DateTime.parse(json['date_of_birth'])
+          ? parseManila(json['date_of_birth'])
           : null,
       address: json['address'],
       signature: json['signature'],
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

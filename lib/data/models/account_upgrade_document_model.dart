@@ -1,4 +1,6 @@
 // lib/data/models/account_upgrade_document_model.dart
+import '../../core/utils/timezone.dart';
+
 class AccountUpgradeDocumentModel {
   final String id;
   final String lenderId;
@@ -38,10 +40,10 @@ class AccountUpgradeDocumentModel {
         rejectionNotes: json['rejection_notes'],
         reviewedBy: json['reviewed_by'],
         reviewedAt: json['reviewed_at'] != null
-            ? DateTime.parse(json['reviewed_at'])
+            ? parseManila(json['reviewed_at'])
             : null,
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
         lender: json['lender'] as Map<String, dynamic>?,
         documentCount: (json['document_count'] as num?)?.toInt() ?? 0,
@@ -100,7 +102,7 @@ class AccountUpgradeStatusModel {
   static DateTime? _parseDate(dynamic v) {
     if (v == null) return null;
     try {
-      return DateTime.parse(v.toString());
+      return parseManila(v);
     } catch (_) {
       return null;
     }

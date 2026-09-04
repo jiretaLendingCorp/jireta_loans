@@ -1,4 +1,9 @@
 // lib/data/models/tracked_rider_model.dart
+library;
+
+import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
+
 /// A rider the lender can currently track live on the home screen.
 ///
 /// Only exists for assignments the rider has ACCEPTED (or is actively
@@ -6,8 +11,7 @@
 /// the cash handover with the lender is done at that point), an
 /// accepted/in_progress credit-investigation, or an in-flight rider-delivery
 /// disbursement. Mirrors the payload of `location-manage?fn=list-tracked`.
-library;
-import '../../core/utils/helpers.dart';
+
 
 class TrackedRiderModel {
   final String riderId;
@@ -75,7 +79,7 @@ class TrackedRiderModel {
       accuracy: (json['accuracy'] as num?)?.toDouble(),
       speedKmh: parseSpeed(),
       locationUpdatedAt: json['location_updated_at'] != null
-          ? DateTime.tryParse(json['location_updated_at'])
+          ? parseManila(json['location_updated_at'])
           : json['updated_at'] != null
               ? DateTime.tryParse(json['updated_at'])
               : null,

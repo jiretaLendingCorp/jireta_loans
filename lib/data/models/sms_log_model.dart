@@ -1,4 +1,6 @@
 // lib/data/models/sms_log_model.dart
+import '../../core/utils/timezone.dart';
+
 class SmsLogModel {
   final String id;
   final String? userId;
@@ -29,7 +31,7 @@ class SmsLogModel {
         provider: json['provider'],
         messageId: json['message_id'],
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
       );
 }

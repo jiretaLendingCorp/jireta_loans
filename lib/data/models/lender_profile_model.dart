@@ -1,4 +1,6 @@
 // lib/data/models/lender_profile_model.dart
+import '../../core/utils/timezone.dart';
+
 class LenderProfileModel {
   final String id;
   final String userId;
@@ -46,7 +48,7 @@ class LenderProfileModel {
       gender: _resolveNullableCode(json, 'gender', 'gender_id', 'gender_types'),
       civilStatus: _resolveNullableCode(json, 'civil_status', 'civil_status_id', 'civil_statuses'),
       dateOfBirth: json['date_of_birth'] != null
-          ? DateTime.parse(json['date_of_birth'])
+          ? parseManila(json['date_of_birth'])
           : null,
       employmentType: _resolveNullableCode(json, 'employment_type', 'employment_type_id', 'employment_types'),
       employerName: json['employer_name'],
@@ -54,7 +56,7 @@ class LenderProfileModel {
       gcashNumber: json['gcash_number'],
       accountUpgradeStatus: _resolveNullableCode(json, 'account_upgrade_status', 'account_upgrade_status_id', 'account_upgrade_statuses') ?? 'not_submitted',
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])

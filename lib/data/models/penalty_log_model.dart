@@ -1,5 +1,6 @@
 // lib/data/models/penalty_log_model.dart
 import '../../domain/entities/penalty_log_entity.dart';
+import '../../core/utils/timezone.dart';
 
 class PenaltyLogModel extends PenaltyLogEntity {
   const PenaltyLogModel({
@@ -31,7 +32,7 @@ class PenaltyLogModel extends PenaltyLogEntity {
             ? '${json['applier']['first_name']} ${json['applier']['last_name']}'
             : null,
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
       );
 }

@@ -1,4 +1,6 @@
 // lib/data/models/employee_profile_model.dart
+import '../../core/utils/timezone.dart';
+
 class EmployeeProfileModel {
   final String id;
   final String userId;
@@ -29,14 +31,14 @@ class EmployeeProfileModel {
       department: json['department'],
       position: json['position'],
       hiredAt:
-          json['hired_at'] != null ? DateTime.parse(json['hired_at']) : null,
+          json['hired_at'] != null ? parseManila(json['hired_at']) : null,
       gender: json['gender'],
       civilStatus: json['civil_status'],
       dateOfBirth: json['date_of_birth'] != null
-          ? DateTime.parse(json['date_of_birth'])
+          ? parseManila(json['date_of_birth'])
           : null,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

@@ -1,4 +1,6 @@
 // lib/data/models/auth_log_model.dart
+import '../../core/utils/timezone.dart';
+
 class AuthLogModel {
   final String id;
   final String? userId;
@@ -27,7 +29,7 @@ class AuthLogModel {
       userAgent: json['user_agent'],
       metadata: json['metadata'] as Map<String, dynamic>?,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

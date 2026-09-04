@@ -1,4 +1,6 @@
 // lib/data/models/collection_assignment_model.dart
+import '../../core/utils/timezone.dart';
+
 class CollectionAssignmentModel {
   final String id;
   final String loanScheduleId;
@@ -72,13 +74,13 @@ class CollectionAssignmentModel {
         requestedAmount: (json['requested_amount'] as num?)?.toDouble(),
         notes: json['notes'],
         collectionSchedule: json['collection_schedule'] != null
-            ? DateTime.parse(json['collection_schedule'])
+            ? parseManila(json['collection_schedule'])
             : null,
         responseAt: json['response_at'] != null
-            ? DateTime.parse(json['response_at'])
+            ? parseManila(json['response_at'])
             : null,
         completedAt: json['completed_at'] != null
-            ? DateTime.parse(json['completed_at'])
+            ? parseManila(json['completed_at'])
             : null,
         proofPhoto: json['proof_photo'],
         borrowerSignature: json['borrower_signature'],
@@ -87,7 +89,7 @@ class CollectionAssignmentModel {
         locationLng: (json['location_lng'] as num?)?.toDouble(),
         idempotencyKey: json['idempotency_key'],
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
         loanSchedule: json['loan_schedule'] as Map<String, dynamic>?,
         rider: json['rider'] as Map<String, dynamic>?,

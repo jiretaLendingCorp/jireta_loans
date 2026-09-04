@@ -1,6 +1,7 @@
 // lib/data/models/user_model.dart
 import '../../domain/entities/user_entity.dart';
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 
 class UserModel extends UserEntity {
   final String? department;
@@ -97,7 +98,7 @@ class UserModel extends UserEntity {
           ? DateTime.parse(json['last_login_at'])
           : null,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
       department: json['department'],
       position: json['position'],
@@ -116,7 +117,7 @@ class UserModel extends UserEntity {
       gcashNumber: json['gcash_number'],
       accountUpgradeStatus: _resolveNullableCode(json, 'account_upgrade_status', 'account_upgrade_status_id', 'account_upgrade_statuses'),
       dateOfBirth: json['date_of_birth'] != null
-          ? DateTime.tryParse(json['date_of_birth'])
+          ? parseManila(json['date_of_birth'])
           : null,
       sourceOfFunds: json['source_of_funds'],
       streetAddress: json['street_address'],

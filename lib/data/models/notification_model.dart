@@ -1,5 +1,6 @@
 // lib/data/models/notification_model.dart
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 class NotificationModel {
   final String id;
   final String userId;
@@ -31,7 +32,7 @@ class NotificationModel {
         referenceId: json['reference_id'],
         isRead: parseBool(json['is_read'], fallback: false),
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
       );
 

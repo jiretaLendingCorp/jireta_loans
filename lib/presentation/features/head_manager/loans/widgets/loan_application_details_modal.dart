@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/utils/timezone.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
@@ -758,11 +759,9 @@ class _LoanApplicationDetailsModalState
   // Helpers
   String _formatDate(dynamic d) {
     if (d == null) return '-';
-    try {
-      return DateFormat('MMM dd, yyyy').format(DateTime.parse(d.toString()));
-    } catch (_) {
-      return d.toString();
-    }
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty

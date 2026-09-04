@@ -1,5 +1,6 @@
 // lib/data/models/report_model.dart
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 class ReportTemplateModel {
   final String id;
   final String key;
@@ -62,7 +63,7 @@ class GeneratedReportModel {
         generatedBy: json['generated_by'],
         parameters: json['parameters'] as Map<String, dynamic>?,
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
       );
 }

@@ -1,4 +1,6 @@
 // lib/data/models/disbursement_model.dart
+import '../../core/utils/timezone.dart';
+
 class DisbursementModel {
   final String id;
   final String loanId;
@@ -64,14 +66,14 @@ class DisbursementModel {
         riderId: json['rider_id'],
         disbursedBy: json['disbursed_by'],
         disbursedAt: json['disbursed_at'] != null
-            ? DateTime.parse(json['disbursed_at'])
+            ? parseManila(json['disbursed_at'])
             : null,
         deliveryDate: json['delivery_date'] != null
-            ? DateTime.parse(json['delivery_date'])
+            ? parseManila(json['delivery_date'])
             : null,
         notes: json['notes'],
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
         loan: json['loan'] as Map<String, dynamic>?,
         rider: json['rider'] as Map<String, dynamic>?,

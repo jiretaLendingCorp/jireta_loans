@@ -1,6 +1,7 @@
 // lib/data/models/loan_model.dart
 import '../../domain/entities/loan_entity.dart';
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 
 class LoanModel extends LoanEntity {
   final Map<String, dynamic>? lenderProfile;
@@ -81,10 +82,10 @@ class LoanModel extends LoanEntity {
       termDays: (json['term_days'] as num?)?.toInt() ?? 0,
       termPeriods: (json['term_periods'] as num?)?.toInt() ?? 0,
       releaseDate: json['release_date'] != null
-          ? DateTime.parse(json['release_date'])
+          ? parseManila(json['release_date'])
           : null,
       dueDate:
-          json['due_date'] != null ? DateTime.parse(json['due_date']) : null,
+          json['due_date'] != null ? parseManila(json['due_date']) : null,
       status: _resolveCode(json, 'status', 'status_id', 'loan_statuses').isNotEmpty
           ? _resolveCode(json, 'status', 'status_id', 'loan_statuses')
           : 'pending',
@@ -92,10 +93,10 @@ class LoanModel extends LoanEntity {
       penaltyApplied: parseBool(json['penalty_applied'], fallback: false),
       disbursementMethod: json['disbursement_method'],
       disbursedAt: json['disbursed_at'] != null
-          ? DateTime.parse(json['disbursed_at'])
+          ? parseManila(json['disbursed_at'])
           : null,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])

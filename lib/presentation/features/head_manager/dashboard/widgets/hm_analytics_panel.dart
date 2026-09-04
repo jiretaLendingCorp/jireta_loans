@@ -226,73 +226,61 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                   const SizedBox(width: 8),
                   Expanded(
                     flex: isNarrow ? 5 : 4,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: List.generate(segs.length, (i) {
-                          final s = segs[i];
-                          final pct =
-                              total == 0 ? 0 : s.count / total * 100;
-                          return Container(
-                            margin: EdgeInsets.symmetric(
-                                vertical: compactLegend ? 1.5 : 2.5),
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: compactLegend ? 4 : 5),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.zero,
-                              border: Border.all(
-                                color: AppColors.border.withValues(alpha: 0.6),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: List.generate(segs.length, (i) {
+                        final s = segs[i];
+                        final pct =
+                            total == 0 ? 0 : s.count / total * 100;
+                        return Padding(
+                          padding: EdgeInsets.symmetric(
+                              vertical: compactLegend ? 3 : 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: compactLegend ? 20 : 22,
+                                height: compactLegend ? 20 : 22,
+                                decoration: BoxDecoration(
+                                  color: s.color,
+                                  borderRadius: BorderRadius.zero,
+                                ),
+                                child: Icon(s.icon,
+                                    size: compactLegend ? 10 : 11,
+                                    color: Colors.white),
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: compactLegend ? 20 : 22,
-                                  height: compactLegend ? 20 : 22,
-                                  decoration: BoxDecoration(
-                                    color: s.color,
-                                    borderRadius: BorderRadius.zero,
-                                  ),
-                                  child: Icon(s.icon,
-                                      size: compactLegend ? 10 : 11,
-                                      color: Colors.white),
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        s.label,
-                                        style: TextStyle(
-                                          fontSize:
-                                              compactLegend ? 10.5 : 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.textPrimary,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      s.label,
+                                      style: TextStyle(
+                                        fontSize:
+                                            compactLegend ? 10.5 : 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textPrimary,
                                       ),
-                                      Text(
-                                        '${s.count} · ${pct.toStringAsFixed(0)}%',
-                                        style: const TextStyle(
-                                            fontSize: 9.5,
-                                            color:
-                                                AppColors.textTertiary),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      '${s.count} · ${pct.toStringAsFixed(0)}%',
+                                      style: const TextStyle(
+                                          fontSize: 9.5,
+                                          color:
+                                              AppColors.textTertiary),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                     ),
                   ),
                 ],

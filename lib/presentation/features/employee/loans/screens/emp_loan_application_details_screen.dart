@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/utils/timezone.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/di/injection.dart';
@@ -634,11 +635,9 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   // ───────────────────────── Helpers ─────────────────────────
   String _formatDate(dynamic d) {
     if (d == null) return '-';
-    try {
-      return DateFormat('MMM dd, yyyy').format(DateTime.parse(d.toString()));
-    } catch (_) {
-      return d.toString();
-    }
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty

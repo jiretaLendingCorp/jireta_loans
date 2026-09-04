@@ -1,4 +1,6 @@
 // lib/data/models/emergency_contact_model.dart
+import '../../core/utils/timezone.dart';
+
 class EmergencyContactModel {
   final String id;
   final String userId;
@@ -27,7 +29,7 @@ class EmergencyContactModel {
       phone: json['phone'] ?? '',
       address: json['address'],
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

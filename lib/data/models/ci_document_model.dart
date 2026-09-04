@@ -1,5 +1,6 @@
 // lib/data/models/ci_document_model.dart
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 class CiDocumentModel {
   final String id;
   final String ciId;
@@ -37,7 +38,7 @@ class CiDocumentModel {
       longitude: (json['longitude'] as num?)?.toDouble(),
       gpsSpoof: parseBool(json['gps_spoof'], fallback: false),
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

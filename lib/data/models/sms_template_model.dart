@@ -1,5 +1,6 @@
 // lib/data/models/sms_template_model.dart
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 class SmsTemplateModel {
   final String id;
   final String key;
@@ -30,7 +31,7 @@ class SmsTemplateModel {
       variables: (json['variables'] as List?)?.cast<String>() ?? [],
       isActive: parseBool(json['is_active'], fallback: true),
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
       updatedAt: json['updated_at'] != null
           ? DateTime.parse(json['updated_at'])

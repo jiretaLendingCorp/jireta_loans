@@ -1,4 +1,6 @@
 // lib/data/models/audit_log_model.dart
+import '../../core/utils/timezone.dart';
+
 class AuditLogModel {
   final String id;
   final String action;
@@ -34,7 +36,7 @@ class AuditLogModel {
         newValues: json['new_values'] as Map<String, dynamic>?,
         ipAddress: json['ip_address'],
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
         performedByUser: json['performed_by_user'] as Map<String, dynamic>?,
       );

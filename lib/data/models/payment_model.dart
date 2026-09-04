@@ -1,4 +1,6 @@
 // lib/data/models/payment_model.dart
+import '../../core/utils/timezone.dart';
+
 class PaymentModel {
   final String id;
   final String loanId;
@@ -67,7 +69,7 @@ class PaymentModel {
         idempotencyKey: json['idempotency_key'],
         receiptUrl: json['receipt_url'],
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
         loan: json['loan'] as Map<String, dynamic>?,
         recordedByUser: json['recorded_by_user'] as Map<String, dynamic>?,

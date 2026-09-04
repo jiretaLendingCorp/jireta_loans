@@ -1,4 +1,6 @@
 // lib/data/models/xendit_log_model.dart
+import '../../core/utils/timezone.dart';
+
 class XenditLogModel {
   final String id;
   final String? loanId;
@@ -39,7 +41,7 @@ class XenditLogModel {
       requestPayload: json['request_payload'] as Map<String, dynamic>?,
       responsePayload: json['response_payload'] as Map<String, dynamic>?,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

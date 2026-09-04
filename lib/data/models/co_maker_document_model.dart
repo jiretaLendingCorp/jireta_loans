@@ -1,4 +1,6 @@
 // lib/data/models/co_maker_document_model.dart
+import '../../core/utils/timezone.dart';
+
 class CoMakerDocumentModel {
   final String id;
   final String coMakerId;
@@ -24,7 +26,7 @@ class CoMakerDocumentModel {
       fileUrl: json['file_url'] ?? '',
       status: json['status'] ?? 'pending',
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

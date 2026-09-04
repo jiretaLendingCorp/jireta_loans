@@ -1,5 +1,6 @@
 // lib/data/models/rider_profile_model.dart
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 class RiderProfileModel {
   final String id;
   final String userId;
@@ -48,7 +49,7 @@ class RiderProfileModel {
       plateNumber: json['plate_number'],
       driversLicenseNumber: json['drivers_license_number'],
       driversLicenseExpiry: json['drivers_license_expiry'] != null
-          ? DateTime.parse(json['drivers_license_expiry'])
+          ? parseManila(json['drivers_license_expiry'])
           : null,
       vehicleBrand: json['vehicle_brand'],
       isAvailable: parseBool(json['is_available'], fallback: true),
@@ -58,7 +59,7 @@ class RiderProfileModel {
       totalCompletedCollections:
           (json['total_completed_collections'] as num?)?.toInt() ?? 0,
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }

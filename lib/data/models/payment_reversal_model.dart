@@ -1,4 +1,6 @@
 // lib/data/models/payment_reversal_model.dart
+import '../../core/utils/timezone.dart';
+
 class PaymentReversalModel {
   final String id;
   final String paymentId;
@@ -26,7 +28,7 @@ class PaymentReversalModel {
             : null,
         reason: json['reason'] ?? '',
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
       );
 }

@@ -24,100 +24,190 @@ class ActivityEvent {
   });
 }
 
+/// Maps a raw audit log entry into a feed event.
+ActivityEvent _mapAuditLog(Map<String, dynamic> log) {
+  final action = log['action'] as String? ?? '';
+  final user = log['performed_by_user'];
+  final name = user is Map<String, dynamic>
+      ? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim()
+      : '';
+  final performer = name.isEmpty
+      ? (log['performed_by'] == null ? 'System' : 'Staff')
+      : name;
+  final table = (log['table_name'] as String? ?? '').replaceAll('_', ' ');
+  final label = AuditActionCatalog.label(action);
+  return ActivityEvent(
+    title: label.isEmpty ? 'Action' : label,
+    subtitle: performer + (table.isEmpty ? '' : ' • $table'),
+    timestamp: DateTime.tryParse(log['created_at']?.toString() ?? '') ??
+        DateTime.now(),
+    type: action,
+  );
+}
+
 /// Latest audit entries mapped into feed events for the dashboard.
 final hmRecentActivityProvider =
     FutureProvider<List<ActivityEvent>>((ref) async {
   final res = await sl<AuditRemoteDataSource>().getLogs(limit: 10);
   final items = (res['data'] as List?) ?? [];
-  return items.map((raw) {
-    final log = raw as Map<String, dynamic>;
-    final action = log['action'] as String? ?? '';
-    final user = log['performed_by_user'];
-    final name = user is Map<String, dynamic>
-        ? '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim()
-        : '';
-    final performer = name.isEmpty
-        ? (log['performed_by'] == null ? 'System' : 'Staff')
-        : name;
-    final table = (log['table_name'] as String? ?? '').replaceAll('_', ' ');
-    final label = AuditActionCatalog.label(action);
-    return ActivityEvent(
-      title: label.isEmpty ? 'Action' : label,
-      subtitle: performer + (table.isEmpty ? '' : ' • $table'),
-      timestamp:
-          DateTime.tryParse(log['created_at']?.toString() ?? '') ??
-              DateTime.now(),
-      type: action,
-    );
-  }).toList();
+  return items.map((raw) => _mapAuditLog(raw as Map<String, dynamic>)).toList();
 });
 
-class HmActivityFeed extends StatelessWidget {
+/// All audit entries (paginated through) for the "View All" modal.
+final hmAllActivityProvider =
+    FutureProvider<List<ActivityEvent>>((ref) async {
+  final ds = sl<AuditRemoteDataSource>();
+  final List<ActivityEvent> all = [];
+  final first = await ds.getLogs(page: 1, limit: 100);
+  final meta = (first['meta'] as Map<String, dynamic>?) ?? {};
+  final totalPages = (meta['total_pages'] as num?)?.toInt() ?? 1;
+  all.addAll((first['data'] as List? ?? [])
+      .map((raw) => _mapAuditLog(raw as Map<String, dynamic>)));
+  for (var page = 2; page <= totalPages; page++) {
+    final res = await ds.getLogs(page: page, limit: 100);
+    all.addAll((res['data'] as List? ?? [])
+        .map((raw) => _mapAuditLog(raw as Map<String, dynamic>)));
+  }
+  return all;
+});
+
+class HmActivityFeed extends ConsumerWidget {
   final List<ActivityEvent> events;
   final bool isLoading;
 
   const HmActivityFeed(
       {super.key, required this.events, this.isLoading = false});
 
-  IconData _iconForType(String type) {
-    final t = type.toLowerCase();
-    if (t.contains('approve')) return Icons.check_circle_outline;
-    if (t.contains('reject') ||
-        t.contains('decline') ||
-        t.contains('cancel')) {
-      return Icons.cancel_outlined;
-    }
-    if (t.contains('disburse')) return Icons.send_outlined;
-    if (t.contains('payment') ||
-        t.contains('collect') ||
-        t.contains('xendit')) {
-      return Icons.payments_outlined;
-    }
-    if (t.contains('penalty')) return Icons.gavel_rounded;
-    if (t.contains('create') || t.contains('registered')) {
-      return Icons.person_add_outlined;
-    }
-    if (t.contains('ci_')) return Icons.search_rounded;
-    if (t.contains('upgrade')) return Icons.verified_user_outlined;
-    if (t.contains('password')) return Icons.lock_reset_rounded;
-    if (t.contains('archive')) return Icons.person_off_outlined;
-    if (t.contains('report') || t.contains('export')) {
-      return Icons.assessment_outlined;
-    }
-    return Icons.info_outline;
-  }
-
-  Color _colorForType(String type) {
-    final t = type.toLowerCase();
-    if (t.contains('approve')) return AppColors.success;
-    if (t.contains('reject') ||
-        t.contains('decline') ||
-        t.contains('cancel') ||
-        t.contains('archive')) {
-      return AppColors.error;
-    }
-    if (t.contains('penalty')) return AppColors.warning;
-    if (t.contains('payment') ||
-        t.contains('collect') ||
-        t.contains('xendit')) {
-      return AppColors.riderGreen;
-    }
-    if (t.contains('disburse')) return AppColors.goldDark;
-    if (t.contains('create') ||
-        t.contains('registered') ||
-        t.contains('upgrade') ||
-        t.contains('ci_')) {
-      return AppColors.lenderBlue;
-    }
-    if (t.contains('password') || t.contains('reset')) return AppColors.info;
-    if (t.contains('report') || t.contains('export')) {
-      return AppColors.deepNavy;
-    }
-    return AppColors.deepNavy;
+  void _openViewAll(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final allAsync = ref.watch(hmAllActivityProvider);
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640, maxHeight: 560),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C6370),
+                    border: Border(bottom: BorderSide(color: AppColors.divider)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.timeline_rounded,
+                          size: 14, color: Colors.white),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('All Activity',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white)),
+                            Text('Complete audit trail across the system',
+                                style: TextStyle(
+                                    fontSize: 10, color: Colors.white70)),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.close_rounded,
+                            size: 18, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: allAsync.when(
+                    loading: () => const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                    error: (e, _) => Center(
+                        child: Text('Failed to load activity: $e',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.error))),
+                    data: (all) => all.isEmpty
+                        ? const Center(
+                            child: Text('No activity recorded',
+                                style: TextStyle(
+                                    color: AppColors.textTertiary,
+                                    fontSize: 12)),
+                          )
+                        : ListView.separated(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 4),
+                            itemCount: all.length,
+                            separatorBuilder: (_, __) => const Divider(
+                                height: 1, color: Color(0xFFF0F0F0)),
+                            itemBuilder: (_, i) {
+                              final e = all[i];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 8),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            e.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.textPrimary),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            e.subtitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontSize: 11,
+                                                color: AppColors.textSecondary),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      e.timestamp.timeAgo,
+                                      style: const TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.textTertiary),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -162,17 +252,23 @@ class HmActivityFeed extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                        color: Color(0xFFA5D6A7), shape: BoxShape.circle)),
-                const SizedBox(width: 4),
-                const Text('Live',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFA5D6A7))),
+                TextButton.icon(
+                  onPressed: () => _openViewAll(context, ref),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.arrow_forward_rounded,
+                      size: 13, color: Colors.white),
+                  label: const Text('View All',
+                      style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                ),
               ],
             ),
           ),
@@ -192,40 +288,46 @@ class HmActivityFeed extends StatelessWidget {
                             const Divider(height: 1, color: Color(0xFFF0F0F0)),
                         itemBuilder: (_, i) {
                           final e = events[i];
-                          final color = _colorForType(e.type);
-                          return ListTile(
-                            dense: true,
-                            visualDensity: VisualDensity.compact,
-                            leading: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.zero,
-                              ),
-                              child: Icon(e.icon ?? _iconForType(e.type),
-                                  size: 16, color: color),
-                            ),
-                            title: Text(
-                              e.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary),
-                            ),
-                            subtitle: Text(
-                              e.subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.textSecondary),
-                            ),
-                            trailing: Text(
-                              e.timestamp.timeAgo,
-                              style: const TextStyle(
-                                  fontSize: 10, color: AppColors.textTertiary),
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        e.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textPrimary),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        e.subtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppColors.textSecondary),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  e.timestamp.timeAgo,
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.textTertiary),
+                                ),
+                              ],
                             ),
                           );
                         },

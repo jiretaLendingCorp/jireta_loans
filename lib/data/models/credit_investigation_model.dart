@@ -1,4 +1,6 @@
 // lib/data/models/credit_investigation_model.dart
+import '../../core/utils/timezone.dart';
+
 class CreditInvestigationModel {
   final String id;
   final String loanId;
@@ -54,15 +56,15 @@ class CreditInvestigationModel {
         investigationNotes: json['investigation_notes'],
         reportSummary: json['report_summary'],
         deadline:
-            json['deadline'] != null ? DateTime.parse(json['deadline']) : null,
+            json['deadline'] != null ? parseManila(json['deadline']) : null,
         responseAt: json['response_at'] != null
-            ? DateTime.parse(json['response_at'])
+            ? parseManila(json['response_at'])
             : null,
         completedAt: json['completed_at'] != null
-            ? DateTime.parse(json['completed_at'])
+            ? parseManila(json['completed_at'])
             : null,
         reviewedAt: json['reviewed_at'] != null
-            ? DateTime.parse(json['reviewed_at'])
+            ? parseManila(json['reviewed_at'])
             : null,
         reviewedBy: json['reviewed_by'] as String?,
         reviewNotes: json['review_notes'] as String?,
@@ -70,7 +72,7 @@ class CreditInvestigationModel {
         reviewer: json['reviewer'] as Map<String, dynamic>? ??
             json['reviewer_user'] as Map<String, dynamic>?,
         createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
+            ? parseManila(json['created_at'])!
             : DateTime.now(),
         loan: json['loan'] as Map<String, dynamic>? ??
             (json['loans'] is Map

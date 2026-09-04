@@ -31,3 +31,21 @@ DateTime ensureManila(DateTime dt) {
   }
   return dt;
 }
+
+/// Parses a backend timestamp/date string into Asia/Manila wall time.
+///
+/// Values that carry a UTC/offset marker (real UTC from `DEFAULT NOW()` or
+/// any ISO-8601 offset) represent an instant, so they are shifted +8h to
+/// Manila. Pure dates ("2026-09-04") and already-local strings carry no
+/// timezone marker and are returned unchanged.
+///
+/// NOTE: columns written via the `now_manila()` DB helper (e.g. `updated_at`
+/// via `set_updated_at()`, `last_login_at`) store Manila wall time *as UTC*,
+/// so they must NOT go through this helper — pass them through
+/// `DateTime.tryParse` instead.
+DateTime? parseManila(dynamic value) {
+  if (value == null) return null;
+  final dt = DateTime.tryParse(value.toString());
+  if (dt == null) return null;
+  return dt.isUtc ? dt.add(const Duration(hours: _manilaOffsetHours)) : dt;
+}

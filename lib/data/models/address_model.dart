@@ -1,5 +1,6 @@
 // lib/data/models/address_model.dart
 import '../../core/utils/helpers.dart';
+import '../../core/utils/timezone.dart';
 class AddressModel {
   final String id;
   final String userId;
@@ -43,7 +44,7 @@ class AddressModel {
       longitude: (json['longitude'] as num?)?.toDouble(),
       isPrimary: parseBool(json['is_primary'], fallback: false),
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+          ? parseManila(json['created_at'])!
           : DateTime.now(),
     );
   }
