@@ -1,15 +1,14 @@
 // lib/presentation/features/employee/loans/screens/emp_loan_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../head_manager/loans/providers/hm_loan_provider.dart';
 import '../providers/emp_active_loan_provider.dart';
+import '../widgets/emp_loan_details_modal.dart';
 
 class EmpLoanListScreen extends ConsumerStatefulWidget {
   const EmpLoanListScreen({super.key});
@@ -153,8 +152,7 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
     final color = _statusColor(loan.displayStatus);
     return InkWell(
       key: ValueKey(loan.id),
-      onTap: () =>
-          context.go(RouteConstants.empLoanDetails.replaceFirst(':id', loan.id)),
+      onTap: () => showEmpLoanDetailsModal(context, loan.id),
       child: Container(
         color: isEven
             ? Colors.white
@@ -222,8 +220,7 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
                 flex: 1,
                 child: _ActionCell(
                     loan: loan,
-                    onTap: () => context.go(RouteConstants.empLoanDetails
-                        .replaceFirst(':id', loan.id)))),
+                    onTap: () => showEmpLoanDetailsModal(context, loan.id))),
           ],
         ),
       ),

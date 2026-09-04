@@ -11,6 +11,7 @@ import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/hm_dashboard_provider.dart';
+import '../widgets/hm_activity_feed.dart';
 import '../widgets/hm_analytics_panel.dart';
 
 class HmDashboardScreen extends ConsumerStatefulWidget {
@@ -24,6 +25,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final dashState = ref.watch(hmDashboardProvider);
+    final activityAsync = ref.watch(hmRecentActivityProvider);
     final notifier = ref.read(hmDashboardProvider.notifier);
 
     return WebScaffold(
@@ -32,7 +34,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
         // Month picker — monthly dashboard (head_manager role only)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.zero, border: Border.all(color: AppColors.border)),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: dashState.selectedMonth,
@@ -52,11 +54,14 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.zero,
             border: Border.all(color: AppColors.border),
           ),
           child: IconButton(
-            onPressed: () => notifier.refresh(),
+            onPressed: () {
+              notifier.refresh();
+              ref.invalidate(hmRecentActivityProvider);
+            },
             icon: dashState.isLoading
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh_rounded, color: AppColors.textSecondary, size: 20),
@@ -74,16 +79,53 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Single portfolio donut — monthly filtered
-                    _Entrance(child: HmAnalyticsPanel(kpi: dashState.kpi)),
-                    const SizedBox(height: 28),
-                    _buildSectionTitle(
-                      Icons.people_rounded,
-                      'User Statistics — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
-                      'New registrations in selected month',
+                    // Donut + User Statistics side-by-side para hindi mahaba
+                    LayoutBuilder(
+                      builder: (context, c) {
+                        if (c.maxWidth >= 880) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 5,
+                                child: _Entrance(
+                                    child:
+                                        HmAnalyticsPanel(kpi: dashState.kpi)),
+                              ),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                flex: 4,
+                                child: SizedBox(
+                                  height: 270,
+                                  child: HmActivityFeed(
+                                    events:
+                                        activityAsync.valueOrNull ?? const [],
+                                    isLoading: activityAsync.isLoading,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _Entrance(
+                                child:
+                                    HmAnalyticsPanel(kpi: dashState.kpi)),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              height: 320,
+                              child: HmActivityFeed(
+                                events:
+                                    activityAsync.valueOrNull ?? const [],
+                                isLoading: activityAsync.isLoading,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                    const SizedBox(height: 14),
-                    _buildUserStatsGrid(dashState.kpi),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.account_balance_wallet_rounded,
@@ -100,6 +142,14 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     ),
                     const SizedBox(height: 14),
                     _buildLoanStatsGrid(dashState.kpi),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.people_rounded,
+                      'User Statistics — ${HmDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                      'New registrations in selected month',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildUserStatsGrid(dashState.kpi),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -173,7 +223,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.zero,
             boxShadow: [
               BoxShadow(
                 color: AppColors.gold.withValues(alpha: 0.32),
@@ -318,10 +368,9 @@ class _KpiCardBodyState extends State<_KpiCardBody> {
       onExit: (_) => setState(() => _hover = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.zero,
           border: Border.all(color: _hover ? color.withValues(alpha: 0.32) : AppColors.border),
           boxShadow: _hover
               ? [BoxShadow(color: color.withValues(alpha: 0.14), blurRadius: 16, offset: const Offset(0, 6))]
@@ -330,45 +379,69 @@ class _KpiCardBodyState extends State<_KpiCardBody> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.65)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [BoxShadow(color: color.withValues(alpha: 0.28), blurRadius: 8, offset: const Offset(0, 3))],
+            // Grey header strip (gaya ng loan details cards)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: const BoxDecoration(
+                color: Color(0xFF5C6370),
+                border: Border(bottom: BorderSide(color: AppColors.divider)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.zero,
+                    ),
+                    child: Icon(widget.icon, size: 14, color: Colors.white),
                   ),
-                  child: Icon(widget.icon, size: 19, color: Colors.white),
-                ),
-                const Spacer(),
-                Container(width: 8, height: 8, decoration: BoxDecoration(color: color.withValues(alpha: 0.55), shape: BoxShape.circle)),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Container(
+                      width: 8,
+                      height: 8,
+                      decoration:
+                          BoxDecoration(color: color, shape: BoxShape.circle)),
+                ],
+              ),
             ),
-            const SizedBox(height: 14),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: widget.isCurrency
-                  ? CountUpAnimation(value: widget.value, prefix: '₱', decimalPlaces: 2, style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.4))
-                  : CountUpAnimation(value: widget.value, style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.4)),
-            ),
-            const SizedBox(height: 6),
-            Text(widget.label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 10),
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 800),
-              curve: Curves.easeOutCubic,
-              builder: (context, t, _) => Container(
-                height: 3,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), gradient: LinearGradient(colors: [color.withValues(alpha: 0.5), color.withValues(alpha: 0.15)])),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: t,
-                  child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), gradient: LinearGradient(colors: [color, color.withValues(alpha: 0.5)]))),
-                ),
+            // Body — value
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: widget.isCurrency
+                    ? CountUpAnimation(
+                        value: widget.value,
+                        prefix: '₱',
+                        decimalPlaces: 2,
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: color,
+                            letterSpacing: -0.4))
+                    : CountUpAnimation(
+                        value: widget.value,
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: color,
+                            letterSpacing: -0.4)),
               ),
             ),
           ],

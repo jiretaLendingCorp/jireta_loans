@@ -27,7 +27,7 @@ class HmAnalyticsPanel extends StatelessWidget {
       return '${mNames[m-1]} $y';
     })() : null;
     return SizedBox(
-      height: 320,
+      height: 270,
       child: _ChartCard(
         title: isMonthly && monthLabel != null ? 'Loan Portfolio — $monthLabel (Monthly)' : 'Loan Portfolio by Status',
         subtitle: isMonthly ? 'Loans created in $monthLabel only' : 'Distribution across all loan records',
@@ -54,10 +54,9 @@ class _ChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
         boxShadow: const [
           BoxShadow(
@@ -70,50 +69,51 @@ class _ChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.gold, AppColors.goldDark],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          // Grey header strip (gaya ng loan details cards)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF5C6370),
+              border: Border(bottom: BorderSide(color: AppColors.divider)),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 14, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white70,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, size: 16, color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textTertiary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          Expanded(child: child),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: child,
+            ),
+          ),
         ],
       ),
     );
@@ -204,11 +204,11 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                                 .clamp(0.5, double.infinity),
                             title:
                                 pct < 6 ? '' : '${pct.toStringAsFixed(0)}%',
-                            titleStyle: TextStyle(
+                            titleStyle: const TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
-                              shadows: const [
+                              shadows: [
                                 Shadow(
                                     color: Color(0x47000000),
                                     blurRadius: 4),
@@ -219,9 +219,8 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                           );
                         }),
                       ),
-                      swapAnimationDuration:
-                          const Duration(milliseconds: 420),
-                      swapAnimationCurve: Curves.easeOutCubic,
+                      duration: const Duration(milliseconds: 420),
+                      curve: Curves.easeOutCubic,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -243,7 +242,7 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                                 vertical: compactLegend ? 4 : 5),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(7),
+                              borderRadius: BorderRadius.zero,
                               border: Border.all(
                                 color: AppColors.border.withValues(alpha: 0.6),
                               ),
@@ -255,8 +254,7 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                                   height: compactLegend ? 20 : 22,
                                   decoration: BoxDecoration(
                                     color: s.color,
-                                    borderRadius:
-                                        BorderRadius.circular(5),
+                                    borderRadius: BorderRadius.zero,
                                   ),
                                   child: Icon(s.icon,
                                       size: compactLegend ? 10 : 11,

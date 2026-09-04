@@ -218,9 +218,7 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
                 ]);
             }),
         ]));
-  }
-
-  Widget _buildHero(Map<String, dynamic> loan, NumberFormat fmt) {
+  }  Widget _buildHero(Map<String, dynamic> loan, NumberFormat fmt) {
     final rawStatus = loan['status'] as String? ?? '';
     final status = (loan['rider_delivery_assigned'] == true &&
             rawStatus == 'approved')
@@ -235,105 +233,47 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
     final totalPayable = (loan['total_payable'] as num?)?.toDouble() ?? 0;
     final principal = (loan['principal_amount'] as num?)?.toDouble() ?? 0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border)),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return _PremiumCard(
+      title: loanNumber,
+      subtitle: name.isEmpty
+          ? 'Released ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}'
+          : '$name • Released ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border)),
-                child: const Icon(Icons.account_balance_wallet_outlined,
-                    color: AppColors.textSecondary, size: 18)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(loanNumber,
-                              style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary),
-                              overflow: TextOverflow.ellipsis)),
-                        const SizedBox(width: 8),
-                        StatusBadge(status: status),
-                        if (loan['penalty_applied'] == true) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.error,
-                              borderRadius: BorderRadius.circular(20)),
-                            child: const Text('PENALTY',
-                                style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white))),
-                        ],
-                      ]),
-                    const SizedBox(height: 2),
-                    Text(
-                      name.isEmpty
-                          ? 'Released ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}'
-                          : '$name • Released ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary),
-                      overflow: TextOverflow.ellipsis),
-                  ])),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text('Outstanding',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textTertiary)),
-                  Text('₱${fmt.format(outstanding)}',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: status == 'overdue'
-                              ? AppColors.error
-                              : AppColors.deepNavy)),
-                ]),
-            ]),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                  child: _SimpleStat(
-                      label: 'Principal',
-                      value: '₱${fmt.format(principal)}')),
-              Container(width: 1, height: 30, color: AppColors.divider),
-              Expanded(
-                  child: _SimpleStat(
-                      label: 'Total Payable',
-                      value: '₱${fmt.format(totalPayable)}')),
-              Container(width: 1, height: 30, color: AppColors.divider),
-              Expanded(
-                  child: _SimpleStat(
-                      label: 'Due',
-                      value: _formatDate(loan['due_date']))),
-            ]),
-        ]));
+          StatusBadge(status: status),
+          if (loan['penalty_applied'] == true) ...[ const SizedBox(width: 6), Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.error,
+                borderRadius: BorderRadius.circular(20)),
+              child: const Text('PENALTY',
+                  style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white))),
+          ],
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+              child: _SimpleStat(
+                  label: 'Principal',
+                  value: '₱${fmt.format(principal)}')),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+              child: _SimpleStat(
+                  label: 'Total Payable',
+                  value: '₱${fmt.format(totalPayable)}')),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+              child: _SimpleStat(
+                  label: 'Outstanding',
+                  value: '₱${fmt.format(outstanding)}')),
+        ],
+      ),
+    );
   }
   // Cards — reused simplified versions (same as application modal but with active fields)
   Widget _buildLenderCard(Map<String, dynamic> loan) {
@@ -548,20 +488,13 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
     return _PremiumCard(
       title: 'Payment Schedule',
       subtitle: 'Breakdown',
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: paid == schedules.length
-              ? AppColors.success.withValues(alpha: 0.10)
-              : AppColors.deepNavy.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(20)),
-        child: Text('$paid / ${schedules.length} paid',
-            style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: paid == schedules.length
-                    ? AppColors.success
-                    : AppColors.deepNavy))),
+      trailing: Text('$paid / ${schedules.length} paid',
+          style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: paid == schedules.length
+                  ? const Color(0xFFA5D6A7)
+                  : Colors.white70)),
       child: Container(
         decoration: BoxDecoration(
           border: Border.all(color: AppColors.border),
@@ -957,34 +890,47 @@ class _PremiumCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border)),
-      padding: const EdgeInsets.all(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 10, color: AppColors.textTertiary)),
-                  ])),
-              if (trailing != null) trailing!,
-            ]),
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          const SizedBox(height: 10),
-          child,
-        ]));
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF5C6370),
+              border: Border(bottom: BorderSide(color: AppColors.divider)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                      if (subtitle.isNotEmpty)
+                        Text(subtitle,
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.white70)),
+                    ],
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+          ),
+          Padding(padding: const EdgeInsets.all(16), child: child),
+        ],
+      ),
+    );
   }
 }
 
@@ -997,24 +943,24 @@ class _KVRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 122,
+            width: 130,
             child: Text(label,
                 style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy))),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary))),
           Expanded(
             child: Text(
               value,
               style: valueStyle ??
                   const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary),
             ),
           ),

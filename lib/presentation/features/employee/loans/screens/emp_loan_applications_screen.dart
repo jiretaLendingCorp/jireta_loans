@@ -1,8 +1,6 @@
 // lib/presentation/features/employee/loans/screens/emp_loan_applications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -11,6 +9,7 @@ import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../../../head_manager/in_office/widgets/in_office_wizard.dart';
 import '../providers/emp_loan_provider.dart';
+import '../widgets/emp_loan_details_modal.dart';
 import '../../in_office/providers/emp_in_office_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -71,7 +70,6 @@ class _EmpLoanApplicationsScreenState
               _buildTabPills(effectiveTab),
               const SizedBox(height: 16),
               _buildToolbar(loanState, inOfficeAsync, isInOffice),
-              const SizedBox(height: 16),
               if (isInOffice) ...[
                 _buildInOfficeSection(inOfficeAsync),
               ] else ...[
@@ -197,37 +195,35 @@ class _EmpLoanApplicationsScreenState
     );
   }
 
-  // ───────────────────────── Toolbar (no inner box, hint "Search") ─────────────────────────
+  // ───────────────────────── Toolbar (simple, gaya ng Head Manager) ─────────────────────────
   Widget _buildToolbar(EmpLoanState loanState,
       AsyncValue<Map<String, dynamic>> inOfficeAsync, bool isInOffice) {
-    final hasSearch = isInOffice
-        ? _inOfficeSearch.isNotEmpty
-        : loanState.search.isNotEmpty;
-    final inOfficeItems =
-        (inOfficeAsync.valueOrNull?['items'] as List?) ?? [];
-    final filteredInOffice = _filteredEmpInOffice(inOfficeItems);
-    final resultsCount =
-        isInOffice ? filteredInOffice.length : loanState.loans.length;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2)),
-        ],
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+          left: BorderSide(color: AppColors.border),
+          right: BorderSide(color: AppColors.border),
+        ),
       ),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Icon(Icons.search_rounded,
-              size: 18,
-              color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-          const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search loan applications...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: const Icon(Icons.search,
+                    size: 20, color: AppColors.textTertiary),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              ),
               onChanged: (v) {
                 if (isInOffice) {
                   setState(() => _inOfficeSearch = v);
@@ -235,67 +231,6 @@ class _EmpLoanApplicationsScreenState
                   ref.read(empLoanProvider.notifier).setSearch(v);
                 }
               },
-              style: const TextStyle(fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: 'Search',
-                hintStyle:
-                    TextStyle(fontSize: 13, color: AppColors.textTertiary),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
-              ),
-            ),
-          ),
-          if (hasSearch)
-            InkWell(
-              onTap: () {
-                _searchCtrl.clear();
-                if (isInOffice) {
-                  setState(() => _inOfficeSearch = '');
-                } else {
-                  ref.read(empLoanProvider.notifier).setSearch('');
-                }
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.textTertiary.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.close_rounded,
-                    size: 14, color: AppColors.textSecondary),
-              ),
-            ),
-          if (hasSearch) const SizedBox(width: 10),
-          _ToolbarIcon(
-            icon: Icons.refresh_rounded,
-            tooltip: 'Refresh',
-            onTap: () => isInOffice
-                ? ref.read(empInOfficeProvider.notifier).loadList()
-                : ref.read(empLoanProvider.notifier).load(),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.deepNavy,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.layers_outlined,
-                    size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-                Text(
-                  '$resultsCount results',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white),
-                ),
-              ],
             ),
           ),
         ],
@@ -328,12 +263,8 @@ class _EmpLoanApplicationsScreenState
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4)),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -460,12 +391,8 @@ class _EmpLoanApplicationsScreenState
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4)),
-        ],
       ),
       child: Column(
         children: [
@@ -553,12 +480,8 @@ class _EmpLoanApplicationsScreenState
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4)),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -615,9 +538,7 @@ class _EmpLoanApplicationsScreenState
   Widget _buildTableRow(LoanModel loan, bool isEven) {
     return InkWell(
       key: ValueKey(loan.id),
-      onTap: () => context.go(
-        RouteConstants.empLoanDetails.replaceFirst(':id', loan.id),
-      ),
+      onTap: () => showEmpLoanDetailsModal(context, loan.id),
       child: Container(
         color: isEven
             ? Colors.white
@@ -745,9 +666,7 @@ class _EmpLoanApplicationsScreenState
           icon: Icons.visibility_outlined,
           color: AppColors.deepNavy,
           tooltip: 'View details',
-          onTap: () => context.go(
-            RouteConstants.empLoanDetails.replaceFirst(':id', loan.id),
-          ),
+          onTap: () => showEmpLoanDetailsModal(context, loan.id),
         ),
         const SizedBox(width: 6),
         // 3-dot menu with notification dot when rider needs assignment
@@ -820,9 +739,7 @@ class _EmpLoanApplicationsScreenState
                     _showAssignDeliveryRider(loan);
                     break;
                   case 'view':
-                    context.go(
-                      RouteConstants.empLoanDetails.replaceFirst(':id', loan.id),
-                    );
+                    showEmpLoanDetailsModal(context, loan.id);
                     break;
                 }
               },
@@ -949,12 +866,8 @@ class _EmpLoanApplicationsScreenState
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4)),
-        ],
       ),
       child: Column(
         children: [
@@ -1005,7 +918,7 @@ class _EmpLoanApplicationsScreenState
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
       ),
       padding: const EdgeInsets.all(16),
@@ -1149,34 +1062,6 @@ class _HLabel extends StatelessWidget {
   }
 }
 
-class _ToolbarIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _ToolbarIcon(
-      {required this.icon, required this.tooltip, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Icon(icon, size: 16, color: AppColors.textSecondary),
-        ),
-      ),
-    );
-  }
-}
 
 class _EmpInOfficeActions extends ConsumerWidget {
   final String appId;
