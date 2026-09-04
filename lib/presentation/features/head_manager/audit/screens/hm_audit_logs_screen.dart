@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -466,8 +467,10 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   String _formatDateTime(dynamic d) {
     if (d == null) return '-';
     try {
+      // PostgREST returns UTC instants — convert to Manila time (UTC+8)
+      // before formatting so timestamps match the system clock.
       return DateFormat('MMM dd, yyyy hh:mm a')
-          .format(DateTime.parse(d.toString()));
+          .format(toManila(DateTime.parse(d.toString())));
     } catch (_) {
       return d.toString();
     }

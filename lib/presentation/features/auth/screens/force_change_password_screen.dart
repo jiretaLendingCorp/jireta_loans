@@ -95,7 +95,7 @@ class _ForceChangePasswordScreenState
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.zero,
                       border: Border.all(color: AppColors.border),
                       boxShadow: [
                         BoxShadow(
@@ -118,6 +118,16 @@ class _ForceChangePasswordScreenState
                               labelText: 'Current Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
                               counterText: '',
+                              filled: true,
+                              fillColor: AppColors.surfaceVariant,
+                              border: const OutlineInputBorder(
+                                borderRadius: BorderRadius.zero,
+                                borderSide: BorderSide(color: AppColors.border),
+                              ),
+                              enabledBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.zero,
+                                borderSide: BorderSide(color: AppColors.border),
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureCurrent
@@ -141,6 +151,16 @@ class _ForceChangePasswordScreenState
                               labelText: 'New Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
                               counterText: '',
+                              filled: true,
+                              fillColor: AppColors.surfaceVariant,
+                              border: const OutlineInputBorder(
+                                borderRadius: BorderRadius.zero,
+                                borderSide: BorderSide(color: AppColors.border),
+                              ),
+                              enabledBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.zero,
+                                borderSide: BorderSide(color: AppColors.border),
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureNew
@@ -176,6 +196,16 @@ class _ForceChangePasswordScreenState
                               labelText: 'Confirm New Password',
                               prefixIcon: const Icon(Icons.lock_outlined),
                               counterText: '',
+                              filled: true,
+                              fillColor: AppColors.surfaceVariant,
+                              border: const OutlineInputBorder(
+                                borderRadius: BorderRadius.zero,
+                                borderSide: BorderSide(color: AppColors.border),
+                              ),
+                              enabledBorder: const OutlineInputBorder(
+                                borderRadius: BorderRadius.zero,
+                                borderSide: BorderSide(color: AppColors.border),
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirm
@@ -219,8 +249,8 @@ class _ForceChangePasswordScreenState
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 16,
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.zero,
                                 ),
                               ),
                               child: isLoading

@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:printing/printing.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
 import '../../../../shared/utils/file_downloader.dart';
 import '../../../../shared/utils/report_exporter.dart';
@@ -687,7 +688,10 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   String _formatDate(dynamic d) {
     if (d == null) return '-';
     try {
-      return DateFormat('MMM dd, yyyy hh:mm a').format(DateTime.parse(d.toString()));
+      // PostgREST returns UTC instants — convert to Manila time (UTC+8)
+      // before formatting so timestamps match the system clock.
+      return DateFormat('MMM dd, yyyy hh:mm a')
+          .format(toManila(DateTime.parse(d.toString())));
     } catch (_) {
       return d.toString();
     }
