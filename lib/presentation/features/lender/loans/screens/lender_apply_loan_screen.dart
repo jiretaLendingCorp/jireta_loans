@@ -1,5 +1,7 @@
 ﻿// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -28,10 +30,16 @@ class LenderApplyLoanScreen extends ConsumerStatefulWidget {
 }
 
 class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
+  static const double _minAmount = 3000;
+  static const double _maxAmount = 500000;
+
   double _amount = 3000;
-  String _frequency = 'weekly';
+  String _frequency = 'daily';
   int? _termPeriods;
   final _purposeCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController();
+  String? _amountError;
+  Timer? _previewDebounce;
   bool _previewLoading = false;
   Map<String, dynamic>? _coMaker;
   int _step = 0;
@@ -83,13 +91,51 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   @override
   void dispose() {
+    _previewDebounce?.cancel();
     _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
+    _amountCtrl.dispose();
     super.dispose();
   }
 
   // ── Validation for Next button ──
-  bool _isLoanDetailsValid() => _purposeCtrl.text.trim().isNotEmpty;
+  bool get _isAmountValid =>
+      _amountCtrl.text.trim().isNotEmpty &&
+      _amountError == null &&
+      _amount >= _minAmount &&
+      _amount <= _maxAmount;
+
+  bool _isLoanDetailsValid() =>
+      _isAmountValid && _purposeCtrl.text.trim().isNotEmpty;
+
+  String _formatAmountInput(int value) =>
+      NumberFormat('#,##0').format(value);
+
+  /// Called while the user types in the amount field. Filters/validates the
+  /// input, keeps the slider in sync, and refreshes the preview (debounced).
+  void _onAmountTextChanged(String digits) {
+    final parsed = int.tryParse(digits.replaceAll(RegExp(r'\D'), ''));
+    setState(() {
+      if (parsed == null || parsed == 0) {
+        _amountError = 'Please enter a loan amount.';
+      } else if (parsed < _minAmount || parsed > _maxAmount) {
+        _amountError =
+            'Amount must be between ₱3,000 and ₱500,000.';
+        _amount = parsed.clamp(_minAmount, _maxAmount).toDouble();
+      } else {
+        _amountError = null;
+        _amount = parsed.toDouble();
+      }
+    });
+    _schedulePreviewRefresh();
+  }
+
+  void _schedulePreviewRefresh() {
+    _previewDebounce?.cancel();
+    _previewDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (mounted) _refreshPreview();
+    });
+  }
 
   bool _isCoMakerValid() {
     final m = _coMaker;
@@ -218,6 +264,16 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   void _goNext() {
     if (_step == 0) {
+      if (!_isAmountValid) {
+        context.showSnackBarAsToast(
+          const SnackBar(
+            content:
+                Text('Please enter a valid loan amount (₱3,000 – ₱500,000).'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
       if (_purposeCtrl.text.trim().isEmpty) {
         context.showSnackBarAsToast(
           const SnackBar(
@@ -271,7 +327,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// maximum for the current amount. The max value is always included so the
   /// default (full) term stays selectable.
   List<int> _termOptions(int max) {
-    const candidates = <String, List<int>>{                  'daily': [14, 21, 30, 45, 60, 90, 120, 180],
+    if (_frequency == 'daily') {
+      // Daily term choices run from 1 day up to 40 days (capped by the server
+      // maximum, which is at least 40 for every valid amount).
+      final last = max < 40 ? max : 40;
+      return [for (int i = 1; i <= last; i++) i];
+    }
+    const candidates = <String, List<int>>{
       'weekly': [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 26],
       'monthly': [1, 2, 3, 4, 5, 6],
     };
@@ -287,7 +349,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final preview = ref.read(lenderLoanProvider).schedulePreview;
     final max = (preview?['max_periods'] as num?)?.toInt() ?? 0;
     final periods = _termPeriods ?? max;
-    return periods > 0 ? '$periods ${_termUnit()}' : 'the full term';
+    if (periods <= 0) return 'the full term';
+    final unit = _termUnit();
+    final singular =
+        unit.endsWith('s') ? unit.substring(0, unit.length - 1) : unit;
+    return '$periods ${periods == 1 ? singular : unit}';
   }
 
   Widget _buildTermSelector(int maxPeriods) {
@@ -330,7 +396,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   ),
                 ),
                 child: Text(
-                  '$value $unit',
+                  '$value ${value == 1 && unit.endsWith('s') ? unit.substring(0, unit.length - 1) : unit}',
                   style: TextStyle(
                     color: selected ? Colors.white : AppColors.textPrimary,
                     fontWeight: FontWeight.w600,
@@ -346,33 +412,88 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   }
 
   Widget _buildLoanDetailsStep(
-      NumberFormat fmt, Map<String, dynamic>? preview) {
+      NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      // Bottom clearance sized so the last element (the inline Next button)
+      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
+      // area above the screen bottom) when fully scrolled — no big gap.
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
+      ),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _SectionTitle('Loan Amount'),
           const SizedBox(height: 4),
-          Text(
-            '₱${fmt.format(_amount)}',
+          TextField(
+            controller: _amountCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              _PesoAmountFormatter(),
+            ],
+            onChanged: _onAmountTextChanged,
             style: const TextStyle(
-              fontSize: 28,
+              fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.lenderBlue,
             ),
+            decoration: InputDecoration(
+              prefixText: '₱ ',
+              prefixStyle: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.lenderBlue,
+              ),
+              hintText: 'Enter amount',
+              hintStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
+              errorText: _amountError,
+              errorStyle: const TextStyle(fontSize: 12),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.lenderBlue),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(
+                  color: _amountError != null
+                      ? AppColors.error
+                      : AppColors.border,
+                ),
+              ),
+            ),
           ),
+          const SizedBox(height: 4),
           Slider(
             value: _amount,
-            min: 3000,
-            max: 500000,
-            divisions: 497,
+            min: _minAmount,
+            max: _maxAmount,
             activeColor: AppColors.lenderBlue,
             inactiveColor: AppColors.lenderBlue.withValues(alpha: 0.2),
             onChanged: (v) {
-              setState(() => _amount = (v / 1000).round() * 1000.0);
+              final rounded = (v / 1000).round() * 1000.0;
+              setState(() {
+                _amount = rounded;
+                _amountError = null;
+                _amountCtrl.text = _formatAmountInput(rounded.toInt());
+              });
             },
             onChangeEnd: (_) => _refreshPreview(),
           ),
@@ -462,15 +583,24 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           ),
           const SizedBox(height: 20),
           _SchedulePreview(preview: preview, loading: _previewLoading),
+          _buildStepNav(isSubmitting),
         ],
       ),
     );
   }
 
-  Widget _buildCoMakerStep() {
+  Widget _buildCoMakerStep(bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      // Bottom clearance sized so the last element (the inline Next button)
+      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
+      // area above the screen bottom) when fully scrolled — no big gap.
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
+      ),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,15 +618,24 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               setState(() => _coMaker = value);
             },
           ),
+          _buildStepNav(isSubmitting),
         ],
       ),
     );
   }
 
-  Widget _buildSignatureStep() {
+  Widget _buildSignatureStep(bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      // Bottom clearance sized so the last element (the inline Next button)
+      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
+      // area above the screen bottom) when fully scrolled — no big gap.
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
+      ),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -559,12 +698,14 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               ],
             ),
           ),
+          _buildStepNav(isSubmitting),
         ],
       ),
     );
   }
 
-  Widget _buildReviewStep(NumberFormat fmt, Map<String, dynamic>? preview) {
+  Widget _buildReviewStep(
+      NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final interest = preview == null ? null : (preview['interest'] ?? 0);
     final totalPayable =
@@ -572,7 +713,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final installment =
         preview == null ? null : (preview['installment_amount'] ?? 0);
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 80),
+      // Bottom clearance sized so the last element (the inline Next button)
+      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
+      // area above the screen bottom) when fully scrolled — no big gap.
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
+      ),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -597,45 +746,44 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             totalPayable: totalPayable,
             installment: installment,
           ),
+          _buildStepNav(isSubmitting),
         ],
       ),
     );
   }
 
-  Widget _buildWizardBar(LenderLoanState state) {
+  /// Inline nav row at the end of each step's scrollable content — on the
+  /// Loan Details step the Next button sits right below the payment schedule
+  /// preview card, scrolling with the content.
+  Widget _buildStepNav(bool isSubmitting) {
     final isLast = _step == 3;
-    final canProceed = _canGoNext && !state.isSubmitting;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
-        ],
-      ),
+    final canProceed = _canGoNext && !isSubmitting;
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
       child: Row(
         children: [
-          if (_step > 0) ...[
-            Expanded(
-              child: AppButton(
-                label: 'Back',
-                variant: AppButtonVariant.outlined,
-                color: AppColors.lenderBlue,
-                onTap: _goBack,
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            flex: 2,
-            child: AppButton(
-              label: isLast ? 'Submit Application' : 'Next',
-              icon: isLast ? Icons.send : Icons.arrow_forward,
-              color: AppColors.lenderBlue,
-              isLoading: state.isSubmitting,
-              onTap: canProceed ? (isLast ? _submit : _goNext) : null,
-            ),
+        if (_step > 0) ...[
+          _NavTextButton(
+            icon: Icons.arrow_back_rounded,
+            label: 'Back',
+            onTap: isSubmitting ? null : _goBack,
+          ),
+          const SizedBox(width: 12),
+        ],
+        const Spacer(),
+        if (isLast)
+          AppButton(
+            label: 'Submit Application',
+            icon: Icons.send,
+            color: AppColors.lenderBlue,
+            isLoading: isSubmitting,
+            onTap: canProceed ? _submit : null,
+          )
+        else
+          _NavTextButton(
+            icon: Icons.arrow_forward_rounded,
+            label: 'Next',
+            onTap: canProceed ? _goNext : null,
           ),
         ],
       ),
@@ -713,7 +861,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     final state = loanState;
     final preview = state.schedulePreview;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Column(
       children: [
         _StepIndicator(current: _step),
@@ -721,18 +868,12 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           child: IndexedStack(
             index: _step,
             children: [
-              _buildLoanDetailsStep(fmt, preview),
-              _buildCoMakerStep(),
-              _buildSignatureStep(),
-              _buildReviewStep(fmt, preview),
+              _buildLoanDetailsStep(fmt, preview, state.isSubmitting),
+              _buildCoMakerStep(state.isSubmitting),
+              _buildSignatureStep(state.isSubmitting),
+              _buildReviewStep(fmt, preview, state.isSubmitting),
             ],
           ),
-        ),
-        AnimatedPadding(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.only(bottom: bottomInset),
-          child: _buildWizardBar(state),
         ),
       ],
     );
@@ -1022,6 +1163,67 @@ class _CoMakerFormState extends State<_CoMakerForm> {
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.error),
       ),
+    );
+  }
+}
+
+/// Plain text nav button used in the wizard bar — an arrow followed by its
+/// label (e.g. "→ Next"), with no box or background around it.
+class _NavTextButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _NavTextButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final color = enabled ? AppColors.lenderBlue : AppColors.textTertiary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Reformats the amount as it is typed: digits only, with thousand separators
+/// (e.g. 15000 -> "15,000").
+class _PesoAmountFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return const TextEditingValue(text: '');
+    final value = int.tryParse(digits) ?? 0;
+    final formatted = NumberFormat('#,##0').format(value);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
     );
   }
 }
