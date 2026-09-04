@@ -114,6 +114,9 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
       return;
     }
     if (!ok && mounted) {
+      // Clear both fields so the user re-types them on the next attempt.
+      _emailCtrl.clear();
+      _passCtrl.clear();
       final err = ref.read(authProvider).error;
       final lockSecs = notifier.extractOtpLockoutSeconds(err ?? '');
       if (lockSecs != null && lockSecs > 0) {
@@ -755,26 +758,6 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    if (isLocked)
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0, end: 1),
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, t, child) => Opacity(opacity: t, child: Transform.translate(offset: Offset(0, 6 * (1 - t)), child: child)),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 14),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(color: AppColors.errorLight, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.error.withValues(alpha: 0.16))),
-                          child: Row(
-                            children: [
-                              Container(width: 28, height: 28, decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle), child: const Icon(Icons.timer_rounded, size: 14, color: Colors.white)),
-                              const SizedBox(width: 10),
-                              const Expanded(child: Text('Too many attempts. Try again in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.error))),
-                              Text(widget.lockLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.error, fontFeatures: [FontFeature.tabularFigures()])),
-                            ],
-                          ),
-                        ),
-                      ),
                     // Premium gradient button — deepNavy → navy gradient
                     Center(
                     child: TweenAnimationBuilder<double>(

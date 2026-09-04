@@ -168,7 +168,7 @@ serve(async (req) => {
         code:   userErr?.code   ?? 'NOT_FOUND',
         hint:   'User exists in auth.users but not in public.users? Run 00006_bootstrap_head_manager.sql.',
       });
-      return errorResponse('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+      return errorResponse('Wrong username or password', 401, 'INVALID_CREDENTIALS');
     }
 
     // ── Step 4: account status ────────────────────────────────────────────
@@ -258,7 +258,13 @@ serve(async (req) => {
       });
 
       if (lockedUntil) return lockoutError(lockedUntil, newFails);
-      return errorResponse('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+      // Attempts 1–2 are free; the 3rd attempt locks the account (see
+      // lockoutMinutes above), so surface how many tries are left.
+      const remaining = Math.max(0, 3 - newFails);
+      const message = remaining > 0
+        ? `Wrong username or password. ${remaining} attempt${remaining === 1 ? '' : 's'} left.`
+        : 'Wrong username or password.';
+      return errorResponse(message, 401, 'INVALID_CREDENTIALS');
     }
 
     if (authData.user?.id && authData.user.id !== user.id) {

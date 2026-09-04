@@ -517,8 +517,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         message.contains('Request timed out')) {
       return 'Request timed out. Please try again.';
     }
-    if (message.contains('Invalid email or password')) {
-      return 'Invalid email or password.';
+    if (message.contains('Wrong username or password')) {
+      // Backend message already includes remaining attempts
+      // (e.g. "Wrong username or password. 2 attempts left.").
+      return message;
     }
     if (message.contains('Account locked')) {
       return 'Account locked. Try again later.';
