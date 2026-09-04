@@ -63,6 +63,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     ('pay_slip', 'Pay Slip'),
   ];
 
+  static const Map<String, String> _docAssetIcons = {
+    'valid_id': 'assets/icons/id_card.png',
+    'proof_of_income': 'assets/icons/PERMIT.png',
+  };
+
   int _step = 0;
   String? _appId;
   bool _loading = false;
@@ -675,6 +680,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   Widget _docUploadCard(String type, String label) {
     final file = _docs[type];
     final hasFile = file != null;
+    final asset = _docAssetIcons[type];
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -689,11 +695,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       ),
       child: ListTile(
         dense: true,
-        leading: Icon(
-          hasFile ? Icons.check_circle : Icons.description_outlined,
-          color: hasFile ? AppColors.success : AppColors.textSecondary,
-          size: 22,
-        ),
+        leading: asset != null
+            ? Image.asset(asset, width: 22, height: 22, fit: BoxFit.contain, filterQuality: FilterQuality.high)
+            : Icon(
+                hasFile ? Icons.check_circle : Icons.description_outlined,
+                color: hasFile ? AppColors.success : AppColors.textSecondary,
+                size: 22,
+              ),
         title: Text(label,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         subtitle: Text(

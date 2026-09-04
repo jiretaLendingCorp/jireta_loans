@@ -7,7 +7,6 @@ import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_lender_provider.dart';
 import '../widgets/create_lender_modal.dart';
 
@@ -192,16 +191,16 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
               flex: 3,
               child: Row(
                 children: [
-                  ProfileAvatar(
-                    photoUrl: user.profilePhotoUrl,
-                    name: '${user.firstName} ${user.lastName}',
-                    color: AppColors.lenderBlue,
-                    radius: 18,
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(color: AppColors.lenderBlue, shape: BoxShape.circle),
+                    child: const Icon(Icons.person_rounded, size: 18, color: Colors.white),
                   ),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
-                      '${user.firstName} ${user.lastName}',
+                      '${user.firstName} ${user.lastName}'.trim().isEmpty ? 'N/A' : '${user.firstName} ${user.lastName}',
                       style: const TextStyle(fontWeight: FontWeight.w500),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -212,7 +211,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             Expanded(
               flex: 2,
               child: Text(
-                user.phoneNumber ?? '—',
+                user.phoneNumber ?? 'N/A',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -224,7 +223,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
               child: Text(
                 user.accountUpgradeStatus == null ||
                         user.accountUpgradeStatus!.isEmpty
-                    ? '—'
+                    ? 'N/A'
                     : _accountUpgradeLabel(user.accountUpgradeStatus!),
                 style: TextStyle(
                   fontSize: 13,

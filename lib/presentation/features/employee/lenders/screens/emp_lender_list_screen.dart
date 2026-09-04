@@ -6,7 +6,6 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
-import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_lender_provider.dart';
 import '../widgets/emp_register_lender_modal.dart';
 
@@ -153,16 +152,16 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
               flex: 3,
               child: Row(
                 children: [
-                  ProfileAvatar(
-                    photoUrl: user.profilePhotoUrl,
-                    name: '${user.firstName} ${user.lastName}',
-                    color: AppColors.lenderBlue,
-                    radius: 18,
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(color: AppColors.lenderBlue, shape: BoxShape.circle),
+                    child: const Icon(Icons.person_rounded, size: 18, color: Colors.white),
                   ),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
-                      '${user.firstName} ${user.lastName}',
+                      '${user.firstName} ${user.lastName}'.trim().isEmpty ? 'N/A' : '${user.firstName} ${user.lastName}',
                       style: const TextStyle(fontWeight: FontWeight.w500),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -173,7 +172,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
             Expanded(
               flex: 2,
               child: Text(
-                user.phoneNumber ?? '—',
+                user.phoneNumber ?? 'N/A',
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
@@ -186,7 +185,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
               child: Text(
                 user.accountUpgradeStatus == null ||
                         user.accountUpgradeStatus!.isEmpty
-                    ? '—'
+                    ? 'N/A'
                     : _accountUpgradeLabel(user.accountUpgradeStatus!),
                 style: TextStyle(
                   fontSize: 13,
