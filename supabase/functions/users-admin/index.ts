@@ -26,10 +26,13 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validatePagination, validatePasswordComplexity } from '../_shared/validators.ts';
+import { validatePagination } from '../_shared/validators.ts';
 import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { embedAsObject } from '../_shared/types.ts';
+
+// Same default password used by users-create for newly created accounts.
+const DEFAULT_PASSWORD = '12345678';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -217,14 +220,7 @@ async function handleResetPassword(req: Request) {
 
   const body = await req.json();
   const user_id = body?.user_id as string | undefined;
-  const new_password = body?.new_password as string | undefined;
   if (!user_id) return errorResponse('user_id is required', 400, 'VALIDATION_ERROR');
-  if (!new_password) return errorResponse('new_password is required', 400, 'VALIDATION_ERROR');
-
-  const pwCheck = validatePasswordComplexity(new_password);
-  if (!pwCheck.valid) {
-    return errorResponse(pwCheck.message ?? 'Password does not meet requirements', 400, 'VALIDATION_ERROR');
-  }
 
   const db = getAdminClient();
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
@@ -242,17 +238,19 @@ async function handleResetPassword(req: Request) {
     return errorResponse('Cannot reset password of an archived user', 400, 'INVALID_STATUS');
   }
 
-  const { error: updateError } = await db.auth.admin.updateUserById(user_id, { password: new_password });
+  // Business rule: reset always returns the account to the default password
+  // (12345678) — the same one used when the account was created. The user is
+  // then forced to set a fresh password on next login.
+  const { error: updateError } = await db.auth.admin.updateUserById(user_id, { password: DEFAULT_PASSWORD });
   if (updateError) {
     console.error('[users-admin] reset-password updateUserById failed:', updateError);
     return errorResponse('Failed to reset password', 500, 'SERVER_ERROR');
   }
 
-  // Force the user to set a fresh password on next login.
   await db.from('users').update({ force_password_change: true }).eq('id', user_id);
 
   try {
-    await db.from('password_history').insert({ user_id, password_hash: await hashPassword(user_id, new_password) });
+    await db.from('password_history').insert({ user_id, password_hash: await hashPassword(user_id, DEFAULT_PASSWORD) });
   } catch (e) {
     console.error('[users-admin] reset-password history insert failed:', e);
   }

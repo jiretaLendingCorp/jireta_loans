@@ -302,7 +302,7 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
   Color _roleColor(String role) {
     switch (role) {
       case 'employee':
-        return AppColors.deepNavy;
+        return AppColors.employeeOrange;
       case 'rider':
         return AppColors.riderGreen;
       case 'lender':

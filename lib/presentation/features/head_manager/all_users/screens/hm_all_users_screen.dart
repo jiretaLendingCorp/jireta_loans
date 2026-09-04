@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
+import 'package:jireta_loans/core/extensions/context_extensions.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
+import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
@@ -211,6 +213,12 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                     AppColors.textSecondary,
                     () => _goToDetails(user),
                   ),
+                  _btn(
+                    Icons.edit_outlined,
+                    'Edit',
+                    AppColors.primary,
+                    () => _openEdit(user),
+                  ),
                   // Reset Password is only for Head Manager and Employee accounts.
                   if (!isArchived &&
                       (user.role == 'head_manager' || user.role == 'employee'))
@@ -282,140 +290,65 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
 
 
   void _showResetPassword(UserModel user) {
-    final formKey = GlobalKey<FormState>();
-    final passCtrl = TextEditingController();
-    final confirmCtrl = TextEditingController();
-    var submitting = false;
-
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          shape:
-              const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          title: const Text('Reset Password'),
-          content: SizedBox(
-            width: 380,
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Set a new password for ${user.firstName} ${user.lastName}. They will be required to change it on next login.',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 14),
-                  _dialogField(
-                    passCtrl,
-                    'New Password *',
-                    obscure: true,
-                    validator: (v) {
-                      if (v == null || v.isEmpty) {
-                        return 'Password is required';
-                      }
-                      if (v.length < 6) {
-                        return 'At least 6 characters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _dialogField(
-                    confirmCtrl,
-                    'Confirm Password *',
-                    obscure: true,
-                    validator: (v) {
-                      if (v != passCtrl.text) {
-                        return 'Passwords do not match';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.deepNavy,
-                foregroundColor: Colors.white,
-                shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.zero),
-              ),
-              onPressed: submitting
-                  ? null
-                  : () async {
-                      if (!formKey.currentState!.validate()) return;
-                      setState(() => submitting = true);
-                      try {
-                        await ref
-                            .read(hmAllUsersProvider.notifier)
-                            .resetPassword(user.id, passCtrl.text);
-                        if (!ctx.mounted) return;
-                        Navigator.of(ctx).pop();
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                              content: Text(
-                                  'Password reset successfully. User must change it on next login.')),
-                        );
-                      } catch (e) {
-                        if (!ctx.mounted) return;
-                        setState(() => submitting = false);
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          SnackBar(content: Text('Failed to reset: $e')),
-                        );
-                      }
-                    },
-              child: submitting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Text('Reset'),
-            ),
-          ],
+      builder: (ctx) => AlertDialog(
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: const Text('Reset Password'),
+        content: Text(
+          'Reset the password of ${user.firstName} ${user.lastName}? '
+          'It will be set to 12345678 and they will be required to change it on next login.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepNavy,
+              foregroundColor: Colors.white,
+              shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero),
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                await ref.read(hmAllUsersProvider.notifier).resetPassword(user.id);
+                if (mounted) {
+                  context.showToast('Password reset to 12345678');
+                }
+              } catch (e) {
+                if (mounted) {
+                  context.showErrorToast('Failed to reset: $e');
+                }
+              }
+            },
+            child: const Text('Reset'),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _dialogField(
-    TextEditingController controller,
-    String label, {
-    bool obscure = false,
-    String? Function(String?)? validator,
-  }) =>
-      TextFormField(
-        controller: controller,
-        obscureText: obscure,
-        validator: validator,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(
-            borderRadius: BorderRadius.zero,
-            borderSide: BorderSide(color: AppColors.border),
-          ),
-          enabledBorder: const OutlineInputBorder(
-            borderRadius: BorderRadius.zero,
-            borderSide: BorderSide(color: AppColors.border),
-          ),
-          isDense: true,
-        ),
-      );
+  Future<void> _openEdit(UserModel user) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) => EditUserModal(
+        userId: user.id,
+        initialRole: user.role,
+        initialStatus: user.accountStatus,
+        showRole: false,
+      ),
+    );
+    if (updated == true) {
+      ref.read(hmAllUsersProvider.notifier).load();
+    }
+  }
 
-  Color _roleColor(String role) {
-    switch (role) {
+  Color _roleColor(String role) {      switch (role) {
       case 'employee':
-        return AppColors.deepNavy;
+        return AppColors.employeeOrange;
       case 'rider':
         return AppColors.riderGreen;
       case 'lender':

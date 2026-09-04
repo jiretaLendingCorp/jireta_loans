@@ -165,7 +165,7 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
                   ProfileAvatar(
                     photoUrl: user.profilePhotoUrl,
                     name: '${user.firstName} ${user.lastName}',
-                    color: AppColors.deepNavy,
+                    color: AppColors.employeeOrange,
                     radius: 18,
                   ),
                   const SizedBox(width: 10),

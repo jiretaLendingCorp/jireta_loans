@@ -97,9 +97,10 @@ class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
     return res;
   }
 
-  /// Head Manager resets a user's password (backend forces change on next login).
-  Future<void> resetPassword(String userId, String newPassword) async {
-    await _ds.resetPassword(userId, newPassword);
+  /// Head Manager resets a user's password to the default (backend forces
+  /// a change on next login).
+  Future<void> resetPassword(String userId) async {
+    await _ds.resetPassword(userId);
     await load();
   }
 }

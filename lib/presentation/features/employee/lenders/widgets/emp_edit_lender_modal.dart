@@ -71,7 +71,7 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: SizedBox(
         width: 480,
         child: Column(
@@ -121,7 +121,6 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: AppColors.deepNavy,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Row(
         children: [
@@ -151,13 +150,18 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
         children: [
           OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                  shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.zero)),
               child: const Text('Cancel')),
           const SizedBox(width: 12),
           ElevatedButton(
             onPressed: _isSaving ? null : _save,
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
-                foregroundColor: Colors.black87),
+                foregroundColor: Colors.black87,
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero)),
             child: _isSaving
                 ? const SizedBox(
                     width: 16,
@@ -178,7 +182,11 @@ Widget _field(String label, TextEditingController ctrl,
     controller: ctrl,
     keyboardType: keyboardType,
     maxLength: maxLength,
-    decoration: InputDecoration(labelText: label, counterText: ''),
+    decoration: InputDecoration(
+      labelText: label,
+      counterText: '',
+      border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+    ),
     validator: required
         ? (v) => v == null || v.trim().isEmpty ? 'Required' : null
         : null,

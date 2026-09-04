@@ -89,11 +89,14 @@ async function handleUpdateProfile(req: Request) {
   }
   if (body.avatar_url !== undefined) updateFields.profile_photo_url = sanitizeString(body.avatar_url);
 
-  if (body.phone && body.phone !== existing.phone_number) {
-    if (!validatePhone(sanitizeString(body.phone))) return errorResponse('Invalid phone', 400, 'VALIDATION_ERROR');
-    const { data: taken } = await db.from('users').select('id').eq('phone_number', body.phone.trim()).neq('id', targetId).maybeSingle();
+  // The app sends `phone_number` (and some legacy clients send `phone`).
+  // Accept both so edited phone numbers are actually saved.
+  const newPhone = body.phone_number ?? body.phone;
+  if (newPhone !== undefined && newPhone !== null && String(newPhone).trim() !== (existing.phone_number ?? '')) {
+    if (!validatePhone(sanitizeString(newPhone))) return errorResponse('Invalid phone', 400, 'VALIDATION_ERROR');
+    const { data: taken } = await db.from('users').select('id').eq('phone_number', String(newPhone).trim()).neq('id', targetId).maybeSingle();
     if (taken) return errorResponse('Phone already used', 409, 'DUPLICATE');
-    updateFields.phone_number = body.phone.trim();
+    updateFields.phone_number = String(newPhone).trim();
   }
 
   // ── Email Uniqueness Check (security) ──────────────────────────────────

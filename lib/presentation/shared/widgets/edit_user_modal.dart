@@ -106,7 +106,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
 
   @override
   Widget build(BuildContext context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         child: Container(
           width: 520,
           padding: const EdgeInsets.all(28),
@@ -154,9 +154,9 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                           Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               color: AppColors.errorLight,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.zero,
                             ),
                             child: Text(
                               _error!,
@@ -197,7 +197,8 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                           readOnly: true,
                           decoration: const InputDecoration(
                             labelText: 'Email',
-                            border: OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.zero),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -211,6 +212,8 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: const RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.zero),
                             ),
                             child: _saving
                                 ? const SizedBox(
@@ -239,7 +242,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         maxLength: maxLength,
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
+          border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
           counterText: '',
         ),
         validator: req

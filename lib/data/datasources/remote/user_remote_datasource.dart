@@ -36,11 +36,12 @@ class UserRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
-  /// Head Manager resets another user's password (forces change on next login).
-  Future<void> resetPassword(String userId, String newPassword) async {
+  /// Head Manager resets another user's password back to the default
+  /// (12345678) and forces a change on next login.
+  Future<void> resetPassword(String userId) async {
     await _client.patch(
       ApiEndpoints.usersResetPassword,
-      data: {'user_id': userId, 'new_password': newPassword},
+      data: {'user_id': userId},
     );
   }
 
