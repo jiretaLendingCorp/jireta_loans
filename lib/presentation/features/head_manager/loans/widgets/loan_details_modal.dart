@@ -338,7 +338,8 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
   // Cards — reused simplified versions (same as application modal but with active fields)
   Widget _buildLenderCard(Map<String, dynamic> loan) {
     final lender = loan['lender'] as Map<String, dynamic>? ?? {};
-    final profile = lender['lender_profiles'] as Map<String, dynamic>? ?? {};
+    final profile = (loan['lender_profile'] as Map<String, dynamic>?) ??
+        (lender['lender_profiles'] as Map<String, dynamic>? ?? {});
     final name =
         '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim();
     final initials = _initials(name.isEmpty ? 'Lender' : name);
@@ -377,7 +378,7 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary)),
-                    Text(_maskPhone(lender['phone_number'] as String? ?? ''),
+                    Text(lender['phone_number'] as String? ?? '',
                         style: const TextStyle(
                             fontSize: 11, color: AppColors.textSecondary)),
                   ])),
@@ -401,13 +402,13 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
           const SizedBox(height: 10),
           _KVRow(
               label: 'Phone',
-              value: _maskPhone(lender['phone_number'] as String? ?? '')),
+              value: lender['phone_number'] as String? ?? '-'),
           _KVRow(
               label: 'Employment',
               value: _capitalize(profile['employment_type'] as String? ?? '-')),
           _KVRow(
               label: 'Address',
-              value: _formatAddress(profile['address'])),
+              value: _formatAddress(profile['address'] ?? loan['lender_address'])),
         ]));
   }
 
@@ -826,11 +827,6 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
     } catch (_) {
       return d.toString();
     }
-  }
-
-  String _maskPhone(String p) {
-    if (p.length < 8) return p;
-    return '${p.substring(0, 4)}****${p.substring(p.length - 3)}';
   }
 
   String _capitalize(String s) => s.isEmpty

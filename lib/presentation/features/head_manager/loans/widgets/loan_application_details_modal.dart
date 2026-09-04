@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/status_badge.dart';
+import '../../ci/widgets/ci_assign_modal.dart';
+import 'approve_reject_modal.dart';
 import '../providers/hm_loan_provider.dart';
 
 Future<void> showLoanApplicationDetailsModal(
@@ -104,18 +105,14 @@ class _LoanApplicationDetailsModalState
                 color: AppColors.gold, size: 18)),
           const SizedBox(width: 12),
           const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Loan Application Details',
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary)),
-                Text('Lender • Terms • Co-maker • Schedule',
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.textTertiary)),
-              ])),
+            child: Text(
+              'Loan Application Details',
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary),
+            ),
+          ),
           IconButton(
             onPressed: _load,
             icon: const Icon(Icons.refresh_rounded,
@@ -206,31 +203,39 @@ class _LoanApplicationDetailsModalState
                   children: [
                     _buildLenderCard(loan),
                     const SizedBox(height: 14),
-                    _buildLoanCard(loan, fmt),
-                    const SizedBox(height: 14),
                     _buildCoMakerCard(loan),
+                    const SizedBox(height: 14),
+                    _buildLoanCard(loan, fmt),
                     const SizedBox(height: 14),
                     _buildSchedulePreview(loan, fmt),
                   ]);
               }
-              return Column(
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildLenderCard(loan)),
-                      const SizedBox(width: 14),
-                      Expanded(child: _buildLoanCard(loan, fmt)),
-                    ]),
-                  const SizedBox(height: 14),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildCoMakerCard(loan)),
-                      const SizedBox(width: 14),
-                      Expanded(child: _buildSchedulePreview(loan, fmt)),
-                    ]),
-                ]);
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLenderCard(loan),
+                        const SizedBox(height: 14),
+                        _buildCoMakerCard(loan),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLoanCard(loan, fmt),
+                        const SizedBox(height: 14),
+                        _buildSchedulePreview(loan, fmt),
+                      ],
+                    ),
+                  ),
+                ],
+              );
             }),
         ]));
   }
@@ -244,102 +249,206 @@ class _LoanApplicationDetailsModalState
     final totalPayable = (loan['total_payable'] as num?)?.toDouble() ?? 0;
     final applied = loan['created_at'];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border)),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return _PremiumCard(
+      title: loanNumber,
+      subtitle: name.isEmpty
+          ? 'Applied ${_formatDate(applied)}'
+          : '$name • Applied ${_formatDate(applied)}',
+      trailing: _buildHeroActions(status),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border)),
-                child: const Icon(Icons.description_outlined,
-                    color: AppColors.textSecondary, size: 18)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(loanNumber,
-                        style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(
-                      name.isEmpty
-                          ? 'Applied ${_formatDate(applied)}'
-                          : '$name • Applied ${_formatDate(applied)}',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary),
-                      overflow: TextOverflow.ellipsis),
-                  ])),
-              StatusBadge(status: status),
-            ]),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                  child: _SimpleStat(
-                      label: 'Principal',
-                      value: '₱${fmt.format(principal)}')),
-              Container(width: 1, height: 30, color: AppColors.divider),
-              Expanded(
-                  child: _SimpleStat(
-                      label: 'Total Payable',
-                      value: '₱${fmt.format(totalPayable)}')),
-              Container(width: 1, height: 30, color: AppColors.divider),
-              Expanded(
-                  child: _SimpleStat(
-                      label: 'Term', value: _loanTermLabel(loan))),
-            ]),
-        ]));
+          Expanded(
+              child: _SimpleStat(
+                  label: 'Principal',
+                  value: '₱${fmt.format(principal)}')),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+              child: _SimpleStat(
+                  label: 'Total Payable',
+                  value: '₱${fmt.format(totalPayable)}')),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+              child: _SimpleStat(label: 'Term', value: _loanTermLabel(loan))),
+        ],
+      ),
+    );
+  }
+
+  // Status + 3-dot action menu for actionable (pending-stage) statuses.
+  Widget _buildHeroActions(String status) {
+    final canApprove = const {
+      'pending',
+      'under_review',
+      'ci_required',
+      'ci_assigned',
+      'ci_completed'
+    }.contains(status);
+    final canAssignCi =
+        const {'pending', 'under_review', 'ci_required'}.contains(status);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _StatusText(status: status),
+        if (canApprove || canAssignCi) ...[
+          const SizedBox(width: 2),
+          PopupMenuButton<String>(
+            tooltip: 'Actions',
+            offset: const Offset(0, 34),
+            shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero),
+            color: const Color(0xFFF0F2F5),
+            onSelected: (v) {
+              switch (v) {
+                case 'approve':
+                  _showApprove();
+                  break;
+                case 'reject':
+                  _showReject();
+                  break;
+                case 'assign_ci':
+                  _showAssignCi();
+                  break;
+              }
+            },
+            itemBuilder: (_) => [
+              if (canApprove)
+                const PopupMenuItem(
+                    value: 'approve',
+                    child: Row(children: [
+                      Icon(Icons.check_circle_outline,
+                          size: 16, color: AppColors.success),
+                      SizedBox(width: 8),
+                      Text('Approve')
+                    ])),
+              if (canAssignCi)
+                const PopupMenuItem(
+                    value: 'assign_ci',
+                    child: Row(children: [
+                      Icon(Icons.search_rounded,
+                          size: 16, color: AppColors.info),
+                      SizedBox(width: 8),
+                      Text('Assign CI Rider')
+                    ])),
+              if (canApprove)
+                const PopupMenuItem(
+                    value: 'reject',
+                    child: Row(children: [
+                      Icon(Icons.cancel_outlined,
+                          size: 16, color: AppColors.error),
+                      SizedBox(width: 8),
+                      Text('Reject')
+                    ])),
+            ],
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.zero,
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.40)),
+                  ),
+                  child: const Icon(Icons.more_vert_rounded,
+                      size: 18, color: Colors.white),
+                ),
+                Positioned(
+                  right: -3,
+                  top: -3,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: AppColors.warning,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF5C6370)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _showApprove() async {
+    final loanId = widget.loanId;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ApproveRejectModal(
+        loanId: loanId,
+        isApprove: true,
+        onConfirm: (_, __) async {
+          final ok =
+              await ref.read(hmLoanProvider.notifier).approveLoan(loanId);
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          _toast(ok ? 'Loan approved successfully' : 'Approval failed',
+              ok ? AppColors.success : AppColors.error);
+          if (ok) await _load();
+        },
+      ),
+    );
+  }
+
+  Future<void> _showReject() async {
+    final loanId = widget.loanId;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ApproveRejectModal(
+        loanId: loanId,
+        isApprove: false,
+        onConfirm: (_, reason) async {
+          final ok = await ref
+              .read(hmLoanProvider.notifier)
+              .rejectLoan(loanId, reason ?? '');
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          _toast(ok ? 'Loan rejected' : 'Reject failed',
+              ok ? AppColors.error : AppColors.textSecondary);
+          if (ok) await _load();
+        },
+      ),
+    );
+  }
+
+  Future<void> _showAssignCi() async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => CiAssignModal(loanId: widget.loanId),
+    );
+    if (assigned == true && mounted) {
+      _toast('Rider assigned for credit investigation', AppColors.success);
+      await _load();
+    }
+  }
+
+  void _toast(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: color,
+    ));
   }
 
   // ───────────────────────── Cards (reused from details page) ─────────────────────────
   Widget _buildLenderCard(Map<String, dynamic> loan) {
     final lender = loan['lender'] as Map<String, dynamic>? ?? {};
-    final profile = lender['lender_profiles'] as Map<String, dynamic>? ?? {};
+    final profile = (loan['lender_profile'] as Map<String, dynamic>?) ??
+        (lender['lender_profiles'] as Map<String, dynamic>? ?? {});
     final name =
         '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim();
-    final initials = _initials(name.isEmpty ? 'Lender' : name);
     return _PremiumCard(
       title: 'Lender Information',
-      subtitle: 'Lender profile & KYC',
+      subtitle: 'Upgraded Account',
       child: Column(
         children: [
           Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      _avatarColor(name),
-                      _avatarColor(name).withValues(alpha: 0.72)
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(11)),
-                alignment: Alignment.center,
-                child: Text(initials,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15))),
-              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,24 +458,18 @@ class _LoanApplicationDetailsModalState
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary)),
-                    Text(_maskPhone(lender['phone_number'] as String? ?? ''),
+                    Text(lender['phone_number'] as String? ?? '',
                         style: const TextStyle(
                             fontSize: 11, color: AppColors.textSecondary)),
                   ])),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _upgradeBg(profile['account_upgrade_status'] as String?),
-                  borderRadius: BorderRadius.circular(20)),
-                child: Text(
-                  _capitalize(
-                      profile['account_upgrade_status'] as String? ?? 'Unknown'),
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: _upgradeColor(
-                          profile['account_upgrade_status'] as String?)))),
+              Text(
+                _capitalize(
+                    profile['account_upgrade_status'] as String? ?? 'Unknown'),
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: _upgradeColor(
+                        profile['account_upgrade_status'] as String?))),
             ]),
           const SizedBox(height: 12),
           const Divider(height: 1),
@@ -381,7 +484,7 @@ class _LoanApplicationDetailsModalState
                   : '-'),
           _KVRow(
               label: 'Address',
-              value: _formatAddress(profile['address'])),
+              value: _formatAddress(profile['address'] ?? loan['lender_address'])),
         ]));
   }
 
@@ -397,47 +500,20 @@ class _LoanApplicationDetailsModalState
           _KVRow(
               label: 'Principal',
               value: '₱${fmt.format(loan['principal_amount'] ?? 0)}',
-              valueStyle: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.deepNavy)),
+              highlight: true),
           _KVRow(
               label: 'Interest (20%)',
               value: '₱${fmt.format(loan['interest_amount'] ?? 0)}'),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.deepNavy.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border)),
-            child: Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.deepNavy,
-                    borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.savings_rounded,
-                      size: 14, color: AppColors.gold)),
-                const SizedBox(width: 8),
-                const Text('Total Payable',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary)),
-                const Spacer(),
-                Text('₱${fmt.format(loan['total_payable'] ?? 0)}',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.deepNavy)),
-              ])),
+          const Divider(height: 1),
+          const SizedBox(height: 4),
           _KVRow(
-              label: 'Frequency',
-              value: _capitalize(frequency),
-              valueWidget: _FrequencyPill(frequency: frequency)),
+              label: 'Total Payable',
+              value: '₱${fmt.format(loan['total_payable'] ?? 0)}',
+              highlight: true),
+          const SizedBox(height: 4),
+          const Divider(height: 1),
+          const SizedBox(height: 4),
+          _KVRow(label: 'Frequency', value: _capitalize(frequency)),
           _KVRow(
               label: 'Loan Term',
               value: _loanTermLabel(loan)),
@@ -449,27 +525,24 @@ class _LoanApplicationDetailsModalState
               value: '₱${fmt.format(loan['installment_amount'] ?? 0)}'),
           _KVRow(
               label: 'Purpose',
-              value: loan['loan_purpose'] as String? ?? '-'),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: _disbursementBg(method),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _disbursementBorder(method))),
-            child: Row(
-              children: [
-                Icon(_disbursementIcon(method),
-                    size: 13, color: _disbursementColor(method)),
-                const SizedBox(width: 6),
-                Text(
+              value: (loan['purpose'] as String?) ??
+                  (loan['loan_purpose'] as String?) ??
+                  '-'),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(_disbursementIcon(method),
+                  size: 14, color: _disbursementColor(method)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
                   'Disbursement: ${_capitalize(method.replaceAll('_', ' '))}',
                   style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: _disbursementColor(method))),
-              ])),
+              ),
+            ]),
         ]));
   }
 
@@ -477,25 +550,20 @@ class _LoanApplicationDetailsModalState
     final coMakers =
         (loan['co_makers'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     if (coMakers.isEmpty) {
-      return _PremiumCard(
+      return const _PremiumCard(
         title: 'Co-Maker',
         subtitle: 'Guarantor information',
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border)),
-          child: const Row(
-            children: [
-              Icon(Icons.info_outline_rounded,
-                  size: 16, color: AppColors.textTertiary),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text('No co-maker on file for this application.',
-                    style: TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary))),
-            ])));
+        child: Row(
+          children: [
+            Icon(Icons.info_outline_rounded,
+                size: 15, color: AppColors.textTertiary),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('No co-maker on file for this application.',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+            ),
+          ]));
     }
     final cm = coMakers.first;
     final signature = cm['signature'] as String?;
@@ -508,15 +576,6 @@ class _LoanApplicationDetailsModalState
         children: [
           Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.lenderBlue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.person_outline_rounded,
-                    color: AppColors.lenderBlue, size: 18)),
-              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,7 +595,7 @@ class _LoanApplicationDetailsModalState
           const SizedBox(height: 10),
           _KVRow(
               label: 'Phone',
-              value: _maskPhone(cm['phone_number'] as String? ?? '')),
+              value: cm['phone_number'] as String? ?? '-'),
           _KVRow(
               label: 'Birthday',
               value: cm['date_of_birth'] as String? ?? '-'),
@@ -591,80 +650,71 @@ class _LoanApplicationDetailsModalState
         .take(5)
         .toList();
     if (schedules.isEmpty) {
-      return _PremiumCard(
+      return const _PremiumCard(
         title: 'Payment Schedule',
         subtitle: 'First 5 periods',
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border)),
-          child: const Text('No schedule generated yet.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary))));
+        child: Row(
+          children: [
+            Icon(Icons.event_note_outlined,
+                size: 15, color: AppColors.textTertiary),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('No schedule generated yet.',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+            ),
+          ]));
     }
     return _PremiumCard(
       title: 'Payment Schedule',
       subtitle: 'First 5 periods • Preview',
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.deepNavy.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(20)),
-        child: Text('${loan['term_periods'] ?? schedules.length} total',
-            style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: AppColors.deepNavy))),
+      trailing: Text('${loan['term_periods'] ?? schedules.length} payments',
+          style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Colors.white70)),
       child: Column(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.border),
-              borderRadius: BorderRadius.circular(10)),
-            clipBehavior: Clip.antiAlias,
-            child: Table(
-              columnWidths: const {
-                0: FlexColumnWidth(0.9),
-                1: FlexColumnWidth(2),
-                2: FlexColumnWidth(2),
-                3: FlexColumnWidth(1.2),
-              },
-              children: [
-                TableRow(
-                  decoration: const BoxDecoration(color: Color(0xFFF8F9FB)),
-                  children: ['#', 'Due Date', 'Amount Due', 'Status']
-                      .map((h) => Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 9),
-                            child: Text(h,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 10,
-                                    color: AppColors.textSecondary))))
-                      .toList()),
-                ...schedules.map((s) {
-                  final st = s['status'] as String? ?? '-';
-                  return TableRow(
-                    decoration: const BoxDecoration(
-                        border: Border(
-                            bottom: BorderSide(color: Color(0xFFF0F0F0)))),
-                    children: [
-                      _tableCell(
-                          s['period_number']?.toString() ??
-                              s['installment_number']?.toString() ??
-                              '-',
-                          bold: true),
-                      _tableCell(_formatDate(s['due_date'])),
-                      _tableCell('₱${fmt.format(s['amount_due'] ?? 0)}',
-                          bold: true),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 7),
-                        child: _ScheduleStatusPill(status: st)),
-                    ]);
-                }),
-              ])),
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(0.9),
+              1: FlexColumnWidth(2),
+              2: FlexColumnWidth(2),
+              3: FlexColumnWidth(1.2),
+            },
+            border: const TableBorder(
+              horizontalInside: BorderSide(color: Color(0xFFF0F0F0)),
+            ),
+            children: [
+              TableRow(
+                decoration: const BoxDecoration(color: Color(0xFFF8F9FB)),
+                children: ['#', 'Due Date', 'Amount Due', 'Status']
+                    .map((h) => Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 9),
+                          child: Text(h,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 10,
+                                  color: AppColors.textSecondary))))
+                    .toList()),
+              ...schedules.map((s) {
+                final st = s['status'] as String? ?? '-';
+                return TableRow(
+                  children: [
+                    _tableCell(
+                        s['period_number']?.toString() ??
+                            s['installment_number']?.toString() ??
+                            '-',
+                        bold: true),
+                    _tableCell(_formatDate(s['due_date'])),
+                    _tableCell('₱${fmt.format(s['amount_due'] ?? 0)}',
+                        bold: true),
+                    _scheduleStatusCell(st),
+                  ]);
+              }),
+            ],
+          ),
           const SizedBox(height: 6),
           const Text('Full schedule available after approval.',
               style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
@@ -679,28 +729,33 @@ class _LoanApplicationDetailsModalState
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
                 color: AppColors.textPrimary)));
 
+  Widget _scheduleStatusCell(String status) {
+    final s = status.toLowerCase();
+    final Color c;
+    switch (s) {
+      case 'paid':
+        c = AppColors.success;
+        break;
+      case 'overdue':
+        c = AppColors.error;
+        break;
+      default:
+        c = AppColors.warning;
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      child: Text(
+        status.isEmpty ? '-' : _capitalize(status),
+        style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: c,
+            letterSpacing: 0.2),
+      ),
+    );
+  }
+
   // Helpers
-  String _initials(String name) {
-    if (name.trim().isEmpty) return '?';
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return name.trim().substring(0, 1).toUpperCase();
-  }
-
-  Color _avatarColor(String seed) {
-    const palette = [
-      Color(0xFF0D1B2A),
-      Color(0xFF1565C0),
-      Color(0xFF2E7D32),
-      Color(0xFF6A1B9A),
-      Color(0xFF00695C),
-      Color(0xFFAD1457),
-      Color(0xFF4E342E),
-      Color(0xFF37474F),
-    ];
-    return palette[seed.hashCode.abs() % palette.length];
-  }
-
   String _formatDate(dynamic d) {
     if (d == null) return '-';
     try {
@@ -708,11 +763,6 @@ class _LoanApplicationDetailsModalState
     } catch (_) {
       return d.toString();
     }
-  }
-
-  String _maskPhone(String p) {
-    if (p.length < 8) return p;
-    return '${p.substring(0, 4)}****${p.substring(p.length - 3)}';
   }
 
   String _capitalize(String s) => s.isEmpty
@@ -737,53 +787,18 @@ class _LoanApplicationDetailsModalState
     return a.toString();
   }
 
-  Color _upgradeBg(String? s) {
-    switch (s) {
-      case 'approved':
-        return AppColors.success.withValues(alpha: 0.10);
-      case 'pending':
-        return AppColors.warning.withValues(alpha: 0.12);
-      case 'rejected':
-        return AppColors.error.withValues(alpha: 0.10);
-      default:
-        return AppColors.surfaceVariant;
-    }
-  }
-
   Color _upgradeColor(String? s) {
     switch (s) {
       case 'approved':
+      case 'verified':
         return AppColors.success;
       case 'pending':
+      case 'submitted':
         return AppColors.warning;
       case 'rejected':
         return AppColors.error;
       default:
         return AppColors.textSecondary;
-    }
-  }
-
-  Color _disbursementBg(String m) {
-    switch (m) {
-      case 'gcash':
-      case 'gcash_xendit':
-        return AppColors.info.withValues(alpha: 0.08);
-      case 'rider_delivery':
-        return AppColors.gold.withValues(alpha: 0.12);
-      default:
-        return AppColors.surfaceVariant;
-    }
-  }
-
-  Color _disbursementBorder(String m) {
-    switch (m) {
-      case 'gcash':
-      case 'gcash_xendit':
-        return AppColors.info.withValues(alpha: 0.18);
-      case 'rider_delivery':
-        return AppColors.gold.withValues(alpha: 0.24);
-      default:
-        return AppColors.border;
     }
   }
 
@@ -844,129 +859,128 @@ class _PremiumCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border)),
-      padding: const EdgeInsets.all(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 10, color: AppColors.textTertiary)),
-                  ])),
-              if (trailing != null) trailing!,
-            ]),
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          const SizedBox(height: 10),
-          child,
-        ]));
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF5C6370),
+              border: Border(bottom: BorderSide(color: AppColors.divider)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                      if (subtitle.isNotEmpty)
+                        Text(subtitle,
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.white70)),
+                    ],
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+          ),
+          Padding(padding: const EdgeInsets.all(16), child: child),
+        ],
+      ),
+    );
   }
 }
 
 class _KVRow extends StatelessWidget {
   final String label;
   final String value;
-  final TextStyle? valueStyle;
-  final Widget? valueWidget;
+  final bool highlight;
   const _KVRow(
       {required this.label,
       required this.value,
-      this.valueStyle,
-      this.valueWidget});
+      this.highlight = false});
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 122,
+            width: 130,
             child: Text(label,
                 style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy))),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary))),
           Expanded(
-            child: valueWidget ??
-                Text(
-                  value,
-                  style: valueStyle ??
-                      const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary))),
-        ]));
+            child: Text(
+              value,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight:
+                      highlight ? FontWeight.w800 : FontWeight.w600,
+                  color: highlight
+                      ? AppColors.deepNavy
+                      : AppColors.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
-class _FrequencyPill extends StatelessWidget {
-  final String frequency;
-  const _FrequencyPill({required this.frequency});
-  @override
-  Widget build(BuildContext context) {
-    final f = frequency.toLowerCase();
-    final Color c;
-    switch (f) {
-      case 'daily':
-        c = AppColors.riderGreen;
-        break;
-      case 'weekly':
-        c = AppColors.lenderBlue;
-        break;
-      default:
-        c = AppColors.deepNavy;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-          color: c.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: c.withValues(alpha: 0.22))),
-      child: Text(
-        f.isEmpty ? '-' : '${f[0].toUpperCase()}${f.substring(1)}',
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w800, color: c, letterSpacing: 0.2)));
-  }
-}
-
-class _ScheduleStatusPill extends StatelessWidget {
+class _StatusText extends StatelessWidget {
   final String status;
-  const _ScheduleStatusPill({required this.status});
+  const _StatusText({required this.status});
   @override
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
     final Color c;
-    switch (s) {
-      case 'paid':
-        c = AppColors.success;
-        break;
-      case 'overdue':
-        c = AppColors.error;
-        break;
-      default:
-        c = AppColors.warning;
+    if (s == 'rejected' ||
+        s == 'cancelled' ||
+        s == 'overdue' ||
+        s == 'suspended' ||
+        s == 'blacklisted' ||
+        s == 'declined') {
+      c = const Color(0xFFFFB4AB);
+    } else if (s == 'pending' ||
+        s == 'under_review' ||
+        s == 'ci_required' ||
+        s == 'ci_assigned' ||
+        s == 'ci_completed' ||
+        s == 'requested' ||
+        s == 'in_progress' ||
+        s == 'submitted') {
+      c = const Color(0xFFFFD54F);
+    } else if (s.isEmpty || s == '-' || s == 'unknown') {
+      c = Colors.white70;
+    } else {
+      c = Colors.white;
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-          color: c.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: c.withValues(alpha: 0.18))),
-      child: Text(s.isEmpty ? '-' : '${s[0].toUpperCase()}${s.substring(1)}',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c)));
+    return Text(
+      s.isEmpty || s == '-'
+          ? '-'
+          : '${status[0].toUpperCase()}${status.substring(1).replaceAll('_', ' ')}',
+      style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: c,
+          letterSpacing: 0.3),
+    );
   }
 }
 

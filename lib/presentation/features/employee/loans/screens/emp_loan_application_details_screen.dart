@@ -80,39 +80,32 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
 
   Widget _buildDisbursementAction(
       BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Cash via Rider — Disbursement',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy)),
-            const Divider(height: 20),
-            const Text(
-              'The lender chose to receive the loan via a delivery rider. Assign an available rider to hand the cash to the lender.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () =>
-                    _showAssignDeliveryRider(context, ref, data),
-                icon: const Icon(Icons.delivery_dining, size: 18),
-                label: const Text('Assign Delivery Rider'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.gold,
-                  foregroundColor: Colors.black87,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
+    return _SectionCard(
+      title: 'Cash via Rider — Disbursement',
+      subtitle: 'Assign an available rider to hand the cash to the lender',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'The lender chose to receive the loan via a delivery rider.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () =>
+                  _showAssignDeliveryRider(context, ref, data),
+              icon: const Icon(Icons.delivery_dining, size: 18),
+              label: const Text('Assign Delivery Rider'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.black87,
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -138,105 +131,72 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   }
 
   Widget _buildStatusHeader(Map<String, dynamic> data) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Loan #${data['loan_number'] ?? '—'}',
-                      style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.deepNavy)),
-                  const SizedBox(height: 4),
-                  Text(
-                      'Applied: ${(data['created_at'] ?? '').toString().substring(0, 10)}',
-                      style: const TextStyle(color: AppColors.textSecondary)),
-                ],
-              ),
-            ),
-            StatusBadge(
-              status: (data['rider_delivery_assigned'] == true &&
-                      (data['status'] ?? 'pending') == 'approved')
-                  ? 'rider_delivery_assigned'
-                  : (data['status'] ?? 'pending'),
-              large: true,
-            ),
-          ],
-        ),
+    return _SectionCard(
+      title: 'Loan #${data['loan_number'] ?? '—'}',
+      subtitle:
+          'Applied: ${(data['created_at'] ?? '').toString().substring(0, 10)}',
+      trailing: StatusBadge(
+        status: (data['rider_delivery_assigned'] == true &&
+                (data['status'] ?? 'pending') == 'approved')
+            ? 'rider_delivery_assigned'
+            : (data['status'] ?? 'pending'),
+        large: true,
       ),
     );
   }
 
   Widget _buildLenderInfo(Map<String, dynamic> data) {
     final lender = data['lender'] as Map<String, dynamic>? ?? {};
-    final profile = lender['lender_profiles'] as Map<String, dynamic>? ?? {};
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Lender Information',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy)),
-            const Divider(height: 20),
-            _row(
-                'Name',
-                '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
-                    .trim()),
-            _row('Phone', lender['phone'] ?? '—'),
-            _row('Email', lender['email'] ?? '—'),
-            _row('Employment', profile['employment_type'] ?? '—'),
-            _row(
-                'Monthly Income',
-                profile['monthly_income'] != null
-                    ? '₱${profile['monthly_income']}'
-                    : '—'),
-            _row('Account Upgrade Status',
-                profile['account_upgrade_status'] ?? '—'),
-          ],
-        ),
+    final profile = (data['lender_profile'] as Map<String, dynamic>?) ??
+        (lender['lender_profiles'] as Map<String, dynamic>? ?? {});
+    return _SectionCard(
+      title: 'Lender Information',
+      subtitle: 'Upgraded Account',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row(
+              'Name',
+              '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'
+                  .trim()),
+          _row('Phone', lender['phone'] ?? '—'),
+          _row('Email', lender['email'] ?? '—'),
+          _row('Employment', profile['employment_type'] ?? '—'),
+          _row(
+              'Monthly Income',
+              profile['monthly_income'] != null
+                  ? '₱${profile['monthly_income']}'
+                  : '—'),
+          _row('Account Upgrade Status',
+              profile['account_upgrade_status'] ?? '—'),
+        ],
       ),
     );
   }
 
   Widget _buildLoanInfo(Map<String, dynamic> data) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Loan Details',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy)),
-            const Divider(height: 20),
-            _row('Principal',
-                '₱${(data['principal_amount'] ?? 0).toStringAsFixed(2)}'),
-            _row('Interest (20%)',
-                '₱${(data['interest_amount'] ?? 0).toStringAsFixed(2)}'),
-            _row('Total Payable',
-                '₱${(data['total_payable'] ?? 0).toStringAsFixed(2)}'),
-            _row('Frequency',
-                ((data['frequency'] ?? data['payment_frequency']) ?? '')
-                    .toString()
-                    .toUpperCase()),
-            _row('Loan Term', _loanTermLabel(data)),
-            _row('Number of Payments', '${data['term_periods'] ?? '—'}'),
-            _row('Installment',
-                '₱${(data['installment_amount'] ?? 0).toStringAsFixed(2)}'),
-            _row('Purpose', data['purpose'] ?? '—'),
-          ],
-        ),
+    return _SectionCard(
+      title: 'Loan Details',
+      subtitle: 'Terms & amounts',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row('Principal',
+              '₱${(data['principal_amount'] ?? 0).toStringAsFixed(2)}'),
+          _row('Interest (20%)',
+              '₱${(data['interest_amount'] ?? 0).toStringAsFixed(2)}'),
+          _row('Total Payable',
+              '₱${(data['total_payable'] ?? 0).toStringAsFixed(2)}'),
+          _row('Frequency',
+              ((data['frequency'] ?? data['payment_frequency']) ?? '')
+                  .toString()
+                  .toUpperCase()),
+          _row('Loan Term', _loanTermLabel(data)),
+          _row('Number of Payments', '${data['term_periods'] ?? '—'}'),
+          _row('Installment',
+              '₱${(data['installment_amount'] ?? 0).toStringAsFixed(2)}'),
+          _row('Purpose', data['purpose'] ?? '—'),
+        ],
       ),
     );
   }
@@ -247,46 +207,40 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     if (coMakers.isEmpty) return const SizedBox.shrink();
     final cm = coMakers.first;
     final signature = cm['signature'] as String?;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Co-Maker',
+    return _SectionCard(
+      title: 'Co-Maker',
+      subtitle: 'Guarantor & signature',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _row('Name',
+              '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim()),
+          _row('Relationship', cm['relationship'] ?? '—'),
+          _row('Phone', cm['phone_number'] ?? '—'),
+          _row('Birthday', cm['date_of_birth'] ?? '—'),
+          _row('Address', cm['address'] ?? '—'),
+          if (signature != null && signature.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Text('Co-Maker Signature',
                 style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy)),
-            const Divider(height: 20),
-            _row('Name',
-                '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim()),
-            _row('Relationship', cm['relationship'] ?? '—'),
-            _row('Phone', cm['phone_number'] ?? '—'),
-            _row('Birthday', cm['date_of_birth'] ?? '—'),
-            _row('Address', cm['address'] ?? '—'),
-            if (signature != null && signature.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              const Text('Co-Maker Signature',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary)),
-              const SizedBox(height: 8),
-              Container(
-                width: 280,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: _buildSignatureImage(signature),
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            Container(
+              width: 280,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
               ),
-            ],
+              clipBehavior: Clip.antiAlias,
+              child: _buildSignatureImage(signature),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -318,47 +272,41 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
 
   Widget _buildAccountUpgradeStatus(Map<String, dynamic> data) {
     final accountUpgrade = data['account_upgrade_status'] ?? 'unknown';
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Account Upgrade Verification',
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy)),
-            const Divider(height: 20),
-            Row(children: [
-              StatusBadge(status: accountUpgrade),
-              const SizedBox(width: 8),
-              Text(
-                  accountUpgrade == 'verified'
-                      ? 'Account upgrade documents verified'
-                      : 'Account upgrade not yet verified',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
-            ]),
-          ],
+    return _SectionCard(
+      title: 'Account Upgrade Verification',
+      subtitle: 'Identity documents status',
+      child: Row(children: [
+        StatusBadge(status: accountUpgrade),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+              accountUpgrade == 'verified'
+                  ? 'Account upgrade documents verified'
+                  : 'Account upgrade not yet verified',
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary)),
         ),
-      ),
+      ]),
     );
   }
 
   Widget _row(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(children: [
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(
-            width: 130,
+            width: 140,
             child: Text(label,
                 style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary))),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary))),
         Expanded(
             child: Text(value,
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600))),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary))),
       ]),
     );
   }
@@ -386,4 +334,72 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
         itemBuilder: (_, __) => const ShimmerLoader(height: 180),
       );
 
+}
+
+/// White section card with a dark slate header strip — matches the card style
+/// used on the Lender Account Upgrade Details screen.
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final Widget? child;
+  const _SectionCard({
+    required this.title,
+    this.subtitle = '',
+    this.trailing,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF5C6370),
+              border: Border(bottom: BorderSide(color: AppColors.divider)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white),
+                      ),
+                      if (subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                              fontSize: 10, color: Colors.white70),
+                        ),
+                    ],
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+          ),
+          if (child != null)
+            Padding(padding: const EdgeInsets.all(16), child: child),
+        ],
+      ),
+    );
+  }
 }

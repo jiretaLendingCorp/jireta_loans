@@ -262,6 +262,18 @@ async function handleGetDetails(req: Request) {
     ]);
 
     const lp = loan?.lender_profiles;
+    // Primary (home) address — lives on the `addresses` table, same data the
+    // list view embeds as `lender_address`.
+    let lenderAddress: Record<string, unknown> | null = null;
+    if (loan?.lender_id) {
+      const { data: addrRow } = await db
+        .from('addresses')
+        .select('street, barangay, city, province, zip_code')
+        .eq('user_id', loan.lender_id)
+        .eq('is_primary', true)
+        .maybeSingle();
+      lenderAddress = (addrRow as Record<string, unknown> | null) ?? null;
+    }
     const loanOut: Record<string, unknown> = {
       ...loan,
       due_date: nextSched?.due_date ?? null,
@@ -276,6 +288,7 @@ async function handleGetDetails(req: Request) {
       frequency: loan.payment_frequency,
       lender: lp?.users ?? null,
       lender_profile: lp ?? null,
+      lender_address: lenderAddress,
       loan_schedules: schedule ?? [],
       payments: payments,
       credit_investigations: ci ?? [],

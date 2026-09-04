@@ -41,6 +41,9 @@ class AppDatePicker extends StatelessWidget {
             onPrimary: Colors.white,
             surface: Colors.white,
           ),
+          datePickerTheme: const DatePickerThemeData(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          ),
         ),
         child: child!,
       ),
@@ -67,13 +70,13 @@ class AppDatePicker extends StatelessWidget {
               size: 18,
               color: AppColors.textSecondary,
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
+            border: const OutlineInputBorder(
+              borderRadius: BorderRadius.zero,
+              borderSide: BorderSide(color: AppColors.border),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
+            enabledBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.zero,
+              borderSide: BorderSide(color: AppColors.border),
             ),
             filled: true,
             fillColor: enabled ? Colors.white : AppColors.surfaceVariant,

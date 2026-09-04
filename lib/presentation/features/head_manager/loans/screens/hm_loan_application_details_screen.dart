@@ -139,31 +139,39 @@ class _HmLoanApplicationDetailsScreenState
                   children: [
                     _buildLenderCard(loan),
                     const SizedBox(height: 16),
-                    _buildLoanCard(loan, fmt),
-                    const SizedBox(height: 16),
                     _buildCoMakerCard(loan),
+                    const SizedBox(height: 16),
+                    _buildLoanCard(loan, fmt),
                     const SizedBox(height: 16),
                     _buildSchedulePreview(loan, fmt),
                   ]);
               }
-              return Column(
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildLenderCard(loan)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildLoanCard(loan, fmt)),
-                    ]),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildCoMakerCard(loan)),
-                      const SizedBox(width: 16),
-                      Expanded(child: _buildSchedulePreview(loan, fmt)),
-                    ]),
-                ]);
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLenderCard(loan),
+                        const SizedBox(height: 16),
+                        _buildCoMakerCard(loan),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildLoanCard(loan, fmt),
+                        const SizedBox(height: 16),
+                        _buildSchedulePreview(loan, fmt),
+                      ],
+                    ),
+                  ),
+                ],
+              );
             }),
         ]));
   }
@@ -178,109 +186,45 @@ class _HmLoanApplicationDetailsScreenState
     final totalPayable = (loan['total_payable'] as num?)?.toDouble() ?? 0;
     final applied = loan['created_at'];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2)),
-        ]),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return _PremiumCard(
+      title: loanNumber,
+      subtitle: name.isEmpty
+          ? 'Applied ${_formatDate(applied)}'
+          : '$name • Applied ${_formatDate(applied)}',
+      trailing: StatusBadge(status: status),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border)),
-                child: const Icon(Icons.description_outlined,
-                    color: AppColors.textSecondary, size: 20)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      loanNumber,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(
-                      name.isEmpty
-                          ? 'Applied ${_formatDate(applied)}'
-                          : '$name • Applied ${_formatDate(applied)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary),
-                      overflow: TextOverflow.ellipsis),
-                  ])),
-              StatusBadge(status: status),
-            ]),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _SimpleStat(
-                  label: 'Principal',
-                  value: '₱${fmt.format(principal)}')),
-              Container(width: 1, height: 32, color: AppColors.divider),
-              Expanded(
-                child: _SimpleStat(
-                  label: 'Total Payable',
-                  value: '₱${fmt.format(totalPayable)}')),
-              Container(width: 1, height: 32, color: AppColors.divider),
-              Expanded(
-                child: _SimpleStat(
-                  label: 'Term',
-                  value: _loanTermLabel(loan))),
-            ]),
-        ]));
+          Expanded(
+            child: _SimpleStat(
+                label: 'Principal', value: '₱${fmt.format(principal)}')),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+            child: _SimpleStat(
+                label: 'Total Payable',
+                value: '₱${fmt.format(totalPayable)}')),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+            child: _SimpleStat(label: 'Term', value: _loanTermLabel(loan))),
+        ],
+      ),
+    );
   }
 
   // ───────────────────────── Cards ─────────────────────────
   Widget _buildLenderCard(Map<String, dynamic> loan) {
     final lender = loan['lender'] as Map<String, dynamic>? ?? {};
-    final profile = lender['lender_profiles'] as Map<String, dynamic>? ?? {};
+    final profile = (loan['lender_profile'] as Map<String, dynamic>?) ??
+        (lender['lender_profiles'] as Map<String, dynamic>? ?? {});
     final name =
         '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim();
-    final initials = _initials(name.isEmpty ? 'Lender' : name);
 
     return _PremiumCard(
       title: 'Lender Information',
-      subtitle: 'Lender profile & KYC',
+      subtitle: 'Upgraded Account',
       child: Column(
         children: [
           Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      _avatarColor(name),
-                      _avatarColor(name).withValues(alpha: 0.72)
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(12)),
-                alignment: Alignment.center,
-                child: Text(initials,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16))),
-              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,7 +235,7 @@ class _HmLoanApplicationDetailsScreenState
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary)),
                     Text(
-                      _maskPhone(lender['phone_number'] as String? ?? ''),
+                      lender['phone_number'] as String? ?? '',
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textSecondary)),
                   ])),
@@ -324,7 +268,7 @@ class _HmLoanApplicationDetailsScreenState
                   : '-'),
           _KVRow(
               label: 'Address',
-              value: _formatAddress(profile['address'])),
+              value: _formatAddress(profile['address'] ?? loan['lender_address'])),
         ]));
   }
 
@@ -395,7 +339,11 @@ class _HmLoanApplicationDetailsScreenState
           _KVRow(
               label: 'Installment',
               value: '₱${fmt.format(loan['installment_amount'] ?? 0)}'),
-          _KVRow(label: 'Purpose', value: loan['loan_purpose'] as String? ?? '-'),
+          _KVRow(
+              label: 'Purpose',
+              value: (loan['purpose'] as String?) ??
+                  (loan['loan_purpose'] as String?) ??
+                  '-'),
           const SizedBox(height: 10),
           Container(
             width: double.infinity,
@@ -455,15 +403,6 @@ class _HmLoanApplicationDetailsScreenState
         children: [
           Row(
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.lenderBlue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.person_outline_rounded,
-                    color: AppColors.lenderBlue, size: 20)),
-              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,7 +422,7 @@ class _HmLoanApplicationDetailsScreenState
           const SizedBox(height: 12),
           _KVRow(
               label: 'Phone',
-              value: _maskPhone(cm['phone_number'] as String? ?? '')),
+              value: cm['phone_number'] as String? ?? '-'),
           _KVRow(
               label: 'Birthday',
               value: cm['date_of_birth'] as String? ?? '-'),
@@ -563,16 +502,16 @@ class _HmLoanApplicationDetailsScreenState
       title: 'Payment Schedule',
       subtitle: 'First 5 periods • Preview',
       trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.deepNavy.withValues(alpha: 0.08),
+          color: Colors.white.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(20)),
         child: Text(
           '${loan['term_periods'] ?? schedules.length} total',
           style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppColors.deepNavy))),
+              color: Colors.white))),
       child: Column(
         children: [
           Container(
@@ -640,27 +579,6 @@ class _HmLoanApplicationDetailsScreenState
                 color: AppColors.textPrimary)));
 
   // ───────────────────────── Helpers ─────────────────────────
-  String _initials(String name) {
-    if (name.trim().isEmpty) return '?';
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return name.trim().substring(0, 1).toUpperCase();
-  }
-
-  Color _avatarColor(String seed) {
-    const palette = [
-      Color(0xFF0D1B2A),
-      Color(0xFF1565C0),
-      Color(0xFF2E7D32),
-      Color(0xFF6A1B9A),
-      Color(0xFF00695C),
-      Color(0xFFAD1457),
-      Color(0xFF4E342E),
-      Color(0xFF37474F),
-    ];
-    return palette[seed.hashCode.abs() % palette.length];
-  }
-
   String _formatDate(dynamic d) {
     if (d == null) return '-';
     try {
@@ -668,11 +586,6 @@ class _HmLoanApplicationDetailsScreenState
     } catch (_) {
       return d.toString();
     }
-  }
-
-  String _maskPhone(String p) {
-    if (p.length < 8) return p;
-    return '${p.substring(0, 4)}****${p.substring(p.length - 3)}';
   }
 
   String _capitalize(String s) => s.isEmpty
@@ -807,41 +720,44 @@ class _PremiumCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
         boxShadow: const [
           BoxShadow(
-              color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4)),
+              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
-      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textTertiary)),
-                  ],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF5C6370),
+              border: Border(bottom: BorderSide(color: AppColors.divider)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white)),
+                      if (subtitle.isNotEmpty)
+                        Text(subtitle,
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.white70)),
+                    ],
+                  ),
                 ),
-              ),
-              if (trailing != null) trailing!,
-            ],
+                if (trailing != null) trailing!,
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          const Divider(height: 1),
-          const SizedBox(height: 14),
-          child,
+          Padding(padding: const EdgeInsets.all(16), child: child),
         ],
       ),
     );
@@ -861,25 +777,25 @@ class _KVRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 122,
+            width: 130,
             child: Text(label,
                 style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy))),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary))),
           Expanded(
             child: valueWidget ??
                 Text(
                   value,
                   style: valueStyle ??
                       const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           color: AppColors.textPrimary))),
         ]));
   }
