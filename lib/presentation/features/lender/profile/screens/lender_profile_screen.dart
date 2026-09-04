@@ -10,6 +10,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/extensions/string_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
@@ -448,7 +449,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     String dateLabel = '';
     final createdAt = app?['created_at']?.toString();
     if (createdAt != null) {
-      final d = DateTime.tryParse(createdAt);
+      final d = parseManila(createdAt);
       if (d != null) {
         dateLabel =
             '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/notification_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -163,7 +164,7 @@ class _HmNotificationCenterScreenState
           trailing: Text(
             log['sent_at'] != null
                 ? DateFormat('MMM d, h:mm a')
-                    .format(DateTime.parse(log['sent_at']))
+                    .format(parseManila(log['sent_at'])!)
                 : '',
             style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
           ),

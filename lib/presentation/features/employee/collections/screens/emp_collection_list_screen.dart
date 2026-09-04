@@ -7,6 +7,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -565,7 +566,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             final dateStr = () {
               final d = p['created_at'];
               if (d == null) return '-';
-              try { return dateFmt.format(DateTime.parse(d.toString())); } catch (_) { return d.toString(); }
+              try { return dateFmt.format(toManila(DateTime.parse(d.toString()))); } catch (_) { return d.toString(); }
             }();
             final flatLenderName = p['lender_name'] != null ? p['lender_name'] as String : null;
             final resolvedLender = flatLenderName != null && flatLenderName.isNotEmpty

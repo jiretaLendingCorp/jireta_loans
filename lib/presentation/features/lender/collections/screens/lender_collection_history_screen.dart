@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
@@ -173,7 +174,7 @@ class _CollectionCard extends StatelessWidget {
                   _InfoChip(
                       Icons.calendar_today_outlined,
                       scheduledAt != null
-                          ? DateTime.tryParse(scheduledAt)?.toShortDate ?? '-'
+                          ? parseManila(scheduledAt)?.toShortDate ?? '-'
                           : '-',
                       'Scheduled'),
                 ],
@@ -186,7 +187,7 @@ class _CollectionCard extends StatelessWidget {
                         size: 14, color: AppColors.success),
                     const SizedBox(width: 4),
                     Text(
-                        'Completed ${DateTime.tryParse(completedAt)?.toShortDate ?? ''}',
+                        'Completed ${parseManila(completedAt)?.toShortDate ?? ''}',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.success)),
                   ],

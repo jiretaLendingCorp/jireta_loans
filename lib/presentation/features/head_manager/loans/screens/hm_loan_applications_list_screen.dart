@@ -333,9 +333,7 @@ class _HmLoanApplicationsListScreenState
             final idx = e.key;
             final app = e.value;
             final isEven = idx.isEven;
-            final createdAt = app['created_at'] != null
-                ? DateTime.tryParse(app['created_at'].toString())
-                : null;
+            final createdAt = parseManila(app['created_at']);
             final dateStr = createdAt != null
                 ? DateFormat('MMM dd, yyyy').format(createdAt)
                 : '—';

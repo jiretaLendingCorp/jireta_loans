@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/widgets/app_card.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
@@ -66,7 +67,7 @@ class _EmpPaymentDetailsScreenState extends ConsumerState<EmpPaymentDetailsScree
     final status = d['status'] ?? '';
     final method = d['method'] ?? '';
     final amount = (d['amount'] as num?)?.toDouble() ?? 0;
-    final createdAt = d['created_at'] != null ? DateTime.tryParse(d['created_at']) : null;
+    final createdAt = parseManila(d['created_at']);
     final loan = d['loan'] as Map<String, dynamic>?;
     final recordedByUser = d['recorded_by_user'] as Map<String, dynamic>?;
 

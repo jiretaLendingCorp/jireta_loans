@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/document_viewer.dart';
@@ -161,13 +162,13 @@ class _StatusCard extends StatelessWidget {
             _DetailRow(
                 icon: Icons.schedule_outlined,
                 label: 'Scheduled',
-                value: DateTime.tryParse(scheduledAt!)?.toShortDate ?? '-'),
+                value: parseManila(scheduledAt)?.toShortDate ?? '-'),
           if (completedAt != null) ...[
             const SizedBox(height: 10),
             _DetailRow(
                 icon: Icons.check_circle_outline,
                 label: 'Completed',
-                value: DateTime.tryParse(completedAt!)?.toShortDate ?? '-'),
+                value: parseManila(completedAt)?.toShortDate ?? '-'),
           ],
         ],
       ),

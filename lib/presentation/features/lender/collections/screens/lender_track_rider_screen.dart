@@ -196,7 +196,7 @@ class _State extends ConsumerState<LenderTrackRiderScreen> {
       final isStaleFlag = data?['is_stale'] == true;
       DateTime? riderUpdatedAt;
       final rawUpdated = data?['updated_at'] ?? data?['location_updated_at'];
-      if (rawUpdated is String) riderUpdatedAt = DateTime.tryParse(rawUpdated);
+      if (rawUpdated is String) riderUpdatedAt = parseManila(rawUpdated);
       bool isStale = isStaleFlag;
       if (!isStale && riderUpdatedAt != null) {
         isStale = nowManila().difference(riderUpdatedAt).inSeconds > 120;

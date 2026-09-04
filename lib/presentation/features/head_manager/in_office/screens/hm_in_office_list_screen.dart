@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -102,9 +103,7 @@ class _HmInOfficeListScreenState extends ConsumerState<HmInOfficeListScreen>
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final app = state.applications[i];
-          final createdAt = app['created_at'] != null
-              ? DateTime.tryParse(app['created_at'])
-              : null;
+          final createdAt = parseManila(app['created_at']);
           return Container(
             key: ValueKey(app['id']),
             padding: const EdgeInsets.all(16),

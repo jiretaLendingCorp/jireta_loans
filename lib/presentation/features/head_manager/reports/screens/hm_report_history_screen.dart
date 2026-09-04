@@ -195,7 +195,7 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
       reports = reports.where((r) {
         final created = r['created_at'] as String?;
         if (created == null) return false;
-        final dt = DateTime.tryParse(created);
+        final dt = parseManila(created);
         if (dt == null) return false;
         return dt.isAfter(_dateRange!.start) && dt.isBefore(_dateRange!.end.add(const Duration(days: 1)));
       }).toList();
@@ -277,7 +277,7 @@ class _ReportHistoryCardState extends State<_ReportHistoryCard> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text(createdAt != null ? DateTime.parse(createdAt).toDisplay() : '–', style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+                        Text(createdAt != null ? parseManila(createdAt)?.toDisplay() ?? '–' : '–', style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
                         if (parameters['date_range'] != null) ...[
                           const SizedBox(width: 12),
                           Text(parameters['date_range'].toString(), style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),

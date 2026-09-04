@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../audit/audit_action_catalog.dart';
 
@@ -39,8 +40,7 @@ ActivityEvent _mapAuditLog(Map<String, dynamic> log) {
   return ActivityEvent(
     title: label.isEmpty ? 'Action' : label,
     subtitle: performer + (table.isEmpty ? '' : ' • $table'),
-    timestamp: DateTime.tryParse(log['created_at']?.toString() ?? '') ??
-        DateTime.now(),
+    timestamp: parseManila(log['created_at']) ?? nowManila(),
     type: action,
   );
 }

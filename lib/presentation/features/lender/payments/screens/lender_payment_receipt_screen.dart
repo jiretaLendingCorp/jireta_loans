@@ -6,6 +6,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -245,7 +246,7 @@ class _ReceiptCard extends StatelessWidget {
                 ],
                 if (paidAt != null)
                   _Row('Date & Time',
-                      DateTime.tryParse(paidAt!)?.toShortDate ?? '-'),
+                      parseManila(paidAt)?.formattedWithTime ?? '-'),
               ],
             ),
           ),

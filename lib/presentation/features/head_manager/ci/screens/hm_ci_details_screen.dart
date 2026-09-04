@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
@@ -167,7 +168,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
 
   Widget _buildPremiumHeader(CreditInvestigationModel model, String status, Map<String, dynamic> ci) {
     final accent = _accentForStatus(status);
-    final deadline = ci['deadline'] != null ? DateTime.tryParse(ci['deadline'].toString()) : null;
+    final deadline = parseManila(ci['deadline']);
     final isOverdue = deadline != null && deadline.isBefore(DateTime.now()) && !['completed','approved'].contains(status);
     return Container(
       padding: const EdgeInsets.all(20),
@@ -298,7 +299,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         _InfoRow('Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone, icon: Icons.phone_outlined),
         _InfoRow('Loan Amount', principal != null ? '₱${_fmt.format((principal as num).toDouble())}' : 'N/A', icon: Icons.payments_outlined, highlight: true),
         if (addresses is Map) _InfoRow('Primary Address', _formatAddress(Map<String, dynamic>.from(addresses)), icon: Icons.location_on_outlined),
-        _InfoRow('Deadline', ci['deadline'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(ci['deadline'])) : 'N/A', icon: Icons.event_outlined),
+        _InfoRow('Deadline', ci['deadline'] != null ? DateFormat('MMM d, yyyy').format(parseManila(ci['deadline'])!) : 'N/A', icon: Icons.event_outlined),
       ],
     );
   }
@@ -313,9 +314,9 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         _InfoRow('Status', (ci['status'] ?? 'N/A').toString().replaceAll('_', ' '), icon: Icons.flag_outlined),
         _InfoRow('Assigned Rider', model.riderName.isEmpty ? 'Not Assigned' : model.riderName, icon: Icons.delivery_dining_rounded),
         _InfoRow('Assigned By', model.assignedByName.isEmpty ? 'N/A' : model.assignedByName, icon: Icons.admin_panel_settings_outlined),
-        _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(DateTime.parse(ci['created_at'])) : 'N/A', icon: Icons.schedule_rounded),
-        _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(DateTime.parse(ci['response_at'])) : 'Pending', icon: Icons.check_circle_outline_rounded),
-        _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(DateTime.parse(ci['completed_at'])) : '—', icon: Icons.verified_outlined),
+        _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(parseManila(ci['created_at'])!) : 'N/A', icon: Icons.schedule_rounded),
+        _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(parseManila(ci['response_at'])!) : 'Pending', icon: Icons.check_circle_outline_rounded),
+        _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(parseManila(ci['completed_at'])!) : '—', icon: Icons.verified_outlined),
         _InfoRow('CI Notes', (ci['investigation_notes'] as String?)?.isNotEmpty == true ? ci['investigation_notes'] as String : 'None', icon: Icons.sticky_note_2_outlined),
       ],
     );
@@ -439,7 +440,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     final isApproved = status == 'approved';
     final reviewer = ci['reviewer'] as Map<String, dynamic>?;
     final reviewerName = reviewer != null ? '${reviewer['first_name'] ?? ''} ${reviewer['last_name'] ?? ''}'.trim() : '—';
-    final reviewedAt = ci['reviewed_at'] != null ? _dateFmt.format(DateTime.parse(ci['reviewed_at'].toString())) : '—';
+    final reviewedAt = ci['reviewed_at'] != null ? _dateFmt.format(parseManila(ci['reviewed_at'])!) : '—';
     final notes = ci['review_notes'] as String? ?? (ci['review_decision'] as String? ?? '');
     return Container(
       decoration: BoxDecoration(
