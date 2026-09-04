@@ -12,12 +12,16 @@ class AuditActionCatalog {
     'password_reset',
     'force_password_changed',
     'password_changed',
+    'reset_password',
     'employee_registered',
     // Users
     'user_created',
     'create_rider',
     'create_lender',
     'archive_user',
+    'unarchive_user',
+    'archive_role',
+    'unarchive_role',
     'update_profile',
     // Loans
     'loan_applied',
@@ -49,6 +53,8 @@ class AuditActionCatalog {
     'ci_assigned',
     'ci_accept',
     'ci_decline',
+    'ci_approve_report',
+    'ci_reject_report',
     'ci_submit_report',
     'ci_upload_documents',
     // Account upgrade
@@ -56,11 +62,16 @@ class AuditActionCatalog {
     // In-office
     'in_office_draft_created',
     'in_office_submitted',
+    'in_office_account_created_pending_upgrade',
+    'in_office_auto_converted_after_kyc_verified',
     // System
     'system_config_updated',
     'sms_template_updated',
     'notification_sent',
     'report_export',
+    // AI analytics
+    'ai_insights_generate',
+    'ai_ask',
   ];
 
   /// Legacy labels from the original UI that never matched a backend action.

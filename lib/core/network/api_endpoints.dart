@@ -137,4 +137,8 @@ class ApiEndpoints {
 
   // Audit
   static const String auditGetLogs = 'audit-get-logs?fn=get-logs';
+
+  // AI Analytics (Gemini via Edge Function — key stays server-side)
+  static const String aiGenerateInsights = 'ai-dashboard-insights?fn=generate';
+  static const String aiAsk = 'ai-dashboard-insights?fn=ask';
 }

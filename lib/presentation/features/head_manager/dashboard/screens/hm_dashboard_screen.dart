@@ -12,7 +12,9 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/hm_dashboard_provider.dart';
 import '../widgets/hm_activity_feed.dart';
+import '../widgets/hm_ai_insights_panel.dart';
 import '../widgets/hm_analytics_panel.dart';
+import '../widgets/hm_ask_ai_sheet.dart';
 
 class HmDashboardScreen extends ConsumerStatefulWidget {
   const HmDashboardScreen({super.key});
@@ -69,6 +71,7 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
           ),
         ),
       ],
+      floatingActionButton: AskAiFab(month: dashState.selectedMonth),
       body: dashState.isLoading
           ? _buildShimmer()
           : RefreshIndicator(
@@ -150,6 +153,15 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     ),
                     const SizedBox(height: 14),
                     _buildLoanStatsGrid(dashState.kpi),
+                    const SizedBox(height: 32),
+                    // ── AI-Powered Dashboard Insights (isolated module) ──
+                    _buildSectionTitle(
+                      Icons.auto_awesome_rounded,
+                      'AI-Powered Dashboard Insights',
+                      'AI analysis based on current lending system data',
+                    ),
+                    const SizedBox(height: 14),
+                    HmAiInsightsPanel(month: dashState.selectedMonth),
                     const SizedBox(height: 32),
                   ],
                 ),

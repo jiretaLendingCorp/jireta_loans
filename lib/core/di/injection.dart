@@ -9,6 +9,7 @@ import '../../data/datasources/remote/disbursement_remote_datasource.dart';
 import '../../data/datasources/remote/in_office_remote_datasource.dart';
 import '../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../data/datasources/remote/account_upgrade_remote_datasource.dart';
+import '../../data/datasources/remote/ai_remote_datasource.dart';
 import '../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../data/datasources/remote/location_remote_datasource.dart';
 import '../../data/datasources/remote/notification_remote_datasource.dart';
@@ -71,6 +72,9 @@ Future<void> setupDependencies() async {
   );
   sl.registerLazySingleton<InOfficeRemoteDataSource>(
     () => InOfficeRemoteDataSource(sl()),
+  );
+  sl.registerLazySingleton<AiRemoteDataSource>(
+    () => AiRemoteDataSource(sl()),
   );
   // FIX: SystemRemoteDataSource existed but was never registered — added here.
   sl.registerLazySingleton<SystemRemoteDataSource>(
