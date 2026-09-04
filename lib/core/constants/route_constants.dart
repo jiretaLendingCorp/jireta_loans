@@ -15,6 +15,7 @@ class RouteConstants {
   // Head Manager
   static const String hmDashboard = '/hm/dashboard';
   static const String hmAllUsers = '/hm/all-users';
+  static const String hmHeadManagers = '/hm/head-managers';
   static const String hmEmployees = '/hm/employees';
   static const String hmEmployeeDetails = '/hm/employees/:id';
   static const String hmRiders = '/hm/riders';

@@ -67,6 +67,9 @@ serve(async (req) => {
       case 'create-lender':
         // ── [moved from functions/users-create-lender/index.ts] ─────────
         return await handleCreateLender(req);
+      case 'create-head-manager':
+        // ── Head Manager creation (Head Manager only) ───────────────────
+        return await handleCreateHeadManager(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -199,6 +202,118 @@ async function handleCreateEmployee(req: Request) {
   });
 
   return jsonResponse({ user_id: user.id, message: 'Employee created successfully' }, 201);
+}
+
+// ── Head Manager creation ───────────────────────────────────────────────────
+// Business rule: only the Head Manager can create another Head Manager.
+async function handleCreateHeadManager(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER);
+  if (roleCheck) return roleCheck;
+
+  const body = await req.json();
+  const {
+    first_name, middle_name, last_name, suffix,
+    gender, civil_status, email, phone_number,
+  } = body;
+
+  if (!first_name || !last_name || !email || !phone_number) {
+    return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
+  }
+  // ── Normalise + validate before any DB hit ──────────────────────────
+  const cleanEmail = sanitizeString(email).trim().toLowerCase();
+  if (!validateEmail(cleanEmail)) {
+    return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
+  }
+  const cleanPhone = sanitizeString(phone_number).trim();
+  if (!validatePhone(cleanPhone)) {
+    return errorResponse('Invalid phone number format (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+
+  // ── Email / phone uniqueness (security) ─────────────────────────────
+  const { data: dupEmail } = await db
+    .from('users')
+    .select('id')
+    .ilike('email', cleanEmail)
+    .maybeSingle();
+  if (dupEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
+
+  const { data: dupPhone } = await db
+    .from('users')
+    .select('id')
+    .eq('phone_number', cleanPhone)
+    .maybeSingle();
+  if (dupPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
+
+  // ── Resilient role-archived check ───────────────────────────────────
+  let roleRow: any = null;
+  try {
+    const { data } = await db.from('roles').select('id, is_archived').eq('name', 'head_manager').single();
+    roleRow = data;
+    if ((roleRow as any)?.is_archived === true) return errorResponse('Cannot create user — head manager role is archived', 403, 'ROLE_ARCHIVED');
+  } catch (_) {
+    const { data } = await db.from('roles').select('id').eq('name', 'head_manager').single();
+    roleRow = data;
+  }
+  if (!roleRow) return errorResponse('Head Manager role not found', 500, 'SERVER_ERROR');
+
+  const { data: authUser, error: createErr } = await db.auth.admin.createUser({
+    email: cleanEmail,
+    password: DEFAULT_PASSWORD,
+    email_confirm: true,
+    app_metadata: { role: 'head_manager' },
+  });
+
+  if (createErr || !authUser?.user) {
+    if (createErr?.message?.toLowerCase().includes('already') || createErr?.message?.toLowerCase().includes('duplicate')) {
+      return errorResponse('Email already registered', 409, 'DUPLICATE');
+    }
+    return errorResponse('Failed to create auth user', 500, 'SERVER_ERROR');
+  }
+
+  const { data: user, error: userErr } = await db.from('users').upsert({
+    id: authUser.user.id,
+    role_id: roleRow.id,
+    email: cleanEmail,
+    phone_number: cleanPhone,
+    first_name: sanitizeString(first_name),
+    middle_name: middle_name ? sanitizeString(middle_name) : null,
+    last_name: sanitizeString(last_name),
+    suffix: suffix ? sanitizeString(suffix) : null,
+    account_status: 'active',
+    force_password_change: true,
+    created_by: authResult.id,
+  }, { onConflict: 'id' }).select().single();
+
+  if (userErr || !user) {
+    const msg = (userErr as unknown as { message?: string; code?: string })?.message?.toLowerCase() ?? '';
+    const code = (userErr as unknown as { code?: string })?.code ?? '';
+    if (code === '23505' || msg.includes('duplicate') || msg.includes('uq_users_email_lower') || msg.includes('users_email')) {
+      await db.auth.admin.deleteUser(authUser.user.id);
+      return errorResponse('Email already registered', 409, 'DUPLICATE');
+    }
+    await db.auth.admin.deleteUser(authUser.user.id);
+    return errorResponse('Failed to create user record', 500, 'SERVER_ERROR');
+  }
+
+  await db.from('password_history').insert({
+    user_id: user.id,
+    password_hash: await hashPassword(user.id, DEFAULT_PASSWORD),
+  });
+
+  await writeAuditLog({
+    performedBy: authResult.id,
+    action: 'user_created',
+    tableName: 'users',
+    recordId: user.id,
+    newValues: { role: 'head_manager', email },
+    ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
+  });
+
+  return jsonResponse({ user_id: user.id, message: 'Head Manager created successfully' }, 201);
 }
 
 // ── [moved from functions/users-create-rider/index.ts] ──────────────────────

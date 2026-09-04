@@ -27,6 +27,23 @@ class UserRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> createHeadManager(
+      Map<String, dynamic> data) async {
+    final res = await _client.post(
+      ApiEndpoints.usersCreateHeadManager,
+      data: data,
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// Head Manager resets another user's password (forces change on next login).
+  Future<void> resetPassword(String userId, String newPassword) async {
+    await _client.patch(
+      ApiEndpoints.usersResetPassword,
+      data: {'user_id': userId, 'new_password': newPassword},
+    );
+  }
+
   Future<UserModel> getProfile({String? userId}) async {
     try {
       final res = await _client.get(

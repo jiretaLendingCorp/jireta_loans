@@ -40,6 +40,7 @@ import '../../presentation/features/employee/profile/screens/emp_profile_screen.
 import '../../presentation/features/employee/riders/screens/emp_rider_details_screen.dart';
 import '../../presentation/features/employee/riders/screens/emp_rider_list_screen.dart';
 import '../../presentation/features/head_manager/all_users/screens/hm_all_users_screen.dart';
+import '../../presentation/features/head_manager/head_managers/screens/hm_head_managers_screen.dart';
 import '../../presentation/features/head_manager/audit/screens/hm_audit_logs_screen.dart';
 import '../../presentation/features/head_manager/ci/screens/hm_ci_details_screen.dart';
 import '../../presentation/features/head_manager/ci/screens/hm_ci_list_screen.dart';
@@ -309,6 +310,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmAllUsers,
           builder: (ctx, s) => const HmAllUsersScreen()),
+      GoRoute(
+          path: RouteConstants.hmHeadManagers,
+          builder: (ctx, s) => const HmHeadManagersScreen()),
       GoRoute(
           path: RouteConstants.hmEmployees,
           builder: (ctx, s) => const HmEmployeeListScreen()),

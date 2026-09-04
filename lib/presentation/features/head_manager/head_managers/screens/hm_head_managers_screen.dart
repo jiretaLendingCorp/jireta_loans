@@ -1,4 +1,4 @@
-// lib/presentation/features/head_manager/all_users/screens/hm_all_users_screen.dart
+// lib/presentation/features/head_manager/head_managers/screens/hm_head_managers_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -7,16 +7,18 @@ import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
-import '../providers/hm_all_users_provider.dart';
+import '../providers/hm_head_managers_provider.dart';
+import '../widgets/create_head_manager_modal.dart';
 
-class HmAllUsersScreen extends ConsumerStatefulWidget {
-  const HmAllUsersScreen({super.key});
+class HmHeadManagersScreen extends ConsumerStatefulWidget {
+  const HmHeadManagersScreen({super.key});
 
   @override
-  ConsumerState<HmAllUsersScreen> createState() => _HmAllUsersScreenState();
+  ConsumerState<HmHeadManagersScreen> createState() =>
+      _HmHeadManagersScreenState();
 }
 
-class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
+class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
   final _searchCtrl = TextEditingController();
 
   @override
@@ -27,9 +29,9 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(hmAllUsersProvider);
+    final state = ref.watch(hmHeadManagersProvider);
     return WebScaffold(
-      title: 'All People',
+      title: 'Head Managers',
       body: Column(
         children: [
           _filters(state),
@@ -45,7 +47,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
     );
   }
 
-  Widget _filters(HmAllUsersState state) => Container(
+  Widget _filters(HmHeadManagersState state) => Container(
         color: Colors.white,
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -54,7 +56,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
               child: TextField(
                 controller: _searchCtrl,
                 decoration: InputDecoration(
-                  hintText: 'Search by name, email or phone...',
+                  hintText: 'Search head managers...',
                   prefixIcon: const Icon(Icons.search, size: 20),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -62,22 +64,10 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
-                onChanged: (v) =>
-                    ref.read(hmAllUsersProvider.notifier).setSearch(v),
+                onChanged: (v) => ref
+                    .read(hmHeadManagersProvider.notifier)
+                    .setSearch(v),
               ),
-            ),
-            const SizedBox(width: 12),
-            DropdownButton<String>(
-              value: state.roleFilter,
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('All Roles')),
-                DropdownMenuItem(value: 'head_manager', child: Text('Head Manager')),
-                DropdownMenuItem(value: 'employee', child: Text('Employee')),
-                DropdownMenuItem(value: 'rider', child: Text('Rider')),
-                DropdownMenuItem(value: 'lender', child: Text('Lender')),
-              ],
-              onChanged: (v) =>
-                  ref.read(hmAllUsersProvider.notifier).setRole(v!),
             ),
             const SizedBox(width: 12),
             DropdownButton<String>(
@@ -88,7 +78,24 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                 DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
               ],
               onChanged: (v) =>
-                  ref.read(hmAllUsersProvider.notifier).setStatus(v!),
+                  ref.read(hmHeadManagersProvider.notifier).setStatus(v!),
+            ),
+            const SizedBox(width: 12),
+            ElevatedButton.icon(
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const CreateHeadManagerModal(),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepNavy,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero),
+              ),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: const Text('Create Head Manager'),
             ),
           ],
         ),
@@ -113,9 +120,8 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         child: const Row(
           children: [
             Expanded(flex: 3, child: Text('Name', style: _hdrStyle)),
-            Expanded(flex: 2, child: Text('Role', style: _hdrStyle)),
+            Expanded(flex: 3, child: Text('Email', style: _hdrStyle)),
             Expanded(flex: 2, child: Text('Phone', style: _hdrStyle)),
-            Expanded(flex: 2, child: Text('Email', style: _hdrStyle)),
             Expanded(flex: 1, child: Text('Status', style: _hdrStyle)),
             Expanded(flex: 2, child: Text('Actions', style: _hdrStyle)),
           ],
@@ -130,156 +136,87 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
 
   Widget _row(UserModel user, bool isEven) {
     final isActive = user.accountStatus == 'active';
-    final isArchived = user.accountStatus == 'archived';
     return Container(
       key: ValueKey(user.id),
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: Row(
-                children: [
-                  ProfileAvatar(
-                    photoUrl: user.profilePhotoUrl,
-                    name: '${user.firstName} ${user.lastName}',
-                    color: _roleColor(user.role),
-                    radius: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      '${user.firstName} ${user.lastName}',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                _roleLabel(user.role),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: _roleColor(user.role),
+      color: isEven
+          ? Colors.white
+          : AppColors.surfaceVariant.withValues(alpha: 0.3),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                ProfileAvatar(
+                  photoUrl: user.profilePhotoUrl,
+                  name: '${user.firstName} ${user.lastName}',
+                  color: AppColors.gold,
+                  radius: 18,
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.phoneNumber ?? '—',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.email ?? '—',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                isActive ? 'Active' : _statusLabel(user.accountStatus),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isActive ? AppColors.success : AppColors.error,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  _btn(
-                    Icons.visibility_outlined,
-                    'View',
-                    AppColors.textSecondary,
-                    () => _goToDetails(user),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    '${user.firstName} ${user.lastName}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  // Reset Password is only for Head Manager and Employee accounts.
-                  if (!isArchived &&
-                      (user.role == 'head_manager' || user.role == 'employee'))
-                    _btn(
-                      Icons.password_rounded,
-                      'Reset Password',
-                      AppColors.deepNavy,
-                      () => _showResetPassword(user),
-                    ),
-                  if (!isArchived && user.role != 'head_manager')
-                    _btn(
-                      Icons.archive_outlined,
-                      'Archive',
-                      AppColors.error,
-                      () => _confirmArchive(user),
-                    ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-  }
-
-  void _goToDetails(UserModel user) {
-    // All PEOPLE roles now use modal with zero radius and fit to details
-    showUserDetailsModal(context, user);
-  }
-
-  void _confirmArchive(UserModel user) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Archive ${_roleLabel(user.role)}?'),
-        content: Text(
-          'This will archive ${user.firstName} ${user.lastName}. This action cannot be undone easily.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () async {
-              Navigator.pop(context);
-              try {
-                await ref.read(hmAllUsersProvider.notifier).archive(user.id);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text('${_roleLabel(user.role)} archived successfully')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to archive: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Archive'),
+          Expanded(
+            flex: 3,
+            child: Text(
+              user.email ?? '—',
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.phoneNumber ?? '—',
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Text(
+              isActive ? 'Active' : _statusLabel(user.accountStatus),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isActive ? AppColors.success : AppColors.error,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                _btn(
+                  Icons.visibility_outlined,
+                  'View',
+                  AppColors.textSecondary,
+                  () => showUserDetailsModal(context, user),
+                ),
+                _btn(
+                  Icons.password_rounded,
+                  'Reset Password',
+                  AppColors.deepNavy,
+                  () => _showResetPassword(user),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
-
 
   void _showResetPassword(UserModel user) {
     final formKey = GlobalKey<FormState>();
@@ -356,7 +293,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                       setState(() => submitting = true);
                       try {
                         await ref
-                            .read(hmAllUsersProvider.notifier)
+                            .read(hmHeadManagersProvider.notifier)
                             .resetPassword(user.id, passCtrl.text);
                         if (!ctx.mounted) return;
                         Navigator.of(ctx).pop();
@@ -412,36 +349,6 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         ),
       );
 
-  Color _roleColor(String role) {
-    switch (role) {
-      case 'employee':
-        return AppColors.deepNavy;
-      case 'rider':
-        return AppColors.riderGreen;
-      case 'lender':
-        return AppColors.lenderBlue;
-      case 'head_manager':
-        return AppColors.gold;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
-
-  String _roleLabel(String role) {
-    switch (role) {
-      case 'head_manager':
-        return 'Head Manager';
-      case 'employee':
-        return 'Employee';
-      case 'rider':
-        return 'Rider';
-      case 'lender':
-        return 'Lender';
-      default:
-        return role;
-    }
-  }
-
   String _statusLabel(String status) {
     switch (status) {
       case 'inactive':
@@ -470,10 +377,10 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.group_outlined,
+            Icon(Icons.admin_panel_settings_outlined,
                 size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
-            Text('No people found',
+            Text('No head managers found',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
           ],
         ),

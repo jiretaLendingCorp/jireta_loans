@@ -24,12 +24,15 @@ class ApiEndpoints {
   static const String usersCreateEmployee = 'users-create?fn=create-employee';
   static const String usersCreateRider = 'users-create?fn=create-rider';
   static const String usersCreateLender = 'users-create?fn=create-lender';
+  static const String usersCreateHeadManager =
+      'users-create?fn=create-head-manager';
   static const String usersUpdateProfile = 'users-manage?fn=update-profile';
   static const String usersGetProfile = 'users-manage?fn=get-profile';
   static const String usersGetList = 'users-admin?fn=get-list';
   static const String usersArchive = 'users-admin?fn=archive';
   static const String usersUnarchive = 'users-admin?fn=unarchive';
   static const String usersRestore = 'users-admin?fn=unarchive'; // alias for restore
+  static const String usersResetPassword = 'users-admin?fn=reset-password';
   // Roles — archived role = all users with that role blocked; unarchived = restored
   static const String rolesArchive = 'users-admin?fn=archive-role';
   static const String rolesUnarchive = 'users-admin?fn=unarchive-role';

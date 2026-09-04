@@ -26,7 +26,8 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validatePagination } from '../_shared/validators.ts';
+import { validatePagination, validatePasswordComplexity } from '../_shared/validators.ts';
+import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { embedAsObject } from '../_shared/types.ts';
 
@@ -56,6 +57,9 @@ serve(async (req) => {
         return await handleUnarchiveRole(req);
       case 'get-roles':
         return await handleGetRoles(req);
+      case 'reset-password':
+        // ── Head Manager resets another user's password ────────────────
+        return await handleResetPassword(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -198,6 +202,71 @@ async function handleArchive(req: Request) {
   await writeAuditLog({ performedBy: user.id, action: 'archive_user', tableName: 'users', recordId: user_id, ipAddress: ip });
 
   return jsonResponse({ message: 'User archived successfully' });
+}
+
+// ── RESET PASSWORD ──────────────────────────────────────────────────────
+// Business rule: only the Head Manager can reset a user's password.
+// The reset forces the user to create a new password on next login.
+async function handleResetPassword(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
+  if (roleCheck) return roleCheck;
+
+  const body = await req.json();
+  const user_id = body?.user_id as string | undefined;
+  const new_password = body?.new_password as string | undefined;
+  if (!user_id) return errorResponse('user_id is required', 400, 'VALIDATION_ERROR');
+  if (!new_password) return errorResponse('new_password is required', 400, 'VALIDATION_ERROR');
+
+  const pwCheck = validatePasswordComplexity(new_password);
+  if (!pwCheck.valid) {
+    return errorResponse(pwCheck.message ?? 'Password does not meet requirements', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: target } = await db.from('users').select('id, account_status, roles!users_role_id_fkey(name)').eq('id', user_id).single();
+  if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
+  // deno-lint-ignore no-explicit-any
+  const targetRole = (embedAsObject((target as Record<string, unknown>)['roles']) as any)?.name as string | undefined;
+  // Business rule: Head Manager may only reset passwords of Head Manager
+  // and Employee accounts (rider/lender passwords are not reset here).
+  if (targetRole !== 'head_manager' && targetRole !== 'employee') {
+    return errorResponse('Only Head Manager and Employee accounts can be reset', 400, 'FORBIDDEN');
+  }
+  if (target.account_status === 'archived') {
+    return errorResponse('Cannot reset password of an archived user', 400, 'INVALID_STATUS');
+  }
+
+  const { error: updateError } = await db.auth.admin.updateUserById(user_id, { password: new_password });
+  if (updateError) {
+    console.error('[users-admin] reset-password updateUserById failed:', updateError);
+    return errorResponse('Failed to reset password', 500, 'SERVER_ERROR');
+  }
+
+  // Force the user to set a fresh password on next login.
+  await db.from('users').update({ force_password_change: true }).eq('id', user_id);
+
+  try {
+    await db.from('password_history').insert({ user_id, password_hash: await hashPassword(user_id, new_password) });
+  } catch (e) {
+    console.error('[users-admin] reset-password history insert failed:', e);
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'reset_password',
+    tableName: 'users',
+    recordId: user_id,
+    newValues: { role: targetRole ?? null, forced_change: true },
+    ipAddress: ip,
+  });
+
+  return jsonResponse({ message: 'Password reset successfully' });
 }
 
 // ── UNARCHIVE / RESTORE USER ───────────────────────────────────────────

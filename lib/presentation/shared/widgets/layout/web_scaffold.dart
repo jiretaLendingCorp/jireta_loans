@@ -648,6 +648,8 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           [
             _NavItem(
                 Icons.group_outlined, 'All People', RouteConstants.hmAllUsers),
+            _NavItem(Icons.admin_panel_settings_outlined, 'Head Managers',
+                RouteConstants.hmHeadManagers),
             _NavItem(
                 Icons.badge_outlined, 'Employees', RouteConstants.hmEmployees),
             _NavItem(Icons.delivery_dining_outlined, 'Riders',

@@ -1,52 +1,47 @@
-// lib/presentation/features/head_manager/all_users/providers/hm_all_users_provider.dart
+// lib/presentation/features/head_manager/head_managers/providers/hm_head_managers_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../../core/di/injection.dart';
 import '../../../../../core/errors/error_handler.dart';
+import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 
-class HmAllUsersState {
+class HmHeadManagersState {
   final List<UserModel> users;
   final bool isLoading;
   final String? error;
   final String search;
   final String statusFilter;
-  final String roleFilter;
 
-  const HmAllUsersState({
+  const HmHeadManagersState({
     this.users = const [],
     this.isLoading = false,
     this.error,
     this.search = '',
     this.statusFilter = 'all',
-    this.roleFilter = 'all',
   });
 
-  HmAllUsersState copyWith({
+  HmHeadManagersState copyWith({
     List<UserModel>? users,
     bool? isLoading,
     String? error,
     String? search,
     String? statusFilter,
-    String? roleFilter,
   }) =>
-      HmAllUsersState(
+      HmHeadManagersState(
         users: users ?? this.users,
         isLoading: isLoading ?? this.isLoading,
         error: error,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
-        roleFilter: roleFilter ?? this.roleFilter,
       );
 }
 
-class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
+class HmHeadManagersNotifier extends StateNotifier<HmHeadManagersState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
-  HmAllUsersNotifier(this._ds) : super(const HmAllUsersState()) {
-    bindRealtimeRefresh(['users', 'rider_profiles', 'lender_profiles', 'employee_profiles'],
-        refresh: () => load(silent: true));
+  HmHeadManagersNotifier(this._ds) : super(const HmHeadManagersState()) {
+    bindRealtimeRefresh(['users'], refresh: () => load(silent: true));
     load();
   }
 
@@ -54,7 +49,7 @@ class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
     if (!silent) state = state.copyWith(isLoading: true);
     try {
       final list = await _ds.getUsers(
-        role: state.roleFilter == 'all' ? null : state.roleFilter,
+        role: 'head_manager',
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
       );
@@ -80,16 +75,6 @@ class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
     load();
   }
 
-  void setRole(String v) {
-    state = state.copyWith(roleFilter: v);
-    load();
-  }
-
-  Future<void> archive(String userId) async {
-    await _ds.archive(userId);
-    await load();
-  }
-
   Future<Map<String, dynamic>> createHeadManager(
       Map<String, dynamic> data) async {
     final res = await _ds.createHeadManager(data);
@@ -97,14 +82,14 @@ class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
     return res;
   }
 
-  /// Head Manager resets a user's password (backend forces change on next login).
+  /// Head Manager resets another user's password (backend forces change on next login).
   Future<void> resetPassword(String userId, String newPassword) async {
     await _ds.resetPassword(userId, newPassword);
     await load();
   }
 }
 
-final hmAllUsersProvider =
-    AutoDisposeStateNotifierProvider<HmAllUsersNotifier, HmAllUsersState>(
-  (ref) => HmAllUsersNotifier(sl<UserRemoteDataSource>()),
+final hmHeadManagersProvider =
+    AutoDisposeStateNotifierProvider<HmHeadManagersNotifier, HmHeadManagersState>(
+  (ref) => HmHeadManagersNotifier(sl<UserRemoteDataSource>()),
 );
