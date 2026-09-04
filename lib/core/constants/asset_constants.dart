@@ -11,5 +11,6 @@ class AssetConstants {
   static const String appIcon = 'assets/icons/app_icon.png';
   static const String idCardIcon = 'assets/icons/id_card.png';
   static const String permitIcon = 'assets/icons/PERMIT.png';
+  static const String askAiIcon = 'assets/icons/Ask AI.png';
   static const String envFile = 'assets/env/.env';
 }

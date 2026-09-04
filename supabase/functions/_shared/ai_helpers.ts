@@ -171,7 +171,7 @@ export function formatStatsForPrompt(
 }
 
 /**
- * Detect requests for sensitive borrower data that must NEVER be answered via
+ * Detect requests for sensitive lender data that must NEVER be answered via
  * the AI assistant. When this returns true the request is short-circuited
  * with a canned safe response — Gemini is not called at all.
  */
@@ -229,7 +229,7 @@ export function classifyIntent(question: string): AiIntent {
 
 /** The canned safe response for sensitive-data requests (Gemini never sees them). */
 export const SENSITIVE_REQUEST_RESPONSE =
-  "Sorry, I can't provide sensitive borrower information through the AI Assistant. " +
+  "Sorry, I can't provide sensitive lender information through the AI Assistant. " +
   'If you need this data, please use the appropriate module in the dashboard where access is controlled by your account permissions.';
 
 /** Default answer when Gemini is unavailable for the Ask AI feature. */
@@ -238,7 +238,7 @@ export const AI_UNAVAILABLE_ANSWER =
 
 /** Helpers for the conversation: what the AI can and cannot answer about. */
 export const AI_CAPABILITIES_NOTE =
-  'I can only answer from verified, aggregated dashboard statistics (loan counts, collections, financial totals, and trends). I cannot access or reveal individual borrower details.';
+  'I can only answer from verified, aggregated dashboard statistics (loan counts, collections, financial totals, and trends). I cannot access or reveal individual lender details.';
 
 /**
  * Extract JSON from a Gemini candidate text. Gemini sometimes wraps JSON in

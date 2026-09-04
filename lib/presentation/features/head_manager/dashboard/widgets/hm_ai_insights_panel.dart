@@ -96,7 +96,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
                       color: AppColors.riderGreen.withValues(alpha: 0.18),
                       border: Border.all(
                           color: AppColors.riderGreen.withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.circular(99),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: const Text(
                       'AI READY',
@@ -196,8 +196,8 @@ class HmAiInsightsPanel extends ConsumerWidget {
               backgroundColor: AppColors.deepNavy,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+              shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero),
             ),
           ),
         ),
@@ -211,7 +211,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
       decoration: BoxDecoration(
         color: AppColors.deepNavy.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -251,7 +251,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.errorLight,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -287,8 +287,8 @@ class HmAiInsightsPanel extends ConsumerWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero),
               ),
             ),
           ),
@@ -310,7 +310,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppColors.warningLight,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.zero,
               border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
             ),
             child: Text(
@@ -335,8 +335,8 @@ class HmAiInsightsPanel extends ConsumerWidget {
               foregroundColor: AppColors.deepNavy,
               side: const BorderSide(color: AppColors.borderDark),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
+              shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero),
             ),
           ),
         ),
@@ -430,7 +430,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.zero,
         border: Border.all(color: AppColors.divider),
       ),
       child: Row(
@@ -490,7 +490,7 @@ class _Section extends StatelessWidget {
               height: 28,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.zero,
               ),
               child: Icon(icon, size: 15, color: color),
             ),

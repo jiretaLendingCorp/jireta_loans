@@ -75,11 +75,36 @@ interface GeminiResult {
   ok: boolean;
   text: string | null;
   status: number;
+  model: string;
+}
+
+/** Candidate models, tried in order. The configured one is attempted first. */
+function geminiModelCandidates(): string[] {
+  const configured = Deno.env.get('AI_GEMINI_MODEL') ?? 'gemini-2.5-flash';
+  const fallbacks = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-3.5-flash',
+    'gemini-3-flash-preview',
+  ];
+  return [...new Set([configured, ...fallbacks])];
+}
+
+/** Read the API response body (key never included). */
+async function responseBodySnippet(res: Response): Promise<string | null> {
+  try {
+    const raw = await res.text();
+    return raw.slice(0, 300);
+  } catch (_) {
+    return null;
+  }
 }
 
 /**
- * Calls the Gemini REST API with JSON output mode. The key is read from
- * Deno.env — never from the client — and never echoed anywhere.
+ * Calls the Gemini REST API with JSON output mode, with a model fallback
+ * chain: if the configured model is unavailable (404/not-found) it retries
+ * with newer fallback models. The key is read from Deno.env — never from the
+ * client — and never echoed anywhere.
  */
 async function callGemini(opts: {
   systemPrompt: string;
@@ -88,66 +113,104 @@ async function callGemini(opts: {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) {
     console.error('[ai-dashboard-insights] GEMINI_API_KEY is not configured');
-    return { ok: false, text: null, status: 503 };
+    return { ok: false, text: null, status: 503, model: '' };
   }
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const models = geminiModelCandidates();
+  const attempts: Array<{ model: string; status: number; snippet: string | null }> = [];
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: opts.userPrompt }] }],
-        systemInstruction: {
-          parts: [{ text: opts.systemPrompt }],
-        },
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 2048,
-          responseMimeType: 'application/json',
-        },
-      }),
-      signal: controller.signal,
-    });
+  for (const model of models) {
+    const url =
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-    if (!res.ok) {
-      // 429 = quota/rate limit; 404 = model not found or wrong model name.
-      // Never leak the API key or raw auth details to the client, but log the
-      // API's own message so model-name issues are easy to diagnose.
-      let bodySnippet: string | null = null;
-      try {
-        const raw = await res.text();
-        bodySnippet = raw.slice(0, 300);
-      } catch (_) { /* ignore read failure */ }
-      console.error('[ai-dashboard-insights] Gemini HTTP error', {
-        status: res.status,
-        model: GEMINI_MODEL,
-        bodySnippet,
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: opts.userPrompt }] }],
+          systemInstruction: {
+            parts: [{ text: opts.systemPrompt }],
+          },
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 2048,
+            responseMimeType: 'application/json',
+          },
+        }),
+        signal: controller.signal,
       });
-      return { ok: false, text: null, status: res.status };
-    }
 
-    const data = await res.json() as {
-      candidates?: Array<{
-        content?: { parts?: Array<{ text?: string }> };
-      }>;
-    };
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
-    return { ok: true, text, status: res.status };
-  } catch (err) {
-    const aborted = err instanceof DOMException && err.name === 'AbortError';
-    console.error('[ai-dashboard-insights] Gemini call failed', {
-      aborted,
-      error: err instanceof Error ? err.message : 'unknown',
-    });
-    return { ok: false, text: null, status: aborted ? 504 : 502 };
-  } finally {
-    clearTimeout(timer);
+      if (res.ok) {
+        const data = await res.json() as {
+          candidates?: Array<{
+            content?: { parts?: Array<{ text?: string }> };
+          }>;
+        };
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+        if (text) {
+          console.log('[ai-dashboard-insights] Gemini ok', { model, status: res.status });
+          return { ok: true, text, status: res.status, model };
+        }
+        // 200 but no text — treat as unusable, move on.
+        attempts.push({ model, status: 200, snippet: 'empty candidates' });
+        continue;
+      }
+
+      const snippet = await responseBodySnippet(res);
+      attempts.push({ model, status: res.status, snippet });
+
+      // 429 = quota/rate limit; 401/403 = bad key. Fallback cannot help with
+      // these — stop and surface the failure immediately.
+      if (
+        res.status === 429 ||
+        res.status === 401 ||
+        res.status === 403
+      ) {
+        console.error('[ai-dashboard-insights] Gemini auth/quota error (not retryable)', {
+          status: res.status,
+          model,
+          snippet,
+        });
+        return { ok: false, text: null, status: res.status, model };
+      }
+
+      // 404 / model-not-found → try the next candidate model.
+      console.error('[ai-dashboard-insights] Gemini model unavailable, trying next', {
+        status: res.status,
+        model,
+        snippet,
+      });
+      continue;
+    } catch (err) {
+      const aborted = err instanceof DOMException && err.name === 'AbortError';
+      attempts.push({ model, status: aborted ? 504 : 502, snippet: null });
+      console.error('[ai-dashboard-insights] Gemini call failed (request error)', {
+        aborted,
+        model,
+        error: err instanceof Error ? err.message : 'unknown',
+      });
+      // Network/timeout → try next model too (a different endpoint may work).
+      continue;
+    } finally {
+      clearTimeout(timer);
+    }
   }
+
+  // All candidates failed — log the full picture for debugging.
+  const last = attempts[attempts.length - 1];
+  console.error('[ai-dashboard-insights] all Gemini models failed', {
+    attempts,
+    status: last?.status ?? 502,
+  });
+  return {
+    ok: false,
+    text: null,
+    status: last?.status ?? 502,
+    model: last?.model ?? '',
+  };
 }
 
 // ── Prompt builders ────────────────────────────────────────────────────────
@@ -189,7 +252,7 @@ Respond as strict JSON with exactly this shape:
 Rules:
 - Use ONLY the numbers above. Never invent or modify figures.
 - If the question cannot be answered from the provided data, say that the available data is insufficient.
-- If the question asks for individual borrower details, phone numbers, emails, addresses, IDs or payment credentials, answer with a polite refusal.
+- If the question asks for individual lender details, phone numbers, emails, addresses, IDs or payment credentials, answer with a polite refusal.
 - ${AI_CAPABILITIES_NOTE}
 - No SQL, no credentials.`;
 }
