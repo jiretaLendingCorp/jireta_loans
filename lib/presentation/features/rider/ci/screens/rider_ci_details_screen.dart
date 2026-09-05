@@ -10,6 +10,8 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import 'package:jireta_loans/core/extensions/date_extensions.dart';
+
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
@@ -708,7 +710,7 @@ class _DetailsStep extends StatelessWidget {
                       ? DateFormat('MMM d, yyyy').format(ci.deadline!)
                       : 'No deadline',
                   valueColor: ci.deadline != null &&
-                          ci.deadline!.isBefore(DateTime.now()) &&
+                          ci.deadline!.isOverdue &&
                           !isCompleted
                       ? AppColors.error
                       : null),

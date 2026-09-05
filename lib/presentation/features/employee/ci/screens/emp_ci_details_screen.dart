@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/di/injection.dart';
@@ -227,7 +228,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
     final deadline =
         parseManila(ci['deadline']);
     final isOverdue = deadline != null &&
-        deadline.isBefore(DateTime.now()) &&
+        deadline.isOverdue &&
         !['completed','approved'].contains(status);
     return Container(
       padding: const EdgeInsets.all(20),

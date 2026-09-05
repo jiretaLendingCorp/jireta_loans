@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -132,7 +133,7 @@ class _CiCard extends StatelessWidget {
         ? DateFormat('MMM d, yyyy').format(ci.deadline!)
         : 'N/A';
     final isUrgent = ci.deadline != null &&
-        ci.deadline!.difference(DateTime.now()).inDays <= 2;
+        ci.deadline!.difference(nowManila()).inDays <= 2;
 
     return InkWell(
       onTap: onTap,

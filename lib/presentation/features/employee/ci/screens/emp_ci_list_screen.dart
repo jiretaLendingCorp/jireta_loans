@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../providers/emp_ci_provider.dart';
@@ -153,7 +154,7 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
           final isEven = idx.isEven;
           final status = (ci.status ?? 'pending').toString().toLowerCase();
           final isPendingApproval = status == 'completed';
-          final isOverdue = ci.deadline != null && (ci.deadline as DateTime).isBefore(DateTime.now()) && status != 'completed';
+          final isOverdue = ci.deadline != null && (ci.deadline as DateTime).isOverdue && status != 'completed';
           return Column(children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/di/injection.dart';
@@ -169,7 +170,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
   Widget _buildPremiumHeader(CreditInvestigationModel model, String status, Map<String, dynamic> ci) {
     final accent = _accentForStatus(status);
     final deadline = parseManila(ci['deadline']);
-    final isOverdue = deadline != null && deadline.isBefore(DateTime.now()) && !['completed','approved'].contains(status);
+    final isOverdue = deadline != null && deadline.isOverdue && !['completed','approved'].contains(status);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
