@@ -9,22 +9,13 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
-import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-import '../providers/hm_ci_provider.dart';
-import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 final _ciDetailProvider =
     FutureProvider.family<Map<String, dynamic>?, String>((ref, ciId) async {
   final ds = sl<CiRemoteDataSource>();
   return ds.getCiDetails(ciId);
-});
-
-final _availableRidersProvider =
-    FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final ds = sl<UserRemoteDataSource>();
-  return ds.getAvailableRiders();
 });
 
 class HmCiDetailsScreen extends ConsumerStatefulWidget {
@@ -49,15 +40,23 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         OutlinedButton.icon(
           onPressed: () => context.go(RouteConstants.hmCi),
           icon: const Icon(Icons.arrow_back_rounded, size: 16),
-          label: const Text('Back to CI List', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          label: const Text('Back to CI List',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppColors.border),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10))),
         ),
         const SizedBox(width: 12),
       ],
       body: ciAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppColors.error))),
-        data: (ci) => ci == null ? const Center(child: Text('CI assignment not found')) : _buildContent(context, ci),
+        error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: AppColors.error))),
+        data: (ci) => ci == null
+            ? const Center(child: Text('CI assignment not found'))
+            : _buildContent(context, ci),
       ),
     );
   }
@@ -66,374 +65,131 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     final rawStatus = (ci['status'] as String? ?? '').trim();
     final status = rawStatus.toLowerCase();
     final model = CreditInvestigationModel.fromJson(ci);
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPremiumHeader(model, status, ci),
-                const SizedBox(height: 16),
-                _buildTimeline(status, ci),
-                const SizedBox(height: 16),
-                LayoutBuilder(builder: (context, c) {
-                  final isNarrow = c.maxWidth < 820;
-                  if (isNarrow) {
-                    return Column(children: [
-                      _buildLenderCard(ci, model),
-                      const SizedBox(height: 16),
-                      _buildAssignmentCard(ci, model),
-                    ]);
-                  }
-                  return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Expanded(child: _buildLenderCard(ci, model)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildAssignmentCard(ci, model)),
-                  ]);
-                }),
-                if ((ci['report_summary'] as String?)?.isNotEmpty == true) ...[
-                  const SizedBox(height: 16),
-                  _buildReportCard(ci),
-                ],
-                if ((ci['ci_documents'] as List?)?.isNotEmpty == true) ...[
-                  const SizedBox(height: 16),
-                  _buildDocumentsCard(ci),
-                ],
-                if (status == 'approved' || status == 'rejected') ...[
-                  const SizedBox(height: 16),
-                  _buildReviewInfoCard(ci),
-                ],
-                if (status == 'pending' || status == 'declined' || status == 'assigned') ...[
-                  const SizedBox(height: 16),
-                  _buildAssignRiderSection(context, ci),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
-  // ignore: unused_element
-  // Solid banner — OUTSIDE assignment details, no borderRadius, solid Warning background, includes Approve/Reject actions
-  Widget _buildSolidWaitingBanner(BuildContext context, Map<String, dynamic> ci) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.warning, // solid, no borderRadius
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: LayoutBuilder(builder: (ctx, c) {
-        final isNarrow = c.maxWidth < 640;
-        if (isNarrow) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(children: [
-                Container(width: 32, height: 32, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.rate_review_rounded, color: AppColors.warning, size: 18)),
-                const SizedBox(width: 10),
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('CI Report — Awaiting Your Approval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
-                  Text('Rider submitted. Review outside the details card.', style: TextStyle(fontSize: 11, color: Colors.white, height: 1.2)),
-                ])),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)), child: const Text('ACTION REQUIRED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.warning, letterSpacing: 0.5))),
-              ]),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(child: ElevatedButton.icon(onPressed: () => _showRejectDialog(context, ref, ci), icon: const Icon(Icons.close_rounded, size: 18), label: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.error, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))))),
-                const SizedBox(width: 10),
-                Expanded(child: ElevatedButton.icon(onPressed: () => _showApproveDialog(context, ref, ci), icon: const Icon(Icons.check_rounded, size: 18), label: const Text('Approve', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.success, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))))),
-              ]),
-            ],
-          );
-        }
-        return Row(children: [
-          Container(width: 32, height: 32, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle), child: const Icon(Icons.rate_review_rounded, color: AppColors.warning, size: 18)),
-          const SizedBox(width: 10),
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('CI Report — Awaiting Your Approval', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
-            Text('Rider has submitted the report. Review it outside the details card and take action.', style: TextStyle(fontSize: 11, color: Colors.white, height: 1.2)),
-          ])),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(onPressed: () => _showRejectDialog(context, ref, ci), icon: const Icon(Icons.close_rounded, size: 18), label: const Text('Reject', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.error, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
-          const SizedBox(width: 10),
-          ElevatedButton.icon(onPressed: () => _showApproveDialog(context, ref, ci), icon: const Icon(Icons.check_rounded, size: 18), label: const Text('Approve', style: TextStyle(fontWeight: FontWeight.w800)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.success, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
-        ]);
-      }),
-    );
-  }
-
-  // ignore: unused_element
-  Widget _buildApprovalBarOutside(BuildContext context, Map<String, dynamic> ci) => _buildSolidWaitingBanner(context, ci);
-
-  Widget _buildPremiumHeader(CreditInvestigationModel model, String status, Map<String, dynamic> ci) {
-    final accent = _accentForStatus(status);
-    final deadline = parseManila(ci['deadline']);
-    final isOverdue = deadline != null && deadline.isOverdue && !['completed','approved'].contains(status);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppColors.deepNavy, AppColors.deepNavy.withValues(alpha: 0.9), const Color(0xFF1E3A5F)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 8))],
-      ),
-      child: Row(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-              boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 4))],
-            ),
-            child: const Icon(Icons.search_rounded, color: Colors.white, size: 30),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Text('CI-${model.id.substring(0, 8).toUpperCase()}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-                const SizedBox(width: 10),
-                if (isOverdue)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(6)),
-                    child: const Text('OVERDUE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-                  ),
+          LayoutBuilder(builder: (context, c) {
+            final isNarrow = c.maxWidth < 860;
+            final leftColumn = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _buildLenderCard(ci, model),
+              const SizedBox(height: 16),
+              _buildAssignmentCard(ci, model),
+              if ((ci['report_summary'] as String?)?.isNotEmpty == true) ...[
+                const SizedBox(height: 16),
+                _buildReportCard(ci),
+              ],
+              if ((ci['ci_documents'] as List?)?.isNotEmpty == true) ...[
+                const SizedBox(height: 16),
+                _buildDocumentsCard(ci),
+              ],
+              if (status == 'approved' || status == 'rejected') ...[
+                const SizedBox(height: 16),
+                _buildReviewInfoCard(ci),
+              ],
+            ]);
+
+            final rightRail = SizedBox(
+              width: isNarrow ? double.infinity : 340,
+              child: Column(children: [
+                _buildStatusCard(ci, model, status),
+                const SizedBox(height: 16),
+                _buildProgressCard(ci, status),
               ]),
-              const SizedBox(height: 4),
-              Row(children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)), child: Text('Loan: ${model.loanNumber.isEmpty ? 'N/A' : model.loanNumber}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
-                const SizedBox(width: 8),
-                if (deadline != null)
-                  Text('Due ${DateFormat('MMM d, yyyy').format(deadline)}', style: TextStyle(color: isOverdue ? const Color(0xFFFF8A80) : Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
-              ]),
-            ]),
-          ),
-          const SizedBox(width: 12),
-          // Text only, not button-like pill — per spec "complete dapat text lang"
-          Text(
-            status.replaceAll('_', ' ').toUpperCase(),
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.6),
-          ),
+            );
+
+            if (isNarrow) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [leftColumn, const SizedBox(height: 16), rightRail]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 5, child: leftColumn),
+              const SizedBox(width: 16),
+              rightRail,
+            ]);
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildTimeline(String status, Map<String, dynamic> ci) {
-    final isApproved = status == 'approved';
-    final isRejected = status == 'rejected';
-    final isCompletedPending = status == 'completed';
-    final steps = [
-      ('Assigned', ci['created_at'] != null, Icons.assignment_turned_in_rounded),
-      ('Accepted', ci['response_at'] != null, Icons.handshake_rounded),
-      ('In Progress', status == 'in_progress' || isCompletedPending || isApproved || isRejected, Icons.timelapse_rounded),
-      ('Submitted', ci['completed_at'] != null, Icons.rate_review_rounded),
-      ('Approved', isApproved, Icons.verified_rounded),
-    ];
-    final activeIndex = () {
-      if (isApproved) return 4;
-      if (isRejected) return 3; // shows up to submitted but rejected
-      if (ci['completed_at'] != null) return 3;
-      if (status == 'in_progress') return 2;
-      if (ci['response_at'] != null) return 1;
-      return 0;
-    }();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Row(
-        children: steps.asMap().entries.map((e) {
-          final idx = e.key;
-          final isDone = e.value.$2;
-          final isActive = idx == activeIndex;
-          final isLast = idx == steps.length - 1;
-          return Expanded(
-            child: Row(children: [
-              Column(children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isDone ? AppColors.riderGreen : isActive ? AppColors.lenderBlue : AppColors.surfaceVariant,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: isDone ? AppColors.riderGreen : isActive ? AppColors.lenderBlue : AppColors.border),
-                  ),
-                  child: Icon(e.value.$3, size: 16, color: isDone || isActive ? Colors.white : AppColors.textTertiary),
-                ),
-                const SizedBox(height: 6),
-                Text(e.value.$1, style: TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.w800 : FontWeight.w600, color: isActive ? AppColors.deepNavy : AppColors.textSecondary)),
-              ]),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    height: 2,
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: isDone ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-            ]),
-          );
-        }).toList(),
-      ),
-    );
-  }
+  // ───────────────────────────── Left column cards ─────────────────────────────
 
   Widget _buildLenderCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
     final addresses = ci['loans']?['lender_address'];
     final principal = ci['loans']?['principal_amount'];
-    return _PremiumInfoCard(
+    return _SectionCard(
       title: 'Lender Information',
       subtitle: 'Lender under investigation',
-      icon: Icons.person_rounded,
-      accent: AppColors.lenderBlue,
-      children: [
-        _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName, icon: Icons.badge_outlined),
-        _InfoRow('Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone, icon: Icons.phone_outlined),
-        _InfoRow('Loan Amount', principal != null ? '₱${_fmt.format((principal as num).toDouble())}' : 'N/A', icon: Icons.payments_outlined, highlight: true),
-        if (addresses is Map) _InfoRow('Primary Address', _formatAddress(Map<String, dynamic>.from(addresses)), icon: Icons.location_on_outlined),
-        _InfoRow('Deadline', ci['deadline'] != null ? DateFormat('MMM d, yyyy').format(parseManila(ci['deadline'])!) : 'N/A', icon: Icons.event_outlined),
-      ],
+      child: Column(children: [
+        _InfoRow('Name', model.borrowerName.isEmpty ? 'N/A' : model.borrowerName),
+        _InfoRow('Phone', model.borrowerPhone.isEmpty ? 'N/A' : model.borrowerPhone),
+        _InfoRow('Loan Amount', principal != null ? '₱${_fmt.format((principal as num).toDouble())}' : 'N/A', highlight: true),
+        if (addresses is Map)
+          _InfoRow('Primary Address', _formatAddress(Map<String, dynamic>.from(addresses))),
+        _InfoRow('Deadline', ci['deadline'] != null ? DateFormat('MMM d, yyyy').format(parseManila(ci['deadline'])!) : 'N/A'),
+      ]),
     );
   }
 
   Widget _buildAssignmentCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
-    return _PremiumInfoCard(
+    return _SectionCard(
       title: 'Assignment Details',
       subtitle: 'Workflow & ownership',
-      icon: Icons.assignment_rounded,
-      accent: AppColors.deepNavy,
-      children: [
-        _InfoRow('Status', (ci['status'] ?? 'N/A').toString().replaceAll('_', ' '), icon: Icons.flag_outlined),
-        _InfoRow('Assigned Rider', model.riderName.isEmpty ? 'Not Assigned' : model.riderName, icon: Icons.delivery_dining_rounded),
-        _InfoRow('Assigned By', model.assignedByName.isEmpty ? 'N/A' : model.assignedByName, icon: Icons.admin_panel_settings_outlined),
-        _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(parseManila(ci['created_at'])!) : 'N/A', icon: Icons.schedule_rounded),
-        _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(parseManila(ci['response_at'])!) : 'Pending', icon: Icons.check_circle_outline_rounded),
-        _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(parseManila(ci['completed_at'])!) : '—', icon: Icons.verified_outlined),
-        _InfoRow('CI Notes', (ci['investigation_notes'] as String?)?.isNotEmpty == true ? ci['investigation_notes'] as String : 'None', icon: Icons.sticky_note_2_outlined),
-      ],
+      child: Column(children: [
+        _InfoRow('Status', (ci['status'] ?? 'N/A').toString().replaceAll('_', ' ')),
+        _InfoRow('Assigned Rider', model.riderName.isEmpty ? 'Not Assigned' : model.riderName),
+        _InfoRow('Assigned By', model.assignedByName.isEmpty ? 'N/A' : model.assignedByName),
+        _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(parseManila(ci['created_at'])!) : 'N/A'),
+        _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(parseManila(ci['response_at'])!) : 'Pending'),
+        _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(parseManila(ci['completed_at'])!) : '—'),
+        _InfoRow('CI Notes', (ci['investigation_notes'] as String?)?.isNotEmpty == true ? ci['investigation_notes'] as String : 'None'),
+      ]),
     );
   }
 
   Widget _buildReportCard(Map<String, dynamic> ci) {
-    // Header removed per spec — CI report content only, no header row
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Padding(
+    return _SectionCard(
+      title: 'CI Report',
+      subtitle: 'Field investigation summary',
+      child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(ci['report_summary'] as String? ?? '', style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
-          ]),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
         ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(ci['report_summary'] as String? ?? '', style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
+        ]),
       ),
     );
   }
 
   Widget _buildDocumentsCard(Map<String, dynamic> ci) {
     final docs = (ci['ci_documents'] as List?) ?? [];
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(children: [
-            Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.deepNavy.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.photo_library_rounded, color: AppColors.deepNavy, size: 18)),
-            const SizedBox(width: 10),
-            Text('Evidence Photos (${docs.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-            const Spacer(),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)), child: Text('${docs.length} files', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))),
-          ]),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1),
-            itemCount: docs.length,
-            itemBuilder: (ctx, i) {
-              final doc = docs[i] as Map<String, dynamic>;
-              return _DocumentThumbnail(doc: doc);
-            },
-          ),
-        ),
-      ]),
-    );
-  }
-
-  Widget _buildAssignRiderSection(BuildContext context, Map<String, dynamic> ci) {
-    final ridersAsync = ref.watch(_availableRidersProvider);
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
-        boxShadow: [BoxShadow(color: AppColors.gold.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
+    return _SectionCard(
+      title: 'Evidence Photos (${docs.length})',
+      subtitle: 'Captured during the field visit',
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1),
+        itemCount: docs.length,
+        itemBuilder: (ctx, i) {
+          final doc = docs[i] as Map<String, dynamic>;
+          return _DocumentThumbnail(doc: doc);
+        },
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: AppColors.gold.withValues(alpha: 0.08), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
-          child: Row(children: [
-            Container(width: 36, height: 36, decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.gold, AppColors.goldDark]), borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.assignment_ind_rounded, color: Colors.white, size: 18)),
-            const SizedBox(width: 10),
-            const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Assign Rider for CI', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-              Text('Choose a field rider and set investigation timeline', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ]),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: ridersAsync.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (e, _) => Text('Could not load riders: $e'),
-            data: (riders) => _AssignRiderForm(ciId: widget.ciId, loanId: ci['loan_id'] as String? ?? '', riders: riders, onAssigned: () => ref.invalidate(_ciDetailProvider(widget.ciId))),
-          ),
-        ),
-      ]),
     );
-  }
-
-  String _formatAddress(Map<String, dynamic> addr) {
-    final parts = [addr['street'], addr['barangay'], addr['city'], addr['province']];
-    return parts.where((p) => p != null && p.toString().isNotEmpty).join(', ');
-  }
-
-  Color _accentForStatus(String s) {
-    switch (s.toLowerCase()) {
-      case 'assigned':
-        return AppColors.lenderBlue;
-      case 'accepted':
-        return AppColors.riderGreen;
-      case 'in_progress':
-        return AppColors.warning;
-      case 'completed':
-        return AppColors.warning; // pending approval — amber
-      case 'approved':
-        return AppColors.success;
-      case 'rejected':
-        return AppColors.error;
-      case 'declined':
-        return AppColors.error;
-      default:
-        return AppColors.textSecondary;
-    }
   }
 
   Widget _buildReviewInfoCard(Map<String, dynamic> ci) {
@@ -443,239 +199,176 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     final reviewerName = reviewer != null ? '${reviewer['first_name'] ?? ''} ${reviewer['last_name'] ?? ''}'.trim() : '—';
     final reviewedAt = ci['reviewed_at'] != null ? _dateFmt.format(parseManila(ci['reviewed_at'])!) : '—';
     final notes = ci['review_notes'] as String? ?? (ci['review_decision'] as String? ?? '');
+    return _SectionCard(
+      title: isApproved ? 'CI Approved' : 'CI Rejected',
+      subtitle: 'Reviewed by $reviewerName • $reviewedAt',
+      child: notes.isEmpty
+          ? Text(isApproved ? 'This investigation was approved.' : 'This investigation was rejected.',
+              style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.textPrimary))
+          : Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+              ),
+              child: Text(notes, style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.textPrimary)),
+            ),
+    );
+  }
+
+  // ───────────────────────────── Right rail cards ─────────────────────────────
+
+  Widget _buildStatusCard(Map<String, dynamic> ci, CreditInvestigationModel model, String status) {
+    final deadline = parseManila(ci['deadline']);
+    final isOverdue = deadline != null && deadline.isOverdue && !['completed', 'approved'].contains(status);
+    final String msg;
+    final Color msgColor;
+    switch (status) {
+      case 'approved':
+        msg = 'CI report approved — loan has been auto-approved.';
+        msgColor = AppColors.success;
+        break;
+      case 'rejected':
+        msg = 'CI report rejected — loan has been rejected.';
+        msgColor = AppColors.error;
+        break;
+      case 'completed':
+        msg = 'Report submitted — awaiting your decision.';
+        msgColor = AppColors.warning;
+        break;
+      case 'in_progress':
+        msg = 'Investigation is currently in progress.';
+        msgColor = AppColors.lenderBlue;
+        break;
+      case 'accepted':
+        msg = 'Rider accepted this assignment.';
+        msgColor = AppColors.riderGreen;
+        break;
+      default:
+        msg = 'Rider assigned — awaiting acceptance.';
+        msgColor = AppColors.lenderBlue;
+    }
+    final statusLabel = status.replaceAll('_', ' ').toUpperCase();
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isApproved ? AppColors.success.withValues(alpha: 0.35) : AppColors.error.withValues(alpha: 0.35)),
+        border: Border.all(
+            color: status == 'approved'
+                ? AppColors.success.withValues(alpha: 0.3)
+                : status == 'rejected'
+                    ? AppColors.error.withValues(alpha: 0.3)
+                    : AppColors.border),
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isApproved ? AppColors.success.withValues(alpha: 0.08) : AppColors.error.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-            ),
-            child: Row(children: [
-              Container(width: 36, height: 36, decoration: BoxDecoration(color: isApproved ? AppColors.success : AppColors.error, borderRadius: BorderRadius.circular(9)), child: Icon(isApproved ? Icons.verified_rounded : Icons.block_rounded, color: Colors.white, size: 18)),
-              const SizedBox(width: 10),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(isApproved ? 'CI Approved' : 'CI Rejected', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: isApproved ? AppColors.success : AppColors.error)),
-                Text('Reviewed by $reviewerName • $reviewedAt', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              ]),
-            ]),
-          ),
-          if (notes.isNotEmpty) Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border.withValues(alpha: 0.6))),
-              child: Text(notes, style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.textPrimary)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showApproveDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> ci) {
-    final notesCtrl = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Approve CI Report'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Are you sure you want to approve this investigation? The loan will be automatically approved and the lender can choose their disbursement method.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: notesCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(hintText: 'Optional review notes (visible to rider/lender)', border: OutlineInputBorder()),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-            onPressed: () async {
-              Navigator.pop(context);
-              final ok = await ref.read(hmCiProvider.notifier).approveReport(ciId: ci['id'] as String, notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim());
-              if (ok && context.mounted) {
-                context.showSnackBarAsToast(const SnackBar(content: Text('CI approved — loan has been auto-approved'), backgroundColor: AppColors.success));
-                ref.invalidate(_ciDetailProvider(ci['id'] as String));
-              } else if (context.mounted) {
-                context.showSnackBarAsToast(SnackBar(content: Text('Failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: AppColors.error));
-              }
-            },
-            child: const Text('Approve', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showRejectDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> ci) {
-    final reasonCtrl = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Reject CI Report'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Provide a reason for rejection (min 10 chars). Loan will be rejected. The lender must wait 3 months before re-applying.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonCtrl,
-              maxLines: 4,
-              decoration: const InputDecoration(hintText: 'Rejection reason — be specific', border: OutlineInputBorder()),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () async {
-              final reason = reasonCtrl.text.trim();
-              if (reason.length < 10) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reason must be at least 10 characters')));
-                return;
-              }
-              Navigator.pop(context);
-              final ok = await ref.read(hmCiProvider.notifier).rejectReport(ciId: ci['id'] as String, reason: reason);
-              if (ok && context.mounted) {
-                context.showSnackBarAsToast(const SnackBar(content: Text('CI rejected — loan has been rejected'), backgroundColor: AppColors.error));
-                ref.invalidate(_ciDetailProvider(ci['id'] as String));
-              } else if (context.mounted) {
-                context.showSnackBarAsToast(SnackBar(content: Text('Failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: AppColors.error));
-              }
-            },
-            child: const Text('Reject', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-}
-
-class _AssignRiderForm extends ConsumerStatefulWidget {
-  final String ciId;
-  final String loanId;
-  final List<Map<String, dynamic>> riders;
-  final VoidCallback onAssigned;
-
-  const _AssignRiderForm({required this.ciId, required this.loanId, required this.riders, required this.onAssigned});
-
-  @override
-  ConsumerState<_AssignRiderForm> createState() => _AssignRiderFormState();
-}
-
-class _AssignRiderFormState extends ConsumerState<_AssignRiderForm> {
-  String? _selectedRiderId;
-  final _notesCtrl = TextEditingController();
-  DateTime? _deadline;
-  bool _loading = false;
-
-  @override
-  void dispose() {
-    _notesCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Select Rider', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 6),
-      DropdownButtonFormField<String>(
-        initialValue: _selectedRiderId,
-        decoration: InputDecoration(
-          hintText: 'Choose available rider',
-          filled: true,
-          fillColor: AppColors.surfaceVariant,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.4)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        ),
-        items: widget.riders.map((r) => DropdownMenuItem<String>(value: r['id'] as String, child: Text('${r['first_name']} ${r['last_name']}', style: const TextStyle(fontSize: 13)))).toList(),
-        onChanged: (v) => setState(() => _selectedRiderId = v),
-      ),
-      const SizedBox(height: 14),
-      const Text('Investigation Notes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 6),
-      TextFormField(
-        controller: _notesCtrl,
-        maxLines: 3,
-        decoration: InputDecoration(
-          hintText: 'Add instructions for the field rider…',
-          filled: true,
-          fillColor: AppColors.surfaceVariant,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.4)),
-        ),
-      ),
-      const SizedBox(height: 14),
-      const Text('Deadline', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 6),
-      InkWell(
-        onTap: () async {
-          final d = await showDatePicker(context: context, initialDate: DateTime.now().add(const Duration(days: 3)), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30)));
-          if (d != null) setState(() => _deadline = d);
-        },
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: AppColors.surfaceVariant, border: Border.all(color: AppColors.border), borderRadius: BorderRadius.circular(10)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: const BoxDecoration(color: Color(0xFF5C6370)),
           child: Row(children: [
-            Container(width: 32, height: 32, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.deepNavy)),
-            const SizedBox(width: 10),
-            Text(_deadline != null ? DateFormat('MMM d, yyyy').format(_deadline!) : 'Select Deadline', style: TextStyle(color: _deadline != null ? AppColors.textPrimary : AppColors.textTertiary, fontWeight: FontWeight.w600, fontSize: 13)),
-            const Spacer(),
-            const Icon(Icons.arrow_drop_down_rounded, color: AppColors.textTertiary),
+            const Expanded(
+                child: Text('Assignment Status',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+            Text(statusLabel,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: status == 'rejected' ? AppColors.error : Colors.white)),
           ]),
         ),
-      ),
-      const SizedBox(height: 18),
-      SizedBox(
-        width: double.infinity,
-        child: Container(
-          decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.25), blurRadius: 12, offset: const Offset(0, 4))]),
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            onPressed: _selectedRiderId == null || _loading ? null : _assign,
-            icon: _loading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send_rounded, size: 18, color: Colors.white),
-            label: Text(_loading ? 'Assigning…' : 'Assign Rider', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-          ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _InfoRow('CI Reference', 'CI-${model.id.substring(0, 8).toUpperCase()}', labelWidth: 120),
+            _InfoRow('Loan Number', model.loanNumber.isEmpty ? 'N/A' : model.loanNumber, labelWidth: 120),
+            if (deadline != null)
+              _InfoRow('Deadline', DateFormat('MMM d, yyyy').format(deadline), labelWidth: 120, valueColor: isOverdue ? AppColors.error : null),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: msgColor.withValues(alpha: 0.08),
+                border: Border.all(color: msgColor.withValues(alpha: 0.3)),
+              ),
+              child: Text(msg, style: TextStyle(color: msgColor, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+          ]),
         ),
-      ),
-    ]);
+      ]),
+    );
   }
 
-  Future<void> _assign() async {
-    if (_selectedRiderId == null) return;
-    setState(() => _loading = true);
-    try {
-      final ds = sl<CiRemoteDataSource>();
-      await ds.assignCi(loanId: widget.loanId, riderId: _selectedRiderId!, investigationNotes: _notesCtrl.text.trim(), deadline: _deadline?.toIso8601String());
-      if (mounted) {
-        context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
-        widget.onAssigned();
-      }
-    } catch (e) {
-      if (mounted) context.showSnackBarAsToast(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+  Widget _buildProgressCard(Map<String, dynamic> ci, String status) {
+    final isApproved = status == 'approved';
+    final isRejected = status == 'rejected';
+    final isCompletedPending = status == 'completed';
+    final steps = <({String label, bool done, IconData icon})>[
+      (label: 'Assigned', done: ci['created_at'] != null, icon: Icons.assignment_turned_in_rounded),
+      (label: 'Accepted', done: ci['response_at'] != null, icon: Icons.handshake_rounded),
+      (label: 'In Progress', done: status == 'in_progress' || isCompletedPending || isApproved || isRejected, icon: Icons.timelapse_rounded),
+      (label: 'Submitted', done: ci['completed_at'] != null, icon: Icons.rate_review_rounded),
+      (label: 'Approved', done: isApproved, icon: Icons.verified_rounded),
+    ];
+    final activeIndex = () {
+      if (isApproved) return 4;
+      if (isRejected) return 3;
+      if (ci['completed_at'] != null) return 3;
+      if (status == 'in_progress') return 2;
+      if (ci['response_at'] != null) return 1;
+      return 0;
+    }();
+
+    return _SectionCard(
+      title: 'Workflow Progress',
+      subtitle: 'Assignment stages',
+      child: Column(children: [
+        for (int i = 0; i < steps.length; i++) ...[
+          Row(children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: steps[i].done
+                    ? AppColors.riderGreen
+                    : i == activeIndex
+                        ? AppColors.lenderBlue
+                        : AppColors.surfaceVariant,
+                shape: BoxShape.circle,
+                border: Border.all(
+                    color: steps[i].done
+                        ? AppColors.riderGreen
+                        : i == activeIndex
+                            ? AppColors.lenderBlue
+                            : AppColors.border),
+              ),
+              child: Icon(steps[i].icon,
+                  size: 14,
+                  color: steps[i].done || i == activeIndex ? Colors.white : AppColors.textTertiary),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text(steps[i].label,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: i == activeIndex ? FontWeight.w800 : FontWeight.w600,
+                        color: i == activeIndex ? AppColors.deepNavy : AppColors.textSecondary))),
+          ]),
+          if (i < steps.length - 1)
+            Padding(
+              padding: const EdgeInsets.only(left: 13.5, top: 4, bottom: 4),
+              child: Container(width: 1.5, height: 12, color: steps[i].done ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border),
+            ),
+        ],
+      ]),
+    );
+  }
+
+  String _formatAddress(Map<String, dynamic> addr) {
+    final parts = [addr['street'], addr['barangay'], addr['city'], addr['province']];
+    return parts.where((p) => p != null && p.toString().isNotEmpty).join(', ');
   }
 }
 
@@ -718,28 +411,35 @@ class _DocumentThumbnail extends StatelessWidget {
   }
 }
 
-class _PremiumInfoCard extends StatelessWidget {
+/// Square white card with the dark slate-grey (#5C6370) band header used across
+/// the Lender Account Upgrade Details design.
+class _SectionCard extends StatelessWidget {
   final String title;
   final String subtitle;
-  final IconData icon;
-  final Color accent;
-  final List<Widget> children;
-  const _PremiumInfoCard({required this.title, required this.subtitle, required this.icon, required this.accent, required this.children});
+  final Widget child;
+  const _SectionCard({required this.title, this.subtitle = '', required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(border: const Border(bottom: BorderSide(color: AppColors.divider)), color: accent.withValues(alpha: 0.04), borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-            Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
+          child: Row(children: [
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+              if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+            ]),
           ]),
         ),
-        Padding(padding: const EdgeInsets.all(16), child: Column(children: children)),
+        Padding(padding: const EdgeInsets.all(16), child: child),
       ]),
     );
   }
@@ -748,43 +448,28 @@ class _PremiumInfoCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final IconData? icon;
+  final double labelWidth;
   final bool highlight;
-  const _InfoRow(this.label, this.value, {this.icon, this.highlight = false});
+  final Color? valueColor;
+  const _InfoRow(this.label, this.value,
+      {this.labelWidth = 130, this.highlight = false, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
-    // Icons removed per spec — text only rows
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 120, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
+        SizedBox(
+            width: labelWidth,
+            child: Text(label,
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
+        Expanded(
+            child: Text(value,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: valueColor ?? (highlight ? AppColors.deepNavy : AppColors.textPrimary)))),
       ]),
-    );
-  }
-}
-
-// ignore: unused_element
-class _ApprovalButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  const _ApprovalButton({required this.label, required this.icon, required this.color, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
     );
   }
 }
