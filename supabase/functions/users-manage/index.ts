@@ -343,12 +343,16 @@ async function handleUpdateProfile(req: Request) {
     }
   }
 
-  if (body.employee_profile && ['head_manager'].includes(user.role)) {
+  // Employee profile — HM may edit anyone; staff may edit their OWN
+  // date_of_birth (self-service via My Profile). Position stays HM-only.
+  if (body.employee_profile && (user.role === 'head_manager' || (targetId === user.id && ['head_manager', 'employee'].includes(user.role)))) {
     const ep = body.employee_profile;
-    await db.from('employee_profiles').update({
-      department: ep.department ? sanitizeString(ep.department) : undefined,
-      position: ep.position ? sanitizeString(ep.position) : undefined,
-    }).eq('id', targetId);
+    const patch: Record<string, unknown> = {};
+    if (user.role === 'head_manager' && ep.position) patch.position = sanitizeString(ep.position);
+    if (ep.date_of_birth) patch.date_of_birth = String(ep.date_of_birth).substring(0, 10);
+    if (Object.keys(patch).length > 0) {
+      await db.from('employee_profiles').update(patch).eq('id', targetId);
+    }
   }
 
   // Build a readable newValues snapshot so the audit trail shows what changed
@@ -404,7 +408,7 @@ async function handleGetProfile(req: Request) {
   const PROFILE_SELECT = `id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
       force_password_change, last_login_at, created_at, profile_photo_url,
       roles!users_role_id_fkey(id, name),
-      employee_profiles(department, position, hired_at, gender, civil_status),
+      employee_profiles(position, hired_at, gender, civil_status, date_of_birth),
       rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),
       lender_profiles(employment_type, employer_name, monthly_income, gcash_number, account_upgrade_status, gender, civil_status, date_of_birth, source_of_funds)`;
   let { data, error } = await db
@@ -516,7 +520,7 @@ async function handleGetProfile(req: Request) {
   const address = await getLenderAddress(db, canonicalId);
 
   // Flatten nested profile rows onto the user so the mobile/web models can
-  // read department, position, plate_number, etc. straight off the object.
+  // read position, plate_number, etc. straight off the object.
   const emp = embedAsObject(data?.employee_profiles);
   const rider = embedAsObject(data?.rider_profiles);
   const lender = embedAsObject(data?.lender_profiles);
@@ -557,7 +561,6 @@ async function handleGetProfile(req: Request) {
 
   const flattened = {
     ...data,
-    department: emp?.department ?? null,
     position: emp?.position ?? null,
     hired_at: emp?.hired_at ?? null,
     gender: lender?.gender ?? emp?.gender ?? null,
@@ -573,7 +576,7 @@ async function handleGetProfile(req: Request) {
     monthly_income: lender?.monthly_income ?? null,
     gcash_number: lender?.gcash_number ?? null,
     account_upgrade_status: lender?.account_upgrade_status ?? null,
-    date_of_birth: lender?.date_of_birth ?? null,
+    date_of_birth: (emp as any)?.date_of_birth ?? lender?.date_of_birth ?? null,
     source_of_funds: lender?.source_of_funds ?? null,
     street_address: address?.street ?? null,
     barangay: address?.barangay ?? null,

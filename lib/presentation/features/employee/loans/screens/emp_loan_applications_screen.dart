@@ -560,7 +560,6 @@ class _EmpLoanApplicationsScreenState
                 ),
               ),
             ),
-            const SizedBox(width: 8),
             Expanded(
               flex: 3,
               child: Text(

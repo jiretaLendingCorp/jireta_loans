@@ -2,7 +2,6 @@
 class EmployeeProfileEntity {
   final String id;
   final String userId;
-  final String? department;
   final String? position;
   final DateTime? hiredAt;
   final String? gender;
@@ -13,7 +12,6 @@ class EmployeeProfileEntity {
   const EmployeeProfileEntity({
     required this.id,
     required this.userId,
-    this.department,
     this.position,
     this.hiredAt,
     this.gender,

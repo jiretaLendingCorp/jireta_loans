@@ -117,7 +117,7 @@ async function handleGetList(req: Request) {
       created_at, last_login_at, roles!users_role_id_fkey(name),
       lender_profiles!lender_profiles_id_fkey(account_upgrade_status, gender, gcash_number),
       rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available),
-      employee_profiles(department, position, gender, civil_status)`, { count: 'exact' });
+      employee_profiles(position, gender, civil_status)`, { count: 'exact' });
 
   if (roleIds) {
     query = query.in('role_id', roleIds);
@@ -146,7 +146,6 @@ async function handleGetList(req: Request) {
       ...u,
       phone: u.phone_number,
       gender: lenderProfile?.gender ?? employeeProfile?.gender ?? null,
-      department: employeeProfile?.department ?? null,
       position: employeeProfile?.position ?? null,
       account_upgrade_status: lenderProfile?.account_upgrade_status ?? null,
       gcash_number: lenderProfile?.gcash_number ?? null,

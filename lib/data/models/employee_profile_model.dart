@@ -4,7 +4,6 @@ import '../../core/utils/timezone.dart';
 class EmployeeProfileModel {
   final String id;
   final String userId;
-  final String? department;
   final String? position;
   final DateTime? hiredAt;
   final String? gender;
@@ -15,7 +14,6 @@ class EmployeeProfileModel {
   const EmployeeProfileModel({
     required this.id,
     required this.userId,
-    this.department,
     this.position,
     this.hiredAt,
     this.gender,
@@ -28,7 +26,6 @@ class EmployeeProfileModel {
     return EmployeeProfileModel(
       id: json['id'] ?? '',
       userId: json['user_id'] ?? '',
-      department: json['department'],
       position: json['position'],
       hiredAt:
           json['hired_at'] != null ? parseManila(json['hired_at']) : null,

@@ -4,7 +4,6 @@ import '../../core/utils/helpers.dart';
 import '../../core/utils/timezone.dart';
 
 class UserModel extends UserEntity {
-  final String? department;
   final String? position;
   final String? gender;
   final String? civilStatus;
@@ -42,7 +41,6 @@ class UserModel extends UserEntity {
     super.profilePhotoUrl,
     super.lastLoginAt,
     required super.createdAt,
-    this.department,
     this.position,
     this.gender,
     this.civilStatus,
@@ -100,7 +98,6 @@ class UserModel extends UserEntity {
       createdAt: json['created_at'] != null
           ? parseManila(json['created_at'])!
           : DateTime.now(),
-      department: json['department'],
       position: json['position'],
       gender: _resolveNullableCode(json, 'gender', 'gender_id', 'gender_types'),
       civilStatus: _resolveNullableCode(json, 'civil_status', 'civil_status_id', 'civil_statuses'),
@@ -148,7 +145,6 @@ class UserModel extends UserEntity {
         'force_password_change': forcePasswordChange,
         'profile_photo_url': profilePhotoUrl,
         'created_at': createdAt.toIso8601String(),
-        'department': department,
         'position': position,
         'gender': gender,
         'civil_status': civilStatus,
@@ -201,7 +197,6 @@ class UserModel extends UserEntity {
       profilePhotoUrl: profilePhotoUrl ?? this.profilePhotoUrl,
       lastLoginAt: lastLoginAt,
       createdAt: createdAt,
-      department: department,
       position: position,
       gender: gender,
       civilStatus: civilStatus,

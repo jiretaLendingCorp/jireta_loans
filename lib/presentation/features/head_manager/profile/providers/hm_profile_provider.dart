@@ -45,10 +45,25 @@ class HmProfileNotifier extends StateNotifier<HmProfileState>
     }
   }
 
-  Future<void> updateProfile(
-      {required String firstName, required String lastName}) async {
-    await _userDs
-        .updateProfile({'first_name': firstName, 'last_name': lastName});
+  Future<void> updateProfile({
+    required String firstName,
+    required String lastName,
+    String? middleName,
+    String? phoneNumber,
+    DateTime? dateOfBirth,
+  }) async {
+    final payload = <String, dynamic>{
+      'first_name': firstName,
+      'last_name': lastName,
+      if (middleName != null) 'middle_name': middleName,
+      if (phoneNumber != null) 'phone_number': phoneNumber,
+      if (dateOfBirth != null)
+        'employee_profile': {
+          'date_of_birth':
+              dateOfBirth.toIso8601String().substring(0, 10),
+        },
+    };
+    await _userDs.updateProfile(payload);
     await loadProfile();
   }
 
