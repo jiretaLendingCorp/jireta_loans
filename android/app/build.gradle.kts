@@ -1,5 +1,8 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -78,34 +81,4 @@ dependencies {
     // ✅ FIX: Required companion library for isCoreLibraryDesugaringEnabled.
     //    Use the latest stable version of desugar_jdk_libs.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-}
-
-{
-  "project_info": {
-    "project_number": "263204697735",
-    "project_id": "lmsnotif",
-    "storage_bucket": "lmsnotif.firebasestorage.app"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:263204697735:android:0ffe29791b1a43d2fb6a22",
-        "android_client_info": {
-          "package_name": "com.example.jireta_loans"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyB3wpsq5s6ftVVggrN-L7QINbK_z0WIp3E"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    }
-  ],
-  "configuration_version": "1"
 }
