@@ -9,6 +9,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
+import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -268,18 +269,23 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     );
   }
 
-  // Status text + 3-dot action menu (gaya ng Head Manager).
+  // Status text + 3-dot action menu (identical sa Head Manager).
   Widget _buildHeroActions(Map<String, dynamic> loan, String status) {
+    final s = status.toLowerCase().trim();
     final canApprove = const {
       'pending',
       'under_review',
       'ci_required',
       'ci_assigned',
       'ci_completed'
-    }.contains(status);
+    }.contains(s);
     final canReject = canApprove;
-    final canRequestCI = status == 'under_review';
-    final hasActions = canApprove || canReject || canRequestCI;
+    final canRequestCI = s == 'under_review';
+    // Tulad ng Head Manager: pending / under_review / ci_required => Assign CI Rider
+    final canAssignCi =
+        const {'pending', 'under_review', 'ci_required'}.contains(s);
+    final hasActions =
+        canApprove || canReject || canRequestCI || canAssignCi;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -303,6 +309,9 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 case 'request_ci':
                   _confirmRequestCi(loan);
                   break;
+                case 'assign_ci':
+                  _showAssignCi();
+                  break;
               }
             },
             itemBuilder: (_) => [
@@ -314,6 +323,15 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                           size: 16, color: AppColors.success),
                       SizedBox(width: 8),
                       Text('Approve')
+                    ])),
+              if (canAssignCi)
+                const PopupMenuItem(
+                    value: 'assign_ci',
+                    child: Row(children: [
+                      Icon(Icons.search_rounded,
+                          size: 16, color: AppColors.info),
+                      SizedBox(width: 8),
+                      Text('Assign CI Rider')
                     ])),
               if (canRequestCI)
                 const PopupMenuItem(
@@ -857,6 +875,18 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
       _toast('Request failed: $e', AppColors.error);
     } finally {
       if (mounted) setState(() => _isActing = false);
+    }
+  }
+
+  // Tulad ng Head Manager: Assign CI Rider modal (HM premium design).
+  Future<void> _showAssignCi() async {
+    final assigned = await showDialog<bool>(
+      context: context,
+      builder: (_) => EmpCiAssignModal(loanId: widget.loanId),
+    );
+    if (assigned == true && mounted) {
+      _toast('Rider assigned for credit investigation', AppColors.success);
+      _refreshAfterAction();
     }
   }
 

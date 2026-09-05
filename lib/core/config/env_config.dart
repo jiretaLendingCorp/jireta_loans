@@ -71,21 +71,10 @@ class EnvConfig {
   static bool get isProduction => appEnv == 'production';
   static bool get isDevelopment => appEnv == 'development';
 
+  // Removed: previous debugPrint() leaked SUPABASE_URL / ANON_KEY to
+  // terminal logs. Kept as no-op so existing calls don't break.
+  // Do NOT re-add secret printing here.
   static void debugPrint() {
-    final url = dotenv.env['SUPABASE_URL'] ?? '(not set)';
-    final key = dotenv.env['SUPABASE_ANON_KEY'] ?? '(not set)';
-    final keyPreview = key.length > 24 ? '${key.substring(0, 24)}...' : key;
-    final efUrl = dotenv.env['EDGE_FUNCTIONS_URL'] ?? '(not set)';
-    // ignore: avoid_print
-    print('''
-╔══════════════════════════════════════════════════╗
-║  EnvConfig                                       ║
-╠══════════════════════════════════════════════════╣
-║  APP_ENV:            $appEnv
-║  SUPABASE_URL:       $url
-║  SUPABASE_ANON_KEY:  $keyPreview
-║  EDGE_FUNCTIONS_URL: $efUrl
-╚══════════════════════════════════════════════════╝
-''');
+    // no-op — intentionally does not print EnvConfig.
   }
 }

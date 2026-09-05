@@ -1,9 +1,12 @@
 // lib/presentation/features/employee/dashboard/screens/emp_dashboard_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/emp_dashboard_provider.dart';
@@ -15,43 +18,67 @@ class EmpDashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<EmpDashboardScreen> createState() => _EmpDashboardScreenState();
 }
 
-class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _animController;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
+class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final dashState = ref.watch(empDashboardProvider);
+    final notifier = ref.read(empDashboardProvider.notifier);
 
     return WebScaffold(
       title: 'Dashboard',
       actions: [
-        IconButton(
-          onPressed: () => ref.read(empDashboardProvider.notifier).refresh(),
-          icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-          tooltip: 'Refresh',
+        // Month picker — monthly dashboard (tulad ng head manager)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.zero,
+              border: Border.all(color: AppColors.border)),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: dashState.selectedMonth,
+              icon: const Icon(Icons.calendar_month_rounded,
+                  size: 18, color: AppColors.deepNavy),
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepNavy),
+              isDense: true,
+              items: EmpDashboardNotifier.availableMonths().map((m) {
+                return DropdownMenuItem(
+                    value: m,
+                    child: Text(EmpDashboardNotifier.monthLabel(m)));
+              }).toList(),
+              onChanged: (v) {
+                if (v != null) notifier.setMonth(v);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.zero,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: IconButton(
+            onPressed: () => notifier.refresh(),
+            icon: dashState.isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh_rounded,
+                    color: AppColors.textSecondary, size: 20),
+            tooltip: 'Refresh',
+          ),
         ),
       ],
       body: dashState.isLoading
           ? _buildShimmer()
           : RefreshIndicator(
-              onRefresh: () =>
-                  ref.read(empDashboardProvider.notifier).refresh(),
+              onRefresh: () => notifier.refresh(),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(24),
@@ -59,10 +86,22 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildQuickActions(context),
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('My Performance Metrics'),
-                    const SizedBox(height: 12),
-                    _buildKpiGrid(dashState),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.people_rounded,
+                      'My Performance Metrics — ${EmpDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                      'Your activity within the selected month',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildPerformanceGrid(dashState),
+                    const SizedBox(height: 28),
+                    _buildSectionTitle(
+                      Icons.account_balance_wallet_rounded,
+                      'Loan Portfolio — ${EmpDashboardNotifier.monthLabel(dashState.selectedMonth)}',
+                      'Loans you handled in the selected month',
+                    ),
+                    const SizedBox(height: 14),
+                    _buildPortfolioGrid(dashState),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -72,14 +111,24 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
   }
 
   Widget _buildShimmer() {
-    // Scrollable so short viewports never get a bottom-overflow error while
-    // the (fixed-height) skeleton rows are showing.
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
           const ShimmerLoader(height: 100),
+          const SizedBox(height: 16),
+          Row(
+            children: List.generate(
+              4,
+              (i) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(left: i > 0 ? 16 : 0),
+                  child: const ShimmerLoader(height: 120),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           Row(
             children: List.generate(
@@ -152,84 +201,112 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  // ── Head-manager style section header: gold gradient icon + title/subtitle + divider ──
+  Widget _buildSectionTitle(
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 4,
-          height: 20,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
-            color: AppColors.gold,
-            borderRadius: BorderRadius.circular(2),
+            gradient: const LinearGradient(
+              colors: [AppColors.gold, AppColors.goldDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.zero,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.gold.withValues(alpha: 0.32),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 18, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textTertiary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
+        const Expanded(
+          child: Divider(color: AppColors.divider, height: 1),
         ),
       ],
     );
   }
 
-  Widget _buildKpiGrid(EmpDashboardState dashState) {
+  Widget _buildPerformanceGrid(EmpDashboardState dashState) {
     final kpi = dashState.kpi;
-    return Column(
-      children: [
-        _buildGridRow([
-          _KpiCard(
-            label: 'Lenders Managed',
-            value: kpi.totalLendersManaged.toString(),
-            icon: Icons.people_outline,
-            color: AppColors.lenderBlue,
-          ),
-          _KpiCard(
-            label: 'Applications Processed',
-            value: kpi.totalApplicationsProcessed.toString(),
-            icon: Icons.description_outlined,
-            color: AppColors.deepNavy,
-          ),
-          _KpiCard(
-            label: 'Approved Loans',
-            value: kpi.totalApprovedLoans.toString(),
-            icon: Icons.check_circle_outline,
-            color: AppColors.riderGreen,
-          ),
-          _KpiCard(
-            label: 'Rejected Loans',
-            value: kpi.totalRejectedLoans.toString(),
-            icon: Icons.cancel_outlined,
-            color: AppColors.error,
-          ),
-        ]),
-        const SizedBox(height: 12),
-        _buildGridRow([
-          _KpiCard(
-            label: 'Active Loans',
-            value: kpi.totalActiveLoans.toString(),
-            icon: Icons.account_balance_wallet_outlined,
-            color: AppColors.info,
-          ),
-          _KpiCard(
-            label: 'Completed Loans',
-            value: kpi.totalCompletedLoans.toString(),
-            icon: Icons.done_all_outlined,
-            color: AppColors.riderGreen,
-          ),
-          _KpiCard(
-            label: 'Collections Managed',
-            value: kpi.totalCollectionsManaged.toString(),
-            icon: Icons.local_shipping_outlined,
-            color: AppColors.warning,
-          ),
-          const _EmptyCard(),
-        ]),
-      ],
-    );
+    // Single Wrap so cards flow as 4 on desktop, no isolated card
+    return _buildGridRow([
+      _KpiCard(
+          label: 'Lenders Managed',
+          value: kpi.totalLendersManaged.toDouble(),
+          icon: Icons.people_outline,
+          color: AppColors.lenderBlue),
+      _KpiCard(
+          label: 'Applications Processed',
+          value: kpi.totalApplicationsProcessed.toDouble(),
+          icon: Icons.description_outlined,
+          color: AppColors.deepNavy),
+      _KpiCard(
+          label: 'Approved Loans',
+          value: kpi.totalApprovedLoans.toDouble(),
+          icon: Icons.check_circle_rounded,
+          color: AppColors.riderGreen),
+      _KpiCard(
+          label: 'Rejected Loans',
+          value: kpi.totalRejectedLoans.toDouble(),
+          icon: Icons.cancel_rounded,
+          color: AppColors.error),
+    ]);
+  }
+
+  Widget _buildPortfolioGrid(EmpDashboardState dashState) {
+    final kpi = dashState.kpi;
+    return _buildGridRow([
+      _KpiCard(
+          label: 'Active Loans',
+          value: kpi.totalActiveLoans.toDouble(),
+          icon: Icons.account_balance_wallet_rounded,
+          color: AppColors.info),
+      _KpiCard(
+          label: 'Completed Loans',
+          value: kpi.totalCompletedLoans.toDouble(),
+          icon: Icons.done_all_rounded,
+          color: AppColors.riderGreen),
+      _KpiCard(
+          label: 'Collections Managed',
+          value: kpi.totalCollectionsManaged.toDouble(),
+          icon: Icons.local_shipping_outlined,
+          color: AppColors.warning),
+    ]);
   }
 
   Widget _buildGridRow(List<Widget> cards) {
@@ -249,8 +326,12 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen>
           spacing: spacing,
           runSpacing: spacing,
           children: cards
-              .where((card) => card is! _EmptyCard)
-              .map((card) => SizedBox(width: cardWidth, child: card))
+              .asMap()
+              .entries
+              .map((e) => SizedBox(
+                    width: cardWidth,
+                    child: _Entrance(delay: 80 + e.key * 55, child: e.value),
+                  ))
               .toList(),
         );
       },
@@ -284,7 +365,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
       onExit: (_) => setState(() => _hover = false),
       child: InkWell(
         onTap: widget.action.onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.zero,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -292,7 +373,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
             color: _hover
                 ? widget.action.color.withValues(alpha: 0.08)
                 : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
               color: _hover
                   ? widget.action.color.withValues(alpha: 0.4)
@@ -315,7 +396,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                 height: 36,
                 decoration: BoxDecoration(
                   color: widget.action.color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.zero,
                 ),
                 child: Icon(
                   widget.action.icon,
@@ -347,136 +428,187 @@ class _QuickActionCardState extends State<_QuickActionCard> {
   }
 }
 
-class _KpiCard extends StatefulWidget {
+// ── Head-manager style KPI card: grey header strip + CountUp value ──
+class _KpiCard extends StatelessWidget {
   final String label;
-  final String value;
+  final double value;
   final IconData icon;
   final Color color;
 
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  State<_KpiCard> createState() => _KpiCardState();
-}
-
-class _KpiCardState extends State<_KpiCard>
-    with SingleTickerProviderStateMixin {
-  bool _hover = false;
-  late AnimationController _controller;
-  late Animation<double> _scaleAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..forward();
-    _scaleAnim = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  const _KpiCard(
+      {required this.label,
+      required this.value,
+      required this.icon,
+      required this.color});
 
   @override
   Widget build(BuildContext context) {
+    return _KpiCardBody(
+        label: label, value: value, icon: icon, color: color);
+  }
+}
+
+class _KpiCardBody extends StatefulWidget {
+  final String label;
+  final double value;
+  final IconData icon;
+  final Color color;
+
+  const _KpiCardBody(
+      {required this.label,
+      required this.value,
+      required this.icon,
+      required this.color});
+
+  @override
+  State<_KpiCardBody> createState() => _KpiCardBodyState();
+}
+
+class _KpiCardBodyState extends State<_KpiCardBody> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.color;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: ScaleTransition(
-        scale: _scaleAnim,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _hover ? widget.color.withValues(alpha: 0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.zero,
+          border: Border.all(
               color: _hover
-                  ? widget.color.withValues(alpha: 0.3)
-                  : AppColors.border,
-            ),
-            boxShadow: _hover
-                ? [
-                    BoxShadow(
-                      color: widget.color.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : [
-                    const BoxShadow(
-                      color: Color(0x05000000),
-                      blurRadius: 4,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+                  ? color.withValues(alpha: 0.32)
+                  : AppColors.border),
+          boxShadow: _hover
+              ? [
+                  BoxShadow(
+                      color: color.withValues(alpha: 0.14),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6))
+                ]
+              : const [
+                  BoxShadow(
+                      color: Color(0x0D000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 2))
+                ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Grey header strip (gaya ng head manager / loan details cards)
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: const BoxDecoration(
+                color: Color(0xFF5C6370),
+                border: Border(bottom: BorderSide(color: AppColors.divider)),
+              ),
+              child: Row(
                 children: [
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 26,
+                    height: 26,
                     decoration: BoxDecoration(
-                      color: widget.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: color,
+                      borderRadius: BorderRadius.zero,
                     ),
-                    child: Icon(widget.icon, size: 18, color: widget.color),
+                    child: Icon(widget.icon, size: 14, color: Colors.white),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                   Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: widget.color.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                          color: color, shape: BoxShape.circle)),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                widget.value,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: widget.color,
-                  letterSpacing: -0.5,
-                ),
+            ),
+            // Body — value
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: CountUpAnimation(
+                    value: widget.value,
+                    style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                        letterSpacing: -0.4)),
               ),
-              const SizedBox(height: 4),
-              Text(
-                widget.label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard();
+/// Fade + slide + scale entrance used across dashboard sections (tulad ng head manager).
+class _Entrance extends StatefulWidget {
+  final Widget child;
+  final int delay;
+  const _Entrance({required this.child, this.delay = 0});
 
   @override
-  Widget build(BuildContext context) => const SizedBox();
+  State<_Entrance> createState() => _EntranceState();
+}
+
+class _EntranceState extends State<_Entrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+  late final Animation<double> _scale;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 550));
+    final curved = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _opacity = Tween<double>(begin: 0, end: 1).animate(curved);
+    _offset =
+        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+            .animate(curved);
+    _scale = Tween<double>(begin: 0.96, end: 1).animate(curved);
+    _timer = Timer(Duration(milliseconds: widget.delay), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+        opacity: _opacity,
+        child: SlideTransition(
+            position: _offset,
+            child: ScaleTransition(scale: _scale, child: widget.child)));
+  }
 }

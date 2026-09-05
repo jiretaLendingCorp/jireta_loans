@@ -506,8 +506,9 @@ class _EmpLoanApplicationsScreenState
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: AppColors.surfaceVariant,
       child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(flex: 2, child: Text('Loan #', style: style)),
+          Expanded(flex: 3, child: Text('Loan #', style: style)),
           Expanded(flex: 3, child: Text('Lender', style: style)),
           Expanded(flex: 2, child: Text('Amount', style: style)),
           Expanded(
@@ -525,8 +526,8 @@ class _EmpLoanApplicationsScreenState
               child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Applied', style: style))),
-          Expanded(
-              flex: 4,
+          SizedBox(
+              width: 96,
               child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Actions', style: style))),
@@ -545,11 +546,13 @@ class _EmpLoanApplicationsScreenState
             : AppColors.surfaceVariant.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              flex: 2,
+              flex: 3,
               child: Text(
                 loan.loanNumber,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
@@ -557,6 +560,7 @@ class _EmpLoanApplicationsScreenState
                 ),
               ),
             ),
+            const SizedBox(width: 8),
             Expanded(
               flex: 3,
               child: Text(
@@ -569,6 +573,7 @@ class _EmpLoanApplicationsScreenState
               flex: 2,
               child: Text(
                 '₱${loan.principalAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
@@ -583,6 +588,7 @@ class _EmpLoanApplicationsScreenState
               flex: 2,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
@@ -616,6 +622,8 @@ class _EmpLoanApplicationsScreenState
                 child: Text(
                   '${loan.createdAt.year}-${loan.createdAt.month.toString().padLeft(2, '0')}-${loan.createdAt.day.toString().padLeft(2, '0')}',
                   textAlign: TextAlign.start,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -623,8 +631,8 @@ class _EmpLoanApplicationsScreenState
                 ),
               ),
             ),
-            Expanded(
-              flex: 4,
+            SizedBox(
+              width: 96,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: _buildActions(loan),
@@ -637,7 +645,9 @@ class _EmpLoanApplicationsScreenState
   }
 
   Widget _buildActions(LoanModel loan) {
-    final status = loan.status;
+    // Normalize para kahit 'Pending' / 'PENDING' / may whitespace ay match —
+    // gaya ng Head Manager logic (pending => Assign Rider visible).
+    final status = loan.status.toLowerCase().trim();
     final canAssignRider =
         ['pending', 'under_review', 'ci_required'].contains(status);
     final canApprove = [
@@ -657,7 +667,7 @@ class _EmpLoanApplicationsScreenState
       'ci_completed'
     ].contains(status);
 
-    // Parang Head Manager: View icon + 3 dots (PopupMenu) na lang
+    // Identical sa Head Manager: View icon + 3 dots (PopupMenu)
     final needsRiderDot = canAssignRider || canAssignDeliveryRider;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -690,7 +700,7 @@ class _EmpLoanApplicationsScreenState
                       ])),
                 if (canAssignRider)
                   const PopupMenuItem(
-                      value: 'assign_rider',
+                      value: 'assign_ci',
                       child: Row(children: [
                         Icon(Icons.search_rounded,
                             size: 16, color: AppColors.info),
@@ -732,7 +742,7 @@ class _EmpLoanApplicationsScreenState
                   case 'reject':
                     _showReject(loan);
                     break;
-                  case 'assign_rider':
+                  case 'assign_ci':
                     _showAssignRider(loan);
                     break;
                   case 'assign_delivery':

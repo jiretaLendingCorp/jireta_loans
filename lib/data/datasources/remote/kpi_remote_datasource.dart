@@ -17,8 +17,10 @@ class KpiRemoteDataSource {
     return KpiHeadManagerModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<KpiEmployeeModel> getEmployeeKpi() async {
-    final res = await _client.get(ApiEndpoints.kpiEmployee);
+  Future<KpiEmployeeModel> getEmployeeKpi({String? month}) async {
+    final isMonthly = month != null && month.isNotEmpty;
+    final path = isMonthly ? '${ApiEndpoints.kpiEmployee}&month=$month' : ApiEndpoints.kpiEmployee;
+    final res = await _client.get(path);
     return KpiEmployeeModel.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -33,7 +35,7 @@ class KpiRemoteDataSource {
   }
 
   Future<KpiHeadManagerModel> getHeadManagerKpis({String? month}) => getHeadManagerKpi(month: month);
-  Future<KpiEmployeeModel> getEmployeeKpis() => getEmployeeKpi();
+  Future<KpiEmployeeModel> getEmployeeKpis({String? month}) => getEmployeeKpi(month: month);
   Future<KpiRiderModel> getRiderKpis() => getRiderKpi();
   Future<KpiLenderModel> getLenderKpis() => getLenderKpi();
 }

@@ -7,6 +7,8 @@ class KpiEmployeeModel {
   final int totalActiveLoans;
   final int totalCompletedLoans;
   final int totalCollectionsManaged;
+  final String? selectedMonth; // YYYY-MM or null (lifetime)
+  final bool isMonthly;
 
   const KpiEmployeeModel({
     required this.totalLendersManaged,
@@ -16,6 +18,8 @@ class KpiEmployeeModel {
     required this.totalActiveLoans,
     required this.totalCompletedLoans,
     required this.totalCollectionsManaged,
+    this.selectedMonth,
+    this.isMonthly = false,
   });
 
   factory KpiEmployeeModel.fromJson(Map<String, dynamic> json) =>
@@ -33,6 +37,9 @@ class KpiEmployeeModel {
             (json['total_completed_loans'] as num?)?.toInt() ?? 0,
         totalCollectionsManaged:
             (json['total_collections_managed'] as num?)?.toInt() ?? 0,
+        selectedMonth: json['selected_month']?.toString(),
+        isMonthly:
+            (json['is_monthly'] == true) || (json['period'] == 'monthly'),
       );
 
   static KpiEmployeeModel empty() => const KpiEmployeeModel(
@@ -43,5 +50,7 @@ class KpiEmployeeModel {
         totalActiveLoans: 0,
         totalCompletedLoans: 0,
         totalCollectionsManaged: 0,
+        selectedMonth: null,
+        isMonthly: false,
       );
 }

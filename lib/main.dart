@@ -27,20 +27,13 @@ void main() async {
 
   await dotenv.load(fileName: 'assets/env/.env');
 
-  assert(() {
-    EnvConfig.debugPrint();
-    return true;
-  }());
-
   // ── Production placeholder guard ────────────────────────────────────────
   // If the bundled .env still contains your-project.supabase.co the app was
   // built without Vercel env vars (common after adding vars but forgetting
   // to Redeploy). Showing a clear banner is far more actionable than
   // "ERR_NAME_NOT_RESOLVED your-project.supabase.co" on every API call.
   if (EnvConfig.isPlaceholderEnv) {
-    // Keep debugPrint visible in release logs as well (not just assert).
-    print('🚨 EnvConfig isPlaceholderEnv=true — bundled .env:');
-    EnvConfig.debugPrint();
+    // No secrets/URLs printed here on purpose.
     runApp(const _PlaceholderEnvApp());
     return;
   }

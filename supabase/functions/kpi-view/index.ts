@@ -70,6 +70,8 @@ async function handleHeadManager(req: Request) {
 }
 
 // ── [moved from functions/kpi-employee/index.ts] ────────────────────────────
+// MONTHLY: ?month=YYYY-MM filters all KPIs to activity INSIDE that month
+// (same semantics as head-manager dashboard). No param = lifetime (legacy).
 async function handleEmployee(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
@@ -78,6 +80,27 @@ async function handleEmployee(req: Request) {
 
   const db = getAdminClient();
   const empId = authResult.id;
+  const url = new URL(req.url);
+  const monthParam = url.searchParams.get('month');
+
+  let isoStart: string | null = null;
+  let isoEnd: string | null = null;
+  let isMonthly = false;
+  let selectedMonth = '';
+  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    const [yy, mm] = monthParam.split('-').map(Number);
+    if (mm >= 1 && mm <= 12) {
+      isoStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0)).toISOString();
+      isoEnd = new Date(Date.UTC(yy, mm, 1, 0, 0, 0)).toISOString();
+      isMonthly = true;
+      selectedMonth = monthParam;
+    }
+  }
+
+  const applyMonth = (q: any, col = 'created_at') => {
+    if (isMonthly && isoStart && isoEnd) q = q.gte(col, isoStart).lt(col, isoEnd);
+    return q;
+  };
 
   const [
     { count: totalLenders },
@@ -88,20 +111,20 @@ async function handleEmployee(req: Request) {
     { count: totalCompleted },
     { count: totalCollections },
   ] = await Promise.all([
-    db.from('users').select('*', { count: 'exact', head: true })
-      .eq('created_by', empId).eq('roles.name', 'lender'),
-    db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
-      .eq('in_office_applications.created_by', empId),
-    db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
-      .eq('in_office_applications.created_by', empId).in('status', ['approved', 'active', 'completed']),
-    db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
-      .eq('in_office_applications.created_by', empId).eq('status', 'rejected'),
-    db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
-      .eq('in_office_applications.created_by', empId).eq('status', 'active'),
-    db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
-      .eq('in_office_applications.created_by', empId).eq('status', 'completed'),
-    db.from('collection_assignments').select('*', { count: 'exact', head: true })
-      .eq('assigned_by', empId),
+    applyMonth(db.from('users').select('*', { count: 'exact', head: true })
+      .eq('created_by', empId).eq('roles.name', 'lender')),
+    applyMonth(db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+      .eq('in_office_applications.created_by', empId)),
+    applyMonth(db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+      .eq('in_office_applications.created_by', empId).in('status', ['approved', 'active', 'completed'])),
+    applyMonth(db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+      .eq('in_office_applications.created_by', empId).eq('status', 'rejected')),
+    applyMonth(db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+      .eq('in_office_applications.created_by', empId).eq('status', 'active')),
+    applyMonth(db.from('loans').select('*, in_office_applications!fk_loans_in_office(created_by)', { count: 'exact', head: true })
+      .eq('in_office_applications.created_by', empId).eq('status', 'completed')),
+    applyMonth(db.from('collection_assignments').select('*', { count: 'exact', head: true })
+      .eq('assigned_by', empId)),
   ]);
 
   return jsonResponse({
@@ -112,6 +135,9 @@ async function handleEmployee(req: Request) {
     total_active_loans: totalActive ?? 0,
     total_completed_loans: totalCompleted ?? 0,
     total_collections_managed: totalCollections ?? 0,
+    selected_month: isMonthly ? selectedMonth : null,
+    is_monthly: isMonthly,
+    period: isMonthly ? 'monthly' : 'lifetime',
   });
 }
 

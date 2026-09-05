@@ -6,7 +6,7 @@ import '../../data/models/kpi_rider_model.dart';
 
 abstract class IKpiRepository {
   Future<KpiHeadManagerModel> getHeadManagerKpi({String? month});
-  Future<KpiEmployeeModel> getEmployeeKpi();
+  Future<KpiEmployeeModel> getEmployeeKpi({String? month});
   Future<KpiRiderModel> getRiderKpi();
   Future<KpiLenderModel> getLenderKpi();
 }
