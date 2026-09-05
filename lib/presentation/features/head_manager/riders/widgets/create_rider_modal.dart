@@ -68,7 +68,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
 
   @override
   Widget build(BuildContext context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         child: Container(
           width: 520,
           padding: const EdgeInsets.all(28),
@@ -107,7 +107,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: AppColors.errorLight,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Text(
                         _error!,
@@ -204,6 +204,10 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                     children: [
                       OutlinedButton(
                         onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero),
+                        ),
                         child: const Text('Cancel'),
                       ),
                       const SizedBox(width: 12),
@@ -211,6 +215,8 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                         onPressed: _loading ? null : _submit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.riderGreen,
+                          shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero),
                         ),
                         child: _loading
                             ? const SizedBox(
@@ -258,7 +264,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
         counterText: '',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.zero),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       );

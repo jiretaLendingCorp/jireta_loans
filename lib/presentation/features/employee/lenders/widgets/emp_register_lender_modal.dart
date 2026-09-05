@@ -88,7 +88,7 @@ class _EmpRegisterLenderModalState
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 700),
         child: Column(
@@ -293,10 +293,7 @@ class _EmpRegisterLenderModalState
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         color: AppColors.lenderBlue,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(16),
-        ),
+        borderRadius: BorderRadius.zero,
       ),
       child: Row(
         children: [
@@ -366,6 +363,10 @@ class _EmpRegisterLenderModalState
         children: [
           TextButton(
             onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero),
+            ),
             child: const Text('Cancel'),
           ),
           const SizedBox(width: 12),
@@ -375,6 +376,8 @@ class _EmpRegisterLenderModalState
               backgroundColor: AppColors.lenderBlue,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero),
             ),
             child: _isLoading
                 ? const SizedBox(

@@ -108,7 +108,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: SizedBox(
         width: 500,
         child: Column(
@@ -215,7 +215,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
         padding: const EdgeInsets.all(20),
         decoration: const BoxDecoration(
             color: AppColors.deepNavy,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+            borderRadius: BorderRadius.zero),
         child: Row(children: [
           const Icon(Icons.directions_bike, color: AppColors.gold, size: 20),
           const SizedBox(width: 10),
@@ -238,13 +238,19 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
         child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
           OutlinedButton(
               onPressed: () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero),
+              ),
               child: const Text('Cancel')),
           const SizedBox(width: 12),
           ElevatedButton(
             onPressed: _isSaving ? null : _save,
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
-                foregroundColor: Colors.black87),
+                foregroundColor: Colors.black87,
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero)),
             child: _isSaving
                 ? const SizedBox(
                     width: 16,

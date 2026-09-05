@@ -41,7 +41,7 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Container(
         width: 560,
         padding: const EdgeInsets.all(28),
@@ -58,7 +58,7 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: AppColors.deepNavy.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: const Icon(
                         Icons.person_add,
@@ -96,7 +96,7 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.errorLight,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Text(
                       _error!,
@@ -197,7 +197,7 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
                     child: Text(
                       _dob != null
                           ? '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}'
-                          : 'Select date of birth (18+ years old)',
+                          : 'Select date of birth',
                       style: TextStyle(
                         color: _dob != null
                             ? AppColors.textPrimary
@@ -228,6 +228,10 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
                   children: [
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero),
+                      ),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 12),
@@ -235,6 +239,8 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
                       onPressed: _loading ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.deepNavy,
+                        shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero),
                       ),
                       child: _loading
                           ? const SizedBox(
@@ -277,7 +283,7 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
         counterText: '',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.zero),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       );

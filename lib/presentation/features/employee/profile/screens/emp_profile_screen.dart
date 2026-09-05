@@ -265,10 +265,6 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                 ? '—'
                 : user.position!),
         ModernInfoRowData(
-            icon: Icons.admin_panel_settings_outlined,
-            label: 'Role',
-            value: _formatLabel(user.role)),
-        ModernInfoRowData(
             icon: Icons.verified_user_outlined,
             label: 'Account status',
             value: _formatLabel(user.accountStatus)),

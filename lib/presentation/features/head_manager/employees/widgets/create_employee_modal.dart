@@ -21,18 +21,11 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
   final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _positionCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
   DateTime? _dob;
   bool _loading = false;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _positionCtrl.text = 'Staff';
-  }
 
   @override
   void dispose() {
@@ -42,14 +35,13 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
     _suffixCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
-    _positionCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Container(
         width: 560,
         padding: const EdgeInsets.all(28),
@@ -66,7 +58,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: AppColors.deepNavy.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: const Icon(
                         Icons.person_add,
@@ -104,7 +96,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.errorLight,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.zero,
                     ),
                     child: Text(
                       _error!,
@@ -205,7 +197,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                     child: Text(
                       _dob != null
                           ? '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}'
-                          : 'Select date of birth (18+ years old)',
+                          : 'Select date of birth',
                       style: TextStyle(
                         color: _dob != null
                             ? AppColors.textPrimary
@@ -230,18 +222,16 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   keyboardType: TextInputType.phone,
                   maxLength: 11,
                 ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _positionCtrl,
-                  readOnly: true,
-                  decoration: _dec('Position'),
-                ),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     OutlinedButton(
                       onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero),
+                      ),
                       child: const Text('Cancel'),
                     ),
                     const SizedBox(width: 12),
@@ -249,6 +239,8 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                       onPressed: _loading ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.deepNavy,
+                        shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.zero),
                       ),
                       child: _loading
                           ? const SizedBox(
@@ -291,7 +283,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
         counterText: '',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.zero),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       );
@@ -317,7 +309,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
         'gender': _gender,
         'civil_status': _civilStatus,
         'date_of_birth': _dob!.toIso8601String().split('T')[0],
-        'position': _positionCtrl.text.trim(),
+        'position': 'Employee',
       });
       if (mounted) Navigator.pop(context);
     } catch (e) {

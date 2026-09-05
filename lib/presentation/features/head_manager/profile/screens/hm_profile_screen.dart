@@ -252,10 +252,6 @@ class _HmProfileScreenState extends ConsumerState<HmProfileScreen> {
       icon: Icons.badge_outlined,
       rows: [
         ModernInfoRowData(
-            icon: Icons.admin_panel_settings_outlined,
-            label: 'Role',
-            value: _formatLabel(user.role)),
-        ModernInfoRowData(
             icon: Icons.work_outline_rounded,
             label: 'Position',
             value: (user.position ?? '').isEmpty

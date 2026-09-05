@@ -78,11 +78,10 @@ class HmActivityFeed extends ConsumerWidget {
   const HmActivityFeed(
       {super.key, required this.events, this.isLoading = false});
 
-  void _openViewAll(BuildContext context, WidgetRef ref) {
+  void _openViewAll(BuildContext context) {
     showDialog<void>(
       context: context,
       builder: (ctx) {
-        final allAsync = ref.watch(hmAllActivityProvider);
         return Dialog(
           backgroundColor: Colors.white,
           shape: const RoundedRectangleBorder(
@@ -130,7 +129,14 @@ class HmActivityFeed extends ConsumerWidget {
                   ),
                 ),
                 Expanded(
-                  child: allAsync.when(
+                  // Consumer (not an outer ref.watch): the dialog lives in the
+                  // overlay tree, so it must own its subscription — otherwise
+                  // it never rebuilds when the provider resolves and stays
+                  // stuck on the loading spinner.
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final allAsync = ref.watch(hmAllActivityProvider);
+                      return allAsync.when(
                     loading: () => const Center(
                         child: CircularProgressIndicator(strokeWidth: 2)),
                     error: (e, _) => Center(
@@ -196,6 +202,8 @@ class HmActivityFeed extends ConsumerWidget {
                               );
                             },
                           ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -253,7 +261,7 @@ class HmActivityFeed extends ConsumerWidget {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => _openViewAll(context, ref),
+                  onPressed: () => _openViewAll(context),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
                     padding: EdgeInsets.zero,

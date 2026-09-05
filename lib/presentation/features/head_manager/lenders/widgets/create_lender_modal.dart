@@ -17,12 +17,9 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
   final _firstCtrl = TextEditingController();
   final _lastCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _employerCtrl = TextEditingController();
-  final _incomeCtrl = TextEditingController();
   final _dobCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
-  String _employmentType = 'employed';
   bool _loading = false;
   String? _error;
 
@@ -31,15 +28,13 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
     _firstCtrl.dispose();
     _lastCtrl.dispose();
     _phoneCtrl.dispose();
-    _employerCtrl.dispose();
-    _incomeCtrl.dispose();
     _dobCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         child: Container(
           width: 580,
           padding: const EdgeInsets.all(28),
@@ -78,7 +73,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: AppColors.errorLight,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Text(
                         _error!,
@@ -156,46 +151,16 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _employmentType,
-                          decoration: _dec('Employment Type'),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'employed',
-                              child: Text('Employed'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'self_employed',
-                              child: Text('Self-Employed'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'unemployed',
-                              child: Text('Unemployed'),
-                            ),
-                          ],
-                          onChanged: (v) =>
-                              setState(() => _employmentType = v!),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: _f('Employer/Business', _employerCtrl,
-                              maxLength: 255)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _f('Monthly Income (₱)', _incomeCtrl,
-                      type: TextInputType.number, maxLength: 12),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       OutlinedButton(
                         onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero),
+                        ),
                         child: const Text('Cancel'),
                       ),
                       const SizedBox(width: 12),
@@ -203,6 +168,8 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                         onPressed: _loading ? null : _submit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.lenderBlue,
+                          shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.zero),
                         ),
                         child: _loading
                             ? const SizedBox(
@@ -244,7 +211,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
         counterText: '',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.zero),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       );
@@ -277,9 +244,6 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
         'gender': _gender,
         'civil_status': _civilStatus,
         'dob': _dobCtrl.text.trim(),
-        'employment_type': _employmentType,
-        'employer_name': _employerCtrl.text.trim(),
-        'monthly_income': double.tryParse(_incomeCtrl.text) ?? 0,
       });
       if (mounted) Navigator.pop(context);
     } catch (e) {
