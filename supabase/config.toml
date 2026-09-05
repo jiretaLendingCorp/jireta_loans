@@ -438,6 +438,8 @@ verify_jwt = true
 verify_jwt = true
 [functions.disbursements-view]
 verify_jwt = true
+[functions.device-tokens]
+verify_jwt = true
 [functions.disbursements-xendit-webhook]
 verify_jwt = false
 [functions.in-office-create]
@@ -458,6 +460,10 @@ verify_jwt = true
 verify_jwt = true
 [functions.location-manage]
 verify_jwt = true
+[functions.notifications-push]
+# verify_jwt = false: called by the pg_net DB trigger without a user JWT.
+# The function itself authenticates (x-push-secret webhook OR requireAuth).
+verify_jwt = false
 [functions.notifications-send]
 verify_jwt = true
 [functions.notifications-view]

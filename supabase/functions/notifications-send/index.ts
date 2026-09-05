@@ -5,6 +5,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import { claimAndSendPush } from '../_shared/notifications.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -27,7 +28,7 @@ serve(async (req) => {
 
     const { data: targetUser, error: userErr } = await db
       .from('users')
-      .select('id, fcm_token, account_status')
+      .select('id, account_status')
       .eq('id', user_id)
       .single();
 
@@ -62,27 +63,10 @@ serve(async (req) => {
 
     if (notifErr) return errorResponse('Failed to create notification', 500, 'DB_ERROR');
 
-    if (targetUser.fcm_token) {
-      const fcmKey = Deno.env.get('FCM_SERVER_KEY');
-      if (fcmKey) {
-        try {
-          await fetch('https://fcm.googleapis.com/fcm/send', {
-            method: 'POST',
-            headers: {
-              Authorization: `key=${fcmKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              to: targetUser.fcm_token,
-              notification: { title, body: message },
-              data: { type, reference_id: reference_id ?? '' },
-            }),
-          });
-        } catch (fcmErr) {
-          console.error('FCM push failed:', fcmErr);
-        }
-      }
-    }
+    // Additional delivery channel: FCM push via HTTP v1 to the user's active
+    // devices (user_devices). The row is atomically claimed so it is pushed
+    // at most once even if the pg_net trigger also picks it up.
+    await claimAndSendPush(notification.id);
 
     await writeAuditLog({
       performedBy: authResult.id,

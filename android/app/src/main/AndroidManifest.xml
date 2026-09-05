@@ -6,6 +6,8 @@
     ────────────────────────────────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Required for displaying FCM push notifications on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <!-- ── Location permissions ─────────────────────────────────────────────
          Required by geolocator so riders can share their live GPS position

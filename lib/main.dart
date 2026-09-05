@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'core/config/env_config.dart';
 import 'core/di/injection.dart';
+import 'core/services/fcm_service.dart';
 import 'core/utils/url_strategy.dart';
 
 void main() async {
@@ -48,6 +49,12 @@ void main() async {
   } catch (_) {}
 
   await setupDependencies();
+
+  // FCM push channel (mobile) — permissions, token registration/refresh,
+  // foreground display and tap deep-linking. No-op on web/desktop.
+  try {
+    await FcmService.instance.initialize();
+  } catch (_) {}
 
   // Use clean path-based URLs (e.g. /login) instead of hash URLs (#/login) on web.
   configureUrlStrategy();

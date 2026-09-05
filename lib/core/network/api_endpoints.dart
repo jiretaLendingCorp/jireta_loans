@@ -110,6 +110,10 @@ class ApiEndpoints {
   static const String notificationsGetList = 'notifications-view?fn=get-list';
   static const String notificationsMarkRead = 'notifications-view?fn=mark-read';
 
+  // FCM device tokens
+  static const String deviceTokensRegister = 'device-tokens?fn=register';
+  static const String deviceTokensUnregister = 'device-tokens?fn=unregister';
+
   // Reports
   static const String reportsGenerate = 'reports-generate?fn=generate';
   static const String reportsGetList = 'reports-view?fn=get-list';

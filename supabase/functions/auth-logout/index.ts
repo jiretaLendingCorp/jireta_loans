@@ -16,8 +16,20 @@ serve(async (req) => {
 
     const db = getAdminClient();
     const body = await req.json().catch(() => ({}));
-    if (body.fcm_token !== undefined) {
-      await db.from('users').update({ fcm_token: null }).eq('id', user.id);
+    if (typeof body.fcm_token === 'string' && body.fcm_token.trim() !== '') {
+      const token = body.fcm_token.trim();
+      // Deactivate this device's push registration (multi-device aware).
+      await db
+        .from('user_devices')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('fcm_token', token);
+      // Clear the legacy single-token column only if it holds exactly this token.
+      await db
+        .from('users')
+        .update({ fcm_token: null })
+        .eq('id', user.id)
+        .eq('fcm_token', token);
     }
 
     await db.from('auth_logs').insert({

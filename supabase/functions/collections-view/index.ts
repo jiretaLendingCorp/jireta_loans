@@ -16,6 +16,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -123,6 +124,9 @@ async function handleCollectionGetList(req: Request) {
   // Auto-expire overdue before listing so overdue assignments disappear
   // from rider's active tabs and a overdue notification is inserted.
   try { await (db as any).rpc('expire_overdue_assignments'); } catch (_) {}
+  // Dispatch any notifications created by that expiry as device pushes
+  // (claim-based — each notification is pushed at most once). Non-fatal.
+  try { await dispatchPendingPushNotifications(); } catch (_) {}
   let query = db.from('collection_assignments')
     .select(COLLECTION_SELECT, { count: 'exact' });
   query = scopeQueryToUser(query, user, riderId);

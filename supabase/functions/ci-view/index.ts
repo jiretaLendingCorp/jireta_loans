@@ -15,6 +15,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { getLenderAddressBatch } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -54,6 +55,9 @@ async function handleCiGetList(req: Request) {
   // Expire overdue assignments before listing so rider sees them disappear
   // immediately (cron is only every 10m). Errors are non-fatal.
   try { await (db as any).rpc('expire_overdue_assignments'); } catch (_) {}
+  // Dispatch any notifications created by that expiry as device pushes
+  // (claim-based — each notification is pushed at most once). Non-fatal.
+  try { await dispatchPendingPushNotifications(); } catch (_) {}
   let query = db.from('credit_investigations')
     .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at, reviewed_by, reviewed_at, review_notes, review_decision,
       loan_id,

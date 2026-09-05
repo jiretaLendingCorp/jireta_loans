@@ -10,6 +10,7 @@ import '../../../core/security/jwt_parser.dart';
 import '../../../core/security/session_events.dart';
 import '../../../core/security/session_refresher.dart';
 import '../../../core/security/secure_storage.dart';
+import '../../../core/services/fcm_service.dart';
 import '../../../core/services/realtime_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../../data/models/user_model.dart';
@@ -220,6 +221,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _expiryTimer?.cancel();
     state = AuthState(isAuthenticated: true, user: user);
     _scheduleExpiryCheck();
+    // Register this device's FCM token for push delivery (fire-and-forget).
+    unawaited(FcmService.instance.syncWithUser());
   }
 
   void setForcePasswordChangeDone() {
@@ -243,6 +246,14 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     try {
       try {
         await RealtimeService.instance.disconnect();
+      } catch (_) {}
+      // Deactivate this device's FCM token BEFORE wiping storage so the auth
+      // header is still available. Bounded so logout is never blocked by a
+      // slow/offline network. Best effort — unregister swallows its own errors.
+      try {
+        await FcmService.instance.unregister().timeout(
+              const Duration(seconds: 3),
+            );
       } catch (_) {}
       try {
         await Supabase.instance.client.auth.signOut();

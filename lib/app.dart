@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/router/app_router.dart';
 import 'core/security/session_idle_detector.dart';
+import 'core/services/fcm_service.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/shared/widgets/connectivity_overlay.dart';
 import 'presentation/shared/widgets/logout_overlay.dart';
@@ -14,6 +15,8 @@ class JiretaApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    // FCM taps navigate through the app's router (role-aware redirects).
+    FcmService.instance.attachRouter(router);
     return MaterialApp.router(
       title: 'Jireta Loans & Credit Corp 1966',
       debugShowCheckedModeBanner: false,

@@ -15,6 +15,7 @@ import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -57,6 +58,9 @@ async function handleGetList(req: Request) {
   const db = getAdminClient();
   // Expire overdue rider deliveries before returning list
   try { await (db as any).rpc('expire_overdue_assignments'); } catch (_) {}
+  // Dispatch any notifications created by that expiry as device pushes
+  // (claim-based — each notification is pushed at most once). Non-fatal.
+  try { await dispatchPendingPushNotifications(); } catch (_) {}
   let query = db.from('disbursements').select(
     `id, loan_id, method, amount, status,
      xendit_disbursement_id:xendit_id, xendit_reference, xendit_status,
