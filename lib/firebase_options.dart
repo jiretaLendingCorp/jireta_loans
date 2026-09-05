@@ -21,23 +21,24 @@ class DefaultFirebaseOptions {
   }
 
   // Replace with your actual Firebase project config from google-services.json / GoogleService-Info.plist
+
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'YOUR_WEB_API_KEY',
-    appId: 'YOUR_WEB_APP_ID',
-    messagingSenderId: 'YOUR_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    authDomain: 'YOUR_PROJECT_ID.firebaseapp.com',
-    storageBucket: 'YOUR_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyDxpJldPkUN9IhZ7PIJCufm1gsdCHVUJzY',
+    appId: '1:263204697735:web:6af44991f18877fcfb6a22',
+    messagingSenderId: '263204697735',
+    projectId: 'lmsnotif',
+    authDomain: 'lmsnotif.firebaseapp.com',
+    storageBucket: 'lmsnotif.firebasestorage.app',
+    measurementId: 'G-P2F89YS534',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_ANDROID_API_KEY',
-    appId: 'YOUR_ANDROID_APP_ID',
-    messagingSenderId: 'YOUR_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyB3wpsq5s6ftVVggrN-L7QINbK_z0WIp3E',
+    appId: '1:263204697735:android:0ffe29791b1a43d2fb6a22',
+    messagingSenderId: '263204697735',
+    projectId: 'lmsnotif',
+    storageBucket: 'lmsnotif.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'YOUR_IOS_API_KEY',
     appId: 'YOUR_IOS_APP_ID',

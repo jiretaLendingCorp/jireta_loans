@@ -22,8 +22,8 @@ dependencies:
   gotrue: ^2.26.0
 
   # Firebase
-  firebase_core: ^3.3.0
-  firebase_messaging: ^15.1.0
+  firebase_core: ^3.15.2
+  firebase_messaging: ^15.2.10
 
   # State Management
   flutter_riverpod: ^2.5.1
