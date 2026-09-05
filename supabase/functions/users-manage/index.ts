@@ -345,13 +345,60 @@ async function handleUpdateProfile(req: Request) {
 
   // Employee profile — HM may edit anyone; staff may edit their OWN
   // date_of_birth (self-service via My Profile). Position stays HM-only.
+  // Gender / civil status / DOB are editable by HM for any staff row, and
+  // by staff for their own row (Edit User modal + My Profile).
   if (body.employee_profile && (user.role === 'head_manager' || (targetId === user.id && ['head_manager', 'employee'].includes(user.role)))) {
     const ep = body.employee_profile;
     const patch: Record<string, unknown> = {};
     if (user.role === 'head_manager' && ep.position) patch.position = sanitizeString(ep.position);
-    if (ep.date_of_birth) patch.date_of_birth = String(ep.date_of_birth).substring(0, 10);
+    if (ep.gender !== undefined && ep.gender !== null && String(ep.gender).trim() !== '') {
+      const g = sanitizeString(String(ep.gender)).trim().toLowerCase();
+      if (!['male', 'female', 'other'].includes(g)) {
+        return errorResponse('Invalid gender', 400, 'VALIDATION_ERROR');
+      }
+      patch.gender = g;
+    }
+    if (ep.civil_status !== undefined && ep.civil_status !== null && String(ep.civil_status).trim() !== '') {
+      const c = sanitizeString(String(ep.civil_status)).trim().toLowerCase();
+      if (!['single', 'married', 'widowed', 'separated'].includes(c)) {
+        return errorResponse('Invalid civil status', 400, 'VALIDATION_ERROR');
+      }
+      patch.civil_status = c;
+    }
+    if (ep.date_of_birth !== undefined && ep.date_of_birth !== null && String(ep.date_of_birth).trim() !== '') {
+      const dob = String(ep.date_of_birth).trim().substring(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dob) || Number.isNaN(new Date(dob + 'T00:00:00Z').getTime())) {
+        return errorResponse('Invalid date of birth format (YYYY-MM-DD)', 400, 'VALIDATION_ERROR');
+      }
+      if (dob > new Date().toISOString().split('T')[0]) {
+        return errorResponse('Date of birth cannot be in the future', 400, 'VALIDATION_ERROR');
+      }
+      patch.date_of_birth = dob;
+    }
     if (Object.keys(patch).length > 0) {
-      await db.from('employee_profiles').update(patch).eq('id', targetId);
+      // Legacy staff rows (head managers created before the profile row
+      // existed) may have no employee_profiles row — update, else insert
+      // with safe defaults so the edit is never silently lost.
+      const { data: existingEp } = await db
+        .from('employee_profiles')
+        .select('id')
+        .eq('id', targetId)
+        .maybeSingle();
+      if (existingEp) {
+        await db.from('employee_profiles').update(patch).eq('id', targetId);
+      } else {
+        const targetRoleName = (existingRole as { name?: string } | null)?.name ?? 'employee';
+        const { error: epInsertErr } = await db.from('employee_profiles').insert({
+          id: targetId,
+          position: targetRoleName === 'head_manager' ? 'Head Manager' : 'Staff',
+          hired_at: new Date().toISOString().split('T')[0],
+          ...patch,
+        });
+        if (epInsertErr) {
+          console.error('employee profile upsert error:', epInsertErr);
+          return errorResponse(`Failed to update staff profile: ${epInsertErr.message}`, 400, 'UPDATE_FAILED');
+        }
+      }
     }
   }
 

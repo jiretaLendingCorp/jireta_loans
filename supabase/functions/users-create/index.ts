@@ -79,6 +79,36 @@ serve(async (req) => {
   }
 });
 
+// ── Staff (employee / head manager) field validation ────────────────────────
+// gender / civil_status must match the lookup-table codes
+// (gender_types / civil_statuses) or the FK insert fails.
+const STAFF_GENDERS = ['male', 'female', 'other'];
+const STAFF_CIVIL_STATUSES = ['single', 'married', 'widowed', 'separated'];
+
+function normalizeStaffCode(v: unknown): string | null {
+  if (v === undefined || v === null || v === '') return null;
+  return sanitizeString(String(v)).trim().toLowerCase();
+}
+
+// Returns an error message when the date of birth is unusable, else null.
+// Staff must be at least 18 years old (mirrors the create-form date picker).
+function validateStaffDob(dob: unknown): string | null {
+  if (typeof dob !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dob.trim())) {
+    return 'Invalid date of birth format (YYYY-MM-DD)';
+  }
+  const clean = dob.trim();
+  const d = new Date(clean + 'T00:00:00Z');
+  if (Number.isNaN(d.getTime())) return 'Invalid date of birth';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (d.getTime() > today.getTime()) return 'Date of birth cannot be in the future';
+  let age = today.getFullYear() - d.getUTCFullYear();
+  const m = today.getMonth() - d.getUTCMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getUTCDate())) age--;
+  if (age < 18) return 'Staff must be at least 18 years old';
+  return null;
+}
+
 // ── [moved from functions/users-create-employee/index.ts] ───────────────────
 async function handleCreateEmployee(req: Request) {
   const authResult = await requireAuth(req);
@@ -89,12 +119,22 @@ async function handleCreateEmployee(req: Request) {
   const body = await req.json();
   const {
     first_name, middle_name, last_name, suffix,
-    gender, civil_status, email, phone_number,
+    gender, civil_status, date_of_birth, email, phone_number,
     position, hired_at,
   } = body;
 
   if (!first_name || !last_name || !email || !phone_number || !position) {
     return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
+  }
+  const dobErr = validateStaffDob(date_of_birth);
+  if (dobErr) return errorResponse(dobErr, 400, 'VALIDATION_ERROR');
+  const cleanGender = normalizeStaffCode(gender);
+  if (cleanGender && !STAFF_GENDERS.includes(cleanGender)) {
+    return errorResponse('Invalid gender', 400, 'VALIDATION_ERROR');
+  }
+  const cleanCivil = normalizeStaffCode(civil_status);
+  if (cleanCivil && !STAFF_CIVIL_STATUSES.includes(cleanCivil)) {
+    return errorResponse('Invalid civil status', 400, 'VALIDATION_ERROR');
   }
   // ── Normalise + validate before any DB hit ──────────────────────────
   const cleanEmail = sanitizeString(email).trim().toLowerCase();
@@ -183,8 +223,9 @@ async function handleCreateEmployee(req: Request) {
     id: user.id,
     position: sanitizeString(position),
     hired_at: hired_at ?? new Date().toISOString().split('T')[0],
-    gender: gender ? sanitizeString(gender) : null,
-    civil_status: civil_status ? sanitizeString(civil_status) : null,
+    gender: cleanGender,
+    civil_status: cleanCivil,
+    date_of_birth: String(date_of_birth).trim().substring(0, 10),
   });
 
   await db.from('password_history').insert({
@@ -197,7 +238,7 @@ async function handleCreateEmployee(req: Request) {
     action: 'user_created',
     tableName: 'users',
     recordId: user.id,
-    newValues: { role: 'employee', email, position },
+    newValues: { role: 'employee', email, position, date_of_birth: String(date_of_birth).trim().substring(0, 10) },
     ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
   });
 
@@ -215,11 +256,21 @@ async function handleCreateHeadManager(req: Request) {
   const body = await req.json();
   const {
     first_name, middle_name, last_name, suffix,
-    gender, civil_status, email, phone_number,
+    gender, civil_status, date_of_birth, email, phone_number,
   } = body;
 
   if (!first_name || !last_name || !email || !phone_number) {
     return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
+  }
+  const dobErr = validateStaffDob(date_of_birth);
+  if (dobErr) return errorResponse(dobErr, 400, 'VALIDATION_ERROR');
+  const cleanGender = normalizeStaffCode(gender);
+  if (cleanGender && !STAFF_GENDERS.includes(cleanGender)) {
+    return errorResponse('Invalid gender', 400, 'VALIDATION_ERROR');
+  }
+  const cleanCivil = normalizeStaffCode(civil_status);
+  if (cleanCivil && !STAFF_CIVIL_STATUSES.includes(cleanCivil)) {
+    return errorResponse('Invalid civil status', 400, 'VALIDATION_ERROR');
   }
   // ── Normalise + validate before any DB hit ──────────────────────────
   const cleanEmail = sanitizeString(email).trim().toLowerCase();
@@ -303,6 +354,24 @@ async function handleCreateHeadManager(req: Request) {
     user_id: user.id,
     password_hash: await hashPassword(user.id, DEFAULT_PASSWORD),
   });
+
+  // Staff profile row (same store the My Profile screen reads via
+  // get-profile's employee_profiles flattening). Without this row the
+  // head manager's gender / civil status / date of birth would stay blank.
+  const { error: hmProfileErr } = await db.from('employee_profiles').insert({
+    id: user.id,
+    position: 'Head Manager',
+    hired_at: new Date().toISOString().split('T')[0],
+    gender: cleanGender,
+    civil_status: cleanCivil,
+    date_of_birth: String(date_of_birth).trim().substring(0, 10),
+  });
+  if (hmProfileErr) {
+    await db.auth.admin.deleteUser(authUser.user.id);
+    await db.from('users').delete().eq('id', user.id);
+    console.error('[users-create] head manager profile insert failed:', hmProfileErr.message);
+    return errorResponse('Failed to save head manager profile', 500, 'SERVER_ERROR');
+  }
 
   await writeAuditLog({
     performedBy: authResult.id,

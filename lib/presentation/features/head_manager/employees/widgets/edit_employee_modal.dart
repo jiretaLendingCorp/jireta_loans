@@ -6,6 +6,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/validators.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/app_button.dart';
+import '../../../../shared/widgets/forms/app_date_picker.dart';
 import '../../../../shared/widgets/forms/app_dropdown.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../providers/hm_employee_provider.dart';
@@ -29,10 +30,21 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
   late final TextEditingController _positionCtrl;
   String? _gender;
   String? _civilStatus;
+  DateTime? _dob;
   bool _submitting = false;
 
-  static const _genders = ['Male', 'Female', 'Other'];
-  static const _civilStatuses = ['Single', 'Married', 'Widowed', 'Separated'];
+  // Lowercase codes — must match the backend lookup codes
+  // (gender_types / civil_statuses).
+  static const _genders = ['male', 'female', 'other'];
+  static const _civilStatuses = ['single', 'married', 'widowed', 'separated'];
+
+  String _label(String code) =>
+      code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
+
+  String? _asKnownCode(String? v, List<String> allowed) {
+    final s = v?.trim().toLowerCase();
+    return (s != null && allowed.contains(s)) ? s : null;
+  }
 
   @override
   void initState() {
@@ -43,8 +55,9 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
         TextEditingController(text: widget.employee.middleName ?? '');
     _phoneCtrl = TextEditingController(text: widget.employee.phone);
     _positionCtrl = TextEditingController(text: widget.employee.position ?? '');
-    _gender = widget.employee.gender;
-    _civilStatus = widget.employee.civilStatus;
+    _gender = _asKnownCode(widget.employee.gender, _genders);
+    _civilStatus = _asKnownCode(widget.employee.civilStatus, _civilStatuses);
+    _dob = widget.employee.dateOfBirth;
   }
 
   @override
@@ -70,6 +83,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
             position: _positionCtrl.text.trim(),
             gender: _gender,
             civilStatus: _civilStatus,
+            dateOfBirth: _dob,
           );
       if (mounted) {
         Navigator.pop(context);
@@ -160,7 +174,7 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                               label: 'Gender',
                               items: _genders
                                   .map((g) => DropdownMenuItem(
-                                      value: g, child: Text(g)))
+                                      value: g, child: Text(_label(g))))
                                   .toList(),
                               onChanged: (v) => setState(() => _gender = v),
                             ),
@@ -172,13 +186,21 @@ class _EditEmployeeModalState extends ConsumerState<EditEmployeeModal> {
                               label: 'Civil Status',
                               items: _civilStatuses
                                   .map((c) => DropdownMenuItem(
-                                      value: c, child: Text(c)))
+                                      value: c, child: Text(_label(c))))
                                   .toList(),
                               onChanged: (v) =>
                                   setState(() => _civilStatus = v),
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      AppDatePicker(
+                        label: 'Date of Birth',
+                        value: _dob,
+                        firstDate: DateTime(1940),
+                        lastDate: DateTime.now(),
+                        onChanged: (d) => setState(() => _dob = d),
                       ),
                       const SizedBox(height: 12),
                       AppTextField(

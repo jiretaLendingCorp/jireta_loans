@@ -21,6 +21,9 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
   final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  String _gender = 'male';
+  String _civilStatus = 'single';
+  DateTime? _dob;
   bool _loading = false;
   String? _error;
 
@@ -130,6 +133,80 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
                   ],
                 ),
                 const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _gender,
+                        decoration: _dec('Gender'),
+                        items: const [
+                          DropdownMenuItem(value: 'male', child: Text('Male')),
+                          DropdownMenuItem(
+                            value: 'female',
+                            child: Text('Female'),
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => _gender = v!),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _civilStatus,
+                        decoration: _dec('Civil Status'),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'single',
+                            child: Text('Single'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'married',
+                            child: Text('Married'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'widowed',
+                            child: Text('Widowed'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'separated',
+                            child: Text('Separated'),
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => _civilStatus = v!),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _dob ?? DateTime(1990),
+                      firstDate: DateTime(1940),
+                      lastDate: DateTime.now().subtract(
+                        const Duration(days: 365 * 18),
+                      ),
+                    );
+                    if (picked != null) setState(() => _dob = picked);
+                  },
+                  child: InputDecorator(
+                    decoration: _dec('Date of Birth').copyWith(
+                      prefixIcon: const Icon(Icons.calendar_today_outlined),
+                    ),
+                    child: Text(
+                      _dob != null
+                          ? '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}'
+                          : 'Select date of birth (18+ years old)',
+                      style: TextStyle(
+                        color: _dob != null
+                            ? AppColors.textPrimary
+                            : AppColors.textTertiary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 _field(
                   'Email Address',
                   _emailCtrl,
@@ -207,6 +284,10 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_dob == null) {
+      setState(() => _error = 'Date of birth is required');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -219,6 +300,9 @@ class _CreateHeadManagerModalState extends ConsumerState<CreateHeadManagerModal>
         'suffix': _suffixCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
+        'gender': _gender,
+        'civil_status': _civilStatus,
+        'date_of_birth': _dob!.toIso8601String().split('T')[0],
       });
       if (mounted) Navigator.pop(context);
     } catch (e) {

@@ -24,6 +24,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
   final _positionCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
+  DateTime? _dob;
   bool _loading = false;
   String? _error;
 
@@ -185,6 +186,35 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _dob ?? DateTime(1990),
+                      firstDate: DateTime(1940),
+                      lastDate: DateTime.now().subtract(
+                        const Duration(days: 365 * 18),
+                      ),
+                    );
+                    if (picked != null) setState(() => _dob = picked);
+                  },
+                  child: InputDecorator(
+                    decoration: _dec('Date of Birth').copyWith(
+                      prefixIcon: const Icon(Icons.calendar_today_outlined),
+                    ),
+                    child: Text(
+                      _dob != null
+                          ? '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}'
+                          : 'Select date of birth (18+ years old)',
+                      style: TextStyle(
+                        color: _dob != null
+                            ? AppColors.textPrimary
+                            : AppColors.textTertiary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 _field(
                   'Email Address',
                   _emailCtrl,
@@ -268,6 +298,10 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_dob == null) {
+      setState(() => _error = 'Date of birth is required');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -282,6 +316,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
         'phone_number': _phoneCtrl.text.trim(),
         'gender': _gender,
         'civil_status': _civilStatus,
+        'date_of_birth': _dob!.toIso8601String().split('T')[0],
         'position': _positionCtrl.text.trim(),
       });
       if (mounted) Navigator.pop(context);

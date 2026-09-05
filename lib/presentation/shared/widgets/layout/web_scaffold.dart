@@ -404,6 +404,12 @@ class _UserAvatar extends ConsumerWidget {
         } else if (val == 'logout') {
           // Prevent double-tap while a logout is already running.
           if (ref.read(authStateProvider).isLoggingOut) return;
+          // Capture the router BEFORE any async gap. Once logout clears the
+          // auth state, the router's redirect immediately unmounts this
+          // dashboard subtree (auto-navigate to /login) — using `context.go`
+          // afterwards would run on a disposed context and can leave the
+          // app on a blank /login page (URL changes, no widget builds).
+          final router = GoRouter.of(context);
           // The pressed Yes button itself shows loading while logging out —
           // no "Logging out" modal is shown.
           final confirmed = await showDialog<bool>(
@@ -453,7 +459,13 @@ class _UserAvatar extends ConsumerWidget {
             },
           );
           if (confirmed != true) return;
-          if (context.mounted) context.go(RouteConstants.webLogin);
+          // Fallback navigation only: the auth redirect normally lands on
+          // /login by itself. Navigate explicitly just in case it didn't
+          // (avoids double-navigation which can blank the page).
+          if (router.routeInformationProvider.value.uri.path !=
+              RouteConstants.webLogin) {
+            router.go(RouteConstants.webLogin);
+          }
         }
       },
       itemBuilder: (_) => [

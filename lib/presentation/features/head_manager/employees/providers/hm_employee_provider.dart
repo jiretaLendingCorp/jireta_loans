@@ -98,6 +98,7 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
     String? position,
     String? gender,
     String? civilStatus,
+    DateTime? dateOfBirth,
   }) async {
     await _ds.updateProfile({
       'user_id': userId,
@@ -105,9 +106,20 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
       'last_name': lastName,
       'middle_name': middleName,
       'phone_number': phone,
-      'position': position,
-      'gender': gender,
-      'civil_status': civilStatus,
+      // Staff profile fields use the nested object (flat gender/civil_status
+      // would be misread as lender-profile fields, and flat position is not
+      // in the allowed list — both were silently lost before).
+      'employee_profile': {
+        if (position != null && position.trim().isNotEmpty)
+          'position': position.trim(),
+        if (gender != null && gender.trim().isNotEmpty)
+          'gender': gender.trim().toLowerCase(),
+        if (civilStatus != null && civilStatus.trim().isNotEmpty)
+          'civil_status': civilStatus.trim().toLowerCase(),
+        if (dateOfBirth != null)
+          'date_of_birth':
+              '${dateOfBirth.year}-${dateOfBirth.month.toString().padLeft(2, '0')}-${dateOfBirth.day.toString().padLeft(2, '0')}',
+      },
     });
     await load();
   }

@@ -5,6 +5,7 @@ import '../../../core/di/injection.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/datasources/remote/user_remote_datasource.dart';
+import 'forms/app_date_picker.dart';
 
 class EditUserModal extends ConsumerStatefulWidget {
   final String userId;
@@ -36,6 +37,25 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
   bool _saving = false;
   String? _error;
   String? _email;
+  // Staff-only fields (head_manager / employee live in employee_profiles).
+  String? _gender;
+  String? _civilStatus;
+  DateTime? _dob;
+
+  static const _genders = ['male', 'female', 'other'];
+  static const _civilStatuses = ['single', 'married', 'widowed', 'separated'];
+
+  bool get _isStaff =>
+      widget.initialRole == 'head_manager' ||
+      widget.initialRole == 'employee';
+
+  String _label(String code) =>
+      code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
+
+  String? _asKnownCode(Object? v, List<String> allowed) {
+    final s = (v as String?)?.trim().toLowerCase();
+    return (s != null && allowed.contains(s)) ? s : null;
+  }
 
   @override
   void initState() {
@@ -56,6 +76,12 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         _suffixCtrl.text = (data['suffix'] as String?) ?? '';
         _phoneCtrl.text = (data['phone_number'] as String?) ?? '';
         _email = (data['email'] as String?) ?? '';
+        _gender = _asKnownCode(data['gender'], _genders);
+        _civilStatus = _asKnownCode(data['civil_status'], _civilStatuses);
+        final dobRaw = (data['date_of_birth'] as String?)?.trim();
+        _dob = (dobRaw != null && dobRaw.isNotEmpty)
+            ? DateTime.tryParse(dobRaw.substring(0, 10))
+            : null;
         _loading = false;
       });
     } catch (e) {
@@ -82,6 +108,14 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         'last_name': _lastCtrl.text.trim(),
         'suffix': _suffixCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
+        if (_isStaff)
+          'employee_profile': {
+            if (_gender != null) 'gender': _gender,
+            if (_civilStatus != null) 'civil_status': _civilStatus,
+            if (_dob != null)
+              'date_of_birth':
+                  '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
+          },
       });
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -191,6 +225,54 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                         ),
                         const SizedBox(height: 12),
                         _f('Phone Number', _phoneCtrl, maxLength: 11),
+                        if (_isStaff) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _gender,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Gender',
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.zero),
+                                  ),
+                                  items: _genders
+                                      .map((g) => DropdownMenuItem(
+                                          value: g, child: Text(_label(g))))
+                                      .toList(),
+                                  onChanged: (v) =>
+                                      setState(() => _gender = v),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: _civilStatus,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Civil Status',
+                                    border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.zero),
+                                  ),
+                                  items: _civilStatuses
+                                      .map((c) => DropdownMenuItem(
+                                          value: c, child: Text(_label(c))))
+                                      .toList(),
+                                  onChanged: (v) =>
+                                      setState(() => _civilStatus = v),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          AppDatePicker(
+                            label: 'Date of Birth',
+                            value: _dob,
+                            firstDate: DateTime(1940),
+                            lastDate: DateTime.now(),
+                            onChanged: (d) => setState(() => _dob = d),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         TextField(
                           controller: TextEditingController(text: _email),
