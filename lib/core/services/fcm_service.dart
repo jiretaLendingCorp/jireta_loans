@@ -39,7 +39,12 @@ class FcmService {
   FcmService._();
   static final FcmService instance = FcmService._();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  // Lazily resolved: accessing FirebaseMessaging.instance before
+  // Firebase.initializeApp() throws [core/no-app]. A getter (instead of a
+  // field initializer) keeps mere construction of this singleton safe —
+  // Firebase is only touched inside initialize()/syncWithUser(), which are
+  // guarded by try/catch.
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 

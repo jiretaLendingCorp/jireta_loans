@@ -11,7 +11,9 @@ import 'app.dart';
 import 'core/config/env_config.dart';
 import 'core/di/injection.dart';
 import 'core/services/fcm_service.dart';
+import 'core/utils/logger.dart';
 import 'core/utils/url_strategy.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,8 +47,17 @@ void main() async {
   );
 
   try {
-    await Firebase.initializeApp();
-  } catch (_) {}
+    // Explicit options (DefaultFirebaseOptions) instead of relying on native
+    // init — standard FlutterFire pattern, works regardless of how the
+    // google-services resources were generated.
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    // Log, don't swallow: a failed init here means push notifications will
+    // not work, and the FCM service must not crash the app over it.
+    AppLogger.error('Firebase init failed: $e');
+  }
 
   await setupDependencies();
 
@@ -54,7 +65,9 @@ void main() async {
   // foreground display and tap deep-linking. No-op on web/desktop.
   try {
     await FcmService.instance.initialize();
-  } catch (_) {}
+  } catch (e) {
+    AppLogger.error('FCM init failed: $e');
+  }
 
   // Use clean path-based URLs (e.g. /login) instead of hash URLs (#/login) on web.
   configureUrlStrategy();
