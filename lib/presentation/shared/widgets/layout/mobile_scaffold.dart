@@ -381,11 +381,16 @@ class _FloatingBottomNav extends StatelessWidget {
                             : AppColors.textPrimary,
                         fontFamily: 'Inter',
                       ),
-                      child: Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        // Mahahabang label (ex. 'Transaction') lumiit nang
+                        // bahagya imbes na maputol ng "...".
+                        child: Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.visible,
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
                   ],

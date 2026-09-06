@@ -676,6 +676,37 @@ class _HmLoanApplicationsListScreenState
                                 ],
                               ),
                           ],
+                          // Overdue CI: failed task needs a new rider.
+                          if (loan.ciStatus != null &&
+                              (loan.ciStatus == 'failed' ||
+                                  loan.ciStatus == 'expired') &&
+                              loan.status == 'ci_assigned') ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.error,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Flexible(
+                                  child: Text(
+                                    'CI overdue — reassignment needed',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.error),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1168,8 +1199,13 @@ class _RowActions extends StatelessWidget {
     final parent =
         context.findAncestorStateOfType<_HmLoanApplicationsListScreenState>();
     final status = loan.status;
+    // Overdue CI (latest CI failed/expired): allow reassignment even though
+    // the loan is still 'ci_assigned'. Lender side stays "in progress".
+    final ciFailed =
+        loan.ciStatus == 'failed' || loan.ciStatus == 'expired';
     final canAssignRider =
-        ['pending', 'under_review', 'ci_required'].contains(status);
+        ['pending', 'under_review', 'ci_required'].contains(status) ||
+            (status == 'ci_assigned' && ciFailed);
     final canApprove = [
       'pending',
       'under_review',
@@ -1220,13 +1256,13 @@ class _RowActions extends StatelessWidget {
                         Text('Approve')
                       ])),
                 if (canAssignRider)
-                  const PopupMenuItem(
+                  PopupMenuItem(
                       value: 'assign_ci',
                       child: Row(children: [
-                        Icon(Icons.search_rounded,
+                        const Icon(Icons.search_rounded,
                             size: 16, color: AppColors.info),
-                        SizedBox(width: 8),
-                        Text('Assign CI Rider')
+                        const SizedBox(width: 8),
+                        Text(ciFailed ? 'Reassign CI Rider' : 'Assign CI Rider')
                       ])),
                 if (canAssignDeliveryRider)
                   const PopupMenuItem(

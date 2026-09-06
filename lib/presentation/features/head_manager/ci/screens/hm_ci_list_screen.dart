@@ -8,6 +8,7 @@ import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../providers/hm_ci_provider.dart';
+import '../widgets/ci_assign_modal.dart';
 
 class HmCiListScreen extends ConsumerStatefulWidget {
   const HmCiListScreen({super.key});
@@ -28,6 +29,7 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
   final _pillTabs = const [
     _TabDef('approved', 'Approved', Icons.check_circle_outline),
     _TabDef('rejected', 'Rejected', Icons.cancel_outlined),
+    _TabDef('failed', 'Failed', Icons.warning_amber_rounded),
   ];
 
   @override
@@ -323,6 +325,8 @@ class _StatusInline extends StatelessWidget {
       case 'approved': c = AppColors.success; label = 'Approved'; break;
       case 'rejected': c = AppColors.error; label = 'Rejected'; break;
       case 'declined': c = AppColors.error; label = 'Declined'; break;
+      case 'failed':
+      case 'expired': c = AppColors.error; label = 'Failed — Overdue'; break;
       default: c = AppColors.textSecondary; label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
     }
     return Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 7, height: 7, decoration: BoxDecoration(color: c, shape: BoxShape.circle)), const SizedBox(width: 6), Flexible(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c), overflow: TextOverflow.ellipsis))]);
@@ -403,6 +407,76 @@ class _HmActionCell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Overdue CI (rider missed deadline → status failed): staff must be able
+    // to reassign a new rider from here. Lender side stays "in progress".
+    final status = (ci.status ?? '').toString().toLowerCase();
+    if (status == 'failed' || status == 'expired') {
+      final loanId = (ci.loanId ?? '').toString();
+      return Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ElevatedButton.icon(
+            onPressed: loanId.isEmpty
+                ? null
+                : () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => CiAssignModal(loanId: loanId),
+                    );
+                    if (ok == true) {
+                      await ref.read(hmCiProvider.notifier).fetch();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Rider reassigned for credit investigation'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    }
+                  },
+            icon: const Icon(Icons.person_add_alt_rounded, size: 14),
+            label: const Text('Reassign',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          InkWell(
+            onTap: () => context.go(
+                RouteConstants.hmCiDetails.replaceFirst(':id', ci.id)),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border)),
+              child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
+                    SizedBox(width: 4),
+                    Text('View',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy))
+                  ]),
+            ),
+          ),
+        ],
+      );
+    }
     if (!isPending) {
       return Align(
         alignment: Alignment.centerLeft,

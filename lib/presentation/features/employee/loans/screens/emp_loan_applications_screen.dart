@@ -611,6 +611,22 @@ class _EmpLoanApplicationsScreenState
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
+                  // Overdue CI: failed task needs a new rider.
+                  if (loan.ciStatus != null &&
+                      (loan.ciStatus == 'failed' ||
+                          loan.ciStatus == 'expired') &&
+                      loan.status == 'ci_assigned') ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      'CI overdue — reassignment needed',
+                      textAlign: TextAlign.start,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -647,8 +663,13 @@ class _EmpLoanApplicationsScreenState
     // Normalize para kahit 'Pending' / 'PENDING' / may whitespace ay match —
     // gaya ng Head Manager logic (pending => Assign Rider visible).
     final status = loan.status.toLowerCase().trim();
+    // Overdue CI (latest CI failed/expired): allow reassignment even though
+    // the loan is still 'ci_assigned'. Lender side stays "in progress".
+    final ciFailed =
+        loan.ciStatus == 'failed' || loan.ciStatus == 'expired';
     final canAssignRider =
-        ['pending', 'under_review', 'ci_required'].contains(status);
+        ['pending', 'under_review', 'ci_required'].contains(status) ||
+            (status == 'ci_assigned' && ciFailed);
     final canApprove = [
       'pending',
       'under_review',
@@ -698,13 +719,13 @@ class _EmpLoanApplicationsScreenState
                         Text('Approve')
                       ])),
                 if (canAssignRider)
-                  const PopupMenuItem(
+                  PopupMenuItem(
                       value: 'assign_ci',
                       child: Row(children: [
-                        Icon(Icons.search_rounded,
+                        const Icon(Icons.search_rounded,
                             size: 16, color: AppColors.info),
-                        SizedBox(width: 8),
-                        Text('Assign CI Rider')
+                        const SizedBox(width: 8),
+                        Text(ciFailed ? 'Reassign CI Rider' : 'Assign CI Rider')
                       ])),
                 if (canAssignDeliveryRider)
                   const PopupMenuItem(

@@ -281,9 +281,14 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     }.contains(s);
     final canReject = canApprove;
     final canRequestCI = s == 'under_review';
-    // Tulad ng Head Manager: pending / under_review / ci_required => Assign CI Rider
+    // Tulad ng Head Manager: pending / under_review / ci_required => Assign CI Rider.
+    // Overdue CI (latest CI failed/expired on a ci_assigned loan) => Reassign.
+    final ciStatus =
+        (loan['ci_status'] as String?)?.toLowerCase().trim() ?? '';
+    final ciFailed = ciStatus == 'failed' || ciStatus == 'expired';
     final canAssignCi =
-        const {'pending', 'under_review', 'ci_required'}.contains(s);
+        const {'pending', 'under_review', 'ci_required'}.contains(s) ||
+            (s == 'ci_assigned' && ciFailed);
     final hasActions =
         canApprove || canReject || canRequestCI || canAssignCi;
     return Row(
@@ -325,13 +330,13 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                       Text('Approve')
                     ])),
               if (canAssignCi)
-                const PopupMenuItem(
+                PopupMenuItem(
                     value: 'assign_ci',
                     child: Row(children: [
-                      Icon(Icons.search_rounded,
+                      const Icon(Icons.search_rounded,
                           size: 16, color: AppColors.info),
-                      SizedBox(width: 8),
-                      Text('Assign CI Rider')
+                      const SizedBox(width: 8),
+                      Text(ciFailed ? 'Reassign CI Rider' : 'Assign CI Rider')
                     ])),
               if (canRequestCI)
                 const PopupMenuItem(

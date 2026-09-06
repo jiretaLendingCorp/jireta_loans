@@ -199,10 +199,9 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                           onCtaTap: (index, _) =>
                               _handlePromoTap(context, index, activeLoan),
                         ),
-                        const SizedBox(height: 20),
-                        // Always visible even without an active loan —
-                        // taps route to a No Active Loan notice.
-                        const _PayWithSection(loan: null),
+                        // Pay with + lahat ng kasama sa baba — dikit sa
+                        // carousel, walang gap.
+                        const _PayWithSection(loan: null, topSpacing: 0),
                         const SizedBox(height: 20),
                       ],
                       if (activeLoan != null) ...[
@@ -293,7 +292,7 @@ class _WelcomeBannerState extends ConsumerState<_WelcomeBanner> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Outstanding Balance',
+                    'Balance',
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   InkWell(
@@ -908,7 +907,8 @@ class _PayWithBubbleState extends State<_PayWithBubble>
 
 class _PayWithSection extends StatelessWidget {
   final LoanModel? loan;
-  const _PayWithSection({required this.loan});
+  final double topSpacing;
+  const _PayWithSection({required this.loan, this.topSpacing = 16});
 
   void _showNoActiveLoan(BuildContext context) {
     showDialog<void>(
@@ -940,7 +940,7 @@ class _PayWithSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 16),
+        SizedBox(height: topSpacing),
         const _PayWithBubble(text: 'Pay with'),
         const SizedBox(height: 10),
         Row(

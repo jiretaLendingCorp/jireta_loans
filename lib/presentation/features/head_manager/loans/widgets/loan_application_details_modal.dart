@@ -284,8 +284,14 @@ class _LoanApplicationDetailsModalState
       'ci_assigned',
       'ci_completed'
     }.contains(status);
+    // Overdue CI (latest CI failed/expired on a ci_assigned loan): reassignment
+    // must stay available. Lender side stays "in progress".
+    final ciStatus =
+        (_loan?['ci_status'] as String?)?.toLowerCase().trim() ?? '';
+    final ciFailed = ciStatus == 'failed' || ciStatus == 'expired';
     final canAssignCi =
-        const {'pending', 'under_review', 'ci_required'}.contains(status);
+        const {'pending', 'under_review', 'ci_required'}.contains(status) ||
+            (status == 'ci_assigned' && ciFailed);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -322,13 +328,13 @@ class _LoanApplicationDetailsModalState
                       Text('Approve')
                     ])),
               if (canAssignCi)
-                const PopupMenuItem(
+                PopupMenuItem(
                     value: 'assign_ci',
                     child: Row(children: [
-                      Icon(Icons.search_rounded,
+                      const Icon(Icons.search_rounded,
                           size: 16, color: AppColors.info),
-                      SizedBox(width: 8),
-                      Text('Assign CI Rider')
+                      const SizedBox(width: 8),
+                      Text(ciFailed ? 'Reassign CI Rider' : 'Assign CI Rider')
                     ])),
               if (canApprove)
                 const PopupMenuItem(

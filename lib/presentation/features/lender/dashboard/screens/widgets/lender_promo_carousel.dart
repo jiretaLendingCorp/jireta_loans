@@ -32,7 +32,7 @@ class LenderPromoItem {
 /// Default promos — 2 image banners mula sa assets.
 const defaultLenderPromos = <LenderPromoItem>[
   LenderPromoItem(
-    imageAsset: 'assets/images/get up to.png',
+    imageAsset: 'assets/images/PROMOTION.png',
     badge: 'Best Offer',
     title: 'Get up to ₱500,000',
     subtitle: 'Fast · Secure · Flexible',
@@ -41,7 +41,7 @@ const defaultLenderPromos = <LenderPromoItem>[
     icon: Icons.account_balance_wallet_rounded,
   ),
   LenderPromoItem(
-    imageAsset: 'assets/images/cash on delivery.png',
+    imageAsset: 'assets/images/PROMOTION1.png',
     badge: 'Doorstep Service',
     title: 'Cash on Delivery',
     subtitle: 'Funds delivered by rider',
@@ -135,75 +135,102 @@ class _LenderPromoCarouselState extends State<LenderPromoCarousel> {
   Widget build(BuildContext context) {
     if (widget.banners.isEmpty) return const SizedBox.shrink();
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWeb = constraints.maxWidth > 600;
-        final height = isWeb ? widget.webHeight : widget.mobileHeight;
+    // Room reserved INSIDE the viewport for the card shadow
+    // (blur 14 + offset 6) so it is never clipped and never
+    // paints over the indicators / content below.
+    const shadowTopRoom = 6.0;
+    const shadowBottomRoom = 12.0;
 
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: height,
-              child: Listener(
-                onPointerDown: (_) {
-                  _userHolding = true;
-                  _pauseAutoPlay();
-                },
-                onPointerUp: (_) {
-                  _userHolding = false;
-                  _scheduleResume();
-                },
-                onPointerCancel: (_) {
-                  _userHolding = false;
-                  _scheduleResume();
-                },
-                child: PageView.builder(
-                  controller: _controller,
-                  itemCount: widget.banners.length,
-                  onPageChanged: (i) {
-                    if (!mounted) return;
-                    setState(() => _current = i);
-                  },
-                  itemBuilder: (context, index) {
-                    final item = widget.banners[index];
-                    return Padding(
-                      // Kaunting side padding para may "peek" at hindi sikip.
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _PromoCard(
-                        item: item,
-                        isWeb: isWeb,
-                        onCtaTap: () => widget.onCtaTap?.call(index, item),
+    // Centered max width so the banner doesn't stretch full-bleed on web.
+    // Mobile widths (< 720) are unaffected.
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWeb = constraints.maxWidth > 600;
+            // Slide height follows the artwork aspect (16:9 base, 2:1 on
+            // wide screens) instead of a fixed box, so the image keeps
+            // its ratio on any screen size. mobileHeight/webHeight act
+            // as the upper caps.
+            final maxCardH = isWeb ? widget.webHeight : widget.mobileHeight;
+            final cardH = (constraints.maxWidth / (isWeb ? 2.0 : 16 / 9))
+                .clamp(150.0, maxCardH)
+                .toDouble();
+            final height = cardH + shadowTopRoom + shadowBottomRoom;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: height,
+                  child: Listener(
+                    onPointerDown: (_) {
+                      _userHolding = true;
+                      _pauseAutoPlay();
+                    },
+                    onPointerUp: (_) {
+                      _userHolding = false;
+                      _scheduleResume();
+                    },
+                    onPointerCancel: (_) {
+                      _userHolding = false;
+                      _scheduleResume();
+                    },
+                    child: PageView.builder(
+                      controller: _controller,
+                      // Viewport must not clip card shadows at page edges.
+                      clipBehavior: Clip.none,
+                      itemCount: widget.banners.length,
+                      onPageChanged: (i) {
+                        if (!mounted) return;
+                        setState(() => _current = i);
+                      },
+                      itemBuilder: (context, index) {
+                        final item = widget.banners[index];
+                        return Padding(
+                          // Vertical insets give the shadow room to paint;
+                          // horizontal inset keeps the small page separation.
+                          padding: const EdgeInsets.fromLTRB(
+                              2, shadowTopRoom, 2, shadowBottomRoom),
+                          child: _PromoCard(
+                            item: item,
+                            isWeb: isWeb,
+                            onCtaTap: () =>
+                                widget.onCtaTap?.call(index, item),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                // Gap clears the shadow's bottom overhang before the dots.
+                const SizedBox(height: 12),
+                // Pagination dots
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(widget.banners.length, (i) {
+                    final active = i == _current;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: active ? 20 : 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? AppColors.lenderBlue
+                            : AppColors.borderDark.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(99),
                       ),
                     );
-                  },
+                  }),
                 ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Pagination dots
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(widget.banners.length, (i) {
-                final active = i == _current;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOut,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: active ? 20 : 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: active
-                        ? AppColors.lenderBlue
-                        : AppColors.borderDark.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                );
-              }),
-            ),
-          ],
-        );
-      },
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 }
