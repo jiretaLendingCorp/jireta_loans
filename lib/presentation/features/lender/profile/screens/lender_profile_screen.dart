@@ -4,10 +4,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/config/app_config.dart';
 import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/extensions/string_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
@@ -70,8 +70,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       accentColor: _accent,
       navItems: _navItems,
       body: profileState.isLoading && profileState.user == null
-          ? const Center(
-              child: CircularProgressIndicator(color: _accent))
+          ? const _ProfileSkeleton()
           : profileState.user == null
               ? _buildError(profileState.error)
               : _buildProfile(profileState.user!),
@@ -199,38 +198,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                     value: _buildAddress(userModel)),
               ],
             ),
-            const SizedBox(height: 12),
-            ModernInfoCard(
-              title: 'Financial Details',
-              icon: Icons.account_balance_wallet_outlined,
-              rows: [
-                ModernInfoRowData(
-                    icon: Icons.work_outline_rounded,
-                    label: 'Employment',
-                    value: _formatLabel(user.employmentType)),
-                ModernInfoRowData(
-                    icon: Icons.business_outlined,
-                    label: 'Employer',
-                    value: user.employerName?.toString() ?? '—'),
-                ModernInfoRowData(
-                  icon: Icons.payments_outlined,
-                  label: 'Monthly income',
-                  value: user.monthlyIncome != null
-                      ? (user.monthlyIncome as num).toDouble().toCurrency
-                      : '—',
-                ),
-                ModernInfoRowData(
-                    icon: Icons.savings_outlined,
-                    label: 'Source of funds',
-                    value: _formatLabel(user.sourceOfFunds)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ModernInfoCard(
-              title: 'Emergency Contact',
-              icon: Icons.emergency_outlined,
-              rows: _buildEmergencyRows(userModel?.emergencyContacts),
-            ),
+            // 00128: Financial Details + Emergency Contact no longer live on the
+            // lender profile — they are declared per loan inside the Apply Loan
+            // flow and stored on the loan record.
           ],
           const SizedBox(height: 20),
           const ModernSectionLabel('General'),
@@ -387,39 +357,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       user?.suffix,
     ].where((e) => e != null && e.toString().isNotEmpty).toList();
     return parts.isEmpty ? '—' : parts.join(' ');
-  }
-
-  List<ModernInfoRowData> _buildEmergencyRows(
-      List<Map<String, dynamic>>? contacts) {
-    if (contacts == null || contacts.isEmpty) {
-      return const [
-        ModernInfoRowData(
-            icon: Icons.emergency_outlined,
-            label: 'Emergency contact',
-            value: '—')
-      ];
-    }
-    final c = contacts.first;
-    return [
-      ModernInfoRowData(
-          icon: Icons.person_outline_rounded,
-          label: 'Name',
-          value: c['name']?.toString() ?? '—'),
-      ModernInfoRowData(
-          icon: Icons.family_restroom_outlined,
-          label: 'Relationship',
-          value: c['relationship']?.toString() ?? '—'),
-      ModernInfoRowData(
-          icon: Icons.phone_outlined,
-          label: 'Phone',
-          value:
-              (c['phone_number']?.toString() ?? '').maskPhone()),
-      if (c['address'] != null && c['address'].toString().isNotEmpty)
-        ModernInfoRowData(
-            icon: Icons.location_on_outlined,
-            label: 'Address',
-            value: c['address'].toString()),
-    ];
   }
 
   String _buildAddress(dynamic user) {
@@ -605,4 +542,184 @@ class _StatusStyle {
   final Color fg;
   final Color bg;
   const _StatusStyle(this.label, this.fg, this.bg);
+}
+
+/// Skeletal loading na kamukha ng profile layout: header, button,
+/// info cards, menu card, at logout button.
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+      child: Shimmer.fromColors(
+        baseColor: AppColors.shimmerBase,
+        highlightColor: AppColors.shimmerHighlight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: avatar + name + phone + status pill
+            Row(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 150,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 100,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 70,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Primary button
+            Container(
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Section label + info card (5 rows)
+            Container(
+              width: 80,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const _SkeletonCard(rows: 5),
+            const SizedBox(height: 12),
+            // Second info card (3 rows)
+            const _SkeletonCard(rows: 3),
+            const SizedBox(height: 20),
+            // Menu card (4 rows)
+            Container(
+              width: 80,
+              height: 12,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const _SkeletonCard(rows: 4),
+            const SizedBox(height: 16),
+            // Logout button
+            Container(
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  final int rows;
+  const _SkeletonCard({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: List.generate(
+          rows,
+          (i) => Padding(
+            padding: EdgeInsets.only(bottom: i == rows - 1 ? 0 : 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 120,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

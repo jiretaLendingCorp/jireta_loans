@@ -252,7 +252,6 @@ class _HmAccountUpgradeDetailsScreenState
     final lender = (data['lender'] as Map<String, dynamic>?) ?? {};
     _allDocs = (data['documents'] as List?) ?? [];
     final docs = _allDocs.where((d) => (d as Map<String, dynamic>)['document_type']?.toString() != 'valid_id_back').toList();
-    final contacts = (data['emergency_contacts'] as List?) ?? [];
     final accountUpgradeStatus = (data['account_upgrade_status'] as String?) ?? 'pending';
     final pendingDocs = docs.where((d) => (d as Map<String, dynamic>)['status'] == 'pending').toList();
 
@@ -275,11 +274,8 @@ class _HmAccountUpgradeDetailsScreenState
                   _InfoRow('Email', lender['email'] ?? '—'),
                   _InfoRow('Address', [lender['street_address'], lender['barangay'], lender['city'], lender['province'], lender['zip_code']].where((e) => e != null && e.toString().isNotEmpty).join(', ').isEmpty ? '—' : [lender['street_address'], lender['barangay'], lender['city'], lender['province'], lender['zip_code']].where((e) => e != null && e.toString().isNotEmpty).join(', ')),
                   const Divider(height: 20),
-                  _InfoRow('Source of Funds', lender['source_of_funds'] ?? '—'),
-                  _InfoRow('Employment', lender['employment_type'] ?? '—'),
-                  _InfoRow('Employer', lender['employer_name'] ?? '—'),
-                  _InfoRow('Monthly Income', lender['monthly_income'] != null ? '₱${lender['monthly_income']}' : '—', highlight: true),
-                  const Divider(height: 20),
+                  // 00128: financial details are declared per LOAN and are no
+                  // longer part of the account-upgrade (lender profile) review.
                   _InfoRow('Gender', lender['gender'] ?? '—'),
                   _InfoRow('Civil Status', lender['civil_status'] ?? '—'),
                   _InfoRow('Date of Birth', lender['date_of_birth'] ?? '—'),
@@ -412,25 +408,6 @@ class _HmAccountUpgradeDetailsScreenState
                     ),
                   ]),
                 ),
-                if (contacts.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _PremiumSectionCard(
-                    title: 'Emergency Contacts',
-                    subtitle: 'Reference persons',
-                    icon: Icons.contact_emergency_rounded,
-                    accent: AppColors.warning,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: contacts.map((c) {
-                        final m = c as Map<String, dynamic>;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('${m['name'] ?? '\u2014'}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)), Text('${m['relationship'] ?? '\u2014'} \u2022 ${m['phone_number'] ?? '\u2014'}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))]),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
               ]),
             );
 
@@ -510,8 +487,7 @@ class _PremiumSectionCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final bool highlight;
-  const _InfoRow(this.label, this.value, {this.highlight = false});
+  const _InfoRow(this.label, this.value);
 
   @override
   Widget build(BuildContext context) {
@@ -519,7 +495,7 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(width: 130, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
       ]),
     );
   }

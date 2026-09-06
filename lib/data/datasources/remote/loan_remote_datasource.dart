@@ -12,6 +12,9 @@ class LoanRemoteDataSource {
     required double amount,
     required String frequency,
     required String purpose,
+    Map<String, dynamic>? employment,
+    String? sourceOfFunds,
+    List<Map<String, dynamic>>? emergencyContacts,
     Map<String, dynamic>? coMaker,
     Map<String, dynamic>? disbursement,
     int? termPeriods,
@@ -23,6 +26,11 @@ class LoanRemoteDataSource {
         'frequency': frequency,
         'purpose': purpose,
         if (termPeriods != null) 'term_periods': termPeriods,
+        // 00128: per-application financial + emergency snapshot
+        if (employment != null) 'employment': employment,
+        if (sourceOfFunds != null) 'source_of_funds': sourceOfFunds,
+        if (emergencyContacts != null && emergencyContacts.isNotEmpty)
+          'emergency_contacts': emergencyContacts,
         if (coMaker != null) 'co_maker': coMaker,
         if (disbursement != null) 'disbursement': disbursement,
       },

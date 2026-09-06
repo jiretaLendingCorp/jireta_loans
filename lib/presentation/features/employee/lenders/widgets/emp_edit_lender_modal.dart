@@ -18,8 +18,6 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
   late final TextEditingController _firstNameCtrl;
   late final TextEditingController _lastNameCtrl;
   late final TextEditingController _phoneCtrl;
-  late final TextEditingController _employerCtrl;
-  late final TextEditingController _incomeCtrl;
   bool _isSaving = false;
 
   @override
@@ -29,10 +27,6 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
     _firstNameCtrl = TextEditingController(text: d['first_name'] ?? '');
     _lastNameCtrl = TextEditingController(text: d['last_name'] ?? '');
     _phoneCtrl = TextEditingController(text: d['phone'] ?? '');
-    _employerCtrl = TextEditingController(
-        text: d['lender_profiles']?['employer_name'] ?? '');
-    _incomeCtrl = TextEditingController(
-        text: d['lender_profiles']?['monthly_income']?.toString() ?? '');
   }
 
   @override
@@ -40,8 +34,6 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
-    _employerCtrl.dispose();
-    _incomeCtrl.dispose();
     super.dispose();
   }
 
@@ -54,8 +46,6 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
         'first_name': _firstNameCtrl.text.trim(),
         'last_name': _lastNameCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
-        'employer_name': _employerCtrl.text.trim(),
-        'monthly_income': double.tryParse(_incomeCtrl.text.trim()),
       });
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -96,14 +86,6 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
                       ]),
                       const SizedBox(height: 14),
                       _field('Phone Number', _phoneCtrl, maxLength: 11),
-                      const SizedBox(height: 14),
-                      _field('Employer Name', _employerCtrl,
-                          required: false, maxLength: 255),
-                      const SizedBox(height: 14),
-                      _field('Monthly Income', _incomeCtrl,
-                          required: false,
-                          keyboardType: TextInputType.number,
-                          maxLength: 12),
                     ],
                   ),
                 ),

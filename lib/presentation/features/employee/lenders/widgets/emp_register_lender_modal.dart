@@ -21,12 +21,8 @@ class _EmpRegisterLenderModalState
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _employerCtrl = TextEditingController();
-  final _incomeCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
-  String _employmentType = 'employed';
-  String _sourceOfFunds = 'salary';
   DateTime? _dob;
   bool _isLoading = false;
 
@@ -35,8 +31,6 @@ class _EmpRegisterLenderModalState
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
-    _employerCtrl.dispose();
-    _incomeCtrl.dispose();
     super.dispose();
   }
 
@@ -57,10 +51,6 @@ class _EmpRegisterLenderModalState
         'gender': _gender,
         'civil_status': _civilStatus,
         'dob': _dob!.toIso8601String().split('T')[0],
-        'employment_type': _employmentType,
-        'employer_name': _employerCtrl.text.trim(),
-        'monthly_income': double.tryParse(_incomeCtrl.text) ?? 0,
-        'source_of_funds': _sourceOfFunds,
       });
       if (mounted) {
         Navigator.pop(context);
@@ -212,70 +202,8 @@ class _EmpRegisterLenderModalState
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      _buildSectionLabel('Employment & Financial'),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _employmentType,
-                        decoration:
-                            const InputDecoration(labelText: 'Employment Type'),
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'employed', child: Text('Employed')),
-                          DropdownMenuItem(
-                              value: 'self_employed',
-                              child: Text('Self Employed')),
-                          DropdownMenuItem(
-                              value: 'business_owner',
-                              child: Text('Business Owner')),
-                          DropdownMenuItem(
-                              value: 'unemployed', child: Text('Unemployed')),
-                        ],
-                        onChanged: (v) => setState(() => _employmentType = v!),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _sourceOfFunds,
-                        decoration:
-                            const InputDecoration(labelText: 'Source of Funds'),
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'salary', child: Text('Salary')),
-                          DropdownMenuItem(
-                              value: 'business_income',
-                              child: Text('Business Income')),
-                          DropdownMenuItem(
-                              value: 'remittance', child: Text('Remittance')),
-                          DropdownMenuItem(
-                              value: 'allowance', child: Text('Allowance')),
-                          DropdownMenuItem(
-                              value: 'pension', child: Text('Pension')),
-                          DropdownMenuItem(
-                              value: 'other', child: Text('Other')),
-                        ],
-                        onChanged: (v) => setState(() => _sourceOfFunds = v!),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildTextField(
-                        _employerCtrl,
-                        'Employer / Business Name',
-                        Icons.business_outlined,
-                        maxLength: 255,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                              child: _buildTextField(
-                            _incomeCtrl,
-                            'Monthly Income (₱)',
-                            Icons.payments_outlined,
-                            keyboardType: TextInputType.number,
-                            maxLength: 12,
-                          )),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
+                      // 00128: financial details + emergency contact are declared
+                      // per LOAN at application time — not stored on the profile.
                     ],
                   ),
                 ),

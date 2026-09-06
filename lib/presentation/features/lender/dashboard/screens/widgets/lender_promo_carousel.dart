@@ -204,8 +204,9 @@ class _LenderPromoCarouselState extends State<LenderPromoCarousel> {
                     ),
                   ),
                 ),
-                // Gap clears the shadow's bottom overhang before the dots.
-                const SizedBox(height: 12),
+                // Dikit na gap bago ang dots; dikit din ang susunod na
+                // section (Pay with) sa dots.
+                const SizedBox(height: 4),
                 // Pagination dots
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,

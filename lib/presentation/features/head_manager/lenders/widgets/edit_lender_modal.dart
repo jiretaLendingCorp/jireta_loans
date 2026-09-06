@@ -18,18 +18,8 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _employerCtrl = TextEditingController();
-  final _incomeCtrl = TextEditingController();
-  String _employmentType = 'employed';
   bool _loading = false;
   String? _error;
-
-  final _employmentOptions = [
-    'employed',
-    'self_employed',
-    'unemployed',
-    'student'
-  ];
 
   @override
   void initState() {
@@ -38,9 +28,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
     _firstNameCtrl.text = l['first_name'] ?? '';
     _lastNameCtrl.text = l['last_name'] ?? '';
     _phoneCtrl.text = l['phone_number'] ?? '';
-    _employerCtrl.text = l['lender_profile']?['employer_name'] ?? '';
-    _incomeCtrl.text = l['lender_profile']?['monthly_income']?.toString() ?? '';
-    _employmentType = l['lender_profile']?['employment_type'] ?? 'employed';
   }
 
   @override
@@ -48,8 +35,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
-    _employerCtrl.dispose();
-    _incomeCtrl.dispose();
     super.dispose();
   }
 
@@ -70,9 +55,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
           'first_name': _firstNameCtrl.text.trim(),
           'last_name': _lastNameCtrl.text.trim(),
           'phone_number': _phoneCtrl.text.trim(),
-          'employment_type': _employmentType,
-          'employer_name': _employerCtrl.text.trim(),
-          'monthly_income': double.tryParse(_incomeCtrl.text.trim()) ?? 0,
         },
       );
       if (mounted) Navigator.of(context).pop(true);
@@ -146,44 +128,6 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
                         keyboardType: TextInputType.phone,
                         maxLength: 11),
                     const SizedBox(height: 16),
-                    const Text('Employment Type',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary)),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(8)),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _employmentType,
-                          isExpanded: true,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          borderRadius: BorderRadius.circular(8),
-                          items: _employmentOptions
-                              .map((e) => DropdownMenuItem(
-                                  value: e,
-                                  child: Text(
-                                      e.replaceAll('_', ' ').capitalize())))
-                              .toList(),
-                          onChanged: (v) =>
-                              setState(() => _employmentType = v!),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                        controller: _employerCtrl,
-                        label: 'Employer Name',
-                        maxLength: 255),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                        controller: _incomeCtrl,
-                        label: 'Monthly Income (₱)',
-                        keyboardType: TextInputType.number,
-                        maxLength: 12),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
                       Container(
@@ -225,9 +169,4 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
       ),
     );
   }
-}
-
-extension StringExt on String {
-  String capitalize() =>
-      isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }

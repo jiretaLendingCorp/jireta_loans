@@ -61,7 +61,7 @@ async function handleCiGetList(req: Request) {
   let query = db.from('credit_investigations')
     .select(`id, status, investigation_notes, deadline, created_at, completed_at, report_summary, response_at, reviewed_by, reviewed_at, review_notes, review_decision,
       loan_id,
-      loans(id, loan_number, lender_id, principal_amount, lender_profiles!loans_lender_id_fkey(id, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, gcash_number, source_of_funds, account_upgrade_status, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email, addresses:addresses!addresses_user_id_fkey(address_type, street, barangay, city, province, latitude, longitude)), emergency_contacts!emergency_contacts_lender_id_fkey(id, name, relationship, phone_number, address))),
+      loans(id, loan_number, lender_id, principal_amount, employment_type, employment_type_id, employer_name, monthly_income, source_of_funds, loan_emergency_contacts:loan_emergency_contacts!loan_emergency_contacts_loan_id_fkey(id, name, relationship, phone_number, address), lender_profiles!loans_lender_id_fkey(id, gender, civil_status, date_of_birth, gcash_number, account_upgrade_status, users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email, addresses:addresses!addresses_user_id_fkey(address_type, street, barangay, city, province, latitude, longitude)))),
       rider:rider_profiles!credit_investigations_rider_id_fkey(users!rider_profiles_id_fkey(id, first_name, last_name)),
       assigner:users!credit_investigations_assigned_by_fkey(id, first_name, last_name),
       reviewer:users!credit_investigations_reviewed_by_fkey(id, first_name, last_name),
@@ -94,6 +94,16 @@ async function handleCiGetList(req: Request) {
       const lp = loan ? embedAsObject(loan.lender_profiles) : null;
       const users = lp ? embedAsObject(lp.users) : null;
       const lenderId = loan?.lender_id ?? null;
+      // 00128: financial + emergency data shown during CI must come from the
+      // LOAN snapshot (loans.* / loan_emergency_contacts), not lender_profiles.
+      const loanEmergencyContacts = Array.isArray(loan?.loan_emergency_contacts)
+        ? loan.loan_emergency_contacts
+        : [];
+      const loanRow = loan as unknown as Record<string, unknown>;
+      const loanSnapshot: Record<string, unknown> = {};
+      for (const k of ['employment_type', 'employment_type_id', 'employer_name', 'monthly_income', 'source_of_funds']) {
+        if (loanRow[k] !== undefined && loanRow[k] !== null) loanSnapshot[k] = loanRow[k];
+      }
 
       const rawDocs = Array.isArray(r.ci_documents) ? r.ci_documents : [];
       // Staff sees docs/report once rider has submitted (completed) and thereafter (approved/rejected)
@@ -124,10 +134,18 @@ async function handleCiGetList(req: Request) {
         loans: loan
           ? {
               ...loan,
+              ...loanSnapshot,
+              emergency_contacts: loanEmergencyContacts,
               lender_name: users
                 ? `${users.first_name ?? ''} ${users.last_name ?? ''}`.trim()
                 : null,
-              lender_profile: lp,
+              lender_profile: lp
+                ? {
+                    ...(lp as Record<string, unknown>),
+                    ...loanSnapshot,
+                    emergency_contacts: loanEmergencyContacts,
+                  }
+                : null,
               lender_address: lenderId ? (lenderAddresses[lenderId] ?? null) : null,
             }
           : null,

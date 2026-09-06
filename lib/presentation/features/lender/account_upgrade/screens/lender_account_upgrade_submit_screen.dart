@@ -61,11 +61,13 @@ class _LenderAccountUpgradeSubmitScreenState
     ),
   ];
 
-  // Residence moved to Financial Info per request (was in final step)
+  // 00128: Account Upgrade now collects identity + residence + documents only.
+  // Financial Details + Emergency Contact are declared PER LOAN inside the
+  // Apply Loan flow and snapshot onto loans / loan_emergency_contacts.
   static const _steps = [
     'Personal Info',
-    'Financial Info',
-    'Emergency & Docs',
+    'Residence Address',
+    'Required Documents',
   ];
 
   final Map<String, PlatformFile?> _selectedFiles = {
@@ -118,22 +120,13 @@ class _LenderAccountUpgradeSubmitScreenState
   final _lastNameCtrl = TextEditingController();
   final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _employerCtrl = TextEditingController();
-  final _incomeCtrl = TextEditingController();
-  final _employmentOtherCtrl = TextEditingController();
-  final _sourceOtherCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
   final _barangayCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
   final _provinceCtrl = TextEditingController();
   final _zipCtrl = TextEditingController();
-  final _ecNameCtrl = TextEditingController();
-  final _ecPhoneCtrl = TextEditingController();
   String? _gender;
   String? _civilStatus;
-  String? _employmentType;
-  String? _sourceOfFunds;
-  String? _ecRelationship;
   DateTime? _dob;
   String? _dobError;
   bool _showDocsError = false;
@@ -146,38 +139,9 @@ class _LenderAccountUpgradeSubmitScreenState
   final FocusNode _cityFocusNode = FocusNode();
   final FocusNode _provinceFocusNode = FocusNode();
   final FocusNode _zipFocusNode = FocusNode();
-  final FocusNode _ecNameFocusNode = FocusNode();
-  final FocusNode _ecPhoneFocusNode = FocusNode();
 
   static const _genderOptions = ['Male', 'Female', 'Prefer not to say'];
   static const _civilOptions = ['Single', 'Married', 'Widowed', 'Separated'];
-  static const _employmentOptions = [
-    'Employed',
-    'Self-Employed',
-    'Business Owner',
-    'OFW',
-    'Freelancer',
-    'Unemployed',
-    'Student',
-    'Other',
-  ];
-  static const _sourceOfFundsOptions = [
-    'Salary',
-    'Business Income',
-    'Remittance',
-    'Allowance',
-    'Pension',
-    'Other',
-  ];
-  static const _relationshipOptions = [
-    'Spouse',
-    'Parent',
-    'Sibling',
-    'Child',
-    'Relative',
-    'Friend',
-    'Other',
-  ];
 
   @override
   void initState() {
@@ -187,24 +151,16 @@ class _LenderAccountUpgradeSubmitScreenState
     _lastNameCtrl.addListener(_onFieldChanged);
     _suffixCtrl.addListener(_onFieldChanged);
     _emailCtrl.addListener(_onFieldChanged);
-    _employerCtrl.addListener(_onFieldChanged);
-    _incomeCtrl.addListener(_onFieldChanged);
-    _employmentOtherCtrl.addListener(_onFieldChanged);
-    _sourceOtherCtrl.addListener(_onFieldChanged);
     _streetCtrl.addListener(_onFieldChanged);
     _barangayCtrl.addListener(_onFieldChanged);
     _cityCtrl.addListener(_onFieldChanged);
     _provinceCtrl.addListener(_onFieldChanged);
     _zipCtrl.addListener(_onFieldChanged);
-    _ecNameCtrl.addListener(_onFieldChanged);
-    _ecPhoneCtrl.addListener(_onFieldChanged);
     _streetFocusNode.addListener(_onBottomFieldFocus);
     _barangayFocusNode.addListener(_onBottomFieldFocus);
     _cityFocusNode.addListener(_onBottomFieldFocus);
     _provinceFocusNode.addListener(_onBottomFieldFocus);
     _zipFocusNode.addListener(_onBottomFieldFocus);
-    _ecNameFocusNode.addListener(_onBottomFieldFocus);
-    _ecPhoneFocusNode.addListener(_onBottomFieldFocus);
   }
 
   void _onBottomFieldFocus() {
@@ -214,8 +170,6 @@ class _LenderAccountUpgradeSubmitScreenState
     else if (_cityFocusNode.hasFocus) focused = _cityFocusNode;
     else if (_provinceFocusNode.hasFocus) focused = _provinceFocusNode;
     else if (_zipFocusNode.hasFocus) focused = _zipFocusNode;
-    else if (_ecNameFocusNode.hasFocus) focused = _ecNameFocusNode;
-    else if (_ecPhoneFocusNode.hasFocus) focused = _ecPhoneFocusNode;
     if (focused == null) return;
     final ctx = focused.context;
     Future.delayed(const Duration(milliseconds: 320), () {
@@ -249,48 +203,32 @@ class _LenderAccountUpgradeSubmitScreenState
     _lastNameCtrl.removeListener(_onFieldChanged);
     _suffixCtrl.removeListener(_onFieldChanged);
     _emailCtrl.removeListener(_onFieldChanged);
-    _employerCtrl.removeListener(_onFieldChanged);
-    _incomeCtrl.removeListener(_onFieldChanged);
-    _employmentOtherCtrl.removeListener(_onFieldChanged);
-    _sourceOtherCtrl.removeListener(_onFieldChanged);
     _streetCtrl.removeListener(_onFieldChanged);
     _barangayCtrl.removeListener(_onFieldChanged);
     _cityCtrl.removeListener(_onFieldChanged);
     _provinceCtrl.removeListener(_onFieldChanged);
     _zipCtrl.removeListener(_onFieldChanged);
-    _ecNameCtrl.removeListener(_onFieldChanged);
-    _ecPhoneCtrl.removeListener(_onFieldChanged);
     _streetFocusNode.removeListener(_onBottomFieldFocus);
     _barangayFocusNode.removeListener(_onBottomFieldFocus);
     _cityFocusNode.removeListener(_onBottomFieldFocus);
     _provinceFocusNode.removeListener(_onBottomFieldFocus);
     _zipFocusNode.removeListener(_onBottomFieldFocus);
-    _ecNameFocusNode.removeListener(_onBottomFieldFocus);
-    _ecPhoneFocusNode.removeListener(_onBottomFieldFocus);
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _suffixCtrl.dispose();
     _emailCtrl.dispose();
-    _employerCtrl.dispose();
-    _incomeCtrl.dispose();
-    _employmentOtherCtrl.dispose();
-    _sourceOtherCtrl.dispose();
     _streetCtrl.dispose();
     _barangayCtrl.dispose();
     _cityCtrl.dispose();
     _provinceCtrl.dispose();
     _zipCtrl.dispose();
-    _ecNameCtrl.dispose();
-    _ecPhoneCtrl.dispose();
     _scrollController.dispose();
     _streetFocusNode.dispose();
     _barangayFocusNode.dispose();
     _cityFocusNode.dispose();
     _provinceFocusNode.dispose();
     _zipFocusNode.dispose();
-    _ecNameFocusNode.dispose();
-    _ecPhoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -433,13 +371,6 @@ class _LenderAccountUpgradeSubmitScreenState
     return age >= 18;
   }
 
-  // ── Helpers for peso formatting ──
-  double? _parseIncome() {
-    final raw = _incomeCtrl.text.replaceAll(RegExp(r'[₱,\s]'), '').trim();
-    if (raw.isEmpty) return null;
-    return double.tryParse(raw);
-  }
-
   // ── Validation for Next button (live, disables Next until required filled) ──
   bool _isPersonalInfoValid() {
     if (_firstNameCtrl.text.trim().isEmpty) return false;
@@ -451,21 +382,6 @@ class _LenderAccountUpgradeSubmitScreenState
     if (_civilStatus == null) return false;
     if (_dob == null) return false;
     if (!_isAdult(_dob!)) return false;
-    return true;
-  }
-
-  bool _isFinancialInfoValid() {
-    if (_employmentType == null) return false;
-    if (_employmentType == 'Other' &&
-        _employmentOtherCtrl.text.trim().isEmpty) return false;
-    if (_employerCtrl.text.trim().isEmpty) return false;
-    final inc = _parseIncome();
-    if (inc == null || inc <= 0) return false;
-    if (_sourceOfFunds == null) return false;
-    if (_sourceOfFunds == 'Other' &&
-        _sourceOtherCtrl.text.trim().isEmpty) return false;
-    // Residence is now part of Financial Info (step 1)
-    if (!_isResidenceValid()) return false;
     return true;
   }
 
@@ -511,8 +427,7 @@ class _LenderAccountUpgradeSubmitScreenState
       }
     }
     setState(() => _step = _step + 1);
-    // Always start the next step at the top (e.g. Emergency & Docs should
-    // show Emergency Contact first, not jump straight to Required Documents).
+    // Always start the next step at the top.
     _scrollToTop();
   }
 
@@ -581,7 +496,7 @@ class _LenderAccountUpgradeSubmitScreenState
       _showInlineErrorsOnCurrentStep();
       return;
     }
-    if (!_isFinancialInfoValid() || !_isResidenceValid()) {
+    if (!_isResidenceValid()) {
       setState(() => _step = 1);
       _scrollToTop();
       _showInlineErrorsOnCurrentStep();
@@ -646,14 +561,8 @@ class _LenderAccountUpgradeSubmitScreenState
         });
       }
 
-      // Everything the lender fills in the account upgrade lives on their
-      // profile — the profile screen only displays these details afterwards.
-      final resolvedEmploymentType = _employmentType == 'Other'
-          ? _employmentOtherCtrl.text.trim()
-          : _employmentType!;
-      final resolvedSourceOfFunds = _sourceOfFunds == 'Other'
-          ? _sourceOtherCtrl.text.trim()
-          : _sourceOfFunds!;
+      // Account Upgrade sends IDENTITY + residence only (00128). Employment /
+      // income / emergency contact are declared PER LOAN at application time.
       final payload = <String, dynamic>{
         'profile': {
           'first_name': _firstNameCtrl.text.trim(),
@@ -666,12 +575,6 @@ class _LenderAccountUpgradeSubmitScreenState
           'gender': _toDbEnum(_gender!),
           'civil_status': _toDbEnum(_civilStatus!),
           'dob': DateFormat('yyyy-MM-dd').format(_dob!),
-          'employment_type': _toDbEnum(resolvedEmploymentType),
-          // When Other, also send the raw reason for debugging/audit
-          if (_employmentType == 'Other')
-            'employment_type_other': _employmentOtherCtrl.text.trim(),
-          'employer_name': _employerCtrl.text.trim(),
-          'monthly_income': _parseIncome(),
         },
         'address_info': {
           'street_address': _streetCtrl.text.trim(),
@@ -679,14 +582,6 @@ class _LenderAccountUpgradeSubmitScreenState
           'city': _cityCtrl.text.trim(),
           'province': _provinceCtrl.text.trim(),
           'zip_code': _zipCtrl.text.trim(),
-        },
-        'source_of_funds': _toDbEnum(resolvedSourceOfFunds),
-        if (_sourceOfFunds == 'Other')
-          'source_of_funds_other': _sourceOtherCtrl.text.trim(),
-        'emergency_contact': {
-          'name': _ecNameCtrl.text.trim(),
-          'relationship': _ecRelationship,
-          'phone_number': _ecPhoneCtrl.text.trim(),
         },
       };
 
@@ -873,25 +768,20 @@ class _LenderAccountUpgradeSubmitScreenState
       case 0:
         return _buildPersonalInformation();
       case 1:
-        return _buildFinancialInformation();
+        return _buildResidenceStep();
       default:
-        // Step 2 (last) = Emergency + Docs (Residence moved to Financial Info)
-        return _buildEmergencyAndDocsStep();
+        // Step 2 (last) = Required Documents.
+        return Form(
+          key: _formKey,
+          child: _buildDocumentsSection(),
+        );
     }
   }
 
-  Widget _buildEmergencyAndDocsStep() {
-    // Single Form for the final step to avoid duplicate GlobalKey.
+  Widget _buildResidenceStep() {
     return Form(
       key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildEmergencyAndDocuments(wrapForm: false, includeDocs: false),
-          const SizedBox(height: 16),
-          _buildDocumentsSection(),
-        ],
-      ),
+      child: _buildResidenceAddress(wrapForm: false),
     );
   }
 
@@ -1030,93 +920,6 @@ class _LenderAccountUpgradeSubmitScreenState
     );
   }
 
-  Widget _buildFinancialInformation() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionCard(
-            'Financial Information',
-            Icons.account_balance_wallet_outlined,
-            [
-              _buildDropdown(
-                label: 'Employment Type *',
-                value: _employmentType,
-                items: _employmentOptions,
-                validator: (v) => v == null ? 'Employment type is required' : null,
-                onChanged: (v) => setState(() {
-                  _employmentType = v;
-                  if (v != 'Other') _employmentOtherCtrl.clear();
-                }),
-              ),
-              if (_employmentType == 'Other') ...[
-                const SizedBox(height: 12),
-                AppTextField(
-                  label: 'Please specify employment type *',
-                  controller: _employmentOtherCtrl,
-                  maxLength: 100,
-                  validator: _required('Employment type (Other)'),
-                ),
-              ],
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Employer / Business Name *',
-                controller: _employerCtrl,
-                maxLength: 255,
-                validator: _required('Employer / business name'),
-              ),
-              const SizedBox(height: 12),
-              AppTextField(
-                label: 'Monthly Income (₱) *',
-                controller: _incomeCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  _PesoCurrencyFormatter(),
-                ],
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Monthly income is required';
-                  }
-                  final cleaned = v.replaceAll(RegExp(r'[₱,\s]'), '').trim();
-                  final d = double.tryParse(cleaned);
-                  if (d == null || d <= 0) {
-                    return 'Enter a valid amount greater than 0';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildDropdown(
-                label: 'Source of Funds *',
-                value: _sourceOfFunds,
-                items: _sourceOfFundsOptions,
-                validator: (v) =>
-                    v == null ? 'Source of funds is required' : null,
-                onChanged: (v) => setState(() {
-                  _sourceOfFunds = v;
-                  if (v != 'Other') _sourceOtherCtrl.clear();
-                }),
-              ),
-              if (_sourceOfFunds == 'Other') ...[
-                const SizedBox(height: 12),
-                AppTextField(
-                  label: 'Please specify source of funds *',
-                  controller: _sourceOtherCtrl,
-                  maxLength: 100,
-                  validator: _required('Source of funds (Other)'),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildResidenceAddress(wrapForm: false),
-        ],
-      ),
-    );
-  }
-
   Widget _buildResidenceAddress({bool wrapForm = true}) {
     final card = _buildSectionCard(
       'Residence Address',
@@ -1185,66 +988,6 @@ class _LenderAccountUpgradeSubmitScreenState
     );
     if (!wrapForm) return card;
     return Form(key: _formKey, child: card);
-  }
-
-  Widget _buildEmergencyAndDocuments(
-      {bool wrapForm = true, bool includeDocs = true}) {
-    final emergencyCard = _buildSectionCard(
-      'Emergency Contact',
-      Icons.emergency_outlined,
-      [
-        AppTextField(
-          label: 'Contact Name *',
-          controller: _ecNameCtrl,
-          focusNode: _ecNameFocusNode,
-          maxLength: 100,
-          validator: _required('Contact name'),
-        ),
-        const SizedBox(height: 12),
-        _buildDropdown(
-          label: 'Relationship *',
-          value: _ecRelationship,
-          items: _relationshipOptions,
-          validator: (v) => v == null ? 'Relationship is required' : null,
-          onChanged: (v) => setState(() => _ecRelationship = v),
-        ),
-        const SizedBox(height: 12),
-        AppTextField(
-          label: 'Contact Phone Number *',
-          controller: _ecPhoneCtrl,
-          focusNode: _ecPhoneFocusNode,
-          keyboardType: TextInputType.phone,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(11),
-          ],
-          validator: (v) {
-            if (v == null || v.trim().isEmpty) {
-              return 'Phone number is required';
-            }
-            if (v.length != 11 || !v.startsWith('09')) {
-              return 'Must be an 11-digit number starting with 09';
-            }
-            return null;
-          },
-        ),
-      ],
-    );
-
-    final emergency = wrapForm
-        ? Form(key: _formKey, child: emergencyCard)
-        : emergencyCard;
-
-    if (!includeDocs) return emergency;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        emergency,
-        const SizedBox(height: 16),
-        _buildDocumentsSection(),
-      ],
-    );
   }
 
   Widget _buildWizardBar(LenderAccountUpgradeState state) {
@@ -1538,75 +1281,6 @@ class _LenderAccountUpgradeSubmitScreenState
               ],
             ),
     );
-  }
-}
-
-class _PesoCurrencyFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    final text = newValue.text;
-    if (text.isEmpty) {
-      return const TextEditingValue(
-          text: '', selection: TextSelection.collapsed(offset: 0));
-    }
-
-    // Keep only digits and dots for parsing
-    final cleaned = text.replaceAll(RegExp(r'[^0-9.]'), '');
-
-    if (cleaned.isEmpty) {
-      return const TextEditingValue(
-          text: '', selection: TextSelection.collapsed(offset: 0));
-    }
-
-    if (cleaned == '.') {
-      return const TextEditingValue(
-          text: '₱', selection: TextSelection.collapsed(offset: 1));
-    }
-
-    // Prevent multiple dots
-    if (cleaned.split('.').length > 2) return oldValue;
-
-    // If user is typing decimal (ends with dot), keep dot visible with formatted integer
-    if (cleaned.endsWith('.')) {
-      final intPart = cleaned.substring(0, cleaned.length - 1);
-      if (intPart.isEmpty) {
-        return const TextEditingValue(
-            text: '₱0.', selection: TextSelection.collapsed(offset: 3));
-      }
-      final intVal = int.tryParse(intPart.replaceAll(',', ''));
-      if (intVal == null) return oldValue;
-      final formattedInt = NumberFormat('#,##0', 'en_PH').format(intVal);
-      final formatted = '₱$formattedInt.';
-      return TextEditingValue(
-        text: formatted,
-        selection: TextSelection.collapsed(offset: formatted.length),
-      );
-    }
-
-    // Split integer and fractional parts, keep fractional as typed (max 2 decimals)
-    final parts = cleaned.split('.');
-    final intPartRaw = parts[0].isEmpty ? '0' : parts[0];
-    final intVal = int.tryParse(intPartRaw);
-    if (intVal == null) return oldValue;
-
-    final formattedInt = NumberFormat('#,##0', 'en_PH').format(intVal);
-
-    if (parts.length == 1) {
-      final formatted = '₱$formattedInt';
-      return TextEditingValue(
-        text: formatted,
-        selection: TextSelection.collapsed(offset: formatted.length),
-      );
-    } else {
-      var fraction = parts[1];
-      if (fraction.length > 2) fraction = fraction.substring(0, 2);
-      final formatted = '₱$formattedInt.$fraction';
-      return TextEditingValue(
-        text: formatted,
-        selection: TextSelection.collapsed(offset: formatted.length),
-      );
-    }
   }
 }
 

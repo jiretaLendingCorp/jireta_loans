@@ -279,9 +279,11 @@ async function handleUpdateProfile(req: Request) {
   }
 
   // Lender profile — accept both the flat mobile payload and the nested form.
+  // NOTE (00128): only IDENTITY fields are edited here (gender / civil status /
+  // DOB). Employment, income and source of funds are no longer profile data —
+  // they are declared per loan and snapshot onto loans / loan_emergency_contacts.
   const lp = body.lender_profile ?? (body.gender || body.civil_status || body.dob ||
-    body.date_of_birth || body.employment_type || body.employer_name ||
-    body.monthly_income || body.source_of_funds
+    body.date_of_birth
     ? body : null);
 
   if (lp) {
@@ -294,14 +296,6 @@ async function handleUpdateProfile(req: Request) {
         ? (normalizeEnum(lp.civil_status) ?? undefined)
         : undefined,
       date_of_birth: dob ? String(dob).substring(0, 10) : undefined,
-      employment_type: lp.employment_type !== undefined && lp.employment_type !== null && lp.employment_type !== ''
-        ? (normalizeEnum(lp.employment_type) ?? undefined)
-        : undefined,
-      employer_name: lp.employer_name ? sanitizeString(lp.employer_name) : undefined,
-      monthly_income: lp.monthly_income !== undefined && lp.monthly_income !== null && lp.monthly_income !== ''
-        ? Number(lp.monthly_income)
-        : undefined,
-      source_of_funds: lp.source_of_funds ? normalizeEnum(lp.source_of_funds) : undefined,
     }).eq('id', targetId);
   }
 

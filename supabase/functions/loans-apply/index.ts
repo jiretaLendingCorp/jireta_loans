@@ -9,6 +9,40 @@ import { computeSchedule, generateLoanNumber, maxPeriodsFor, termDaysFor } from 
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { nowManila } from '../_shared/timezone.ts';
+import { sanitizeString } from '../_shared/validators.ts';
+
+// ── 00128: per-loan financial + emergency snapshot ─────────────────────────
+// Employment / income / emergency contact are declared BY THE BORROWER at
+// application time and snapshot onto the loan (loans.* + loan_emergency_contacts).
+// They are NOT read from (or written to) lender_profiles for new loans.
+const EMPLOYMENT_ALLOWED = [
+  'employed', 'self_employed', 'business_owner', 'ofw', 'freelancer',
+  'unemployed', 'student', 'other',
+];
+const RELATIONSHIP_ALLOWED = [
+  'Spouse', 'Parent', 'Sibling', 'Child', 'Relative',
+  'Friend', 'Colleague', 'Employer', 'Other',
+];
+
+function normalizeEnum(value: string | undefined | null): string | null {
+  if (!value) return null;
+  return sanitizeString(value).trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function cleanPhone(value: string | undefined | null): string | null {
+  const digits = sanitizeString(value ?? '').replace(/\D/g, '');
+  if (digits.length !== 11 || !digits.startsWith('09')) return null;
+  return digits;
+}
+
+function cleanRelationship(value: string | undefined | null): string {
+  if (!value) return 'Other';
+  const v = sanitizeString(value).trim();
+  if (RELATIONSHIP_ALLOWED.includes(v)) return v;
+  // Accept lowercase/snake (e.g. 'spouse') by matching case-insensitively.
+  const match = RELATIONSHIP_ALLOWED.find((r) => r.toLowerCase() === v.toLowerCase());
+  return match ?? 'Other';
+}
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -22,11 +56,72 @@ serve(async (req) => {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { principal: principalField, principal_amount, frequency, term_periods, purpose, co_maker, disbursement } = body;
+    const { principal: principalField, principal_amount, frequency, term_periods, purpose, co_maker, disbursement, employment, emergency_contacts, source_of_funds } = body;
     const principal = principalField ?? principal_amount;
 
     if (!principal || !frequency || !purpose) {
       return errorResponse('principal_amount, frequency, and purpose are required', 400, 'VALIDATION_ERROR');
+    }
+
+    // ── 00128: financial snapshot declared at application time ───────────
+    // employment: { type, employer_name, monthly_income } — the borrower's
+    // declaration FOR THIS LOAN. Stored on loans, never lender_profiles.
+    let employmentType: string | null = null;
+    let employerName: string | null = null;
+    let monthlyIncome: number | null = null;
+    let sourceOfFunds: string | null = null;
+    const emp = employment && typeof employment === 'object' ? (employment as Record<string, unknown>) : null;
+    if (emp) {
+      const rawType = normalizeEnum(emp.type as string | undefined);
+      if (!rawType || !EMPLOYMENT_ALLOWED.includes(rawType)) {
+        return errorResponse('Invalid employment type', 400, 'VALIDATION_ERROR');
+      }
+      employmentType = rawType;
+      employerName = emp.employer_name
+        ? sanitizeString(String(emp.employer_name)).trim().substring(0, 255)
+        : null;
+      monthlyIncome = emp.monthly_income !== undefined && emp.monthly_income !== null && emp.monthly_income !== ''
+        ? Number(emp.monthly_income)
+        : NaN;
+      if (!employerName) {
+        return errorResponse('Employer / business name is required', 400, 'VALIDATION_ERROR');
+      }
+      if (Number.isNaN(monthlyIncome) || (monthlyIncome as number) <= 0) {
+        return errorResponse('Monthly income must be greater than 0', 400, 'VALIDATION_ERROR');
+      }
+      if (source_of_funds !== undefined && source_of_funds !== null && source_of_funds !== '') {
+        sourceOfFunds = normalizeEnum(source_of_funds as string) ?? null;
+      }
+    }
+
+    // ── 00128: emergency contacts snapshot (loan_emergency_contacts) ──────
+    const emergencyRows: Array<{
+      name: string;
+      relationship: string;
+      phone_number: string;
+      address: string | null;
+    }> = [];
+    const rawContacts = Array.isArray(emergency_contacts) ? emergency_contacts as Array<Record<string, unknown>> : [];
+    if (rawContacts.length > 0) {
+      for (const c of rawContacts) {
+        const name = c.name ? sanitizeString(String(c.name)).trim().substring(0, 255) : '';
+        const phone = cleanPhone(c.phone_number as string | undefined);
+        if (!name || !phone) {
+          return errorResponse('Each emergency contact needs a name and a valid phone number (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
+        }
+        if (emergencyRows.some((e) => e.phone_number === phone)) {
+          return errorResponse('Emergency contact phone numbers must be unique', 400, 'VALIDATION_ERROR');
+        }
+        emergencyRows.push({
+          name,
+          relationship: cleanRelationship(c.relationship as string | undefined),
+          phone_number: phone,
+          address: c.address ? sanitizeString(String(c.address)).trim().substring(0, 1000) : null,
+        });
+      }
+    } else if (emp) {
+      // Every application must declare at least one emergency contact.
+      return errorResponse('At least one emergency contact is required', 400, 'VALIDATION_ERROR');
     }
     if (!validateLoanAmount(Number(principal))) {
       return errorResponse('Loan amount must be between ₱3,000 and ₱500,000', 400, 'VALIDATION_ERROR');
@@ -126,6 +221,11 @@ serve(async (req) => {
         installment_amount: sched.installmentAmount,
         purpose: String(purpose).substring(0, 500),
         status: 'pending',
+        // 00128: per-loan financial snapshot (declared at application time)
+        employment_type: employmentType,
+        employer_name: employerName,
+        monthly_income: monthlyIncome,
+        source_of_funds: sourceOfFunds,
       })
       .select()
       .single();
@@ -141,6 +241,17 @@ serve(async (req) => {
         method: disbursementMethod,
         account: disbursementAccount,
       });
+    }
+
+    // 00128: snapshot the declared emergency contacts onto THIS loan.
+    if (emergencyRows.length > 0) {
+      const { error: ecErr } = await db.from('loan_emergency_contacts').insert(
+        emergencyRows.map((ec) => ({ loan_id: loan.id, ...ec })),
+      );
+      if (ecErr) {
+        console.error('loan_emergency_contacts insert error:', ecErr);
+        return errorResponse('Failed to save emergency contact details', 500, 'SERVER_ERROR');
+      }
     }
 
     const scheduleRows = sched.dueDates.map((date, i) => ({
@@ -194,7 +305,16 @@ serve(async (req) => {
       action: 'loan_applied',
       tableName: 'loans',
       recordId: loan.id,
-      newValues: { loan_number: loanNumber, principal: Number(principal), frequency },
+      newValues: {
+        loan_number: loanNumber,
+        principal: Number(principal),
+        frequency,
+        employment_type: employmentType,
+        employer_name: employerName,
+        monthly_income: monthlyIncome,
+        source_of_funds: sourceOfFunds,
+        emergency_contacts: emergencyRows,
+      },
       ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
     });
 

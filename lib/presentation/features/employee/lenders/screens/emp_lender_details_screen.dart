@@ -92,15 +92,8 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
                     ? (lp?['date_of_birth'] ?? '').toString().substring(0, 10)
                     : (lp?['date_of_birth'] ?? '—').toString(),
               ),
-              DetailsItem('Employment', lp?['employment_type'] ?? '—'),
-              DetailsItem('Employer', lp?['employer_name'] ?? '—'),
-              DetailsItem(
-                'Monthly Income',
-                lp?['monthly_income'] != null
-                    ? '₱${lp?['monthly_income']}'
-                    : '—',
-              ),
-              DetailsItem('Source of Funds', lp?['source_of_funds'] ?? '—'),
+              // 00128: financial details live on the LOAN application, not on
+              // the lender profile.
             ],
           ),
           const SizedBox(height: 20),
@@ -126,22 +119,6 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
               DetailsItem('Zip Code', data['zip_code'] ?? '—'),
             ],
           ),
-          if ((data['emergency_contacts'] as List?)?.isNotEmpty == true) ...[
-            const SizedBox(height: 20),
-            DetailsSectionCard(
-              title: 'Emergency Contact',
-              icon: Icons.contact_emergency_outlined,
-              accentColor: AppColors.lenderBlue,
-              items: [
-                for (final c in (data['emergency_contacts'] as List))
-                  DetailsItem(
-                    '${(c as Map)['name'] ?? '—'} (${c['relationship'] ?? '—'})',
-                    '${c['phone_number'] ?? '—'}'
-                    '${(c['address'] != null && c['address'].toString().isNotEmpty) ? ' — ${c['address']}' : ''}',
-                  ),
-              ],
-            ),
-          ],
           const SizedBox(height: 20),
           DetailsSectionCard(
             title: 'Account',

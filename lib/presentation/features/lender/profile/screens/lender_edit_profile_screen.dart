@@ -28,8 +28,6 @@ class _LenderEditProfileScreenState
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _middleNameCtrl = TextEditingController();
-  final _employerCtrl = TextEditingController();
-  final _incomeCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
   final _barangayCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
@@ -38,30 +36,12 @@ class _LenderEditProfileScreenState
 
   String? _gender;
   String? _civilStatus;
-  String? _employmentType;
-  String? _sourceOfFunds;
   DateTime? _dob;
   String? _dobError;
   bool _initialized = false;
 
   static const _genderOptions = ['Male', 'Female', 'Prefer not to say'];
   static const _civilOptions = ['Single', 'Married', 'Widowed', 'Separated'];
-  static const _employmentOptions = [
-    'Employed',
-    'Self-Employed',
-    'Business Owner',
-    'OFW',
-    'Freelancer',
-    'Unemployed',
-  ];
-  static const _sourceOfFundsOptions = [
-    'Salary',
-    'Business Income',
-    'Remittance',
-    'Allowance',
-    'Pension',
-    'Other',
-  ];
 
   static const _navItems = [
     MobileNavItem(
@@ -139,16 +119,9 @@ class _LenderEditProfileScreenState
       'prefer_not_to_say': 'Prefer not to say',
     });
     _civilStatus = _normalizeOption(user.civilStatus, _civilOptions);
-    _employmentType = _normalizeOption(user.employmentType, _employmentOptions);
-    _sourceOfFunds =
-        _normalizeOption(user.sourceOfFunds, _sourceOfFundsOptions);
+    // 00128: employment / income / source of funds are declared per loan now,
+    // not stored or edited on the lender profile.
     _dob = user.dateOfBirth;
-    _employerCtrl.text = user.employerName ?? '';
-    _incomeCtrl.text = user.monthlyIncome != null
-        ? (user.monthlyIncome! % 1 == 0
-            ? user.monthlyIncome!.toInt().toString()
-            : user.monthlyIncome.toString())
-        : '';
     _streetCtrl.text = user.streetAddress ?? '';
     _barangayCtrl.text = user.barangay ?? '';
     _cityCtrl.text = user.city ?? '';
@@ -163,8 +136,6 @@ class _LenderEditProfileScreenState
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _middleNameCtrl.dispose();
-    _employerCtrl.dispose();
-    _incomeCtrl.dispose();
     _streetCtrl.dispose();
     _barangayCtrl.dispose();
     _cityCtrl.dispose();
@@ -212,10 +183,6 @@ class _LenderEditProfileScreenState
         'gender': _toDbEnum(_gender!),
         'civil_status': _toDbEnum(_civilStatus!),
         'dob': DateFormat('yyyy-MM-dd').format(_dob!),
-        'employment_type': _toDbEnum(_employmentType!),
-        'employer_name': _employerCtrl.text.trim(),
-        'monthly_income': double.tryParse(_incomeCtrl.text.trim()),
-        'source_of_funds': _toDbEnum(_sourceOfFunds ?? 'other'),
         'street_address': _streetCtrl.text.trim(),
         'barangay': _barangayCtrl.text.trim(),
         'city': _cityCtrl.text.trim(),
@@ -334,60 +301,8 @@ class _LenderEditProfileScreenState
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    _buildSectionCard(
-                      'Financial Information',
-                      Icons.account_balance_wallet_outlined,
-                      [
-                        _buildDropdownField(
-                          label: 'Employment Type',
-                          value: _employmentType,
-                          items: _employmentOptions,
-                          validator: (v) =>
-                              v == null ? 'Employment type is required' : null,
-                          onChanged: (v) => setState(() => _employmentType = v),
-                        ),
-                        const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'Employer / Business Name',
-                          controller: _employerCtrl,
-                          maxLength: 255,
-                          validator:
-                              _requiredValidator('Employer / business name'),
-                        ),
-                        const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'Monthly Income (₱)',
-                          controller: _incomeCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          maxLength: 12,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'[0-9.]')),
-                          ],
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) {
-                              return 'Monthly income is required';
-                            }
-                            final d = double.tryParse(v.trim());
-                            if (d == null || d <= 0) {
-                              return 'Enter a valid amount greater than 0';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        _buildDropdownField(
-                          label: 'Source of Funds',
-                          value: _sourceOfFunds,
-                          items: _sourceOfFundsOptions,
-                          validator: (v) =>
-                              v == null ? 'Source of funds is required' : null,
-                          onChanged: (v) => setState(() => _sourceOfFunds = v),
-                        ),
-                      ],
-                    ),
+                    // 00128: Financial Information no longer lives on the lender
+                    // profile — it is declared per loan at application time.
                     const SizedBox(height: 16),
                     _buildSectionCard(
                       'Residence Address',

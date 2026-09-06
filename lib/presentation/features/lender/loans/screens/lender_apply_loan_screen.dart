@@ -48,6 +48,47 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   String? _coMakerSignature;
   String? _signatureError;
 
+  // 00128: financial + emergency are declared PER APPLICATION (this loan).
+  final _employerNameCtrl = TextEditingController();
+  final _monthlyIncomeCtrl = TextEditingController();
+  final _ecNameCtrl = TextEditingController();
+  final _ecPhoneCtrl = TextEditingController();
+  final _ecAddressCtrl = TextEditingController();
+  String? _employmentType;
+  String? _sourceOfFunds;
+  String? _ecRelationship;
+  String? _employmentError;
+
+  static const _employmentOptions = [
+    ('employed', 'Employed'),
+    ('self_employed', 'Self-Employed'),
+    ('business_owner', 'Business Owner'),
+    ('ofw', 'OFW'),
+    ('freelancer', 'Freelancer'),
+    ('student', 'Student'),
+    ('unemployed', 'Unemployed'),
+    ('other', 'Other'),
+  ];
+  static const _sourceOfFundsOptions = [
+    ('salary', 'Salary'),
+    ('business_income', 'Business Income'),
+    ('remittance', 'Remittance'),
+    ('allowance', 'Allowance'),
+    ('pension', 'Pension'),
+    ('other', 'Other'),
+  ];
+  static const _relationshipOptions = [
+    'Spouse',
+    'Parent',
+    'Sibling',
+    'Child',
+    'Relative',
+    'Friend',
+    'Colleague',
+    'Employer',
+    'Other',
+  ];
+
   static const _navItems = [
     MobileNavItem(
       icon: Icons.home_outlined,
@@ -96,6 +137,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
     _amountCtrl.dispose();
+    _employerNameCtrl.dispose();
+    _monthlyIncomeCtrl.dispose();
+    _ecNameCtrl.dispose();
+    _ecPhoneCtrl.dispose();
+    _ecAddressCtrl.dispose();
     super.dispose();
   }
 
@@ -108,6 +154,31 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   bool _isLoanDetailsValid() =>
       _isAmountValid && _purposeCtrl.text.trim().isNotEmpty;
+
+  // ── 00128: per-application financial + emergency declaration ──────────────
+  double? _parseMonthlyIncome() {
+    final raw =
+        _monthlyIncomeCtrl.text.replaceAll(RegExp(r'[₱,\s]'), '').trim();
+    if (raw.isEmpty) return null;
+    return double.tryParse(raw);
+  }
+
+  bool get _isFinancialValid {
+    if (_employmentType == null) return false;
+    if (_employerNameCtrl.text.trim().isEmpty) return false;
+    final income = _parseMonthlyIncome();
+    if (income == null || income <= 0) return false;
+    if (_sourceOfFunds == null) return false;
+    if (_ecNameCtrl.text.trim().isEmpty) return false;
+    final ecPhone = _ecPhoneCtrl.text.trim();
+    if (ecPhone.length != 11 ||
+        !ecPhone.startsWith('09') ||
+        !RegExp(r'^\d{11}$').hasMatch(ecPhone)) {
+      return false;
+    }
+    if (_ecRelationship == null) return false;
+    return true;
+  }
 
   String _formatAmountInput(int value) =>
       NumberFormat('#,##0').format(value);
@@ -160,11 +231,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   bool get _canGoNext {
     if (_step == 0) return _isLoanDetailsValid();
-    if (_step == 1) return _isCoMakerValid();
-    if (_step == 2) return _isSignatureValid();
-    // Review step (3) – enable Submit only if all previous are valid
-    if (_step == 3) {
+    if (_step == 1) return _isFinancialValid;
+    if (_step == 2) return _isCoMakerValid();
+    if (_step == 3) return _isSignatureValid();
+    // Review step (4) – enable Submit only if all previous are valid
+    if (_step == 4) {
       return _isLoanDetailsValid() &&
+          _isFinancialValid &&
           _isCoMakerValid() &&
           _isSignatureValid();
     }
@@ -238,11 +311,30 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     final coMaker = Map<String, dynamic>.from(_coMaker ?? {})
       ..['signature'] = _coMakerSignature;
+    // 00128: per-loan declaration captured inside this wizard.
+    final employment = {
+      'type': _employmentType,
+      'employer_name': _employerNameCtrl.text.trim(),
+      'monthly_income': _parseMonthlyIncome(),
+    };
+    final emergencyContacts = [
+      {
+        'name': _ecNameCtrl.text.trim(),
+        'relationship': _ecRelationship,
+        'phone_number': _ecPhoneCtrl.text.trim(),
+        if (_ecAddressCtrl.text.trim().isNotEmpty)
+          'address': _ecAddressCtrl.text.trim(),
+      },
+    ];
+
     final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
           amount: _amount,
           frequency: _frequency,
           termPeriods: _termPeriods,
           purpose: _purposeCtrl.text.trim(),
+          employment: employment,
+          sourceOfFunds: _sourceOfFunds,
+          emergencyContacts: emergencyContacts,
           coMaker: coMaker,
         );
 
@@ -301,6 +393,26 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         return;
       }
     } else if (_step == 1) {
+      // Financial Details + Emergency Contact — Next is disabled until the
+      // step is valid, but guard anyway for stale taps.
+      if (!_isFinancialValid) {
+        setState(() {
+          _employmentError = _employmentType == null
+              ? 'Employment type is required'
+              : _employerNameCtrl.text.trim().isEmpty
+                  ? 'Employer / business name is required'
+                  : null;
+        });
+        context.showSnackBarAsToast(
+          const SnackBar(
+            content: Text(
+                'Please complete the financial details and emergency contact.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    } else if (_step == 2) {
       final valid = _coMakerFormKey.currentState?.validate() ?? false;
       if (!valid) {
         context.showSnackBarAsToast(
@@ -311,7 +423,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         );
         return;
       }
-    } else if (_step == 2) {
+    } else if (_step == 3) {
       if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
         setState(() =>
             _signatureError = 'Co-maker must sign the pad before submission');
@@ -721,6 +833,178 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
   }
 
+  /// 00128: borrower declares employment/income/source of funds + emergency
+  /// contact FOR THIS APPLICATION. Stored on the loan record (not profile).
+  Widget _buildFinancialEmergencyStep(bool isSubmitting) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return SingleChildScrollView(
+      // Bottom clearance sized so the last element (the inline Next button)
+      // rests just above the floating bottom nav pill when fully scrolled.
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
+      ),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionTitle('Financial Details'),
+          const SizedBox(height: 6),
+          const Text(
+            'Tell us about your source of income. This declaration is attached to this loan application.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _employmentType,
+                  decoration: _finFieldDeco('Employment Type'),
+                  items: _employmentOptions
+                      .map((e) => DropdownMenuItem(
+                          value: e.$1, child: Text(e.$2)))
+                      .toList(),
+                  onChanged: (v) => setState(() {
+                    _employmentType = v;
+                    _employmentError = null;
+                  }),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _employerNameCtrl,
+                  maxLength: 255,
+                  onChanged: (_) => setState(() {}),
+                  scrollPadding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                  decoration: _finFieldDeco('Employer / Business Name'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _monthlyIncomeCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  onChanged: (_) => setState(() {}),
+                  decoration: _finFieldDeco('Monthly Income (₱)'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _sourceOfFunds,
+                  decoration: _finFieldDeco('Source of Funds'),
+                  items: _sourceOfFundsOptions
+                      .map((e) => DropdownMenuItem(
+                          value: e.$1, child: Text(e.$2)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _sourceOfFunds = v),
+                ),
+                if (_employmentError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _employmentError!,
+                    style:
+                        const TextStyle(fontSize: 12, color: AppColors.error),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          const _SectionTitle('Emergency Contact'),
+          const SizedBox(height: 6),
+          const Text(
+            'Who should we contact in case of an emergency regarding this loan?',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _ecNameCtrl,
+                  maxLength: 100,
+                  onChanged: (_) => setState(() {}),
+                  scrollPadding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                  decoration: _finFieldDeco('Contact Name'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _ecRelationship,
+                  decoration: _finFieldDeco('Relationship'),
+                  items: _relationshipOptions
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _ecRelationship = v),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _ecPhoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 11,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(11),
+                  ],
+                  onChanged: (_) => setState(() {}),
+                  decoration: _finFieldDeco('Contact Phone Number'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _ecAddressCtrl,
+                  maxLength: 255,
+                  onChanged: (_) => setState(() {}),
+                  scrollPadding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                  decoration: _finFieldDeco('Address (Optional)'),
+                ),
+              ],
+            ),
+          ),
+          _buildStepNav(isSubmitting),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _finFieldDeco(String label) {
+    return InputDecoration(
+      labelText: label,
+      counterText: '',
+      isDense: true,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.lenderBlue),
+      ),
+    );
+  }
+
   Widget _buildReviewStep(
       NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
@@ -763,17 +1047,104 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             totalPayable: totalPayable,
             installment: installment,
           ),
+          const SizedBox(height: 12),
+          _buildLoanDeclarationCard(),
           _buildStepNav(isSubmitting),
         ],
       ),
     );
   }
 
+  /// 00128: show the per-application declaration (financial + emergency)
+  /// on the Review step so the borrower can confirm before submitting.
+  Widget _buildLoanDeclarationCard() {
+    String labelOf(List<(String, String)> options, String? code) {
+      for (final e in options) {
+        if (e.$1 == code) return e.$2;
+      }
+      return code?.isEmpty ?? true ? '—' : (code ?? '—');
+    }
+
+    final income = _parseMonthlyIncome();
+    final incomeLabel = income != null
+        ? '₱${NumberFormat('#,##0.00').format(income)}'
+        : '—';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Financial & Emergency Declaration',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _declRow('Employment',
+              labelOf(_employmentOptions, _employmentType)),
+          _declRow('Employer', _employerNameCtrl.text.trim().isEmpty
+              ? '—'
+              : _employerNameCtrl.text.trim()),
+          _declRow('Monthly Income', incomeLabel),
+          _declRow('Source of Funds',
+              labelOf(_sourceOfFundsOptions, _sourceOfFunds)),
+          const Divider(height: 20),
+          _declRow('Emergency Contact', _ecNameCtrl.text.trim().isEmpty
+              ? '—'
+              : _ecNameCtrl.text.trim()),
+          _declRow('Relationship', _ecRelationship ?? '—'),
+          _declRow('Contact Number', _ecPhoneCtrl.text.trim().isEmpty
+              ? '—'
+              : _ecPhoneCtrl.text.trim()),
+          _declRow('Address', _ecAddressCtrl.text.trim().isEmpty
+              ? '—'
+              : _ecAddressCtrl.text.trim()),
+        ],
+      ),
+    );
+  }
+
+  Widget _declRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 118,
+              child: Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value.isEmpty ? '—' : value,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
   /// Inline nav row at the end of each step's scrollable content — on the
   /// Loan Details step the Next button sits right below the payment schedule
   /// preview card, scrolling with the content.
   Widget _buildStepNav(bool isSubmitting) {
-    final isLast = _step == 3;
+    final isLast = _step == 4;
     final canProceed = _canGoNext && !isSubmitting;
     return Padding(
       padding: const EdgeInsets.only(top: 24),
@@ -886,6 +1257,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             index: _step,
             children: [
               _buildLoanDetailsStep(fmt, preview, state.isSubmitting),
+              _buildFinancialEmergencyStep(state.isSubmitting),
               _buildCoMakerStep(state.isSubmitting),
               _buildSignatureStep(state.isSubmitting),
               _buildReviewStep(fmt, preview, state.isSubmitting),
@@ -1391,6 +1763,7 @@ class _StepIndicator extends StatelessWidget {
 
   static const _labels = [
     'Loan Details',
+    'Financial & Emergency',
     'Co-Maker',
     'Signature',
     'Review',

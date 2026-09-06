@@ -187,9 +187,10 @@ serve(async (req) => {
       }
     }
 
-    // The lender fills out their ENTIRE profile here during Account Upgrade — identity,
-    // personal details, employment, income. The profile screen is a
-    // read-only view of this data, so nothing may be left blank.
+    // Account Upgrade is now IDENTITY + documents only (00128). Employment /
+    // income / emergency contact are declared by the borrower PER LOAN inside
+    // the Apply Loan flow and snapshot onto loans / loan_emergency_contacts —
+    // they no longer live on lender_profiles.
     const p = profile ?? {};
     const REQUIRED_PROFILE = [
       "first_name",
@@ -198,9 +199,6 @@ serve(async (req) => {
       "gender",
       "civil_status",
       "dob",
-      "employment_type",
-      "employer_name",
-      "monthly_income",
     ];
     for (const f of REQUIRED_PROFILE) {
       const v = p[f];
@@ -288,7 +286,9 @@ serve(async (req) => {
       );
     }
 
-    // ── 2) Lender profile details + source of funds ─────────────────────────
+    // ── 2) Lender profile identity details ──────────────────────────────────
+    // Employment/income/source_of_funds are intentionally NOT written here
+    // (00128): they are captured per loan at application time instead.
     // profileErr must NOT be swallowed: this is an atomic UPDATE whose FK/CHECK
     // violations silently wipe every field, which is exactly how a lender
     // "submits Account Upgrade but staff sees nothing". Surface it so it can be fixed.
@@ -296,12 +296,6 @@ serve(async (req) => {
       gender: coerceLookup(p.gender, ALLOWED_GENDER),
       civil_status: coerceLookup(p.civil_status, ALLOWED_CIVIL),
       date_of_birth: String(p.dob).substring(0, 10),
-      employment_type: coerceLookup(p.employment_type, ALLOWED_EMPLOYMENT),
-      employer_name: sanitizeString(p.employer_name),
-      monthly_income: Number(p.monthly_income),
-      source_of_funds: source_of_funds
-        ? normalizeEnum(source_of_funds)
-        : undefined,
     }).eq("id", user.id);
     if (profileErr) {
       console.error("kyc-submit profile update error:", profileErr.message);
@@ -346,21 +340,8 @@ serve(async (req) => {
       }
     }
 
-    // Emergency contact — 1:N (00105 dropped UNIQUE(lender_id); now dedupe by lender_id+phone).
-    if (emergency_contact?.name && emergency_contact?.phone_number) {
-      const { error: ecErr } = await db.from("emergency_contacts").upsert({
-        lender_id: user.id,
-        name: sanitizeString(emergency_contact.name),
-        relationship: sanitizeString(emergency_contact.relationship ?? "Other"),
-        phone_number: sanitizeString(emergency_contact.phone_number),
-        address: emergency_contact.address
-          ? sanitizeString(emergency_contact.address)
-          : null,
-      }, { onConflict: "lender_id,phone_number" }).select("id").single();
-      if (ecErr) {
-        console.error("kyc-submit emergency contact error:", ecErr.message);
-      }
-    }
+    // Emergency contact is NOT stored on the lender here (00128). It is
+    // declared per loan (loan_emergency_contacts) when the borrower applies.
 
     const { error: statusErr } = await db.from("lender_profiles").update({
       account_upgrade_status: "submitted",

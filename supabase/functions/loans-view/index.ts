@@ -216,12 +216,20 @@ async function handleGetDetails(req: Request) {
     const db = getAdminClient();
 
     const { data: loan } = await db.from('loans')
-      .select(`*, lender_profiles!loans_lender_id_fkey(id, account_upgrade_status, gcash_number, employment_type, employer_name, monthly_income, users:users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email))`)
+      .select(`*, lender_profiles!loans_lender_id_fkey(id, account_upgrade_status, gcash_number, users:users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email))`)
       .eq('id', loanId).single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
     if (user.role === ROLES.LENDER && loan.lender_id !== user.id) return errorResponse('Access denied', 403, 'FORBIDDEN');
     if (user.role === ROLES.RIDER) return errorResponse('Access denied', 403, 'FORBIDDEN');
+
+    // 00128: emergency contacts snapshot on THIS loan (loan_emergency_contacts).
+    // lender_profiles.emergency_contacts is legacy — new loans never read it.
+    const { data: loanEmergencyRows } = await db
+      .from('loan_emergency_contacts')
+      .select('id, name, relationship, phone_number, address')
+      .eq('loan_id', loanId)
+      .order('created_at', { ascending: true });
 
     const { data: schedule } = await db.from('v_loan_schedules').select('*').eq('loan_id', loanId).order('installment_number');
     // Next outstanding (unpaid) schedule due date — the loans table itself has
@@ -274,8 +282,24 @@ async function handleGetDetails(req: Request) {
         .maybeSingle();
       lenderAddress = (addrRow as Record<string, unknown> | null) ?? null;
     }
+    // 00128: the LOAN is the source of truth for financial + emergency data.
+    // Merge the loan snapshot into the embedded lender_profile so screens keep
+    // working, but with the values the borrower declared FOR THIS LOAN.
+    const loanSnapshot: Record<string, unknown> = {};
+    for (const k of ['employment_type', 'employment_type_id', 'employer_name', 'monthly_income', 'source_of_funds']) {
+      if (loan?.[k] !== undefined && loan?.[k] !== null) loanSnapshot[k] = loan[k];
+    }
+    const lenderProfileWithSnapshot = lp
+      ? {
+          ...(lp as Record<string, unknown>),
+          ...loanSnapshot,
+          emergency_contacts: loanEmergencyRows ?? [],
+        }
+      : null;
     const loanOut: Record<string, unknown> = {
       ...loan,
+      ...loanSnapshot,
+      emergency_contacts: loanEmergencyRows ?? [],
       due_date: nextSched?.due_date ?? null,
       total_payable: financials?.total_payable ?? null,
       outstanding_balance: financials?.outstanding_balance ?? null,
@@ -287,7 +311,7 @@ async function handleGetDetails(req: Request) {
       xendit_disbursement_id: disbursement?.xendit_id ?? null,
       frequency: loan.payment_frequency,
       lender: lp?.users ?? null,
-      lender_profile: lp ?? null,
+      lender_profile: lenderProfileWithSnapshot,
       lender_address: lenderAddress,
       loan_schedules: schedule ?? [],
       payments: payments,

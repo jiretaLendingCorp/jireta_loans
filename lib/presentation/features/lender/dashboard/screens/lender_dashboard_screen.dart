@@ -172,9 +172,9 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                 opacity: _fadeCtrl,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  // Extra bottom space so the last item rests level with
-                  // the floating pill of the bottom nav bar when scrolled.
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  // Pantay sa taas ng floating bottom nav pill pag fully
+                  // scrolled — walang overlap, walang labis na gap.
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1362,7 +1362,7 @@ class _LenderDashboardSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
       child: Shimmer.fromColors(
         baseColor: AppColors.shimmerBase,
         highlightColor: AppColors.shimmerHighlight,

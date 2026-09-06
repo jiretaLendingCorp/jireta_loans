@@ -235,10 +235,7 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
               _Kv('Gender', u.gender ?? 'N/A'),
               _Kv('Civil Status', u.civilStatus ?? 'N/A'),
               _Kv('Date of Birth', u.dateOfBirth?.toString().substring(0, 10) ?? 'N/A'),
-              _Kv('Employment', u.employmentType ?? 'N/A'),
-              _Kv('Employer', u.employerName ?? 'N/A'),
-              _Kv('Monthly Income', u.monthlyIncome != null ? '₱${u.monthlyIncome!.toStringAsFixed(2)}' : 'N/A'),
-              _Kv('Source of Funds', u.sourceOfFunds ?? 'N/A'),
+              // 00128: financial details live on the LOAN application.
             ],
           ),
           const SizedBox(height: 14),

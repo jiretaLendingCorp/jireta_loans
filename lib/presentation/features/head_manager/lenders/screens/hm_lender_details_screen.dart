@@ -77,15 +77,8 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                     'Date of Birth',
                     user.dateOfBirth?.toString().substring(0, 10) ?? '—',
                   ),
-                  DetailsItem('Employment', user.employmentType ?? '—'),
-                  DetailsItem('Employer', user.employerName ?? '—'),
-                  DetailsItem(
-                    'Monthly Income',
-                    user.monthlyIncome != null
-                        ? '₱${user.monthlyIncome!.toStringAsFixed(2)}'
-                        : '—',
-                  ),
-                  DetailsItem('Source of Funds', user.sourceOfFunds ?? '—'),
+                  // 00128: financial details live on the LOAN application,
+                  // not on the lender profile.
                 ],
               ),
               const SizedBox(height: 20),
