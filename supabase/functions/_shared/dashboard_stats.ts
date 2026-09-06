@@ -32,9 +32,11 @@ export interface HeadManagerStatsParams {
   month?: string | null;
   /** 'monthly' */
   period?: string | null;
+  /** YYYY-MM-DD exact-day filter (takes precedence over month) */
+  date?: string | null;
 }
 
-/** Parse the month/period request params into a normalized filter. */
+/** Parse the month/period/date request params into a normalized filter. */
 export function parseMonthlyFilter(params: HeadManagerStatsParams): {
   monthStart: Date | null;
   monthEndNext: Date | null;
@@ -42,31 +44,51 @@ export function parseMonthlyFilter(params: HeadManagerStatsParams): {
   selectedMonth: string;
   isoStart: string | null;
   isoEnd: string | null;
+  isDaily: boolean;
+  selectedDate: string;
 } {
   const monthParam = params.month ?? null;
   const periodParam = params.period ?? null;
+  const dateParam = params.date ?? null;
   let monthStart: Date | null = null;
   let monthEndNext: Date | null = null;
   let isMonthly = false;
   let selectedMonth = '';
-  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
-    const [yy, mm] = monthParam.split('-').map(Number);
-    if (mm >= 1 && mm <= 12) {
-      monthStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0));
-      monthEndNext = new Date(Date.UTC(yy, mm, 1, 0, 0, 0));
+  let isDaily = false;
+  let selectedDate = '';
+  // Exact-day filter wins over monthly.
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [yy, mm, dd] = dateParam.split('-').map(Number);
+    const probe = new Date(Date.UTC(yy, mm - 1, dd));
+    if (probe.getUTCFullYear() === yy && probe.getUTCMonth() === mm - 1 && probe.getUTCDate() === dd) {
+      monthStart = new Date(Date.UTC(yy, mm - 1, dd, 0, 0, 0));
+      monthEndNext = new Date(Date.UTC(yy, mm - 1, dd + 1, 0, 0, 0));
       isMonthly = true;
-      selectedMonth = monthParam;
+      isDaily = true;
+      selectedDate = dateParam;
+      selectedMonth = `${yy}-${String(mm).padStart(2, '0')}`;
     }
-  } else if (periodParam === 'monthly') {
-    const now = new Date();
-    monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    monthEndNext = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    isMonthly = true;
-    selectedMonth = `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth() + 1).padStart(2, '0')}`;
+  }
+  if (!isDaily) {
+    if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+      const [yy, mm] = monthParam.split('-').map(Number);
+      if (mm >= 1 && mm <= 12) {
+        monthStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0));
+        monthEndNext = new Date(Date.UTC(yy, mm, 1, 0, 0, 0));
+        isMonthly = true;
+        selectedMonth = monthParam;
+      }
+    } else if (periodParam === 'monthly') {
+      const now = new Date();
+      monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+      monthEndNext = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+      isMonthly = true;
+      selectedMonth = `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth() + 1).padStart(2, '0')}`;
+    }
   }
   const isoStart = monthStart?.toISOString() ?? null;
   const isoEnd = monthEndNext?.toISOString() ?? null;
-  return { monthStart, monthEndNext, isMonthly, selectedMonth, isoStart, isoEnd };
+  return { monthStart, monthEndNext, isMonthly, selectedMonth, isoStart, isoEnd, isDaily, selectedDate };
 }
 
 /**
@@ -77,7 +99,7 @@ export async function getHeadManagerDashboardStats(
   db: DbClient,
   params: HeadManagerStatsParams = {},
 ): Promise<Record<string, unknown>> {
-  const { monthStart, isMonthly, selectedMonth, isoStart, isoEnd } =
+  const { monthStart, isMonthly, selectedMonth, isoStart, isoEnd, isDaily, selectedDate } =
     parseMonthlyFilter(params);
 
   // ── Part 1: count queries ───────────────────────────────────────────────
@@ -313,6 +335,8 @@ export async function getHeadManagerDashboardStats(
     pending_bucket: pendingBucket,
     selected_month: isMonthly ? selectedMonth : null,
     is_monthly: isMonthly,
-    period: isMonthly ? 'monthly' : 'lifetime',
+    period: isDaily ? 'daily' : (isMonthly ? 'monthly' : 'lifetime'),
+    selected_date: isDaily ? selectedDate : null,
+    is_daily: isDaily,
   };
 }

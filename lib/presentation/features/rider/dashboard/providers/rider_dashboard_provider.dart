@@ -19,6 +19,8 @@ class RiderDashboardState {
   final List<DisbursementModel> todayDeliveries;
   final bool isLoading;
   final String? error;
+  final String? selectedMonth; // YYYY-MM or null (lifetime)
+  final String? selectedDate; // YYYY-MM-DD or null
 
   const RiderDashboardState({
     required this.kpi,
@@ -27,7 +29,12 @@ class RiderDashboardState {
     this.todayDeliveries = const [],
     this.isLoading = false,
     this.error,
+    this.selectedMonth,
+    this.selectedDate,
   });
+
+  static String formatDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   RiderDashboardState copyWith({
     KpiRiderModel? kpi,
@@ -36,6 +43,10 @@ class RiderDashboardState {
     List<DisbursementModel>? todayDeliveries,
     bool? isLoading,
     String? error,
+    String? selectedMonth,
+    String? selectedDate,
+    bool clearMonth = false,
+    bool clearDate = false,
   }) =>
       RiderDashboardState(
         kpi: kpi ?? this.kpi,
@@ -44,6 +55,8 @@ class RiderDashboardState {
         todayDeliveries: todayDeliveries ?? this.todayDeliveries,
         isLoading: isLoading ?? this.isLoading,
         error: error,
+        selectedMonth: clearMonth ? null : (selectedMonth ?? this.selectedMonth),
+        selectedDate: clearDate ? null : (selectedDate ?? this.selectedDate),
       );
 }
 
@@ -66,11 +79,31 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
     load();
   }
 
-  Future<void> load({bool silent = false}) async {
+  static List<String> availableMonths({int count = 12}) {
+    final now = DateTime.now();
+    return List.generate(count, (i) {
+      final d = DateTime(now.year, now.month - i, 1);
+      return '${d.year}-${d.month.toString().padLeft(2, '0')}';
+    });
+  }
+
+  static String monthLabel(String yyyyMm) {
+    const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final parts = yyyyMm.split('-');
+    if (parts.length != 2) return yyyyMm;
+    final y = parts[0];
+    final m = int.tryParse(parts[1]) ?? 1;
+    return '${mNames[m - 1]} $y';
+  }
+
+  Future<void> load({bool silent = false, String? month, String? date}) async {
+    final m = month ?? state.selectedMonth;
+    // Exact-day wins over month.
+    final d = date ?? state.selectedDate;
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final results = await Future.wait([
-        _kpiDs.getRiderKpis(),
+        _kpiDs.getRiderKpis(month: d != null ? null : m, date: d),
         _collDs.getCollectionList(status: 'assigned', page: 1),
         _collDs.getCollectionList(status: 'accepted', page: 1),
         // CI: keep visible until completed (assigned + accepted + in_progress)
@@ -95,12 +128,43 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
         todayCiTasks: ciMerged,
         todayDeliveries: results[6] as List<DisbursementModel>,
         isLoading: false,
+        selectedMonth: m,
+        selectedDate: d,
+        clearMonth: m == null,
+        clearDate: d == null,
       );
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
+  }
+
+  Future<void> setMonth(String? month) async {
+    if (month == null) {
+      state = state.copyWith(clearMonth: true, clearDate: true);
+      await load(month: null, date: null);
+      return;
+    }
+    state = state.copyWith(selectedMonth: month, clearDate: true);
+    await load(month: month, date: null);
+  }
+
+  Future<void> setDate(DateTime? date) async {
+    if (date == null) {
+      state = state.copyWith(clearDate: true);
+      await load(date: null);
+      return;
+    }
+    final formatted = RiderDashboardState.formatDate(date);
+    final monthKey = formatted.substring(0, 7);
+    state = state.copyWith(selectedDate: formatted, selectedMonth: monthKey);
+    await load(month: monthKey, date: formatted);
+  }
+
+  Future<void> clearFilters() async {
+    state = state.copyWith(clearMonth: true, clearDate: true);
+    await load(month: null, date: null);
   }
 
   Future<void> refresh() => load();

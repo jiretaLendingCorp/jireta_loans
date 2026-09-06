@@ -24,6 +24,8 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
     final dashState = ref.watch(empDashboardProvider);
     final notifier = ref.read(empDashboardProvider.notifier);
 
+    final periodLabel = dashState.selectedDate ??
+        EmpDashboardNotifier.monthLabel(dashState.selectedMonth);
     return WebScaffold(
       title: 'Dashboard',
       actions: [
@@ -53,6 +55,57 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
                 if (v != null) notifier.setMonth(v);
               },
             ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Exact-day filter
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+              color: dashState.selectedDate != null
+                  ? AppColors.deepNavy
+                  : Colors.white,
+              borderRadius: BorderRadius.zero,
+              border: Border.all(color: AppColors.border)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              InkWell(
+                onTap: () =>
+                    _pickExactDate(context, notifier, dashState.selectedDate),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.event_rounded,
+                        size: 18,
+                        color: dashState.selectedDate != null
+                            ? Colors.white
+                            : AppColors.deepNavy),
+                    const SizedBox(width: 6),
+                    Text(
+                      dashState.selectedDate ?? 'Exact date',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: dashState.selectedDate != null
+                              ? Colors.white
+                              : AppColors.deepNavy),
+                    ),
+                  ],
+                ),
+              ),
+              if (dashState.selectedDate != null) ...[
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: () => notifier.clearDate(),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close_rounded,
+                        size: 16, color: Colors.white),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         const SizedBox(width: 8),
@@ -89,16 +142,20 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.people_rounded,
-                      'My Performance Metrics — ${EmpDashboardNotifier.monthLabel(dashState.selectedMonth)}',
-                      'Your activity within the selected month',
+                      'My Performance Metrics — $periodLabel',
+                      dashState.selectedDate != null
+                          ? 'Your activity on selected date'
+                          : 'Your activity within the selected month',
                     ),
                     const SizedBox(height: 14),
                     _buildPerformanceGrid(dashState),
                     const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.account_balance_wallet_rounded,
-                      'Loan Portfolio — ${EmpDashboardNotifier.monthLabel(dashState.selectedMonth)}',
-                      'Loans you handled in the selected month',
+                      'Loan Portfolio — $periodLabel',
+                      dashState.selectedDate != null
+                          ? 'Loans you handled on selected date'
+                          : 'Loans you handled in the selected month',
                     ),
                     const SizedBox(height: 14),
                     _buildPortfolioGrid(dashState),
@@ -108,6 +165,22 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
               ),
             ),
     );
+  }
+
+  Future<void> _pickExactDate(
+      BuildContext context, dynamic notifier, String? current) async {
+    final initial = current != null
+        ? DateTime.tryParse(current) ?? DateTime.now()
+        : DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (picked != null) {
+      await (notifier as dynamic).setDate(picked);
+    }
   }
 
   Widget _buildShimmer() {

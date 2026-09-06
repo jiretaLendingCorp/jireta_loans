@@ -10,6 +10,7 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -63,7 +64,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     MobileNavItem(
       icon: Icons.receipt_long_outlined,
       activeIcon: Icons.receipt_long,
-      label: 'History',
+      label: 'Transaction',
       route: RouteConstants.lenderPaymentHistory,
     ),
     MobileNavItem(
@@ -247,13 +248,29 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     if (!mounted) return;
     if (ok) {
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text('Loan application submitted successfully!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-      context.go(RouteConstants.lenderDashboard);
+      // Success modal, then auto-direct straight to home.
+      // No toast, no splash, no application-status screen.
+      var navigated = false;
+      void goHome() {
+        if (navigated || !mounted) return;
+        navigated = true;
+        context.go(RouteConstants.lenderDashboard);
+      }
+
+      // ignore: unawaited_futures
+      SuccessDialog.show(
+        context,
+        title: 'Successfully Submitted',
+        message: 'Your loan application has been submitted successfully.',
+        buttonText: 'Go to Home',
+      ).then((_) => goHome());
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      } else {
+        goHome();
+      }
     } else {
       final err = ref.read(lenderLoanProvider).error ?? 'An error occurred.';
       context.showSnackBarAsToast(

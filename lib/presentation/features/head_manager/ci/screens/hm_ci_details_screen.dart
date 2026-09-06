@@ -133,7 +133,40 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     );
   }
 
+  DateTime? _parseCiDate(dynamic value) {
+    if (value == null) return null;
+    // response_at / completed_at / reviewed_at were historically written via
+    // nowManilaISO() as Manila wall-time tagged UTC, while created_at is true
+    // UTC. parseManila() (+8h) is correct for true UTC but double-shifts the
+    // legacy wall-time values. Try parseManila first; if the result lies in
+    // the future relative to Manila now, fall back to the raw wall time.
+    final raw = DateTime.tryParse(value.toString());
+    if (raw == null) return null;
+    final viaManila = parseManila(value);
+    if (viaManila != null && viaManila.isAfter(nowManila().add(const Duration(minutes: 5)))) {
+      return raw.isUtc ? raw.toLocal() : raw;
+    }
+    return viaManila ?? raw;
+  }
+
   Widget _buildAssignmentCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
+    final status = (ci['status'] as String? ?? '').trim().toLowerCase();
+    final hasAccepted = ci['response_at'] != null;
+    // Derive acceptance from response_at as well — backend moves
+    // assigned -> in_progress on accept (no persistent `accepted` state),
+    // so status alone can't be trusted for legacy/cached rows.
+    String acceptedLabel;
+    if (hasAccepted) {
+      final dt = _parseCiDate(ci['response_at']);
+      acceptedLabel = dt != null ? _dateFmt.format(dt) : ci['response_at'].toString();
+    } else {
+      acceptedLabel = status == 'declined' ? 'Declined' : 'Pending';
+    }
+    String completedLabel = '—';
+    if (ci['completed_at'] != null) {
+      final dt = _parseCiDate(ci['completed_at']);
+      completedLabel = dt != null ? _dateFmt.format(dt) : ci['completed_at'].toString();
+    }
     return _SectionCard(
       title: 'Assignment Details',
       subtitle: 'Workflow & ownership',
@@ -142,8 +175,8 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         _InfoRow('Assigned Rider', model.riderName.isEmpty ? 'Not Assigned' : model.riderName),
         _InfoRow('Assigned By', model.assignedByName.isEmpty ? 'N/A' : model.assignedByName),
         _InfoRow('Assigned At', ci['created_at'] != null ? _dateFmt.format(parseManila(ci['created_at'])!) : 'N/A'),
-        _InfoRow('Accepted At', ci['response_at'] != null ? _dateFmt.format(parseManila(ci['response_at'])!) : 'Pending'),
-        _InfoRow('Completed At', ci['completed_at'] != null ? _dateFmt.format(parseManila(ci['completed_at'])!) : '—'),
+        _InfoRow('Accepted At', acceptedLabel),
+        _InfoRow('Completed At', completedLabel),
         _InfoRow('CI Notes', (ci['investigation_notes'] as String?)?.isNotEmpty == true ? ci['investigation_notes'] as String : 'None'),
       ]),
     );
@@ -223,9 +256,17 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
   Widget _buildStatusCard(Map<String, dynamic> ci, CreditInvestigationModel model, String status) {
     final deadline = parseManila(ci['deadline']);
     final isOverdue = deadline != null && deadline.isOverdue && !['completed', 'approved'].contains(status);
+    // Backend accepts straight to `in_progress` (no persistent `accepted`),
+    // so derive acceptance from response_at for stale/cached rows where
+    // status may still read `assigned`/`pending`.
+    final hasAccepted = ci['response_at'] != null;
+    var effective = status;
+    if ((effective == 'assigned' || effective == 'pending' || effective.isEmpty) && hasAccepted) {
+      effective = 'accepted';
+    }
     final String msg;
     final Color msgColor;
-    switch (status) {
+    switch (effective) {
       case 'approved':
         msg = 'CI report approved — loan has been auto-approved.';
         msgColor = AppColors.success;
@@ -246,9 +287,23 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         msg = 'Rider accepted this assignment.';
         msgColor = AppColors.riderGreen;
         break;
-      default:
+      case 'declined':
+        msg = 'Rider declined this assignment — please reassign.';
+        msgColor = AppColors.error;
+        break;
+      case 'assigned':
+      case 'pending':
         msg = 'Rider assigned — awaiting acceptance.';
         msgColor = AppColors.lenderBlue;
+        break;
+      default:
+        if (hasAccepted) {
+          msg = 'Rider accepted this assignment.';
+          msgColor = AppColors.riderGreen;
+        } else {
+          msg = 'Rider assigned — awaiting acceptance.';
+          msgColor = AppColors.lenderBlue;
+        }
     }
     final statusLabel = status.replaceAll('_', ' ').toUpperCase();
 
@@ -305,10 +360,11 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     final isApproved = status == 'approved';
     final isRejected = status == 'rejected';
     final isCompletedPending = status == 'completed';
+    final hasAccepted = ci['response_at'] != null;
     final steps = <({String label, bool done, IconData icon})>[
       (label: 'Assigned', done: ci['created_at'] != null, icon: Icons.assignment_turned_in_rounded),
-      (label: 'Accepted', done: ci['response_at'] != null, icon: Icons.handshake_rounded),
-      (label: 'In Progress', done: status == 'in_progress' || isCompletedPending || isApproved || isRejected, icon: Icons.timelapse_rounded),
+      (label: 'Accepted', done: hasAccepted || status == 'accepted' || status == 'in_progress' || isCompletedPending || isApproved || isRejected, icon: Icons.handshake_rounded),
+      (label: 'In Progress', done: status == 'accepted' || status == 'in_progress' || isCompletedPending || isApproved || isRejected, icon: Icons.timelapse_rounded),
       (label: 'Submitted', done: ci['completed_at'] != null, icon: Icons.rate_review_rounded),
       (label: 'Approved', done: isApproved, icon: Icons.verified_rounded),
     ];
@@ -316,8 +372,8 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
       if (isApproved) return 4;
       if (isRejected) return 3;
       if (ci['completed_at'] != null) return 3;
-      if (status == 'in_progress') return 2;
-      if (ci['response_at'] != null) return 1;
+      if (status == 'in_progress' || status == 'accepted') return 2;
+      if (hasAccepted) return 1;
       return 0;
     }();
 

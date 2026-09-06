@@ -10,22 +10,31 @@ class KpiRemoteDataSource {
   final DioClient _client;
   KpiRemoteDataSource(this._client);
 
-  Future<KpiHeadManagerModel> getHeadManagerKpi({String? month}) async {
-    final isMonthly = month != null && month.isNotEmpty;
-    final path = isMonthly ? '${ApiEndpoints.kpiHeadManager}&month=$month' : ApiEndpoints.kpiHeadManager;
+  String _withDate(String base, {String? month, String? date}) {
+    final buf = StringBuffer(base);
+    if (date != null && date.isNotEmpty) {
+      buf.write('&date=$date');
+    } else if (month != null && month.isNotEmpty) {
+      buf.write('&month=$month');
+    }
+    return buf.toString();
+  }
+
+  Future<KpiHeadManagerModel> getHeadManagerKpi({String? month, String? date}) async {
+    final path = _withDate(ApiEndpoints.kpiHeadManager, month: month, date: date);
     final res = await _client.get(path);
     return KpiHeadManagerModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<KpiEmployeeModel> getEmployeeKpi({String? month}) async {
-    final isMonthly = month != null && month.isNotEmpty;
-    final path = isMonthly ? '${ApiEndpoints.kpiEmployee}&month=$month' : ApiEndpoints.kpiEmployee;
+  Future<KpiEmployeeModel> getEmployeeKpi({String? month, String? date}) async {
+    final path = _withDate(ApiEndpoints.kpiEmployee, month: month, date: date);
     final res = await _client.get(path);
     return KpiEmployeeModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<KpiRiderModel> getRiderKpi() async {
-    final res = await _client.get(ApiEndpoints.kpiRider);
+  Future<KpiRiderModel> getRiderKpi({String? month, String? date}) async {
+    final path = _withDate(ApiEndpoints.kpiRider, month: month, date: date);
+    final res = await _client.get(path);
     return KpiRiderModel.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -34,8 +43,11 @@ class KpiRemoteDataSource {
     return KpiLenderModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<KpiHeadManagerModel> getHeadManagerKpis({String? month}) => getHeadManagerKpi(month: month);
-  Future<KpiEmployeeModel> getEmployeeKpis({String? month}) => getEmployeeKpi(month: month);
-  Future<KpiRiderModel> getRiderKpis() => getRiderKpi();
+  Future<KpiHeadManagerModel> getHeadManagerKpis({String? month, String? date}) =>
+      getHeadManagerKpi(month: month, date: date);
+  Future<KpiEmployeeModel> getEmployeeKpis({String? month, String? date}) =>
+      getEmployeeKpi(month: month, date: date);
+  Future<KpiRiderModel> getRiderKpis({String? month, String? date}) =>
+      getRiderKpi(month: month, date: date);
   Future<KpiLenderModel> getLenderKpis() => getLenderKpi();
 }

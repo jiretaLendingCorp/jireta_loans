@@ -14,12 +14,14 @@ class HmDashboardState {
   final bool isLoading;
   final String? error;
   final String selectedMonth; // YYYY-MM
+  final String? selectedDate; // YYYY-MM-DD or null (exact-day filter)
 
   HmDashboardState({
     required this.kpi,
     this.isLoading = false,
     this.error,
     String? selectedMonth,
+    this.selectedDate,
   }) : selectedMonth = selectedMonth ?? _currentMonth();
 
   static String _currentMonth() {
@@ -27,17 +29,23 @@ class HmDashboardState {
     return '${now.year}-${now.month.toString().padLeft(2, '0')}';
   }
 
+  static String formatDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   HmDashboardState copyWith({
     KpiHeadManagerModel? kpi,
     bool? isLoading,
     String? error,
     String? selectedMonth,
+    String? selectedDate,
+    bool clearDate = false,
   }) =>
       HmDashboardState(
         kpi: kpi ?? this.kpi,
         isLoading: isLoading ?? this.isLoading,
         error: error,
         selectedMonth: selectedMonth ?? this.selectedMonth,
+        selectedDate: clearDate ? null : (selectedDate ?? this.selectedDate),
       );
 }
 
@@ -97,23 +105,23 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
     super.dispose();
   }
 
-  Future<void> loadKpis({bool silent = false, String? month}) async {
+  Future<void> loadKpis({bool silent = false, String? month, String? date}) async {
     final m = month ?? state.selectedMonth;
+    final d = date ?? state.selectedDate;
     final seq = ++_loadSeq;
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      // Head manager dashboard is MONTHLY: always pass selectedMonth
-      final kpi = await _ds.getHeadManagerKpis(month: m);
-      // Stale guard: discard only when the result is for a DIFFERENT month
-      // than what's currently selected.  This avoids a livelock where
-      // concurrent realtime/poll calls keep incrementing _loadSeq and
-      // discarding each other's results, leaving isLoading stuck at true.
-      if (seq != _loadSeq && state.selectedMonth != m) return;
-      state = state.copyWith(kpi: kpi, isLoading: false, selectedMonth: m);
+      // Exact-day filter wins over monthly when set.
+      final kpi = await _ds.getHeadManagerKpis(month: m, date: d);
+      if (seq != _loadSeq && (state.selectedMonth != m || state.selectedDate != d)) return;
+      state = state.copyWith(
+          kpi: kpi,
+          isLoading: false,
+          selectedMonth: m,
+          selectedDate: d,
+          clearDate: d == null);
     } catch (e) {
-      if (seq != _loadSeq && state.selectedMonth != m) return;
-      // Always reset loading state so the UI never gets stuck on shimmer.
-      // The silent flag only controls whether we surface the error message.
+      if (seq != _loadSeq && (state.selectedMonth != m || state.selectedDate != d)) return;
       state = state.copyWith(
           isLoading: false,
           error: silent ? state.error : ErrorHandler.handle(e).message);
@@ -121,13 +129,29 @@ class HmDashboardNotifier extends StateNotifier<HmDashboardState>
   }
 
   Future<void> setMonth(String month) async {
-    // Optimistic update so the dropdown reflects the choice immediately,
-    // even before the network responds — prevents perceived "snap back".
-    state = state.copyWith(selectedMonth: month);
-    await loadKpis(month: month);
+    state = state.copyWith(selectedMonth: month, clearDate: true);
+    await loadKpis(month: month, date: null);
   }
 
-  Future<void> refresh() => loadKpis(month: state.selectedMonth);
+  Future<void> setDate(DateTime? date) async {
+    if (date == null) {
+      state = state.copyWith(clearDate: true);
+      await loadKpis(date: null);
+      return;
+    }
+    final formatted = HmDashboardState.formatDate(date);
+    final monthKey = formatted.substring(0, 7);
+    state = state.copyWith(selectedDate: formatted, selectedMonth: monthKey);
+    await loadKpis(month: monthKey, date: formatted);
+  }
+
+  Future<void> clearDate() async {
+    state = state.copyWith(clearDate: true);
+    await loadKpis(date: null);
+  }
+
+  Future<void> refresh() =>
+      loadKpis(month: state.selectedMonth, date: state.selectedDate);
 }
 
 final hmDashboardProvider =

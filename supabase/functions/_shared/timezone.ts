@@ -10,9 +10,13 @@ export function nowManila(): Date {
   return new Date(new Date().toLocaleString('en-US', { timeZone: MANILA_TZ }));
 }
 
-/** Get current Manila time as ISO string (for DB storage) */
+/** Get current time as ISO string (for DB storage).
+ * NOTE: TIMESTAMPTZ columns store a true UTC instant. The Flutter client
+ * converts to Manila (+8) via `parseManila()`, so we must store real UTC
+ * here — NOT Manila wall-time masquerading as UTC (which double-shifts
+ * Accepted At / Completed At by +8h on display). */
 export function nowManilaISO(): string {
-  return nowManila().toISOString();
+  return new Date().toISOString();
 }
 
 /** Convert a UTC ISO string to Manila time as Date */

@@ -88,6 +88,11 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                     ),
                     const SizedBox(height: 14),
                     _Entrance(
+                      delay: 40,
+                      child: _CollectionFilterBar(state: state),
+                    ),
+                    const SizedBox(height: 12),
+                    _Entrance(
                       delay: 80,
                       child: _EnterpriseAmountHero(state: state),
                     ),
@@ -634,6 +639,111 @@ class _EnterpriseHeader extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Monthly + exact-date filter for Total Collected
+// ──────────────────────────────────────────────────────────────
+class _CollectionFilterBar extends ConsumerWidget {
+  final RiderDashboardState state;
+  const _CollectionFilterBar({required this.state});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(riderDashboardProvider.notifier);
+    final hasFilter = state.selectedMonth != null || state.selectedDate != null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.filter_alt_outlined, size: 18, color: AppColors.riderGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: state.selectedMonth,
+                hint: const Text('Monthly — All time',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                isDense: true,
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                items: [
+                  const DropdownMenuItem<String?>(
+                      value: null, child: Text('All time')),
+                  ...RiderDashboardNotifier.availableMonths().map((m) =>
+                      DropdownMenuItem<String?>(
+                          value: m,
+                          child: Text(RiderDashboardNotifier.monthLabel(m)))),
+                ],
+                onChanged: (v) => notifier.setMonth(v),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: () async {
+              final initial = state.selectedDate != null
+                  ? DateTime.tryParse(state.selectedDate!) ?? DateTime.now()
+                  : DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: initial,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now().add(const Duration(days: 1)),
+              );
+              if (picked != null) await notifier.setDate(picked);
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: state.selectedDate != null
+                    ? AppColors.riderGreen
+                    : AppColors.riderGreen.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.event_rounded,
+                      size: 15,
+                      color: state.selectedDate != null
+                          ? Colors.white
+                          : AppColors.riderGreen),
+                  const SizedBox(width: 5),
+                  Text(
+                    state.selectedDate ?? 'Exact date',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: state.selectedDate != null
+                            ? Colors.white
+                            : AppColors.riderGreen),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (hasFilter) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => notifier.clearFilters(),
+              borderRadius: BorderRadius.circular(8),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.close_rounded,
+                    size: 16, color: AppColors.textSecondary),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
 // Enterprise: primary amount hero (full-width, distinct from metrics)
 // ──────────────────────────────────────────────────────────────
 // Vibrant primary — Total Collected (enterprise + vibrant)
@@ -723,11 +833,11 @@ class _EnterpriseAmountHero extends StatelessWidget {
                         color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 11),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'TOTAL COLLECTED',
                           style: TextStyle(
                             fontSize: 10,
@@ -736,10 +846,14 @@ class _EnterpriseAmountHero extends StatelessWidget {
                             color: Colors.white70,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          'All-time field collections',
-                          style: TextStyle(
+                          state.selectedDate != null
+                              ? 'Collections on ${state.selectedDate}'
+                              : (state.selectedMonth != null
+                                  ? 'Monthly collections — ${RiderDashboardNotifier.monthLabel(state.selectedMonth!)}'
+                                  : 'All-time field collections'),
+                          style: const TextStyle(
                               fontSize: 11,
                               color: Colors.white,
                               fontWeight: FontWeight.w600),

@@ -24,7 +24,7 @@ const _lenderNavItems = [
   MobileNavItem(
       icon: Icons.receipt_long_outlined,
       activeIcon: Icons.receipt_long,
-      label: 'History',
+      label: 'Transaction',
       route: RouteConstants.lenderPaymentHistory),
   MobileNavItem(
       icon: Icons.person_outline,

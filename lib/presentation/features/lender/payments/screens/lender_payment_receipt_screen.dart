@@ -1,4 +1,4 @@
-﻿// lib/presentation/features/lender/payments/screens/lender_payment_receipt_screen.dart
+// lib/presentation/features/lender/payments/screens/lender_payment_receipt_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -27,7 +27,7 @@ const _lenderNavItems = [
   MobileNavItem(
       icon: Icons.receipt_long_outlined,
       activeIcon: Icons.receipt_long,
-      label: 'History',
+      label: 'Transaction',
       route: RouteConstants.lenderPaymentHistory),
 
   MobileNavItem(

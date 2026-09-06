@@ -16,6 +16,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
+import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -49,7 +50,7 @@ class _LenderAccountUpgradeSubmitScreenState
     MobileNavItem(
       icon: Icons.receipt_long_outlined,
       activeIcon: Icons.receipt_long,
-      label: 'History',
+      label: 'Transaction',
       route: RouteConstants.lenderPaymentHistory,
     ),
     MobileNavItem(
@@ -695,10 +696,33 @@ class _LenderAccountUpgradeSubmitScreenState
       // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
         if (!mounted) return;
-        // Show "Submitted" toast first, then direct to home.
-        context.showSuccessToast('Submitted');
+        if (mounted) setState(() => _isSubmitting = false);
         if (!mounted) return;
-        context.go(RouteConstants.lenderDashboard);
+        // Success modal, then auto-direct straight to home.
+        // No toast, no splash, no account-upgrade-status screen.
+        var navigated = false;
+        void goHome() {
+          if (navigated || !mounted) return;
+          navigated = true;
+          context.go(RouteConstants.lenderDashboard);
+        }
+
+        // ignore: unawaited_futures
+        SuccessDialog.show(
+          context,
+          title: 'Successfully Submitted',
+          message:
+              'Your account upgrade documents have been submitted successfully.',
+          buttonText: 'Go to Home',
+        ).then((_) => goHome());
+        await Future.delayed(const Duration(seconds: 2));
+        if (!mounted) return;
+        if (Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
+        } else {
+          goHome();
+        }
+        return;
       } else {
         if (!mounted) return;
         final errMsg = ref.read(lenderAccountUpgradeProvider).error ??

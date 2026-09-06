@@ -19,6 +19,7 @@ import '../../../../shared/widgets/status_badge.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
+import 'widgets/lender_promo_carousel.dart';
 import 'widgets/lender_rider_tracking_card.dart';
 
 final lenderAmountObscuredProvider =
@@ -72,7 +73,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     MobileNavItem(
       icon: Icons.receipt_long_outlined,
       activeIcon: Icons.receipt_long,
-      label: 'History',
+      label: 'Transaction',
       route: RouteConstants.lenderPaymentHistory,
     ),
     MobileNavItem(
@@ -125,6 +126,24 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     return null;
   }
 
+  void _handlePromoTap(BuildContext context, int index, LoanModel? activeLoan) {
+    switch (index) {
+      case 1:
+        // Cash on Delivery promo — diretso sa payment kung may active loan.
+        if (activeLoan != null) {
+          context.push(
+            RouteConstants.lenderPaymentMethod,
+            extra: {'loan_id': activeLoan.id},
+          );
+        } else {
+          context.push(RouteConstants.lenderLoans);
+        }
+        break;
+      default:
+        context.push(RouteConstants.lenderLoans);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderDashboardProvider);
@@ -174,6 +193,12 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                           _PendingLoanCard(loan: inReviewLoan)
                         else if (approvedLoan == null)
                           _QuickActions(context: context),
+                        const SizedBox(height: 16),
+                        // Promo carousel — nasa baba ng Apply Now button.
+                        LenderPromoCarousel(
+                          onCtaTap: (index, _) =>
+                              _handlePromoTap(context, index, activeLoan),
+                        ),
                         const SizedBox(height: 20),
                         // Always visible even without an active loan —
                         // taps route to a No Active Loan notice.
@@ -186,6 +211,11 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                           child: _MyLoanCard(loan: activeLoan),
                         ),
                         const SizedBox(height: 6),
+                        LenderPromoCarousel(
+                          onCtaTap: (index, _) =>
+                              _handlePromoTap(context, index, activeLoan),
+                        ),
+                        const SizedBox(height: 20),
                       ] else
                         _MyLoansOverview(kpi: state.kpi),
                       // Loan History renders with or without an active loan —

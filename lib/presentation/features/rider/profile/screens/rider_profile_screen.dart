@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/config/app_config.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/utils/formatters.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -171,13 +170,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     final name = user != null
         ? '${user.firstName} ${user.lastName}'.trim()
         : 'Rider';
-    final phone = (user?.phoneNumber ?? '').toString();
-    final email = (user?.email ?? '').toString();
     final status = _statusStyle(user?.accountStatus);
-    final subtitles = <String>[
-      if (phone.isNotEmpty) AppFormatters.maskPhone(phone),
-      if (email.isNotEmpty) email,
-    ];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
@@ -186,13 +179,14 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
         children: [
           ModernProfileHeader(
             name: name.isEmpty ? 'Rider' : name,
-            subtitles: subtitles,
+            subtitles: const [],
             photoUrl: user?.profilePhotoUrl,
             accent: _accent,
             onAvatarUploaded: _updateAvatar,
             statusLabel: status.label,
             statusColor: status.fg,
             statusBg: status.bg,
+            statusAsText: true,
           ),
           const SizedBox(height: 16),
           ModernPrimaryButton(
@@ -414,17 +408,11 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
         ModernInfoRowData(
             icon: Icons.phone_outlined,
             label: 'Phone',
-            value: phone.isEmpty
-                ? '—'
-                : AppFormatters.maskPhone(phone)),
+            value: phone.isEmpty ? '—' : phone),
         ModernInfoRowData(
             icon: Icons.email_outlined,
             label: 'Email',
             value: email.isEmpty ? '—' : email),
-        ModernInfoRowData(
-            icon: Icons.badge_outlined,
-            label: 'Role',
-            value: _formatLabel(user.role)),
         ModernInfoRowData(
             icon: Icons.calendar_today_outlined,
             label: 'Member since',
@@ -460,10 +448,6 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
             icon: Icons.category_outlined,
             label: 'Vehicle type',
             value: type.isEmpty ? '—' : _formatLabel(type)),
-        ModernInfoRowData(
-            icon: Icons.verified_user_outlined,
-            label: 'Account status',
-            value: _formatLabel(user.accountStatus)),
       ],
     );
   }

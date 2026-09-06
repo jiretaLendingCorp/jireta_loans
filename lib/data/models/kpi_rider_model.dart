@@ -6,6 +6,10 @@ class KpiRiderModel {
   final double totalAmountCollected;
   final int totalCiAssignments;
   final int totalCiCompleted;
+  final String? selectedMonth;
+  final bool isMonthly;
+  final String? selectedDate;
+  final bool isDaily;
 
   const KpiRiderModel({
     this.totalAssignedCollections = 0,
@@ -14,6 +18,10 @@ class KpiRiderModel {
     this.totalAmountCollected = 0,
     this.totalCiAssignments = 0,
     this.totalCiCompleted = 0,
+    this.selectedMonth,
+    this.isMonthly = false,
+    this.selectedDate,
+    this.isDaily = false,
   });
 
   factory KpiRiderModel.fromJson(Map<String, dynamic> json) => KpiRiderModel(
@@ -28,6 +36,13 @@ class KpiRiderModel {
         totalCiAssignments:
             (json['total_ci_assignments'] as num?)?.toInt() ?? 0,
         totalCiCompleted: (json['total_ci_completed'] as num?)?.toInt() ?? 0,
+        selectedMonth: json['selected_month']?.toString(),
+        isMonthly: (json['is_monthly'] == true) ||
+            (json['period'] == 'monthly') ||
+            (json['period'] == 'daily'),
+        selectedDate: json['selected_date']?.toString(),
+        isDaily:
+            (json['is_daily'] == true) || (json['period'] == 'daily'),
       );
 
   static KpiRiderModel empty() => const KpiRiderModel();

@@ -69,7 +69,8 @@ class ModernProfileStyles {
 }
 
 /// Centered header: avatar with subtle ring, name, subtitle lines,
-/// minimal status pill. No serif fonts, no colored name text.
+/// minimal status pill (or plain text when [statusAsText] is true).
+/// No serif fonts, no colored name text.
 class ModernProfileHeader extends StatelessWidget {
   final String name;
   final List<String> subtitles;
@@ -79,6 +80,7 @@ class ModernProfileHeader extends StatelessWidget {
   final String statusLabel;
   final Color statusColor;
   final Color statusBg;
+  final bool statusAsText;
 
   const ModernProfileHeader({
     super.key,
@@ -90,6 +92,7 @@ class ModernProfileHeader extends StatelessWidget {
     required this.statusLabel,
     required this.statusColor,
     required this.statusBg,
+    this.statusAsText = false,
   });
 
   @override
@@ -147,37 +150,49 @@ class ModernProfileHeader extends StatelessWidget {
                 style: ModernProfileStyles.sub),
           ],
           const SizedBox(height: 10),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusBg,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
+          if (statusAsText)
+            Text(
+              statusLabel,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
+                color: statusColor,
+              ),
+            )
+          else
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusBg,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  statusLabel,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.1,
-                    color: statusColor,
+                  const SizedBox(width: 6),
+                  Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.1,
+                      color: statusColor,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
         ],
       ),
     );

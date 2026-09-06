@@ -49,6 +49,8 @@ class KpiHeadManagerModel {
   // Monthly metadata — when isMonthly==true, values above are filtered to selectedMonth
   final String? selectedMonth; // YYYY-MM or null (lifetime)
   final bool isMonthly;
+  final String? selectedDate; // YYYY-MM-DD exact-day filter or null
+  final bool isDaily;
 
   const KpiHeadManagerModel({
     this.totalHeadManagers = 0,
@@ -76,6 +78,8 @@ class KpiHeadManagerModel {
     this.pendingBucket = 0,
     this.selectedMonth,
     this.isMonthly = false,
+    this.selectedDate,
+    this.isDaily = false,
   });
 
   int get totalApproved => totalApprovedLoans;
@@ -132,7 +136,12 @@ class KpiHeadManagerModel {
       loanStatusBreakdown: breakdown,
       pendingBucket: (json['pending_bucket'] as num?)?.toInt() ?? 0,
       selectedMonth: json['selected_month']?.toString(),
-      isMonthly: (json['is_monthly'] == true) || (json['period'] == 'monthly'),
+      isMonthly: (json['is_monthly'] == true) ||
+          (json['period'] == 'monthly') ||
+          (json['period'] == 'daily'),
+      selectedDate: json['selected_date']?.toString(),
+      isDaily:
+          (json['is_daily'] == true) || (json['period'] == 'daily'),
     );
   }
 

@@ -14,12 +14,14 @@ class EmpDashboardState {
   final bool isLoading;
   final String? error;
   final String selectedMonth; // YYYY-MM
+  final String? selectedDate; // YYYY-MM-DD or null
 
   EmpDashboardState({
     required this.kpi,
     this.isLoading = false,
     this.error,
     String? selectedMonth,
+    this.selectedDate,
   }) : selectedMonth = selectedMonth ?? _currentMonth();
 
   static String _currentMonth() {
@@ -27,17 +29,23 @@ class EmpDashboardState {
     return '${now.year}-${now.month.toString().padLeft(2, '0')}';
   }
 
+  static String formatDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   EmpDashboardState copyWith({
     KpiEmployeeModel? kpi,
     bool? isLoading,
     String? error,
     String? selectedMonth,
+    String? selectedDate,
+    bool clearDate = false,
   }) =>
       EmpDashboardState(
         kpi: kpi ?? this.kpi,
         isLoading: isLoading ?? this.isLoading,
         error: error,
         selectedMonth: selectedMonth ?? this.selectedMonth,
+        selectedDate: clearDate ? null : (selectedDate ?? this.selectedDate),
       );
 }
 
@@ -92,17 +100,22 @@ class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
     super.dispose();
   }
 
-  Future<void> loadKpis({bool silent = false, String? month}) async {
+  Future<void> loadKpis({bool silent = false, String? month, String? date}) async {
     final m = month ?? state.selectedMonth;
+    final d = date ?? state.selectedDate;
     final seq = ++_loadSeq;
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      // Employee dashboard is MONTHLY (tulad ng head manager): always pass selectedMonth
-      final kpi = await _ds.getEmployeeKpis(month: m);
-      if (seq != _loadSeq && state.selectedMonth != m) return;
-      state = state.copyWith(kpi: kpi, isLoading: false, selectedMonth: m);
+      final kpi = await _ds.getEmployeeKpis(month: m, date: d);
+      if (seq != _loadSeq && (state.selectedMonth != m || state.selectedDate != d)) return;
+      state = state.copyWith(
+          kpi: kpi,
+          isLoading: false,
+          selectedMonth: m,
+          selectedDate: d,
+          clearDate: d == null);
     } catch (e) {
-      if (seq != _loadSeq && state.selectedMonth != m) return;
+      if (seq != _loadSeq && (state.selectedMonth != m || state.selectedDate != d)) return;
       state = state.copyWith(
           isLoading: false,
           error: silent ? state.error : ErrorHandler.handle(e).message);
@@ -110,13 +123,29 @@ class EmpDashboardNotifier extends StateNotifier<EmpDashboardState>
   }
 
   Future<void> setMonth(String month) async {
-    // Optimistic update so the dropdown reflects the choice immediately,
-    // even before the network responds — prevents perceived "snap back".
-    state = state.copyWith(selectedMonth: month);
-    await loadKpis(month: month);
+    state = state.copyWith(selectedMonth: month, clearDate: true);
+    await loadKpis(month: month, date: null);
   }
 
-  Future<void> refresh() => loadKpis(month: state.selectedMonth);
+  Future<void> setDate(DateTime? date) async {
+    if (date == null) {
+      state = state.copyWith(clearDate: true);
+      await loadKpis(date: null);
+      return;
+    }
+    final formatted = EmpDashboardState.formatDate(date);
+    final monthKey = formatted.substring(0, 7);
+    state = state.copyWith(selectedDate: formatted, selectedMonth: monthKey);
+    await loadKpis(month: monthKey, date: formatted);
+  }
+
+  Future<void> clearDate() async {
+    state = state.copyWith(clearDate: true);
+    await loadKpis(date: null);
+  }
+
+  Future<void> refresh() =>
+      loadKpis(month: state.selectedMonth, date: state.selectedDate);
 }
 
 final empDashboardProvider =

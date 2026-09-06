@@ -65,6 +65,7 @@ async function handleHeadManager(req: Request) {
   const data = await getHeadManagerDashboardStats(db, {
     month: url.searchParams.get('month'),
     period: url.searchParams.get('period'),
+    date: url.searchParams.get('date'),
   });
   return jsonResponse(data);
 }
@@ -82,12 +83,26 @@ async function handleEmployee(req: Request) {
   const empId = authResult.id;
   const url = new URL(req.url);
   const monthParam = url.searchParams.get('month');
+  const dateParam = url.searchParams.get('date');
 
   let isoStart: string | null = null;
   let isoEnd: string | null = null;
   let isMonthly = false;
   let selectedMonth = '';
-  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+  let isDaily = false;
+  let selectedDate = '';
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [yy, mm, dd] = dateParam.split('-').map(Number);
+    const probe = new Date(Date.UTC(yy, mm - 1, dd));
+    if (probe.getUTCFullYear() === yy && probe.getUTCMonth() === mm - 1 && probe.getUTCDate() === dd) {
+      isoStart = new Date(Date.UTC(yy, mm - 1, dd, 0, 0, 0)).toISOString();
+      isoEnd = new Date(Date.UTC(yy, mm - 1, dd + 1, 0, 0, 0)).toISOString();
+      isMonthly = true;
+      isDaily = true;
+      selectedDate = dateParam;
+      selectedMonth = `${yy}-${String(mm).padStart(2, '0')}`;
+    }
+  } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
     const [yy, mm] = monthParam.split('-').map(Number);
     if (mm >= 1 && mm <= 12) {
       isoStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0)).toISOString();
@@ -137,11 +152,15 @@ async function handleEmployee(req: Request) {
     total_collections_managed: totalCollections ?? 0,
     selected_month: isMonthly ? selectedMonth : null,
     is_monthly: isMonthly,
-    period: isMonthly ? 'monthly' : 'lifetime',
+    period: isDaily ? 'daily' : (isMonthly ? 'monthly' : 'lifetime'),
+    selected_date: isDaily ? selectedDate : null,
+    is_daily: isDaily,
   });
 }
 
 // ── [moved from functions/kpi-rider/index.ts] ───────────────────────────────
+// MONTHLY/DAILY: ?month=YYYY-MM filters to that month, ?date=YYYY-MM-DD to
+// that exact day (date wins). No param = lifetime (legacy).
 async function handleRider(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
@@ -150,6 +169,41 @@ async function handleRider(req: Request) {
 
   const db = getAdminClient();
   const riderId = authResult.id;
+  const url = new URL(req.url);
+  const monthParam = url.searchParams.get('month');
+  const dateParam = url.searchParams.get('date');
+
+  let isoStart: string | null = null;
+  let isoEnd: string | null = null;
+  let isMonthly = false;
+  let selectedMonth = '';
+  let isDaily = false;
+  let selectedDate = '';
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [yy, mm, dd] = dateParam.split('-').map(Number);
+    const probe = new Date(Date.UTC(yy, mm - 1, dd));
+    if (probe.getUTCFullYear() === yy && probe.getUTCMonth() === mm - 1 && probe.getUTCDate() === dd) {
+      isoStart = new Date(Date.UTC(yy, mm - 1, dd, 0, 0, 0)).toISOString();
+      isoEnd = new Date(Date.UTC(yy, mm - 1, dd + 1, 0, 0, 0)).toISOString();
+      isMonthly = true;
+      isDaily = true;
+      selectedDate = dateParam;
+      selectedMonth = `${yy}-${String(mm).padStart(2, '0')}`;
+    }
+  } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    const [yy, mm] = monthParam.split('-').map(Number);
+    if (mm >= 1 && mm <= 12) {
+      isoStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0)).toISOString();
+      isoEnd = new Date(Date.UTC(yy, mm, 1, 0, 0, 0)).toISOString();
+      isMonthly = true;
+      selectedMonth = monthParam;
+    }
+  }
+
+  const applyRange = (q: any, col = 'created_at') => {
+    if (isMonthly && isoStart && isoEnd) q = q.gte(col, isoStart).lt(col, isoEnd);
+    return q;
+  };
 
   const [
     { count: totalAssigned },
@@ -158,26 +212,30 @@ async function handleRider(req: Request) {
     { count: totalCiAssigned },
     { count: totalCiCompleted },
   ] = await Promise.all([
-    db.from('collection_assignments').select('*', { count: 'exact', head: true })
-      .eq('rider_id', riderId),
-    db.from('collection_assignments').select('*', { count: 'exact', head: true })
-      .eq('rider_id', riderId).eq('status', 'completed'),
-    db.from('collection_assignments').select('*', { count: 'exact', head: true })
-      .eq('rider_id', riderId).eq('status', 'failed'),
-    db.from('credit_investigations').select('*', { count: 'exact', head: true })
-      .eq('rider_id', riderId),
-    db.from('credit_investigations').select('*', { count: 'exact', head: true })
-      .eq('rider_id', riderId).eq('status', 'completed'),
+    applyRange(db.from('collection_assignments').select('*', { count: 'exact', head: true })
+      .eq('rider_id', riderId), 'created_at'),
+    applyRange(db.from('collection_assignments').select('*', { count: 'exact', head: true })
+      .eq('rider_id', riderId).eq('status', 'completed'), 'completed_at'),
+    applyRange(db.from('collection_assignments').select('*', { count: 'exact', head: true })
+      .eq('rider_id', riderId).eq('status', 'failed'), 'created_at'),
+    applyRange(db.from('credit_investigations').select('*', { count: 'exact', head: true })
+      .eq('rider_id', riderId), 'created_at'),
+    applyRange(db.from('credit_investigations').select('*', { count: 'exact', head: true })
+      .eq('rider_id', riderId).eq('status', 'completed'), 'completed_at'),
   ]);
 
-  const { data: paymentData } = await db
+  let paymentsQuery: any = db
     .from('payments')
-    .select('amount')
+    .select('amount, paid_at')
     .eq('recorded_by', riderId)
     .eq('status', 'verified');
+  if (isMonthly && isoStart && isoEnd) {
+    paymentsQuery = paymentsQuery.gte('paid_at', isoStart).lt('paid_at', isoEnd);
+  }
+  const { data: paymentData } = await paymentsQuery;
 
   const totalCollected = (paymentData ?? []).reduce(
-    (sum: number, p) => sum + Number(p.amount), 0
+    (sum: number, p: any) => sum + Number(p.amount), 0
   );
 
   return jsonResponse({
@@ -187,6 +245,11 @@ async function handleRider(req: Request) {
     total_amount_collected: totalCollected,
     total_ci_assignments: totalCiAssigned ?? 0,
     total_ci_completed: totalCiCompleted ?? 0,
+    selected_month: isMonthly ? selectedMonth : null,
+    is_monthly: isMonthly,
+    period: isDaily ? 'daily' : (isMonthly ? 'monthly' : 'lifetime'),
+    selected_date: isDaily ? selectedDate : null,
+    is_daily: isDaily,
   });
 }
 

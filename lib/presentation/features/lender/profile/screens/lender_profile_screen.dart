@@ -41,7 +41,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     MobileNavItem(
       icon: Icons.receipt_long_outlined,
       activeIcon: Icons.receipt_long,
-      label: 'History',
+      label: 'Transaction',
       route: RouteConstants.lenderPaymentHistory,
     ),
     MobileNavItem(
