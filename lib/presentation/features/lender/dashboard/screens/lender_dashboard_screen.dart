@@ -315,7 +315,6 @@ class _WelcomeBannerState extends ConsumerState<_WelcomeBanner> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

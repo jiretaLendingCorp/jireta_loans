@@ -45,7 +45,7 @@ const defaultLenderPromos = <LenderPromoItem>[
     badge: 'Doorstep Service',
     title: 'Cash on Delivery',
     subtitle: 'Funds delivered by rider',
-    ctaLabel: 'Book a Rider',
+    ctaLabel: 'Cash on Delivery',
     gradient: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
     icon: Icons.delivery_dining_rounded,
   ),

@@ -682,17 +682,17 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   }
 
   Widget _buildEmpty() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.delivery_dining_outlined,
             size: 64,
             color: AppColors.textTertiary,
           ),
-          const SizedBox(height: 16),
-          const Text(
+          SizedBox(height: 16),
+          Text(
             'No collections found',
             style: TextStyle(
               color: AppColors.textSecondary,

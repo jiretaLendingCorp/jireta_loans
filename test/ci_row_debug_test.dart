@@ -46,8 +46,8 @@ void main() {
     for (final raw in cases) {
       final ci = CreditInvestigationModel.fromJson(raw);
       expect(ci.id, isNotEmpty);
-      final status = (ci.status ?? 'pending').toString().toLowerCase();
-      final isLatest = (ci.isLatest ?? true) as bool;
+      final status = ci.status.toLowerCase();
+      final isLatest = ci.isLatest;
       final isSuperseded = !isLatest &&
           (status == 'failed' ||
               status == 'expired' ||

@@ -392,10 +392,10 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                       crossAxisAlignment: CrossAxisAlignment.stretch,
                                       children: [
                                         // Title
-                                        Column(
+                                        const Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            const Text(
+                                            Text(
                                               'Verify code',
                                               style: TextStyle(
                                                 fontFamily: 'PlayfairDisplay',
@@ -405,7 +405,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                                 height: 1.1,
                                               ),
                                             ),
-                                            const SizedBox(height: 2),
+                                            SizedBox(height: 2),
                                           ],
                                         ),
                                         const SizedBox(height: 16),
@@ -589,10 +589,10 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                         const SizedBox(height: 14),
 
                                         // Divider with label
-                                        Row(
+                                        const Row(
                                           children: [
-                                            const Expanded(child: Divider(color: Color(0xFFE8E8EE), thickness: 1)),
-                                            const Padding(
+                                            Expanded(child: Divider(color: Color(0xFFE8E8EE), thickness: 1)),
+                                            Padding(
                                               padding: EdgeInsets.symmetric(horizontal: 10),
                                               child: Text(
                                                 'Having trouble?',
@@ -604,7 +604,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                                 ),
                                               ),
                                             ),
-                                            const Expanded(child: Divider(color: Color(0xFFE8E8EE), thickness: 1)),
+                                            Expanded(child: Divider(color: Color(0xFFE8E8EE), thickness: 1)),
                                           ],
                                         ),
                                         const SizedBox(height: 14),

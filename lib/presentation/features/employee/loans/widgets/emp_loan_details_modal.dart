@@ -172,8 +172,9 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
             rawStatus == 'approved')
         ? 'rider_delivery_assigned'
         : rawStatus;
-    final canAssignDeliveryRider =
-        rawStatus == 'approved' && loan['disbursement_method'] == 'rider_delivery';
+    final canAssignDeliveryRider = rawStatus == 'approved' &&
+        loan['rider_delivery_assigned'] != true &&
+        loan['disbursement_method'] == 'rider_delivery';
     final fmt = NumberFormat('#,##0.00', 'en_PH');
 
     return SingleChildScrollView(
@@ -430,10 +431,6 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
       context: context,
       builder: (_) => RiderDisburseAssignModal(
         loanId: loan['id'] as String,
-        loanAmount: (loan['principal_amount'] as num?)?.toDouble() ?? 0,
-        lenderName:
-            '${loan['lender']?['first_name'] ?? ''} ${loan['lender']?['last_name'] ?? ''}'
-                .trim(),
       ),
     );
     if (assigned == true && mounted) {

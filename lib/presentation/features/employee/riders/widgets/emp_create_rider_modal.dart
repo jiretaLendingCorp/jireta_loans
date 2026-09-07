@@ -108,7 +108,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: SizedBox(
         width: 500,
         child: Column(

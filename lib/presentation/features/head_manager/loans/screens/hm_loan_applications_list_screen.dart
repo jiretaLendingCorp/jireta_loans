@@ -964,9 +964,6 @@ class _HmLoanApplicationsListScreenState
       context: context,
       builder: (_) => RiderDisburseAssignModal(
         loanId: loan.id,
-        loanAmount: loan.principalAmount,
-        lenderName: loan.lenderName ?? 'Lender',
-        lenderAddress: loan.formattedLenderAddress,
       ),
     );
     if (assigned == true && mounted) {
@@ -1218,8 +1215,9 @@ class _RowActions extends StatelessWidget {
       'ci_assigned',
       'ci_completed'
     ].contains(status);
-    final canAssignDeliveryRider =
-        status == 'approved' && loan.disbursementMethod == 'rider_delivery';
+    final canAssignDeliveryRider = status == 'approved' &&
+        !loan.riderDeliveryAssigned &&
+        loan.disbursementMethod == 'rider_delivery';
     final canReject = [
       'pending',
       'under_review',

@@ -116,8 +116,9 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
             rawStatus == 'approved')
         ? 'rider_delivery_assigned'
         : rawStatus;
-    final canAssignDeliveryRider =
-        rawStatus == 'approved' && loan['disbursement_method'] == 'rider_delivery';
+    final canAssignDeliveryRider = rawStatus == 'approved' &&
+        loan['rider_delivery_assigned'] != true &&
+        loan['disbursement_method'] == 'rider_delivery';
     final fmt = NumberFormat('#,##0.00', 'en_PH');
 
     return SingleChildScrollView(
@@ -246,10 +247,6 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
       context: context,
       builder: (_) => RiderDisburseAssignModal(
         loanId: data['id'] as String,
-        loanAmount: (data['principal_amount'] as num?)?.toDouble() ?? 0,
-        lenderName:
-            '${data['lender']?['first_name'] ?? ''} ${data['lender']?['last_name'] ?? ''}'
-                .trim(),
       ),
     );
     if (assigned == true && context.mounted) {

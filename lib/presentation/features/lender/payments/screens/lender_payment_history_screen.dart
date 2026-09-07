@@ -6,7 +6,6 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
@@ -112,11 +111,7 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
                       ))
                     : filtered.isEmpty
                         ? state.payments.isEmpty
-                            ? const EmptyStateWidget(
-                                icon: Icons.receipt_long_outlined,
-                                title: 'No Payment History',
-                                subtitle: 'Your payment transactions will appear here once you start making payments. Tap Pay on your active loan to start.',
-                              )
+                            ? const _NoTransactionsState()
                             : _EmptyFiltered(onClear: () {
                                 _searchCtrl.clear();
                                 notifier.setSearch('');
@@ -170,8 +165,6 @@ class _FilterBar extends StatelessWidget {
               _Pill(label: 'Office', selected: state.methodFilter == 'office_cash', onTap: () => onMethod('office_cash')),
               const SizedBox(width: 6),
               _Pill(label: 'Cash on Delivery', selected: state.methodFilter == 'rider_collection', onTap: () => onMethod('rider_collection')),
-              const SizedBox(width: 6),
-              _Pill(label: 'GCash', selected: state.methodFilter == 'gcash', onTap: () => onMethod('gcash')),
             ]),
           ),
         ],
@@ -201,6 +194,97 @@ class _Pill extends StatelessWidget {
           border: Border.all(color: selected ? c : AppColors.border),
         ),
         child: Text(label, style: TextStyle(fontSize: 11, fontWeight: selected ? FontWeight.w700 : FontWeight.w600, color: selected ? Colors.white : AppColors.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _NoTransactionsState extends StatelessWidget {
+  const _NoTransactionsState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Premium circular badge
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.lenderBlue.withValues(alpha: 0.35),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.receipt_long_outlined,
+                color: Colors.white,
+                size: 42,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No Transaction History',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Your payment transactions will appear here once you start paying on an active loan.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: AppColors.textSecondary.withValues(alpha: 0.9),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Material(
+              color: AppColors.lenderBlue,
+              borderRadius: BorderRadius.circular(99),
+              child: InkWell(
+                onTap: () => context.push(RouteConstants.lenderPayments),
+                borderRadius: BorderRadius.circular(99),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_month_outlined,
+                          color: Colors.white, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'View Payment Schedule',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

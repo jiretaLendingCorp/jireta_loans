@@ -34,7 +34,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
 
   @override
   Widget build(BuildContext context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         child: Container(
           width: 580,
           padding: const EdgeInsets.all(28),
@@ -71,7 +71,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                     Container(
                       margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: AppColors.errorLight,
                         borderRadius: BorderRadius.zero,
                       ),
@@ -211,7 +211,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
         counterText: '',
-        border: OutlineInputBorder(borderRadius: BorderRadius.zero),
+        border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       );

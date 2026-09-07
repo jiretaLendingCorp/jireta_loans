@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
@@ -613,16 +612,16 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                   const BoxConstraints(
                                                       minWidth: 0,
                                                       minHeight: 0),
-                                              enabledBorder: OutlineInputBorder(
+                                              enabledBorder: const OutlineInputBorder(
                                                 borderRadius:
                                                     BorderRadius.zero,
-                                                borderSide: const BorderSide(
+                                                borderSide: BorderSide(
                                                     color: Color(0xFFE8E8EE)),
                                               ),
-                                              focusedBorder: OutlineInputBorder(
+                                              focusedBorder: const OutlineInputBorder(
                                                 borderRadius:
                                                     BorderRadius.zero,
-                                                borderSide: const BorderSide(
+                                                borderSide: BorderSide(
                                                     color: AppColors.deepNavy,
                                                     width: 1.5),
                                               ),
@@ -761,7 +760,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                               alpha: 0.6),
                                                   foregroundColor: Colors.white,
                                                   elevation: 0,
-                                                  shape: RoundedRectangleBorder(
+                                                  shape: const RoundedRectangleBorder(
                                                     borderRadius:
                                                         BorderRadius.zero,
                                                   ),
@@ -835,14 +834,14 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                           const SizedBox(height: 18),
 
                                           // Divider
-                                          Row(
+                                          const Row(
                                             children: [
-                                              const Expanded(
+                                              Expanded(
                                                   child: Divider(
                                                       color:
                                                           Color(0xFFE8E8EE),
                                                       thickness: 1)),
-                                              const Padding(
+                                              Padding(
                                                 padding: EdgeInsets.symmetric(
                                                     horizontal: 12),
                                                 child: Text(
@@ -856,7 +855,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                   ),
                                                 ),
                                               ),
-                                              const Expanded(
+                                              Expanded(
                                                   child: Divider(
                                                       color:
                                                           Color(0xFFE8E8EE),
@@ -1067,7 +1066,7 @@ class _LogoutSuccessModalState extends State<_LogoutSuccessModal> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: SuccessDialog(
         title: 'Successfully Logged Out',
         message: 'You have been logged out successfully.',
@@ -1188,9 +1187,9 @@ class _InfoPage extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
       color: Colors.white,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.zero,
-        side: const BorderSide(color: Color(0xFFE8E8EE)),
+        side: BorderSide(color: Color(0xFFE8E8EE)),
       ),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(

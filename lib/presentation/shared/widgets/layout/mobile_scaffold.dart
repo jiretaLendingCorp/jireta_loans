@@ -536,7 +536,7 @@ void _showLenderContactSheet(BuildContext context) {
               },
             ),
             const SizedBox(height: 12),
-            _ContactSheetRow(
+            const _ContactSheetRow(
               icon: Icons.access_time_rounded,
               title: 'Office Hours',
               subtitle: 'Mon - Fri, 8:00 AM - 5:00 PM',

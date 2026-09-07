@@ -1,6 +1,5 @@
 // lib/presentation/features/lender/account_upgrade/screens/valid_id_scanner_screen.dart
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';

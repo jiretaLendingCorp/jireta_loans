@@ -81,11 +81,11 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
           child: Column(
             children: [
               // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 32, 20, 16),
                 child: Column(
                   children: [
-                    const Text(
+                    Text(
                       'Terms & Conditions',
                       style: TextStyle(
                         fontFamily: 'PlayfairDisplay',

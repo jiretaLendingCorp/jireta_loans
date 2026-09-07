@@ -66,20 +66,21 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
     ref.read(lenderPaymentProvider.notifier).loadPayments();
   }
 
-  /// The lender's relevant loan for the schedule: the active one, or the
-  /// approved loan that is awaiting fund release.
-  LoanModel? _pickLoan(LenderLoanState state) {
-    if (state.activeLoan != null) return state.activeLoan;
-    for (final l in state.loans) {
-      if (l.status == 'approved') return l;
-    }
-    return null;
-  }
+  /// The lender's relevant loan for the schedule. ONLY a disbursed loan
+  /// (active/overdue) has a payment schedule — an approved-but-not-yet-
+  /// released loan must still show "No active loan found" until the funds
+  /// are actually handed out.
+  LoanModel? _pickLoan(LenderLoanState state) => state.activeLoan;
+
 
   @override
   Widget build(BuildContext context) {
     final loanState = ref.watch(lenderLoanProvider);
-    final loan = loanState.selectedLoan;
+    // ONLY a disbursed (active/overdue) loan may show a schedule. Never fall
+    // back to a stale selectedLoan from an approved/not-yet-released loan.
+    final hasActiveLoan = loanState.activeLoan != null;
+    final loan =
+        hasActiveLoan ? (loanState.selectedLoan ?? loanState.activeLoan) : null;
     final schedules = (loan?.schedules ?? const [])
         .map((e) => LoanScheduleModel.fromJson(Map<String, dynamic>.from(e)))
         .toList();
@@ -127,28 +128,92 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
           ? const _PaymentScheduleSkeleton()
           : loan == null
               ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.account_balance_outlined,
-                            size: 64,
-                            color:
-                                AppColors.textTertiary.withValues(alpha: 0.5)),
-                        const SizedBox(height: 16),
-                        const Text('No active loan found',
-                            style: TextStyle(
-                                color: AppColors.textSecondary, fontSize: 15)),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'You can apply for a loan from the My Loan tab once your account is verified.',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Premium circular badge
+                      Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [
+                              AppColors.lenderBlue,
+                              AppColors.lenderBlueLight
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.lenderBlue
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: Colors.white,
+                          size: 42,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'No Active Loan Yet',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 36),
+                        child: Text(
+                          'Your payment schedule will appear here once your loan is released and active.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              color: AppColors.textTertiary, fontSize: 12),
+                            fontSize: 13,
+                            height: 1.5,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 24),
+                      Material(
+                        color: AppColors.lenderBlue,
+                        borderRadius: BorderRadius.circular(99),
+                        child: InkWell(
+                          onTap: () =>
+                              context.push(RouteConstants.lenderLoans),
+                          borderRadius: BorderRadius.circular(99),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 22, vertical: 12),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add_rounded,
+                                    color: Colors.white, size: 16),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Apply for a Loan',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 )
               : Column(

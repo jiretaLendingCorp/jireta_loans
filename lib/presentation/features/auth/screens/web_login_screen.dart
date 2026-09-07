@@ -386,7 +386,7 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
             ),
             const SizedBox(height: 30),
             // ── Email ──
-            _FieldLabel('Email Address'),
+            const _FieldLabel('Email Address'),
             const SizedBox(height: 8),
             MouseRegion(
               onEnter: (_) => setState(() => _emailHovered = true),
@@ -447,7 +447,7 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
             ),
             const SizedBox(height: 18),
             // ── Password ──
-            _FieldLabel('Password'),
+            const _FieldLabel('Password'),
             const SizedBox(height: 8),
             MouseRegion(
               onEnter: (_) => setState(() => _passHovered = true),
