@@ -125,6 +125,7 @@ class ApiEndpoints {
   static const String inOfficeSubmit = 'in-office-view?fn=submit';
   static const String inOfficeSubmitAccount = 'in-office-view?fn=submit-account';
   static const String inOfficeGetList = 'in-office-view?fn=get-list';
+  static const String inOfficeGetDetails = 'in-office-view?fn=get-details';
 
   // KPIs
   static const String kpiHeadManager = 'kpi-view?fn=head-manager';

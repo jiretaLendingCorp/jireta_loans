@@ -72,6 +72,18 @@ class InOfficeRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  /// Full wizard detail: every saved step + the linked loan and its
+  /// co-makers (used by View mode / continue editing in the wizard).
+  Future<Map<String, dynamic>> getDetails({
+    required String applicationId,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.inOfficeGetDetails,
+      queryParams: {'application_id': applicationId},
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<List<Map<String, dynamic>>> getApplicationList({
     String? status,
     int page = 1,

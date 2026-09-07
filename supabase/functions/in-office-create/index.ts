@@ -238,7 +238,10 @@ async function saveStep2(applicationId: string, data: Record<string, unknown>) {
         zip_code: a.zip_code ?? null,
         latitude: a.latitude ?? null,
         longitude: a.longitude ?? null,
-        is_primary: a.is_primary ?? false,
+        // The walk-in home address is the lender's primary address — without
+        // is_primary=true the KYC details / profile address lookups (which
+        // filter is_primary) would return nothing.
+        is_primary: a.is_primary ?? (a.address_type === 'home'),
       }))
     );
     if (insAddrErr) { console.error('saveStep2 insert addresses failed', { applicationId, insAddrErr }); throw insAddrErr; }

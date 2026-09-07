@@ -1105,12 +1105,13 @@ class _EmpInOfficeActions extends ConsumerWidget {
         _ActionIcon(
           icon: Icons.visibility_outlined,
           color: AppColors.deepNavy,
-          tooltip: 'Continue application',
+          tooltip: 'View application',
           onTap: () => showDialog(
             context: context,
             barrierDismissible: false,
             builder: (_) => InOfficeWizard(
               applicationId: appId.isEmpty ? null : appId,
+              viewOnly: true,
               onComplete: () =>
                   ref.read(empInOfficeProvider.notifier).loadList(),
             ),

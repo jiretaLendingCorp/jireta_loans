@@ -70,6 +70,11 @@ serve(async (req) => {
       case 'get-list':
         // ── [moved from functions/in-office-get-list/index.ts] ─────────
         return await handleGetList(req);
+      case 'get-details':
+        // ── Full wizard data (steps 1-5 + linked loan + co-makers) so the
+        //    app can render View mode / continue editing with prefilled
+        //    values instead of a blank wizard. ────────────────────────────
+        return await handleGetDetails(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -205,7 +210,9 @@ async function handleSubmit(req: Request) {
         last_name: s1.last_name,
         suffix: (s1 as any).suffix ?? null,
         account_status: 'active',
-        force_password_change: true,
+        // Business rule: no temporary password / forced password change for
+        // lender accounts — the walk-in password is the account password.
+        force_password_change: false,
         created_by: authResult.id,
       }, { onConflict: 'id' }).select().single();
 
@@ -218,14 +225,21 @@ async function handleSubmit(req: Request) {
       // fields are stored here. Status is 'verified' right away: staff
       // collected + checked the documents in person at Step 3 (auto-verify),
       // so the lender can log in and self-apply without a KYC review queue.
-      await db.from('lender_profiles').insert({
+      // Upsert (not plain insert): a lender_profiles row may already exist
+      // (role change / earlier partial run); a plain insert would fail on the
+      // PK and silently leave the account upgrade at 'not_submitted'.
+      const { error: profileErr } = await db.from('lender_profiles').upsert({
         id: lenderId,
         gender: s1.gender,
         civil_status: s1.civil_status,
         date_of_birth: s1.date_of_birth,
         gcash_number: s1.gcash_number,
         account_upgrade_status: 'verified',
-      });
+      }, { onConflict: 'id' });
+      if (profileErr) {
+        console.error('in-office-view submit: lender_profiles upsert failed', { application_id, lenderId, profileErr });
+        return errorResponse('Failed to create lender profile', 500, 'DB_ERROR');
+      }
     }
 
     // Always ensure addresses/emergency are materialized for the lender on pause path (so KYC profile is prefilled)
@@ -234,7 +248,25 @@ async function handleSubmit(req: Request) {
 
     // Check current account_upgrade_status to decide pause vs immediate loan
     const { data: curProfile } = await db.from('lender_profiles').select('account_upgrade_status').eq('id', lenderId).maybeSingle();
-    const isVerified = curProfile?.account_upgrade_status === 'verified';
+    let isVerified = curProfile?.account_upgrade_status === 'verified';
+
+    if (!isVerified) {
+      // Walk-in = staff-assisted: the borrower was verified face-to-face at
+      // Step 3 (Documents), so the linked account upgrade is AUTO-VERIFIED
+      // here. This also repairs legacy walk-in accounts created before the
+      // auto-verify change (they were stuck at 'not_submitted').
+      const { error: verifyErr } = await db.from('lender_profiles')
+        .update({
+          account_upgrade_status: 'verified',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', lenderId);
+      if (verifyErr) {
+        console.error('in-office-view submit: auto-verify lender failed', { application_id, lenderId, verifyErr });
+        return errorResponse('Failed to verify lender account', 500, 'DB_ERROR');
+      }
+      isVerified = true;
+    }
 
     if (!isVerified) {
       // ── PAUSE PATH (LEGACY): pre-existing walk-in account still unverified
@@ -254,6 +286,7 @@ async function handleSubmit(req: Request) {
             zip_code: a.zip_code,
             latitude: a.latitude,
             longitude: a.longitude,
+            is_primary: a.address_type === 'home',
           }));
           await db.from('addresses').insert(addressRows);
         }
@@ -320,6 +353,7 @@ async function handleSubmit(req: Request) {
         zip_code: a.zip_code,
         latitude: a.latitude,
         longitude: a.longitude,
+        is_primary: a.address_type === 'home',
       }));
       // For verified repeat, insert only if lender has no addresses yet (avoid duplicates on retry)
       const { count: addrCount } = await db.from('addresses').select('*', { count: 'exact', head: true }).eq('user_id', lenderId);
@@ -495,6 +529,7 @@ async function handleSubmit(req: Request) {
 // ─────────────────────────────────────────────────────────────────────────────
 const STEP3_REQUIRED_DOCS = new Set([
   'valid_id',
+  'valid_id_back',
   'selfie',
   'mayors_permit',
   'birth_certificate',
@@ -593,7 +628,9 @@ async function handleSubmitAccount(req: Request) {
         last_name: s1.last_name,
         suffix: (s1 as any).suffix ?? null,
         account_status: 'active',
-        force_password_change: true,
+        // Business rule: no temporary password / forced password change for
+        // lender accounts — the walk-in password is the account password.
+        force_password_change: false,
         created_by: authResult.id,
       }, { onConflict: 'id' }).select().single();
 
@@ -602,19 +639,33 @@ async function handleSubmitAccount(req: Request) {
       isNewLender = true;
 
       // Auto-verified: staff collected + checked the documents in person.
-      await db.from('lender_profiles').insert({
+      // Upsert (not plain insert): a lender_profiles row may already exist
+      // from an earlier partial run / role change; a plain insert would fail
+      // on the PK and silently leave the account upgrade at 'not_submitted'.
+      const { error: profileErr } = await db.from('lender_profiles').upsert({
         id: lenderId,
         gender: s1.gender,
         civil_status: s1.civil_status,
         date_of_birth: s1.date_of_birth,
         gcash_number: s1.gcash_number,
         account_upgrade_status: 'verified',
-      });
+      }, { onConflict: 'id' });
+      if (profileErr) {
+        console.error('in-office-view submit-account: lender_profiles upsert failed', { application_id, lenderId, profileErr });
+        return errorResponse('Failed to create lender profile', 500, 'DB_ERROR');
+      }
     } else {
       // Idempotent retry: ensure the linked account is verified.
-      await db.from('lender_profiles')
-        .update({ account_upgrade_status: 'verified' })
+      const { error: updateErr } = await db.from('lender_profiles')
+        .update({
+          account_upgrade_status: 'verified',
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', lenderId);
+      if (updateErr) {
+        console.error('in-office-view submit-account: re-verify failed', { application_id, lenderId, updateErr });
+        return errorResponse('Failed to verify lender account', 500, 'DB_ERROR');
+      }
     }
 
     // Materialize the walk-in address onto the lender (once).
@@ -633,6 +684,7 @@ async function handleSubmitAccount(req: Request) {
             zip_code: a.zip_code,
             latitude: a.latitude,
             longitude: a.longitude,
+            is_primary: a.address_type === 'home',
           })),
         );
       }
@@ -655,8 +707,7 @@ async function handleSubmitAccount(req: Request) {
 
     await sendPushNotification({
       userId: lenderId,
-      title: 'Your Account Is Verified',
-      body: `Hello! Your account was created and verified through our walk-in application. Log in with your phone number (default password: 12345678) — you will be asked to change it — then apply for your loan in the app.`,
+      title: 'Your Account Is Verified',        body: `Hello! Your account was created and verified through our walk-in application. Log in with your phone number (password: 12345678), then apply for your loan in the app.`,
       type: 'account_upgrade_update',
       referenceId: application_id,
     });
@@ -747,5 +798,117 @@ async function handleGetList(req: Request) {
       total: count ?? 0,
       total_pages: Math.ceil((count ?? 0) / limit),
     },
+  });
+}
+
+// ── Full wizard detail (View mode / continue editing) ───────────────────────
+// Returns every saved wizard step PLUS the linked loan and its co-makers, so
+// the app can:
+//   • View mode: render steps 1-3 read-only with the exact values entered.
+//   • Steps 4-5: prefill from the lender's own submitted loan + co-maker(s)
+//     when the lender already applied (loans.in_office_application_id).
+//   • Continue editing: restore the exact field values into the form.
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleGetDetails(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
+  if (roleCheck) return roleCheck;
+
+  const url = new URL(req.url);
+  const application_id = url.searchParams.get('application_id');
+  if (!application_id) {
+    return errorResponse('application_id is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+
+  const { data: app, error: appErr } = await db
+    .from('in_office_applications')
+    .select('id, created_by, status, wizard_step, lender_id, borrower_signature, created_at, submitted_at, updated_at')
+    .eq('id', application_id)
+    .single();
+
+  if (appErr || !app) return errorResponse('Application not found', 404, 'NOT_FOUND');
+  if (authResult.role === ROLES.EMPLOYEE && app.created_by !== authResult.id) {
+    return errorResponse('Access denied', 403, 'FORBIDDEN');
+  }
+
+  const [
+    personal,
+    addresses,
+    documents,
+    loanDetails,
+    coMakerRows,
+    loanRes,
+  ] = await Promise.all([
+    db.from('application_personal_info').select('*').eq('application_id', application_id).maybeSingle(),
+    db.from('application_addresses').select('*').eq('application_id', application_id).order('address_type'),
+    db.from('application_documents').select('*').eq('application_id', application_id),
+    db.from('application_loan_details').select('*').eq('application_id', application_id).maybeSingle(),
+    db.from('application_co_makers').select('*').eq('application_id', application_id),
+    db.from('loans')
+      .select(`
+        id, loan_number, principal_amount, interest_rate, payment_frequency,
+        term_days, term_periods, installment_amount, purpose, status, created_at,
+        loan_co_makers:loan_co_makers!loan_co_makers_loan_id_fkey(
+          relationship,
+          co_makers!loan_co_makers_co_maker_id_fkey(
+            first_name, last_name, phone_number, date_of_birth, address
+          )
+        )
+      `)
+      .eq('in_office_application_id', application_id)
+      .maybeSingle(),
+  ]);
+
+  const loan = loanRes.data;
+  const loanCoMakers = Array.isArray((loan as any)?.loan_co_makers)
+    ? (loan as any).loan_co_makers.map((lm: any) => ({
+        first_name: lm?.co_makers?.first_name ?? null,
+        last_name: lm?.co_makers?.last_name ?? null,
+        relationship: lm?.relationship ?? null,
+        phone_number: lm?.co_makers?.phone_number ?? null,
+        address: lm?.co_makers?.address ?? null,
+      }))
+    : [];
+  if (loan) delete (loan as any).loan_co_makers;
+
+  // Account upgrade status of the linked lender (may be null before the
+  // account exists) so the app can surface "Account verified" in View mode.
+  let accountUpgradeStatus: string | null = null;
+  if (app.lender_id) {
+    const { data: profile } = await db
+      .from('lender_profiles')
+      .select('account_upgrade_status')
+      .eq('id', app.lender_id)
+      .maybeSingle();
+    accountUpgradeStatus = profile?.account_upgrade_status ?? null;
+  }
+
+  const pi = personal.data;
+  const lenderName = pi
+    ? [pi.first_name, pi.middle_name, pi.last_name, pi.suffix]
+        .filter((p) => p && String(p).trim() !== '')
+        .join(' ')
+    : null;
+
+  return jsonResponse({
+    application_id: app.id,
+    status: app.status,
+    wizard_step: app.wizard_step,
+    created_at: app.created_at,
+    submitted_at: app.submitted_at,
+    updated_at: app.updated_at,
+    lender_id: app.lender_id ?? null,
+    lender_name: lenderName,
+    borrower_signature: app.borrower_signature ?? null,
+    account_upgrade_status: accountUpgradeStatus,
+    personal_info: pi ?? null,
+    addresses: addresses.data ?? [],
+    documents: documents.data ?? [],
+    loan_details: loanDetails.data ?? null,
+    co_makers: coMakerRows.data ?? [],
+    loan: loan ? { ...loan, co_makers: loanCoMakers } : null,
   });
 }

@@ -338,6 +338,40 @@ async function handleGetList(req: Request) {
     const lenderIds = rows.map((r) => r.id);
     const addressMap = await getLenderAddressBatch(db, lenderIds);
 
+    // Walk-in documents per lender: lenders created through the in-office
+    // wizard uploaded their documents at the office (application_documents),
+    // so count them alongside account_upgrade_documents.
+    const walkInCounts: Record<string, number> = {};
+    const walkInTypes: Record<string, string[]> = {};
+    if (lenderIds.length > 0) {
+      try {
+        const { data: ioApps } = await db
+          .from('in_office_applications')
+          .select('id, lender_id')
+          .in('lender_id', lenderIds);
+        const ioAppIds = (ioApps ?? []).map((a: any) => a.id);
+        if (ioAppIds.length > 0) {
+          const { data: appDocs } = await db
+            .from('application_documents')
+            .select('application_id, document_type')
+            .in('application_id', ioAppIds);
+          const appLender = new Map<string, string>(
+            (ioApps ?? []).map((a: any) => [a.id, a.lender_id]),
+          );
+          for (const d of appDocs ?? []) {
+            const lid = appLender.get(d.application_id);
+            if (!lid) continue;
+            walkInCounts[lid] = (walkInCounts[lid] ?? 0) + 1;
+            const types = walkInTypes[lid] ?? [];
+            if (!types.includes(d.document_type)) types.push(d.document_type);
+            walkInTypes[lid] = types;
+          }
+        }
+      } catch (e) {
+        console.error('kyc-view get-list walk-in doc counts failed', e);
+      }
+    }
+
     // One row per lender (NOT one per document). Staff should see a single
     // submission per borrower with a document count; document-level review
     // happens inside kyc-get-details / kyc-verify. `id` is the lender id so
@@ -372,7 +406,13 @@ async function handleGetList(req: Request) {
       };
 
       const docs = row.account_upgrade_documents ?? [];
-      const docTypes = [...new Set(docs.map((d) => d.document_type))];
+      const docTypes = [
+        ...new Set([
+          ...docs.map((d) => d.document_type),
+          ...(walkInTypes[row.id] ?? []),
+        ]),
+      ];
+      const allCount = docs.length + (walkInCounts[row.id] ?? 0);
       const latestUpload = docs.length
         ? docs.reduce((a, b) =>
             (a.uploaded_at ?? '') > (b.uploaded_at ?? '') ? a : b)
@@ -382,10 +422,10 @@ async function handleGetList(req: Request) {
         id: row.id,
         lender_id: row.id,
         document_type: 'submission',
-        document_count: docs.length,
+        document_count: allCount,
         document_types: docTypes,
         file_url: null,
-        status: row.account_upgrade_status ?? (docs.length ? 'submitted' : 'not_submitted'),
+        status: row.account_upgrade_status ?? (allCount ? 'submitted' : 'not_submitted'),
         created_at: latestUpload?.uploaded_at ?? row.updated_at ?? new Date().toISOString(),
         lender,
         emergency_contacts: row.emergency_contacts ?? [],
@@ -612,6 +652,49 @@ async function handleGetDetails(req: Request) {
       if (p) signedUrls.set(d.id, await signOne(p));
     }
 
+    // ── Walk-in (in-office) documents ─────────────────────────────────────
+    // A lender created through the in-office wizard uploaded their documents
+    // at the office; those live in application_documents (NOT
+    // account_upgrade_documents), so the details view used to show
+    // "No documents submitted" for walk-in lenders. Merge them in with
+    // status 'verified' (staff collected + checked them in person). Files are
+    // stored in the loan-documents bucket, so sign with that bucket.
+    const WALK_IN_BUCKET = 'loan-documents';
+    const walkInDocs: any[] = [];
+    // Document types already in account_upgrade_documents (e.g. backfilled by
+    // migration 00133) — skip those so nothing is listed twice.
+    const existingTypes = new Set((docs ?? []).map((d) => d.document_type));
+    try {
+      const ioAppIds: string[] = [];
+      const { data: ioApps } = await db
+        .from('in_office_applications')
+        .select('id')
+        .eq('lender_id', targetLenderId!);
+      ioAppIds.push(...((ioApps ?? []).map((a: any) => a.id)));
+
+      // Fallback: lender_id may be missing on very old drafts — match the
+      // walk-in application by phone number instead (same rule as get-status).
+      if (ioAppIds.length === 0 && userRow?.phone_number) {
+        const { data: phoneMatch } = await db
+          .from('application_personal_info')
+          .select('application_id')
+          .eq('phone_number', userRow.phone_number);
+        ioAppIds.push(...((phoneMatch ?? []).map((p: any) => p.application_id)));
+      }
+
+      if (ioAppIds.length > 0) {
+        const { data: appDocs } = await db
+          .from('application_documents')
+          .select('id, document_type, file_path, file_name, mime_type, created_at')
+          .in('application_id', ioAppIds);
+        walkInDocs.push(...((appDocs ?? []).filter(
+          (d: any) => !existingTypes.has(d.document_type),
+        )));
+      }
+    } catch (e) {
+      console.error('kyc-view get-details walk-in docs merge failed', e);
+    }
+
     const { data: emergencyContacts } = await db
       .from('emergency_contacts')
       .select('id, name, relationship, phone_number, address')
@@ -651,6 +734,34 @@ async function handleGetDetails(req: Request) {
       reviewed_at: d.reviewed_at,
       signed_url: signedUrls.get(d.id) ?? null,
     }));
+
+    // Merge the walk-in documents into the review list.
+    for (const d of walkInDocs) {
+      const p = d.file_path as string;
+      let signedUrl: string | null = null;
+      if (p) {
+        const { data } = await db.storage
+          .from(WALK_IN_BUCKET)
+          .createSignedUrl(p, 3600);
+        const sp = data?.signedUrl as string | null ?? null;
+        signedUrl = sp
+          ? (sp.startsWith('http') ? sp : `${supabaseUrl}/storage/v1${sp}`)
+          : null;
+      }
+      documents.push({
+        id: `walkin_${d.id}`,
+        lender_id: targetLenderId,
+        document_type: d.document_type,
+        file_url: d.file_path,
+        file_name: d.file_name ?? 'document',
+        status: 'verified',
+        created_at: d.created_at ?? new Date().toISOString(),
+        rejection_notes: null,
+        reviewed_by: null,
+        reviewed_at: null,
+        signed_url: signedUrl,
+      });
+    }
 
     // Cooldown anchors for staff view (same 30-day rule as get-status).
     let rejectedAt: string | null = null;

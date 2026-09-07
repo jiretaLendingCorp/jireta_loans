@@ -122,6 +122,18 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
     return r != null;
   }
 
+  /// Full wizard detail (steps 1-5 + linked loan + co-makers + account
+  /// upgrade status) used by View mode / continue editing.
+  Future<Map<String, dynamic>?> getDetails(String applicationId) async {
+    try {
+      return await _ds.getDetails(applicationId: applicationId);
+    } catch (e) {
+      // ignore: avoid_print
+      print('[HmInOffice] getDetails failed for $applicationId: ${ErrorHandler.handle(e).message}');
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> getSchedulePreview(
       double principal, String frequency,
       {int? termPeriods}) async {

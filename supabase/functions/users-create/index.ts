@@ -460,7 +460,10 @@ async function handleCreateRider(req: Request) {
     phone_number: phone.trim(),
     role_id: roleData.id,
     account_status: 'active',
-    force_password_change: true,
+    // Business rule: no temporary password / forced password change for
+    // rider and lender accounts — the created password is the account
+    // password.
+    force_password_change: false,
     created_by: user.id,
   }, { onConflict: 'id' }).select('id').single();
 
@@ -561,7 +564,10 @@ async function handleCreateLender(req: Request) {
     phone_number: phone.trim(),
     role_id: roleData.id,
     account_status: 'active',
-    force_password_change: true,
+    // Business rule: no temporary password / forced password change for
+    // rider and lender accounts — the created password is the account
+    // password.
+    force_password_change: false,
     created_by: user.id,
   }, { onConflict: 'id' }).select('id').single();
 

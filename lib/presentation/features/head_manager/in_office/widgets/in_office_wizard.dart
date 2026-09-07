@@ -29,10 +29,17 @@ class InOfficeWizard extends ConsumerStatefulWidget {
   final String? applicationId;
   final VoidCallback onComplete;
 
+  /// When true (opened via the View action), steps 1-3 are rendered read-only
+  /// with the exact values already entered — only the values inside the form
+  /// fields are shown. Steps 4-5 stay accessible (and stay editable when the
+  /// lender has not self-applied a loan yet).
+  final bool viewOnly;
+
   const InOfficeWizard({
     super.key,
     this.applicationId,
     required this.onComplete,
+    this.viewOnly = false,
   });
 
   @override
@@ -56,8 +63,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     'Other',
   ];
 
+  // Valid ID is collected as FRONT + BACK (matches Account Upgrade), so the
+  // required document set is: valid_id, valid_id_back, selfie, mayors_permit,
+  // birth_certificate.
   static const List<(String, String)> _docTypes = [
-    ('valid_id', 'Valid ID'),
+    ('valid_id', 'Valid ID (Front)'),
+    ('valid_id_back', 'Valid ID (Back)'),
     ('selfie', 'Selfie with ID'),
     ('mayors_permit', "Mayor's Permit"),
     ('birth_certificate', 'Birth Certificate'),
@@ -65,6 +76,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   static const Map<String, String> _docAssetIcons = {
     'valid_id': 'assets/icons/id_card.png',
+    'valid_id_back': 'assets/icons/id_card.png',
     'selfie': 'assets/icons/selfie with id.png',
     'mayors_permit': 'assets/icons/PERMIT.png',
     'birth_certificate': 'assets/icons/birth certificate.jpg',
@@ -81,6 +93,16 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   int _step = 0;
   String? _appId;
   bool _loading = false;
+
+  // Loaded application details (get-details). Null until fetched for an
+  // existing applicationId.
+  Map<String, dynamic>? _details;
+  bool _loadingDetails = false;
+  String? _detailsError;
+
+  // Documents already uploaded to storage (docType -> file_path). Kept so
+  // continuing a draft does not re-upload (or upload empty) existing files.
+  final Map<String, String> _existingDocPaths = {};
 
   final _formKey = GlobalKey<FormState>();
 
@@ -126,10 +148,143 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   String? _signature;
   String? _signatureError;
 
+  /// True when the whole wizard must be read-only: opened via View AND the
+  /// lender already self-applied a loan (steps 4-5 are prefilled from the
+  /// submitted loan + co-maker, nothing may change).
+  bool get _fullyReadOnly => _isViewOnly || _hasLinkedLoan;
+
+  bool get _isViewOnly => widget.viewOnly;
+
+  bool get _hasLinkedLoan {
+    final loan = _details?['loan'];
+    return loan is Map && loan.isNotEmpty;
+  }
+
+  String? get _accountUpgradeStatus =>
+      _details?['account_upgrade_status'] as String?;
+
   @override
   void initState() {
     super.initState();
     _appId = widget.applicationId;
+    if (_appId != null) {
+      _loadingDetails = true;
+      Future.microtask(_loadApplication);
+    }
+  }
+
+  /// Fetches the full application (saved steps + linked loan + co-makers +
+  /// account upgrade status) and restores every field so View mode shows the
+  /// exact values entered and continue-editing starts where it stopped.
+  Future<void> _loadApplication() async {
+    if (_appId == null) return;
+    final details =
+        await ref.read(hmInOfficeProvider.notifier).getDetails(_appId!);
+    if (!mounted) return;
+    setState(() {
+      _loadingDetails = false;
+      if (details == null) {
+        _detailsError = 'Could not load this application. Please try again.';
+      } else {
+        _details = details;
+        _applyDetails(details);
+      }
+    });
+  }
+
+  /// Restores controller values, uploaded document names and loan/co-maker
+  /// fields from the get-details payload.
+  void _applyDetails(Map<String, dynamic> details) {
+    final pi = details['personal_info'] as Map<String, dynamic>?;
+    if (pi != null) {
+      _phoneCtrl.text = (pi['phone_number'] ?? pi['phone'] ?? '').toString();
+      _firstNameCtrl.text = (pi['first_name'] ?? '').toString();
+      _middleNameCtrl.text = (pi['middle_name'] ?? '').toString();
+      _lastNameCtrl.text = (pi['last_name'] ?? '').toString();
+      _suffixCtrl.text = (pi['suffix'] ?? '').toString();
+      _emailCtrl.text = (pi['email'] ?? '').toString();
+      _gender = pi['gender'] as String?;
+      _civilStatus = pi['civil_status'] as String?;
+      if (pi['date_of_birth'] != null) {
+        _dob = DateTime.tryParse(pi['date_of_birth'].toString());
+      }
+    }
+
+    final addresses = details['addresses'] as List? ?? const [];
+    if (addresses.isNotEmpty) {
+      final a = addresses.first as Map<String, dynamic>;
+      _streetCtrl.text = (a['street'] ?? '').toString();
+      _barangayCtrl.text = (a['barangay'] ?? '').toString();
+      _cityCtrl.text = (a['city'] ?? '').toString();
+      _provinceCtrl.text = (a['province'] ?? '').toString();
+      _zipCtrl.text = (a['zip_code'] ?? '').toString();
+    }
+
+    // Documents: remember their storage paths so a continued draft never
+    // re-uploads (or uploads empty) existing files.
+    final documents = details['documents'] as List? ?? const [];
+    for (final d in documents) {
+      if (d is! Map<String, dynamic>) continue;
+      final type = (d['document_type'] ?? '').toString();
+      final path = (d['file_path'] ?? d['file_url'] ?? '').toString();
+      if (type.isEmpty) continue;
+      _docs[type] = _DocFile(
+        name: (d['file_name'] ?? type).toString(),
+        mimeType: (d['mime_type'] ?? 'application/octet-stream').toString(),
+        bytes: Uint8List(0),
+      );
+      if (path.isNotEmpty) _existingDocPaths[type] = path;
+    }
+
+    final sig = details['borrower_signature'];
+    if (sig != null && sig.toString().trim().isNotEmpty) {
+      _signature = sig.toString();
+    }
+
+    // Steps 4-5 (Loan + Co-Maker): prefer the lender's own submitted loan
+    // (feature: when the lender already applied, show their loan + co-maker),
+    // otherwise fall back to the application's own saved loan details.
+    final loan = details['loan'] as Map<String, dynamic>?;
+    if (loan != null && loan.isNotEmpty) {
+      final amount = loan['principal_amount'];
+      if (amount != null) {
+        _amountCtrl.text = amount.toString();
+      }
+      _frequency = (loan['payment_frequency'] ?? 'monthly').toString();
+      _termPeriods = (loan['term_periods'] as num?)?.toInt();
+      _purposeCtrl.text = (loan['purpose'] ?? '').toString();
+      final coMakers = loan['co_makers'] as List? ?? const [];
+      if (coMakers.isNotEmpty) {
+        final cm = coMakers.first as Map<String, dynamic>;
+        _coFirstCtrl.text = (cm['first_name'] ?? '').toString();
+        _coLastCtrl.text = (cm['last_name'] ?? '').toString();
+        _coPhoneCtrl.text = (cm['phone_number'] ?? '').toString();
+        _coAddressCtrl.text = (cm['address'] ?? '').toString();
+        _coRel = (cm['relationship'] ?? '').toString();
+      }
+    } else {
+      final ld = details['loan_details'] as Map<String, dynamic>?;
+      if (ld != null) {
+        final amount = ld['principal_amount'];
+        if (amount != null) {
+          _amountCtrl.text = amount.toString();
+        }
+        _frequency =
+            (ld['payment_frequency'] ?? ld['frequency'] ?? 'monthly').toString();
+        _termPeriods = (ld['term_periods'] as num?)?.toInt();
+        _purposeCtrl.text = (ld['purpose'] ?? '').toString();
+      }
+      final coMakers = details['co_makers'] as List? ?? const [];
+      if (coMakers.isNotEmpty) {
+        final cm = coMakers.first as Map<String, dynamic>;
+        _coFirstCtrl.text = (cm['first_name'] ?? '').toString();
+        _coLastCtrl.text = (cm['last_name'] ?? '').toString();
+        _coPhoneCtrl.text =
+            (cm['phone_number'] ?? cm['contact_number'] ?? '').toString();
+        _coAddressCtrl.text = (cm['address'] ?? '').toString();
+        _coRel = (cm['relationship'] ?? '').toString();
+      }
+    }
   }
 
   @override
@@ -140,16 +295,20 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       child: SizedBox(
         width: 680,
         height: 600,
-        child: _loading
+        // Only the initial application-data fetch shows a full-modal spinner.
+        // Submitting keeps the form visible — just the action button spins.
+        child: _loadingDetails
             ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: [
-                  _buildHeader(),
-                  _buildStepIndicator(),
-                  Expanded(child: _buildStepContent()),
-                  _buildFooter(),
-                ],
-              ),
+            : _detailsError != null
+                ? _buildErrorState()
+                : Column(
+                    children: [
+                      _buildHeader(),
+                      _buildStepIndicator(),
+                      Expanded(child: _buildStepContent()),
+                      _buildFooter(),
+                    ],
+                  ),
       ),
     );
   }
@@ -163,19 +322,97 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.person_add, color: AppColors.gold, size: 22),
+          Icon(_isViewOnly ? Icons.visibility_outlined : Icons.person_add,
+              color: AppColors.gold, size: 22),
           const SizedBox(width: 10),
-          const Text('Walk-in Loan Application',
-              style: TextStyle(
+          Text(_isViewOnly ? 'View Walk-in Application' : 'Walk-in Loan Application',
+              style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w700)),
           const Spacer(),
+          if (_accountUpgradeStatus != null) ...[
+            _accountUpgradeChip(_accountUpgradeStatus!),
+            const SizedBox(width: 10),
+          ],
           IconButton(
             icon: const Icon(Icons.close, color: Colors.white54),
             onPressed: () => Navigator.pop(context),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Small status chip in the header showing the lender's Account Upgrade
+  /// state — makes it immediately visible that the walk-in account was
+  /// auto-verified when Steps 1-3 were submitted.
+  Widget _accountUpgradeChip(String status) {
+    final s = status.toLowerCase();
+    final (Color bg, Color fg, String label) = switch (s) {
+      'verified' || 'approved' =>
+        (AppColors.success, Colors.white, 'Account Verified'),
+      'rejected' => (AppColors.error, Colors.white, 'Account Rejected'),
+      'submitted' || 'pending' || 'under_review' =>
+        (AppColors.info, Colors.white, 'Upgrade Under Review'),
+      _ => (Colors.white24, Colors.white, 'Not Verified'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            s == 'verified'
+                ? Icons.verified_rounded
+                : s == 'rejected'
+                    ? Icons.cancel_rounded
+                    : Icons.hourglass_top_rounded,
+            size: 14,
+            color: fg,
+          ),
+          const SizedBox(width: 5),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: fg)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline,
+                size: 40, color: AppColors.error),
+            const SizedBox(height: 12),
+            Text(_detailsError ?? 'Could not load application.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: () {
+                setState(() {
+                  _detailsError = null;
+                  _loadingDetails = true;
+                });
+                Future.microtask(_loadApplication);
+              },
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -249,6 +486,10 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Widget _buildStepContent() {
+    // Fully read-only (View of an already-submitted loan): every step is a
+    // read-only display. View mode without a loan yet: steps 1-3 read-only,
+    // steps 4-5 stay editable so staff can finish encoding the loan.
+    final readOnlyStep = _fullyReadOnly || (_isViewOnly && _step < 3);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(
@@ -257,14 +498,23 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         // (+ Lender Signature). Backend save-step numbers stay fixed
         // (1=personal, 2=address, 3=loan, 4=co-maker, 5=documents+signature)
         // and are remapped in _backendStepForUiStep().
-        child: switch (_step) {
-          0 => _buildStep1(),
-          1 => _buildStep2(),
-          2 => _buildDocumentsStep(),
-          3 => _buildStep3(),
-          4 => _buildStep4(),
-          _ => const SizedBox(),
-        },
+        child: readOnlyStep
+            ? switch (_step) {
+                0 => _buildStep1ReadOnly(),
+                1 => _buildStep2ReadOnly(),
+                2 => _buildDocumentsReadOnly(),
+                3 => _buildStep3ReadOnly(),
+                4 => _buildStep4ReadOnly(),
+                _ => const SizedBox(),
+              }
+            : switch (_step) {
+                0 => _buildStep1(),
+                1 => _buildStep2(),
+                2 => _buildDocumentsStep(),
+                3 => _buildStep3(),
+                4 => _buildStep4(),
+                _ => const SizedBox(),
+              },
       ),
     );
   }
@@ -715,6 +965,250 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
+  // ───────────────────────── Read-only (View) builders ─────────────────────
+
+  Widget _readOnlyRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: Text(value.isEmpty ? '—' : value,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _readOnlyCard(
+      String title, IconData icon, List<Widget> rows, {Widget? footer}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 16, color: AppColors.deepNavy),
+            const SizedBox(width: 8),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy)),
+          ]),
+          const SizedBox(height: 10),
+          ...rows,
+          if (footer != null) ...[
+            const SizedBox(height: 6),
+            footer,
+          ],
+        ],
+      ),
+    );
+  }
+
+  String get _displayName =>
+      '${_firstNameCtrl.text.trim()} ${_middleNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+
+  String _displayDob() {
+    if (_dob == null) return '';
+    return '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildStep1ReadOnly() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Identify Lender',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('Read-only: these details were already submitted.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 16),
+        _readOnlyCard('Personal Information', Icons.person_outline, [
+          _readOnlyRow('Full Name', _displayName),
+          _readOnlyRow('Phone Number', _phoneCtrl.text.trim()),
+          _readOnlyRow('Email', _emailCtrl.text.trim()),
+          _readOnlyRow('Gender', _gender ?? ''),
+          _readOnlyRow('Civil Status', _civilStatus ?? ''),
+          _readOnlyRow('Date of Birth', _displayDob()),
+          _readOnlyRow('Suffix', _suffixCtrl.text.trim()),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildStep2ReadOnly() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Address',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('Read-only: these details were already submitted.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 16),
+        _readOnlyCard('Home Address', Icons.location_on_outlined, [
+          _readOnlyRow('Street / House No.', _streetCtrl.text.trim()),
+          _readOnlyRow('Barangay', _barangayCtrl.text.trim()),
+          _readOnlyRow('City / Municipality', _cityCtrl.text.trim()),
+          _readOnlyRow('Province', _provinceCtrl.text.trim()),
+          _readOnlyRow('ZIP Code', _zipCtrl.text.trim()),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildDocumentsReadOnly() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Documents',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('Read-only: these documents were already uploaded.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 16),
+        ..._docTypes.map((d) {
+          final type = d.$1;
+          final file = _docs[type];
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: file != null
+                      ? AppColors.success.withValues(alpha: 0.5)
+                      : AppColors.border),
+              borderRadius: BorderRadius.circular(8),
+              color: file != null
+                  ? AppColors.success.withValues(alpha: 0.04)
+                  : Colors.white,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  file != null
+                      ? Icons.check_circle
+                      : Icons.description_outlined,
+                  color: file != null
+                      ? AppColors.success
+                      : AppColors.textSecondary,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(d.$2,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                Text(
+                  file != null ? (file.name.isNotEmpty ? file.name : 'Uploaded') : 'Missing',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: file != null
+                        ? AppColors.success
+                        : AppColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          );
+        }),
+        _readOnlyCard('Lender Signature', Icons.draw_outlined, [
+          _readOnlyRow('Signature',
+              (_signature != null && _signature!.isNotEmpty) ? 'Signed ✓' : 'Not signed'),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildStep3ReadOnly() {
+    final loan = _details?['loan'] as Map<String, dynamic>?;
+    final loanNumber =
+        (loan?['loan_number'] ?? '').toString().trim();
+    final amount = _amountCtrl.text.trim();
+    final freq = _frequency;
+    final term = _termPeriods?.toString() ?? '';
+    final unit = _termUnitFor(freq);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Loan Details',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(
+          loanNumber.isNotEmpty
+              ? 'This lender already applied for this loan — read-only view.'
+              : 'Read-only: these loan details were already submitted.',
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 16),
+        _readOnlyCard('Loan', Icons.payments_outlined, [
+          if (loanNumber.isNotEmpty)
+            _readOnlyRow('Loan Number', loanNumber),
+          _readOnlyRow('Loan Amount',
+              amount.isEmpty ? '' : '₱${_formatMoney(amount)}'),
+          _readOnlyRow('Payment Frequency',
+              freq.isEmpty ? '' : freq[0].toUpperCase() + freq.substring(1)),
+          _readOnlyRow('Loan Term',
+              term.isEmpty ? '' : '$term $unit'),
+          _readOnlyRow('Purpose', _purposeCtrl.text.trim()),
+        ]),
+      ],
+    );
+  }
+
+  Widget _buildStep4ReadOnly() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Co-Maker Information',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('Read-only: these details were already submitted.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 16),
+        _readOnlyCard('Co-Maker', Icons.group_outlined, [
+          _readOnlyRow('First Name', _coFirstCtrl.text.trim()),
+          _readOnlyRow('Last Name', _coLastCtrl.text.trim()),
+          _readOnlyRow('Relationship', _coRel ?? ''),
+          _readOnlyRow('Phone', _coPhoneCtrl.text.trim()),
+          _readOnlyRow('Address', _coAddressCtrl.text.trim()),
+        ]),
+      ],
+    );
+  }
+
+  String _formatMoney(String raw) {
+    final d = double.tryParse(raw.replaceAll(',', '').trim());
+    if (d == null) return raw;
+    return d.toStringAsFixed(2);
+  }
+
   Widget _buildDocumentsStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -780,6 +1274,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             if (hasFile) {
               setState(() {
                 _docs.remove(type);
+                _existingDocPaths.remove(type);
                 _docsError = null;
               });
             } else {
@@ -878,6 +1373,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     }
     setState(() {
       _docs[docType] = file;
+      // A newly picked file replaces any previously uploaded one.
+      _existingDocPaths.remove(docType);
       _docsError = null;
     });
   }
@@ -903,35 +1400,68 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
               child: const Text('Back'),
             ),
           const Spacer(),
-          if (_step == 2)
+          if (_fullyReadOnly)
+            // View of an already-submitted loan (or plain View mode of a
+            // converted application): nothing to edit or submit.
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepNavy,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Close'),
+            )
+          else if (_step == 2 && !_isViewOnly)
             // Step 3 (Documents) is a SUBMIT: creates the lender account +
             // auto-verifies the upgrade (no loan yet). The lender logs in and
-            // self-applies, or staff continues to Steps 4-5.
+            // self-applies, or staff continues to Steps 4-5. Skipped in View
+            // mode — the account was already created.
             ElevatedButton(
               onPressed: _loading ? null : _submitAccountAndContinue,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: Colors.black87,
               ),
-              child: const Text('Submit'),
+              child: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.black87),
+                    )
+                  : const Text('Submit'),
             )
           else if (_step < 4)
             ElevatedButton(
-              onPressed: _nextStep,
+              onPressed: _loading ? null : _nextStep,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepNavy,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Next'),
+              child: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Next'),
             )
           else
             ElevatedButton(
-              onPressed: _submit,
+              onPressed: _loading ? null : _submit,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: Colors.black87,
               ),
-              child: const Text('Submit Application'),
+              child: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.black87),
+                    )
+                  : const Text('Submit Application'),
             ),
         ],
       ),
@@ -970,9 +1500,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       setState(() => _signatureError = 'Lender signature is required');
       return;
     }
-    if (_appId != null) {
+    // View mode: read-only steps (1-3) display the saved values and must
+    // never overwrite them.
+    final readOnlyStep = _isViewOnly && _step < 3;
+    if (_appId != null && !readOnlyStep) {
       final backendStep = _backendStepForUiStep(_step);
-      final data = _collectStepData(_step);
+      // Documents (UI step 2 → backend step 5): persist the uploaded files
+      // (reusing existing uploads when continuing a draft) instead of the
+      // empty documents placeholder.
+      final data = _step == 2 ? await _buildDocsOnlyData() : _collectStepData(_step);
       if (data.isNotEmpty) {
         final ok = await ref
             .read(hmInOfficeProvider.notifier)
@@ -1255,7 +1791,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         if (pendingUpgrade) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Account created via Walk-in. Lender must complete Account Upgrade before loan is created. (Default pwd: 12345678)'),
+              content: Text('Account created via Walk-in. Lender must complete Account Upgrade before loan is created.'),
               backgroundColor: AppColors.success,
               duration: Duration(seconds: 4),
             ),
@@ -1354,12 +1890,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
               const SizedBox(height: 12),
               _credentialRow('Phone', loginPhone),
               const SizedBox(height: 6),
-              _credentialRow('Temp password', '12345678'),
-              const SizedBox(height: 6),
-              const Text(
-                'Lender will be asked to change the password on first login.',
-                style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
-              ),
+              _credentialRow('Password', '12345678'),
             ],
           ),
           actions: [
@@ -1425,13 +1956,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     final docs = <Map<String, dynamic>>[];
     for (final entry in _docs.entries) {
       final f = entry.value;
-      final path = await SupabaseStorageService.instance.uploadFile(
-        bucket: 'loan-documents',
-        folder: 'in-office-applications',
-        bytes: f.bytes,
-        fileName: f.name,
-        contentType: f.mimeType,
-      );
+      // Reuse the already-uploaded file when continuing a draft — avoids
+      // re-uploading (or uploading empty) existing documents.
+      final existing = _existingDocPaths[entry.key];
+      final path = (existing != null && existing.isNotEmpty)
+          ? existing
+          : await SupabaseStorageService.instance.uploadFile(
+              bucket: 'loan-documents',
+              folder: 'in-office-applications',
+              bytes: f.bytes,
+              fileName: f.name,
+              contentType: f.mimeType,
+            );
       docs.add({
         'document_type': entry.key,
         'file_url': path,
@@ -1446,27 +1982,38 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     final docs = await _uploadDocs();
     String? signaturePath;
     if (_signature != null && _signature!.isNotEmpty) {
-      try {
-        // _signature is base64-encoded PNG bytes (no data: prefix). Upload to
-        // storage so DB column (VARCHAR 255 / future TEXT) stores a short path,
-        // not a 20KB base64 string that overflows and causes PATCH 500.
-        final sigBytes = base64Decode(_signature!);
-        final path = await SupabaseStorageService.instance.uploadFile(
-          bucket: 'loan-documents',
-          folder: 'in-office-applications/signatures',
-          bytes: sigBytes,
-          fileName: 'signature_${DateTime.now().millisecondsSinceEpoch}.png',
-          contentType: 'image/png',
-        );
-        signaturePath = path;
-      } catch (e) {
-        // Fallback: if upload fails (offline, bucket missing), store the raw
-        // base64 but truncated to 255 to avoid DB "value too long" 500. The
-        // server will also truncate/log. Signature will be degraded but wizard
-        // can still complete and submit.
-        // ignore: avoid_print
-        print('[InOfficeWizard] signature upload failed, falling back to truncated base64: $e');
-        signaturePath = _signature!.length > 255 ? _signature!.substring(0, 255) : _signature;
+      // Existing storage path (loaded from a saved draft) — reuse it directly
+      // instead of trying to base64-decode a path.
+      final sig = _signature!;
+      final isExistingPath = sig.contains('/') &&
+          sig.length < 500 &&
+          !sig.startsWith('data:') &&
+          !RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(sig);
+      if (isExistingPath) {
+        signaturePath = sig;
+      } else {
+        try {
+          // _signature is base64-encoded PNG bytes (no data: prefix). Upload
+          // to storage so DB column (VARCHAR 255 / future TEXT) stores a short
+          // path, not a 20KB base64 string that overflows and causes PATCH 500.
+          final sigBytes = base64Decode(_signature!);
+          final path = await SupabaseStorageService.instance.uploadFile(
+            bucket: 'loan-documents',
+            folder: 'in-office-applications/signatures',
+            bytes: sigBytes,
+            fileName: 'signature_${DateTime.now().millisecondsSinceEpoch}.png',
+            contentType: 'image/png',
+          );
+          signaturePath = path;
+        } catch (e) {
+          // Fallback: if upload fails (offline, bucket missing), store the raw
+          // base64 but truncated to 255 to avoid DB "value too long" 500. The
+          // server will also truncate/log. Signature will be degraded but
+          // wizard can still complete and submit.
+          // ignore: avoid_print
+          print('[InOfficeWizard] signature upload failed, falling back to truncated base64: $e');
+          signaturePath = _signature!.length > 255 ? _signature!.substring(0, 255) : _signature;
+        }
       }
     }
     return {
