@@ -50,6 +50,209 @@ function normalizeDocumentType(v?: string | null): string | null {
   return DOCUMENT_TYPES.has(v) ? v : 'other';
 }
 
+// ── [shared by submit / submit-account] ──────────────────────────────────────
+// Staff walk-in customers may already have a lender account: they
+// self-registered in the mobile app, a previous walk-in run created one, or an
+// earlier partial run created the auth user but was interrupted before it
+// finished. Creating a second auth user for the same phone fails with
+// AuthApiError 422 phone_exists and permanently blocks the application, so
+// instead of failing we FIND the existing account and LINK this application to
+// it (auto-verifying the upgrade — the documents were checked in person).
+// Public users stores the local "09..." form while auth.users uses E.164
+// (see _shared/auth.ts), so every canonical form is tried when matching.
+async function findUserByPhone(db: ReturnType<typeof getAdminClient>, rawPhone: string) {
+  const cleaned = String(rawPhone ?? '').trim();
+  if (!cleaned) return null;
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.length < 10) return null;
+  const localPhone = digits.startsWith('63')
+    ? `0${digits.slice(2)}`
+    : digits.startsWith('0')
+      ? digits
+      : `0${digits}`;
+  const e164Phone = digits.startsWith('63')
+    ? `+${digits}`
+    : digits.startsWith('0')
+      ? `+63${digits.slice(1)}`
+      : `+63${digits}`;
+  const candidates = [...new Set([cleaned, localPhone, e164Phone])];
+  for (const cand of candidates) {
+    const { data } = await db
+      .from('users')
+      .select('id, roles!users_role_id_fkey(name)')
+      .eq('phone_number', cand)
+      .maybeSingle();
+    if (!data) continue;
+    const row = data as { id: string; roles?: { name?: string } | null };
+    return { id: row.id, role: row.roles?.name ?? 'unknown' };
+  }
+  return null;
+}
+
+interface WalkInLenderResolution {
+  ok: boolean;
+  lenderId?: string;
+  isNewLender?: boolean;
+  status?: number;
+  code?: string;
+  message?: string;
+  log?: string;
+}
+
+async function findOrCreateWalkInLender(
+  db: ReturnType<typeof getAdminClient>,
+  opts: { rawPhone: string; createdBy: string; s1: any; logPrefix: string },
+): Promise<WalkInLenderResolution> {
+  const { rawPhone, createdBy, s1, logPrefix } = opts;
+  const cleaned = String(rawPhone ?? '').trim();
+  if (!cleaned) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Step 1 phone_number is required',
+      log: `${logPrefix}: missing phone_number for lender creation`,
+    };
+  }
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.length < 10) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'Invalid phone_number',
+      log: `${logPrefix}: invalid phone_number ${cleaned}`,
+    };
+  }
+  const e164Phone = digits.startsWith('63')
+    ? `+${digits}`
+    : digits.startsWith('0')
+      ? `+63${digits.slice(1)}`
+      : `+63${digits}`;
+
+  // Link to the existing lender when this phone is already registered.
+  const existing = await findUserByPhone(db, cleaned);
+  if (existing && existing.role !== 'lender') {
+    return {
+      ok: false,
+      status: 409,
+      code: 'DUPLICATE',
+      message: `Phone number is already registered to a ${existing.role} account`,
+      log: `${logPrefix}: phone ${e164Phone} belongs to a ${existing.role} account, not a lender`,
+    };
+  }
+  if (existing) {
+    // Auto-verified: staff collected + checked the documents in person. Upsert
+    // (id + status only) so pre-existing profile fields are never clobbered
+    // and a missing profile row from an interrupted run is repaired.
+    const { error: profileErr } = await db.from('lender_profiles').upsert({
+      id: existing.id,
+      account_upgrade_status: 'verified',
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+    if (profileErr) {
+      return {
+        ok: false,
+        status: 500,
+        code: 'DB_ERROR',
+        message: 'Failed to verify lender account',
+        log: `${logPrefix}: re-verify linked lender failed: ${profileErr.message}`,
+      };
+    }
+    return { ok: true, lenderId: existing.id, isNewLender: false };
+  }
+
+  const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
+  const { data: authUser, error: authErr } = await db.auth.admin.createUser({
+    phone: e164Phone,
+    password: '12345678',
+    phone_confirm: true,
+    app_metadata: { role: 'lender' },
+  });
+  if (authErr) console.error(`${logPrefix}: createUser failed`, { e164Phone, authErr });
+  if (!authUser?.user) {
+    // The phone may have been registered between our lookup and the
+    // createUser call (customer's own device, another office run, or an
+    // earlier partial run). Try the lookup once more so retries link instead
+    // of hard-failing on 422 phone_exists.
+    const retry = await findUserByPhone(db, cleaned);
+    if (retry && retry.role === 'lender') {
+      const { error: profileErr } = await db.from('lender_profiles').upsert({
+        id: retry.id,
+        account_upgrade_status: 'verified',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      if (profileErr) {
+        return {
+          ok: false,
+          status: 500,
+          code: 'DB_ERROR',
+          message: 'Failed to verify lender account',
+          log: `${logPrefix}: re-verify linked lender failed: ${profileErr.message}`,
+        };
+      }
+      return { ok: true, lenderId: retry.id, isNewLender: false };
+    }
+    return {
+      ok: false,
+      status: 409,
+      code: 'ACCOUNT_ALREADY_EXISTS',
+      message: `Failed to create lender auth account: ${authErr?.message ?? 'unknown'}`,
+      log: `${logPrefix}: createUser failed and no existing lender account was found`,
+    };
+  }
+
+  const { data: newUser, error: userErr } = await db.from('users').upsert({
+    id: authUser.user.id,
+    role_id: roleRow?.id,
+    phone_number: cleaned,
+    email: (s1 as any).email ?? null,
+    first_name: s1.first_name,
+    middle_name: (s1 as any).middle_name ?? null,
+    last_name: s1.last_name,
+    suffix: (s1 as any).suffix ?? null,
+    account_status: 'active',
+    // Business rule: no temporary password / forced password change for
+    // lender accounts — the walk-in password is the account password.
+    force_password_change: false,
+    created_by: createdBy,
+  }, { onConflict: 'id' }).select().single();
+
+  if (userErr) {
+    return {
+      ok: false,
+      status: 500,
+      code: 'DB_ERROR',
+      message: 'Failed to create lender user',
+      log: `${logPrefix}: users upsert failed: ${userErr.message}`,
+    };
+  }
+
+  // Auto-verified: staff collected + checked the documents in person. Upsert
+  // (not plain insert): a lender_profiles row may already exist (role change /
+  // earlier partial run); a plain insert would fail on the PK and silently
+  // leave the account upgrade at 'not_submitted'.
+  const { error: profileErr } = await db.from('lender_profiles').upsert({
+    id: newUser.id,
+    gender: s1.gender,
+    civil_status: s1.civil_status,
+    date_of_birth: s1.date_of_birth,
+    gcash_number: s1.gcash_number,
+    account_upgrade_status: 'verified',
+  }, { onConflict: 'id' });
+  if (profileErr) {
+    return {
+      ok: false,
+      status: 500,
+      code: 'DB_ERROR',
+      message: 'Failed to create lender profile',
+      log: `${logPrefix}: lender_profiles upsert failed: ${profileErr.message}`,
+    };
+  }
+
+  return { ok: true, lenderId: newUser.id, isNewLender: true };
+}
+
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'submit';
 
@@ -114,12 +317,24 @@ async function handleSubmit(req: Request) {
 
     if (appErr || !app) return errorResponse('Application not found', 404);
     if (app.status === 'converted') {
-      return errorResponse('Application already submitted', 404);
+      return errorResponse('Application already submitted', 422, 'ALREADY_CONVERTED');
     }
 
     const canAccess =
       authResult.role === 'head_manager' || app.created_by === authResult.id;
     if (!canAccess) return errorResponse('Access denied', 403, 'FORBIDDEN');
+
+    // Guard against duplicate conversion: a loan linked to this application
+    // means the final submit already ran (or a retry after a timeout). Never
+    // create a second loan for the same walk-in application.
+    const { data: existingLoan } = await db
+      .from('loans')
+      .select('id')
+      .eq('in_office_application_id', application_id)
+      .maybeSingle();
+    if (existingLoan) {
+      return errorResponse('Application already submitted', 422, 'ALREADY_CONVERTED');
+    }
 
     // Load the normalized wizard data.
     const [personal, employment, addresses, emergencyContacts, loanDetails, coMakerRows, documents] =
@@ -179,67 +394,18 @@ async function handleSubmit(req: Request) {
     let isNewLender = false;
 
     if (!lenderId) {
-      const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
-      const rawPhone = String(s1.phone_number ?? '').trim();
-      if (!rawPhone) {
-        console.error('in-office-view submit: missing phone_number for lender creation', { application_id, s1 });
-        return errorResponse('Step 1 phone_number is required', 400, 'VALIDATION_ERROR');
-      }
-      const digits = rawPhone.replace(/\D/g, '');
-      if (digits.length < 10) {
-        console.error('in-office-view submit: invalid phone_number', { application_id, rawPhone, digits });
-        return errorResponse('Invalid phone_number', 400, 'VALIDATION_ERROR');
-      }
-      const e164Phone = digits.startsWith('63') ? `+${digits}` : (digits.startsWith('0') ? `+63${digits.slice(1)}` : `+63${digits}`);
-      const { data: authUser, error: authErr } = await db.auth.admin.createUser({
-        phone: e164Phone,
-        password: '12345678',
-        phone_confirm: true,
-        app_metadata: { role: 'lender' },
+      const resolved = await findOrCreateWalkInLender(db, {
+        rawPhone: String(s1.phone_number ?? '').trim(),
+        createdBy: authResult.id,
+        s1,
+        logPrefix: 'in-office-view submit',
       });
-      if (authErr) console.error('in-office-view submit: createUser failed', { application_id, e164Phone, authErr });
-      if (!authUser?.user) return errorResponse(`Failed to create lender auth account: ${authErr?.message ?? 'unknown'}`, 500);
-
-      const { data: newUser, error: userErr } = await db.from('users').upsert({
-        id: authUser.user.id,
-        role_id: roleRow?.id,
-        phone_number: s1.phone_number,
-        email: (s1 as any).email ?? null,
-        first_name: s1.first_name,
-        middle_name: (s1 as any).middle_name ?? null,
-        last_name: s1.last_name,
-        suffix: (s1 as any).suffix ?? null,
-        account_status: 'active',
-        // Business rule: no temporary password / forced password change for
-        // lender accounts — the walk-in password is the account password.
-        force_password_change: false,
-        created_by: authResult.id,
-      }, { onConflict: 'id' }).select().single();
-
-      if (userErr) return errorResponse('Failed to create lender user', 500);
-      lenderId = newUser.id;
-      isNewLender = true;
-
-      // 00130: financial snapshot (employment/monthly_income) no longer lives
-      // on lender_profiles — it lives on loans per-loan (00128). Only identity
-      // fields are stored here. Status is 'verified' right away: staff
-      // collected + checked the documents in person at Step 3 (auto-verify),
-      // so the lender can log in and self-apply without a KYC review queue.
-      // Upsert (not plain insert): a lender_profiles row may already exist
-      // (role change / earlier partial run); a plain insert would fail on the
-      // PK and silently leave the account upgrade at 'not_submitted'.
-      const { error: profileErr } = await db.from('lender_profiles').upsert({
-        id: lenderId,
-        gender: s1.gender,
-        civil_status: s1.civil_status,
-        date_of_birth: s1.date_of_birth,
-        gcash_number: s1.gcash_number,
-        account_upgrade_status: 'verified',
-      }, { onConflict: 'id' });
-      if (profileErr) {
-        console.error('in-office-view submit: lender_profiles upsert failed', { application_id, lenderId, profileErr });
-        return errorResponse('Failed to create lender profile', 500, 'DB_ERROR');
+      if (!resolved.ok) {
+        console.error(resolved.log, { application_id });
+        return errorResponse(resolved.message!, resolved.status!, resolved.code);
       }
+      lenderId = resolved.lenderId!;
+      isNewLender = resolved.isNewLender ?? false;
     }
 
     // Always ensure addresses/emergency are materialized for the lender on pause path (so KYC profile is prefilled)
@@ -254,13 +420,15 @@ async function handleSubmit(req: Request) {
       // Walk-in = staff-assisted: the borrower was verified face-to-face at
       // Step 3 (Documents), so the linked account upgrade is AUTO-VERIFIED
       // here. This also repairs legacy walk-in accounts created before the
-      // auto-verify change (they were stuck at 'not_submitted').
-      const { error: verifyErr } = await db.from('lender_profiles')
-        .update({
-          account_upgrade_status: 'verified',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', lenderId);
+      // auto-verify change (they were stuck at 'not_submitted'). Upsert (not
+      // update) so the guarantee also holds when the lender_profiles row is
+      // missing from an interrupted earlier run — update() would silently
+      // affect 0 rows and leave the upgrade unverified.
+      const { error: verifyErr } = await db.from('lender_profiles').upsert({
+        id: lenderId,
+        account_upgrade_status: 'verified',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
       if (verifyErr) {
         console.error('in-office-view submit: auto-verify lender failed', { application_id, lenderId, verifyErr });
         return errorResponse('Failed to verify lender account', 500, 'DB_ERROR');
@@ -599,71 +767,29 @@ async function handleSubmitAccount(req: Request) {
     let isNewLender = false;
 
     if (!lenderId) {
-      const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
-      const rawPhone = String(s1.phone_number ?? '').trim();
-      if (!rawPhone) {
-        return errorResponse('Step 1 phone_number is required', 400, 'VALIDATION_ERROR');
-      }
-      const digits = rawPhone.replace(/\D/g, '');
-      if (digits.length < 10) {
-        return errorResponse('Invalid phone_number', 400, 'VALIDATION_ERROR');
-      }
-      const e164Phone = digits.startsWith('63') ? `+${digits}` : (digits.startsWith('0') ? `+63${digits.slice(1)}` : `+63${digits}`);
-      const { data: authUser, error: authErr } = await db.auth.admin.createUser({
-        phone: e164Phone,
-        password: '12345678',
-        phone_confirm: true,
-        app_metadata: { role: 'lender' },
+      const resolved = await findOrCreateWalkInLender(db, {
+        rawPhone: String(s1.phone_number ?? '').trim(),
+        createdBy: authResult.id,
+        s1,
+        logPrefix: 'in-office-view submit-account',
       });
-      if (authErr) console.error('in-office-view submit-account: createUser failed', { application_id, e164Phone, authErr });
-      if (!authUser?.user) return errorResponse(`Failed to create lender auth account: ${authErr?.message ?? 'unknown'}`, 500);
-
-      const { data: newUser, error: userErr } = await db.from('users').upsert({
-        id: authUser.user.id,
-        role_id: roleRow?.id,
-        phone_number: s1.phone_number,
-        email: (s1 as any).email ?? null,
-        first_name: s1.first_name,
-        middle_name: (s1 as any).middle_name ?? null,
-        last_name: s1.last_name,
-        suffix: (s1 as any).suffix ?? null,
-        account_status: 'active',
-        // Business rule: no temporary password / forced password change for
-        // lender accounts — the walk-in password is the account password.
-        force_password_change: false,
-        created_by: authResult.id,
-      }, { onConflict: 'id' }).select().single();
-
-      if (userErr) return errorResponse('Failed to create lender user', 500);
-      lenderId = newUser.id;
-      isNewLender = true;
-
-      // Auto-verified: staff collected + checked the documents in person.
-      // Upsert (not plain insert): a lender_profiles row may already exist
-      // from an earlier partial run / role change; a plain insert would fail
-      // on the PK and silently leave the account upgrade at 'not_submitted'.
+      if (!resolved.ok) {
+        console.error(resolved.log, { application_id });
+        return errorResponse(resolved.message!, resolved.status!, resolved.code);
+      }
+      lenderId = resolved.lenderId!;
+      isNewLender = resolved.isNewLender ?? false;
+    } else {
+      // Idempotent retry: ensure the linked account is verified. Upsert (not
+      // update) so a missing lender_profiles row from an interrupted earlier
+      // run is repaired instead of silently succeeding with no verification.
       const { error: profileErr } = await db.from('lender_profiles').upsert({
         id: lenderId,
-        gender: s1.gender,
-        civil_status: s1.civil_status,
-        date_of_birth: s1.date_of_birth,
-        gcash_number: s1.gcash_number,
         account_upgrade_status: 'verified',
+        updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
       if (profileErr) {
-        console.error('in-office-view submit-account: lender_profiles upsert failed', { application_id, lenderId, profileErr });
-        return errorResponse('Failed to create lender profile', 500, 'DB_ERROR');
-      }
-    } else {
-      // Idempotent retry: ensure the linked account is verified.
-      const { error: updateErr } = await db.from('lender_profiles')
-        .update({
-          account_upgrade_status: 'verified',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', lenderId);
-      if (updateErr) {
-        console.error('in-office-view submit-account: re-verify failed', { application_id, lenderId, updateErr });
+        console.error('in-office-view submit-account: re-verify failed', { application_id, lenderId, profileErr });
         return errorResponse('Failed to verify lender account', 500, 'DB_ERROR');
       }
     }
@@ -705,15 +831,28 @@ async function handleSubmitAccount(req: Request) {
       newValues: { lender_id: lenderId, status: 'submitted', auto_verified: true, note: 'Step-3 submit: account created + upgrade auto-verified by staff, no loan yet' },
     });
 
-    await sendPushNotification({
-      userId: lenderId,
-      title: 'Your Account Is Verified',        body: `Hello! Your account was created and verified through our walk-in application. Log in with your phone number (password: 12345678), then apply for your loan in the app.`,
-      type: 'account_upgrade_update',
-      referenceId: application_id,
-    });
+    if (isNewLender) {
+      await sendPushNotification({
+        userId: lenderId,
+        title: 'Your Account Is Verified',
+        body: 'Hello! Your account was created and verified through our walk-in application. Log in with your phone number (password: 12345678), then apply for your loan in the app.',
+        type: 'account_upgrade_update',
+        referenceId: application_id,
+      });
+    } else {
+      await sendPushNotification({
+        userId: lenderId,
+        title: 'Account Verified',
+        body: 'Your account has been verified for your in-office loan application.',
+        type: 'account_upgrade_update',
+        referenceId: application_id,
+      });
+    }
 
     return successResponse({
-      message: 'Account created and verified. Lender may now log in and apply for a loan.',
+      message: isNewLender
+        ? 'Account created and verified. Lender may now log in and apply for a loan.'
+        : 'Linked to existing lender account and verified. Lender may continue with the loan.',
       lender_id: lenderId,
       application_id,
       auto_verified: true,

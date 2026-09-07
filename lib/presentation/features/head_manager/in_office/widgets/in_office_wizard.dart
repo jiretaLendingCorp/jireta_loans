@@ -94,6 +94,10 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   String? _appId;
   bool _loading = false;
 
+  /// True after the step-3 SUBMIT (account creation) succeeded in this
+  /// session — the SUBMIT button must not be offered again once submitted.
+  bool _submittedInSession = false;
+
   // Loaded application details (get-details). Null until fetched for an
   // existing applicationId.
   Map<String, dynamic>? _details;
@@ -162,6 +166,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   String? get _accountUpgradeStatus =>
       _details?['account_upgrade_status'] as String?;
+
+  /// True once this application has been submitted (lender account created at
+  /// step 3, or the whole application submitted/converted). Once submitted,
+  /// the step-3 SUBMIT button is no longer offered so staff cannot resubmit
+  /// an application that already has a (verified) lender account.
+  bool get _isSubmitted {
+    if (_submittedInSession) return true;
+    final status = (_details?['status'] as String?) ?? '';
+    if (status == 'submitted' || status == 'converted') return true;
+    final lenderId = _details?['lender_id'];
+    return lenderId != null && lenderId.toString().isNotEmpty;
+  }
 
   @override
   void initState() {
@@ -1411,11 +1427,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
               ),
               child: const Text('Close'),
             )
-          else if (_step == 2 && !_isViewOnly)
+          else if (_step == 2 && !_isViewOnly && !_isSubmitted)
             // Step 3 (Documents) is a SUBMIT: creates the lender account +
             // auto-verifies the upgrade (no loan yet). The lender logs in and
             // self-applies, or staff continues to Steps 4-5. Skipped in View
-            // mode — the account was already created.
+            // mode and once the application is already submitted — the
+            // account already exists (and is verified), so only Next is shown.
             ElevatedButton(
               onPressed: _loading ? null : _submitAccountAndContinue,
               style: ElevatedButton.styleFrom(
@@ -1724,6 +1741,14 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
+    // Once the application has been converted, it can never be submitted
+    // again — guard against resubmission from a stale/reopened wizard.
+    final appStatus = (_details?['status'] as String?) ?? '';
+    if (appStatus == 'converted') {
+      if (mounted) _showMessage('This application is already submitted.');
+      return;
+    }
+
     final missingDocs = _docTypes
         .where((d) => !_docs.containsKey(d.$1))
         .map((d) => d.$2)
@@ -1820,6 +1845,14 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   Future<void> _submitAccountAndContinue() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
+    // The step-3 SUBMIT creates the lender account. It must only run once:
+    // resubmitting an already-submitted application would re-run account
+    // creation / duplicate the notification.
+    if (_isSubmitted) {
+      if (mounted) _showMessage('This application is already submitted.');
+      return;
+    }
+
     final missingDocs = _docTypes
         .where((d) => !_docs.containsKey(d.$1))
         .map((d) => d.$2)
@@ -1865,32 +1898,40 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         return;
       }
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _submittedInSession = true;
+      });
+      final isNewLender = (res['is_new_lender'] as bool?) ?? true;
       final loginPhone = (res['login_phone']?.toString() ?? _phoneCtrl.text.trim());
       final goOn = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.verified_user, color: AppColors.success),
-              SizedBox(width: 8),
-              Expanded(child: Text('Account Created & Verified')),
+              const Icon(Icons.verified_user, color: AppColors.success),
+              const SizedBox(width: 8),
+              Expanded(child: Text(isNewLender ? 'Account Created & Verified' : 'Existing Account Linked & Verified')),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'The lender can now log in and apply for a loan on their own. Or continue to encode the loan here.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              Text(
+                isNewLender
+                    ? 'The lender can now log in and apply for a loan on their own. Or continue to encode the loan here.'
+                    : 'This phone number already has a lender account — it was linked and verified. Continue to encode the loan here, or let the lender log in with their existing password.',
+                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
-              const SizedBox(height: 12),
-              _credentialRow('Phone', loginPhone),
-              const SizedBox(height: 6),
-              _credentialRow('Password', '12345678'),
+              if (isNewLender) ...[
+                const SizedBox(height: 12),
+                _credentialRow('Phone', loginPhone),
+                const SizedBox(height: 6),
+                _credentialRow('Password', '12345678'),
+              ],
             ],
           ),
           actions: [

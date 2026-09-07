@@ -156,6 +156,26 @@ class _EmpAccountUpgradeDetailsScreenState
     }
   }
 
+  /// Resolves a document file to a viewable URL. Signed URLs and absolute
+  /// http(s) URLs pass through untouched; relative storage paths are signed
+  /// from the account-upgrade-documents bucket first and fall back to the
+  /// loan-documents bucket, where walk-in documents backfilled into
+  /// account_upgrade_documents (migration 00133) actually live. Throws when
+  /// the file is not found in either bucket.
+  Future<String> _resolveDocFile(String filePath) async {
+    if (filePath.startsWith('http')) return filePath;
+    Object? lastError;
+    for (final bucket in const ['account-upgrade-documents', 'loan-documents']) {
+      try {
+        return await SupabaseStorageService.instance
+            .getSignedUrl(bucket: bucket, path: filePath);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError ?? Exception('Unable to resolve document file');
+  }
+
   Future<void> _openDocument(Map<String, dynamic> doc, {List? allDocs}) async {
     final signedUrl = doc['signed_url'] as String?;
     final filePath = doc['file_url'] as String?;
@@ -164,11 +184,8 @@ class _EmpAccountUpgradeDetailsScreenState
       String url;
       if (signedUrl != null && signedUrl.isNotEmpty) {
         url = signedUrl;
-      } else if (filePath != null && filePath.startsWith('http')) {
-        url = filePath;
-      } else if (filePath != null) {
-        url = await SupabaseStorageService.instance
-            .getSignedUrl(bucket: 'account-upgrade-documents', path: filePath);
+      } else if (filePath != null && filePath.isNotEmpty) {
+        url = await _resolveDocFile(filePath);
       } else {
         return;
       }
@@ -185,10 +202,8 @@ class _EmpAccountUpgradeDetailsScreenState
           final backPath = backDoc['file_url'] as String?;
           if (backSigned != null && backSigned.isNotEmpty) {
             backUrl = backSigned;
-          } else if (backPath != null && backPath.startsWith('http')) {
-            backUrl = backPath;
-          } else if (backPath != null) {
-            backUrl = await SupabaseStorageService.instance.getSignedUrl(bucket: 'account-upgrade-documents', path: backPath);
+          } else if (backPath != null && backPath.isNotEmpty) {
+            backUrl = await _resolveDocFile(backPath);
           }
         }
       }

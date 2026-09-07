@@ -631,20 +631,32 @@ async function handleGetDetails(req: Request) {
     // by RLS and fail with "object not found". Resolve signed URLs here with
     // the service-role client so reviewers can open lender documents.
     const ACCOUNT_UPGRADE_BUCKET = 'account-upgrade-documents';
+    // Documents uploaded through the in-office (walk-in) wizard live in the
+    // 'loan-documents' bucket. Some of those rows were also copied into
+    // account_upgrade_documents (migration 00133 backfill) carrying their
+    // original loan-documents file_path, so a given path may live in either
+    // bucket. Try the account-upgrade bucket first, then fall back to
+    // loan-documents so backfilled walk-in files still resolve (otherwise
+    // staff get StorageException 404 "Object not found" when opening them).
+    const DOCUMENT_BUCKETS = [ACCOUNT_UPGRADE_BUCKET, 'loan-documents'];
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const signOne = async (path: string) => {
-      const { data } = await db.storage
-        .from(ACCOUNT_UPGRADE_BUCKET)
-        .createSignedUrl(path, 3600);
-      // createSignedUrl already returns an absolute URL (e.g.
-      // http://localhost:8000/storage/v1/object/sign/...). Only prefix with the
-      // storage base URL when the SDK returns a bare relative path so we never
-      // produce a doubled URL like .../storage/v1http://.../storage/v1/object.
-      const signedPath = data?.signedUrl as string | null ?? null;
-      if (!signedPath) return null;
-      return signedPath.startsWith('http')
-        ? signedPath
-        : `${supabaseUrl}/storage/v1${signedPath}`;
+      for (const bucket of DOCUMENT_BUCKETS) {
+        const { data } = await db.storage
+          .from(bucket)
+          .createSignedUrl(path, 3600);
+        // createSignedUrl already returns an absolute URL (e.g.
+        // http://localhost:8000/storage/v1/object/sign/...). Only prefix with the
+        // storage base URL when the SDK returns a bare relative path so we never
+        // produce a doubled URL like .../storage/v1http://.../storage/v1/object.
+        const signedPath = data?.signedUrl as string | null ?? null;
+        if (signedPath) {
+          return signedPath.startsWith('http')
+            ? signedPath
+            : `${supabaseUrl}/storage/v1${signedPath}`;
+        }
+      }
+      return null;
     };
     const signedUrls = new Map<string, string | null>();
     for (const d of (docs ?? [])) {
@@ -659,7 +671,6 @@ async function handleGetDetails(req: Request) {
     // "No documents submitted" for walk-in lenders. Merge them in with
     // status 'verified' (staff collected + checked them in person). Files are
     // stored in the loan-documents bucket, so sign with that bucket.
-    const WALK_IN_BUCKET = 'loan-documents';
     const walkInDocs: any[] = [];
     // Document types already in account_upgrade_documents (e.g. backfilled by
     // migration 00133) — skip those so nothing is listed twice.
@@ -738,16 +749,9 @@ async function handleGetDetails(req: Request) {
     // Merge the walk-in documents into the review list.
     for (const d of walkInDocs) {
       const p = d.file_path as string;
-      let signedUrl: string | null = null;
-      if (p) {
-        const { data } = await db.storage
-          .from(WALK_IN_BUCKET)
-          .createSignedUrl(p, 3600);
-        const sp = data?.signedUrl as string | null ?? null;
-        signedUrl = sp
-          ? (sp.startsWith('http') ? sp : `${supabaseUrl}/storage/v1${sp}`)
-          : null;
-      }
+      // signOne() above already falls back to the loan-documents bucket,
+      // which is where walk-in files were uploaded.
+      const signedUrl = p ? await signOne(p) : null;
       documents.push({
         id: `walkin_${d.id}`,
         lender_id: targetLenderId,

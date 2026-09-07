@@ -83,8 +83,18 @@ class _DocumentViewerState extends State<DocumentViewer> {
       return;
     }
     try {
-      final signed = await SupabaseStorageService.instance
-          .getSignedUrl(bucket: widget.bucket, path: url);
+      String signed;
+      try {
+        signed = await SupabaseStorageService.instance
+            .getSignedUrl(bucket: widget.bucket, path: url);
+      } catch (_) {
+        // Rows in account_upgrade_documents can be copies of walk-in uploads
+        // (migration 00133 backfill) whose files actually live in the
+        // loan-documents bucket — retry there before giving up.
+        if (widget.bucket == 'loan-documents') rethrow;
+        signed = await SupabaseStorageService.instance
+            .getSignedUrl(bucket: 'loan-documents', path: url);
+      }
       if (mounted) setState(() => _resolved = signed);
     } catch (_) {
       if (mounted) setState(() => _resolved = null);
