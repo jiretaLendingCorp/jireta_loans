@@ -335,7 +335,7 @@ class _HmLoanApplicationsListScreenState
             final isEven = idx.isEven;
             final createdAt = parseManila(app['created_at']);
             final dateStr = createdAt != null
-                ? DateFormat('MMM dd, yyyy').format(createdAt)
+                ? DateFormat('MMM dd, yyyy h:mm a').format(createdAt)
                 : '—';
             return Container(
               padding:
@@ -494,7 +494,7 @@ class _HmLoanApplicationsListScreenState
   // ───────────────────────────── Premium Table ─────────────────────────────
   Widget _buildPremiumTable(List<LoanModel> loans) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
-    final dateFmt = DateFormat('MMM dd, yyyy');
+    final dateFmt = DateFormat('MMM dd, yyyy h:mm a');
 
     return Container(
       decoration: BoxDecoration(
@@ -554,15 +554,20 @@ class _HmLoanApplicationsListScreenState
                     ? (loan.lenderName ?? '—')
                     : '${loan.lenderFirstName} ${loan.lenderLastName}'.trim();
 
+            // Fixed row height so every row stays pantay-pantay even when the
+            // Status cell stacks an extra "Rider: …" line under the status.
             return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              height: 64,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: isEven ? Colors.white : const Color(0xFFFDFDFD),
                 border: const Border(
                     bottom: BorderSide(color: Color(0xFFF0F0F0))),
               ),
               child: Row(
+                // Top-align every cell so the first line (loan number, amount,
+                // frequency, applied date, status) lines up across all rows.
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                     // Lender & Loan — LN as plain text (no pill), lender name below
                     Expanded(
@@ -601,11 +606,11 @@ class _HmLoanApplicationsListScreenState
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    // Frequency — flat inline, start-aligned pantay sa header
+                    // Frequency — flat inline, top-aligned like the other cells
                     Expanded(
                       flex: 2,
                       child: Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: Alignment.topLeft,
                         child: _FrequencyInline(frequency: loan.paymentFrequency),
                       ),
                     ),
@@ -618,6 +623,8 @@ class _HmLoanApplicationsListScreenState
                           Text(
                             dateFmt.format(loan.createdAt),
                             textAlign: TextAlign.start,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textPrimary,
@@ -639,10 +646,7 @@ class _HmLoanApplicationsListScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: _StatusInline(status: status),
-                          ),
+                          _StatusInline(status: status),
                           if (loan.ciStatus != null &&
                               (loan.ciStatus == 'assigned' ||
                                   loan.ciStatus == 'accepted' ||
@@ -714,7 +718,7 @@ class _HmLoanApplicationsListScreenState
                     SizedBox(
                       width: 96,
                       child: Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: Alignment.topLeft,
                         child: _RowActions(loan: loan, onRefresh: _onActionDone),
                       ),
                     ),
@@ -1201,8 +1205,9 @@ class _RowActions extends StatelessWidget {
     final status = loan.status;
     // Overdue CI (latest CI failed/expired): allow reassignment even though
     // the loan is still 'ci_assigned'. Lender side stays "in progress".
-    final ciFailed =
-        loan.ciStatus == 'failed' || loan.ciStatus == 'expired';
+    final ciFailed = loan.ciStatus == 'failed' ||
+        loan.ciStatus == 'expired' ||
+        loan.ciStatus == 'declined';
     final canAssignRider =
         ['pending', 'under_review', 'ci_required'].contains(status) ||
             (status == 'ci_assigned' && ciFailed);

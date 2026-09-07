@@ -285,7 +285,10 @@ async function handleLender(req: Request) {
     .from('loans')
     .select('id, principal_amount')
     .eq('lender_id', lenderId)
-    .in('status', ['active', 'approved', 'completed', 'overdue']);
+    // Only RELEASED loans carry a balance. An approved loan is not yet
+    // disbursed, so it must not count toward the lender's balance or total
+    // borrowed until the money is actually handed out.
+    .in('status', ['active', 'completed', 'overdue']);
 
   const financials = await getLoanFinancialsBatch(
     db,

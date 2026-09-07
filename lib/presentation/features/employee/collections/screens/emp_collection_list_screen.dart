@@ -534,7 +534,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
   Widget _buildPaymentsTable(List<Map<String, dynamic>> payments) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
-    final dateFmt = DateFormat('MMM dd, yyyy');
+    final dateFmt = DateFormat('MMM dd, yyyy h:mm a');
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
       clipBehavior: Clip.antiAlias,

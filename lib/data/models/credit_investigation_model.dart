@@ -22,6 +22,9 @@ class CreditInvestigationModel {
   final Map<String, dynamic>? rider;
   final Map<String, dynamic>? assignedByUser;
   final List<Map<String, dynamic>>? documents;
+  // True when this is the most recent CI record for its loan. Older
+  // failed/declined rows superseded by a reassignment are audit history.
+  final bool isLatest;
 
   const CreditInvestigationModel({
     required this.id,
@@ -44,6 +47,7 @@ class CreditInvestigationModel {
     this.rider,
     this.assignedByUser,
     this.documents,
+    this.isLatest = true,
   });
 
   factory CreditInvestigationModel.fromJson(Map<String, dynamic> json) =>
@@ -85,6 +89,7 @@ class CreditInvestigationModel {
             json['assigned_by_user'] as Map<String, dynamic>?,
         documents: (json['ci_documents'] as List?)?.cast<Map<String, dynamic>>() ??
             (json['documents'] as List?)?.cast<Map<String, dynamic>>(),
+        isLatest: json['is_latest'] as bool? ?? true,
       );
 
   String get loanNumber => loan?['loan_number'] ?? '';

@@ -277,7 +277,7 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen>
     if (d == null) return '-';
     final dt = parseManila(d);
     if (dt == null) return d.toString();
-    return DateFormat('MMM dd, yyyy').format(dt);
+    return DateFormat('MMM dd, yyyy h:mm a').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';

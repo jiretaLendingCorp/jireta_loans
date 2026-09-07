@@ -237,8 +237,8 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
     return _PremiumCard(
       title: loanNumber,
       subtitle: name.isEmpty
-          ? 'Released ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}'
-          : '$name • Released ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}',
+          ? 'Released ${_formatDateTime(loan['disbursed_at'] ?? loan['release_date'])}'
+          : '$name • Released ${_formatDateTime(loan['disbursed_at'] ?? loan['release_date'])}',
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -473,7 +473,7 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
               value: '₱${fmt.format(disburse['amount'] ?? 0)}'),
           _KVRow(
               label: 'Date',
-              value: _formatDate(disburse['disbursed_at'])),
+              value: _formatDateTime(disburse['disbursed_at'])),
           if (disburse['xendit_reference'] != null)
             _KVRow(
                 label: 'Xendit Ref',
@@ -618,7 +618,7 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
                     style: const TextStyle(
                         fontWeight: FontWeight.w800, fontSize: 12)),
                 Text(
-                    '${_paymentMethodLabel(method)} • ${_formatDate(p['created_at'])}',
+                    '${_paymentMethodLabel(method)} • ${_formatDateTime(p['created_at'])}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 10)),
               ])),
@@ -759,6 +759,13 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
     final dt = parseManila(d);
     if (dt == null) return d.toString();
     return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  String _formatDateTime(dynamic d) {
+    if (d == null) return '-';
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy h:mm a').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty

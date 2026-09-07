@@ -178,7 +178,7 @@ class HmPenaltyListScreen extends ConsumerWidget {
                       color: AppColors.error, fontWeight: FontWeight.w600))),
           Expanded(
               flex: 1,
-              child: Text(DateFormat('MMM dd, yyyy').format(p.createdAt),
+              child: Text(DateFormat('MMM dd, yyyy h:mm a').format(p.createdAt),
                   style: const TextStyle(color: AppColors.textSecondary))),
         ]),
       );

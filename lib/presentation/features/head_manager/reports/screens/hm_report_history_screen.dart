@@ -277,7 +277,7 @@ class _ReportHistoryCardState extends State<_ReportHistoryCard> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text(createdAt != null ? parseManila(createdAt)?.toDisplay() ?? '–' : '–', style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+                        Text(createdAt != null ? parseManila(createdAt)?.toDateTimeString() ?? '–' : '–', style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
                         if (parameters['date_range'] != null) ...[
                           const SizedBox(width: 12),
                           Text(parameters['date_range'].toString(), style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),

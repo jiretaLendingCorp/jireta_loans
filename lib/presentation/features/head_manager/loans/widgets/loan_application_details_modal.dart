@@ -253,8 +253,8 @@ class _LoanApplicationDetailsModalState
     return _PremiumCard(
       title: loanNumber,
       subtitle: name.isEmpty
-          ? 'Applied ${_formatDate(applied)}'
-          : '$name • Applied ${_formatDate(applied)}',
+          ? 'Applied ${_formatDateTime(applied)}'
+          : '$name • Applied ${_formatDateTime(applied)}',
       trailing: _buildHeroActions(status),
       child: Row(
         children: [
@@ -288,7 +288,9 @@ class _LoanApplicationDetailsModalState
     // must stay available. Lender side stays "in progress".
     final ciStatus =
         (_loan?['ci_status'] as String?)?.toLowerCase().trim() ?? '';
-    final ciFailed = ciStatus == 'failed' || ciStatus == 'expired';
+    final ciFailed = ciStatus == 'failed' ||
+        ciStatus == 'expired' ||
+        ciStatus == 'declined';
     final canAssignCi =
         const {'pending', 'under_review', 'ci_required'}.contains(status) ||
             (status == 'ci_assigned' && ciFailed);
@@ -768,6 +770,13 @@ class _LoanApplicationDetailsModalState
     final dt = parseManila(d);
     if (dt == null) return d.toString();
     return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  String _formatDateTime(dynamic d) {
+    if (d == null) return '-';
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy h:mm a').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty

@@ -190,8 +190,8 @@ class _HmLoanApplicationDetailsScreenState
     return _PremiumCard(
       title: loanNumber,
       subtitle: name.isEmpty
-          ? 'Applied ${_formatDate(applied)}'
-          : '$name • Applied ${_formatDate(applied)}',
+          ? 'Applied ${_formatDateTime(applied)}'
+          : '$name • Applied ${_formatDateTime(applied)}',
       trailing: StatusBadge(status: status),
       child: Row(
         children: [
@@ -585,6 +585,13 @@ class _HmLoanApplicationDetailsScreenState
     final dt = parseManila(d);
     if (dt == null) return d.toString();
     return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  String _formatDateTime(dynamic d) {
+    if (d == null) return '-';
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy h:mm a').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty

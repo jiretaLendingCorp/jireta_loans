@@ -207,7 +207,7 @@ class _CiCard extends StatelessWidget {
                   child: _InfoRow(
                     icon: Icons.access_time,
                     label: 'Assigned',
-                    value: DateFormat('MMM d').format(ci.assignedAt),
+                    value: DateFormat('MMM d, yyyy h:mm a').format(ci.assignedAt),
                   ),
                 ),
               ],

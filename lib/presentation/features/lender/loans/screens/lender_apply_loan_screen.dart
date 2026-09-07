@@ -2729,78 +2729,11 @@ class _ChooseDisbursementViewState
 
   @override
   Widget build(BuildContext context) {
-    final loan = widget.loan;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.lenderBlue.withValues(alpha: 0.3),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.check_circle_rounded,
-                        color: Colors.white, size: 26),
-                    SizedBox(width: 10),
-                    Text(
-                      'Loan Approved',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Your loan has been approved! Choose how you want to receive the funds to complete the release.',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              children: [
-                _SummaryRow('Loan #', loan.loanNumber),
-                _SummaryRow('Amount', loan.principalAmount.toCurrency),
-                _SummaryRow('Total Payable', loan.totalPayable.toCurrency),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
           const _SectionTitle('How would you like to receive the funds?'),
           const SizedBox(height: 12),
           _disbOption(

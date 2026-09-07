@@ -88,6 +88,24 @@ async function handleCiGetList(req: Request) {
     .filter(Boolean);
   const lenderAddresses = await getLenderAddressBatch(db, lenderIds);
 
+  // Newest CI record per loan (across ALL records, not just this page) so
+  // old failed/expired/declined rows superseded by a reassignment can be
+  // flagged. Staff lists must not keep offering "Reassign" on superseded rows.
+  const pageLoanIds = (data ?? []).map((r) => r.loan_id).filter(Boolean);
+  const latestCiIdByLoan: Record<string, string> = {};
+  if (pageLoanIds.length > 0) {
+    const { data: latestRows } = await db
+      .from('credit_investigations')
+      .select('id, loan_id')
+      .in('loan_id', pageLoanIds)
+      .order('created_at', { ascending: false });
+    for (const c of latestRows ?? []) {
+      if (c?.loan_id && latestCiIdByLoan[c.loan_id] === undefined) {
+        latestCiIdByLoan[c.loan_id] = c.id;
+      }
+    }
+  }
+
   const rows = await Promise.all(
     (data ?? []).map(async (r) => {
       const loan = embedAsObject(r.loans);
@@ -131,6 +149,7 @@ async function handleCiGetList(req: Request) {
       return {
         ...r,
         report_summary: effectiveReport,
+        is_latest: r.loan_id ? latestCiIdByLoan[r.loan_id] === r.id : true,
         loans: loan
           ? {
               ...loan,

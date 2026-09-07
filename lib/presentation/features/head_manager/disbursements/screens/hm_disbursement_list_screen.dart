@@ -183,7 +183,7 @@ class _HmDisbursementListScreenState
           Expanded(flex: 2, child: StatusBadge(status: d.status)),
           Expanded(
               flex: 2,
-              child: Text(DateFormat('MMM d, y').format(d.createdAt),
+              child: Text(DateFormat('MMM d, y h:mm a').format(d.createdAt),
                   style: const TextStyle(
                       fontSize: 12, color: AppColors.textSecondary))),
           SizedBox(

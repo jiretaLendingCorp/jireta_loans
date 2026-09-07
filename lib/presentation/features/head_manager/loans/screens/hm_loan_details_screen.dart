@@ -307,7 +307,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                                   size: 12, color: Colors.white70),
                               const SizedBox(width: 4),
                               Text(
-                                'Released ${_formatDate(loan['disbursed_at'] ?? loan['release_date'])}',
+                                'Released ${_formatDateTime(loan['disbursed_at'] ?? loan['release_date'])}',
                                 style: const TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
@@ -592,7 +592,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
               value: '₱${fmt.format(disburse['amount'] ?? 0)}'),
           _KVRow(
               label: 'Date',
-              value: _formatDate(disburse['disbursed_at'])),
+              value: _formatDateTime(disburse['disbursed_at'])),
           if (disburse['xendit_reference'] != null)
             _KVRow(
                 label: 'Xendit Ref',
@@ -771,7 +771,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                     style: const TextStyle(
                         fontWeight: FontWeight.w800, fontSize: 13)),
                 Text(
-                    '${_paymentMethodLabel(method)} • ${_formatDate(p['created_at'])}',
+                    '${_paymentMethodLabel(method)} • ${_formatDateTime(p['created_at'])}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 11)),
               ])),
@@ -920,6 +920,13 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
     final dt = parseManila(d);
     if (dt == null) return d.toString();
     return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  String _formatDateTime(dynamic d) {
+    if (d == null) return '-';
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy h:mm a').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty

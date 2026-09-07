@@ -247,8 +247,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     return _PremiumCard(
       title: loanNumber,
       subtitle: name.isEmpty
-          ? 'Applied ${_formatDate(loan['created_at'])}'
-          : '$name • Applied ${_formatDate(loan['created_at'])}',
+          ? 'Applied ${_formatDateTime(loan['created_at'])}'
+          : '$name • Applied ${_formatDateTime(loan['created_at'])}',
       trailing: _buildHeroActions(loan, status),
       child: Row(
         children: [
@@ -285,7 +285,9 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     // Overdue CI (latest CI failed/expired on a ci_assigned loan) => Reassign.
     final ciStatus =
         (loan['ci_status'] as String?)?.toLowerCase().trim() ?? '';
-    final ciFailed = ciStatus == 'failed' || ciStatus == 'expired';
+    final ciFailed = ciStatus == 'failed' ||
+        ciStatus == 'expired' ||
+        ciStatus == 'declined';
     final canAssignCi =
         const {'pending', 'under_review', 'ci_required'}.contains(s) ||
             (s == 'ci_assigned' && ciFailed);
@@ -1009,6 +1011,13 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     final dt = parseManila(d);
     if (dt == null) return d.toString();
     return DateFormat('MMM dd, yyyy').format(dt);
+  }
+
+  String _formatDateTime(dynamic d) {
+    if (d == null) return '-';
+    final dt = parseManila(d);
+    if (dt == null) return d.toString();
+    return DateFormat('MMM dd, yyyy h:mm a').format(dt);
   }
 
   String _capitalize(String s) => s.isEmpty

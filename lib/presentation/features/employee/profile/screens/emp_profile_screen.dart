@@ -271,7 +271,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
         ModernInfoRowData(
             icon: Icons.calendar_today_outlined,
             label: 'Member since',
-            value: AppFormatters.date(user.createdAt)),
+            value: AppFormatters.dateTime(user.createdAt)),
         ModernInfoRowData(
             icon: Icons.access_time_rounded,
             label: 'Last login',

@@ -176,8 +176,21 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
           final ci = entry.value;
           final isEven = idx.isEven;
           final status = (ci.status ?? 'pending').toString().toLowerCase();
-          final isPendingApproval = status == 'completed';
-          final isOverdue = ci.deadline != null && (ci.deadline as DateTime).isOverdue && status != 'completed';
+          // A failed/declined CI that was superseded by a newer assignment for
+          // the same loan is audit history — show it as "Reassigned", never
+          // actionable (no Reassign button, no overdue highlight).
+          final isLatest = (ci.isLatest ?? true) as bool;
+          final isSuperseded = !isLatest &&
+              (status == 'failed' ||
+                  status == 'expired' ||
+                  status == 'declined');
+          final displayStatus = isSuperseded ? 'reassigned' : status;
+          final isPendingApproval = displayStatus == 'completed';
+          final isOverdue = ci.deadline != null &&
+              (ci.deadline as DateTime).isOverdue &&
+              !isSuperseded &&
+              displayStatus != 'completed' &&
+              displayStatus != 'reassigned';
           return Column(children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -202,8 +215,8 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
                     if (isOverdue) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)), child: const Text('OVERDUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.error, letterSpacing: 0.4))),
                   ]),
                 ),
-                Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: _StatusInline(status: status))),
-                Expanded(flex: 2, child: _HmActionCell(ci: ci, isPending: isPendingApproval)),
+                Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: _StatusInline(status: displayStatus))),
+                Expanded(flex: 2, child: _HmActionCell(ci: ci, isPending: isPendingApproval, isLatest: isLatest)),
               ]),
             ),
           ]);
@@ -404,14 +417,19 @@ class _TableApproveButtonState extends ConsumerState<_TableApproveButton> {
 class _HmActionCell extends ConsumerWidget {
   final dynamic ci;
   final bool isPending;
-  const _HmActionCell({required this.ci, required this.isPending});
+  final bool isLatest;
+  const _HmActionCell(
+      {required this.ci, required this.isPending, this.isLatest = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Overdue CI (rider missed deadline → status failed): staff must be able
-    // to reassign a new rider from here. Lender side stays "in progress".
+    // Overdue CI (rider missed deadline → status failed) or a rider who
+    // declined: staff must be able to reassign a new rider from here.
+    // Lender side stays "in progress". Only the LATEST record for a loan may
+    // be reassigned — older rows are superseded audit history (View only).
     final status = (ci.status ?? '').toString().toLowerCase();
-    if (status == 'failed' || status == 'expired') {
+    if (isLatest &&
+        (status == 'failed' || status == 'expired' || status == 'declined')) {
       final loanId = (ci.loanId ?? '').toString();
       return Wrap(
         spacing: 6,

@@ -665,8 +665,9 @@ class _EmpLoanApplicationsScreenState
     final status = loan.status.toLowerCase().trim();
     // Overdue CI (latest CI failed/expired): allow reassignment even though
     // the loan is still 'ci_assigned'. Lender side stays "in progress".
-    final ciFailed =
-        loan.ciStatus == 'failed' || loan.ciStatus == 'expired';
+    final ciFailed = loan.ciStatus == 'failed' ||
+        loan.ciStatus == 'expired' ||
+        loan.ciStatus == 'declined';
     final canAssignRider =
         ['pending', 'under_review', 'ci_required'].contains(status) ||
             (status == 'ci_assigned' && ciFailed);

@@ -32,6 +32,11 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
   final _lastCtrl = TextEditingController();
   final _suffixCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _streetCtrl = TextEditingController();
+  final _barangayCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _provinceCtrl = TextEditingController();
+  final _zipCtrl = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -75,6 +80,13 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         _lastCtrl.text = (data['last_name'] as String?) ?? '';
         _suffixCtrl.text = (data['suffix'] as String?) ?? '';
         _phoneCtrl.text = (data['phone_number'] as String?) ?? '';
+        // Address lives in the addresses table — get-profile flattens the
+        // primary home address straight onto the user object.
+        _streetCtrl.text = (data['street_address'] as String?) ?? '';
+        _barangayCtrl.text = (data['barangay'] as String?) ?? '';
+        _cityCtrl.text = (data['city'] as String?) ?? '';
+        _provinceCtrl.text = (data['province'] as String?) ?? '';
+        _zipCtrl.text = (data['zip_code'] as String?) ?? '';
         _email = (data['email'] as String?) ?? '';
         _gender = _asKnownCode(data['gender'], _genders);
         _civilStatus = _asKnownCode(data['civil_status'], _civilStatuses);
@@ -116,6 +128,12 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
               'date_of_birth':
                   '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
           },
+        // Primary home address (users-manage upserts into `addresses`).
+        'street_address': _streetCtrl.text.trim(),
+        'barangay': _barangayCtrl.text.trim(),
+        'city': _cityCtrl.text.trim(),
+        'province': _provinceCtrl.text.trim(),
+        'zip_code': _zipCtrl.text.trim(),
       });
       if (!mounted) return;
       Navigator.pop(context, true);
@@ -135,6 +153,11 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
     _lastCtrl.dispose();
     _suffixCtrl.dispose();
     _phoneCtrl.dispose();
+    _streetCtrl.dispose();
+    _barangayCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
+    _zipCtrl.dispose();
     super.dispose();
   }
 
@@ -225,6 +248,34 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                         ),
                         const SizedBox(height: 12),
                         _f('Phone Number', _phoneCtrl, maxLength: 11),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Address',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary),
+                        ),
+                        const SizedBox(height: 8),
+                        _f('Street Address', _streetCtrl, maxLength: 100),
+                        const SizedBox(height: 12),
+                        _f('Barangay', _barangayCtrl, maxLength: 100),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _f('City / Municipality', _cityCtrl,
+                                  maxLength: 100),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _f('Province', _provinceCtrl,
+                                  maxLength: 100),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _f('ZIP Code', _zipCtrl, maxLength: 4),
                         if (_isStaff) ...[
                           const SizedBox(height: 12),
                           Row(

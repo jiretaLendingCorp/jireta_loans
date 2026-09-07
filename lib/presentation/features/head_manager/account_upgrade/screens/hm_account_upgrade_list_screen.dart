@@ -184,7 +184,7 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
           final doc = entry.value;
           final isEven = idx.isEven;
           final status = (doc.status ?? 'pending').toString().toLowerCase();
-          final date = DateFormat('MMM dd, yyyy').format(doc.submittedAt ?? doc.createdAt);
+          final date = DateFormat('MMM dd, yyyy h:mm a').format(doc.submittedAt ?? doc.createdAt);
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),

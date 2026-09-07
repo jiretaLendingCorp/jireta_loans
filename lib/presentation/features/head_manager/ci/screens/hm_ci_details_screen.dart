@@ -7,16 +7,9 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
-import '../../../../../core/di/injection.dart';
-import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
+import '../../../../shared/providers/ci_detail_provider.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-
-final _ciDetailProvider =
-    FutureProvider.family<Map<String, dynamic>?, String>((ref, ciId) async {
-  final ds = sl<CiRemoteDataSource>();
-  return ds.getCiDetails(ciId);
-});
 
 class HmCiDetailsScreen extends ConsumerStatefulWidget {
   final String ciId;
@@ -32,7 +25,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ciAsync = ref.watch(_ciDetailProvider(widget.ciId));
+    final ciState = ref.watch(ciDetailProvider(widget.ciId));
 
     return WebScaffold(
       title: 'CI Assignment Details',
@@ -49,15 +42,15 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         ),
         const SizedBox(width: 12),
       ],
-      body: ciAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-            child: Text('Error: $e',
-                style: const TextStyle(color: AppColors.error))),
-        data: (ci) => ci == null
-            ? const Center(child: Text('CI assignment not found'))
-            : _buildContent(context, ci),
-      ),
+      body: ciState.isLoading && ciState.ci == null
+          ? const Center(child: CircularProgressIndicator())
+          : ciState.error != null && ciState.ci == null
+              ? Center(
+                  child: Text('Error: ${ciState.error}',
+                      style: const TextStyle(color: AppColors.error)))
+              : ciState.ci == null
+                  ? const Center(child: Text('CI assignment not found'))
+                  : _buildContent(context, ciState.ci!),
     );
   }
 

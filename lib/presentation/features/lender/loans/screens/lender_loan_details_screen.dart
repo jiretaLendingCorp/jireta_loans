@@ -206,7 +206,7 @@ class _LoanHeader extends StatelessWidget {
             ),
           const SizedBox(height: 8),
           Text(
-              'Applied: ${loan.createdAt != null ? (loan.createdAt as DateTime).toDateString() : ''}',
+              'Applied: ${loan.createdAt != null ? (loan.createdAt as DateTime).formattedWithTime : ''}',
               style: const TextStyle(color: Colors.white60, fontSize: 11)),
         ],
       ),
@@ -319,7 +319,7 @@ class _InfoCard extends StatelessWidget {
           _row(
               'Disbursed At',
               loan.disbursedAt != null
-                  ? (loan.disbursedAt as DateTime).toDateString()
+                  ? (loan.disbursedAt as DateTime).formattedWithTime
                   : 'Not yet disbursed'),
           const Divider(height: 1, color: AppColors.divider),
           _row('Purpose', loan.purpose ?? 'N/A'),

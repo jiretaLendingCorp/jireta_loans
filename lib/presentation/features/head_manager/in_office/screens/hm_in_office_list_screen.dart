@@ -125,7 +125,7 @@ class _HmInOfficeListScreenState extends ConsumerState<HmInOfficeListScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Step ${app['wizard_step'] ?? 1} of 5 • ${createdAt != null ? DateFormat('MMM d, y').format(createdAt) : ''}',
+                        'Step ${app['wizard_step'] ?? 1} of 5 • ${createdAt != null ? DateFormat('MMM d, y h:mm a').format(createdAt) : ''}',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textSecondary),
                       ),

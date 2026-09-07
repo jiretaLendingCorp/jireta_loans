@@ -178,7 +178,12 @@ async function handleGetList(req: Request) {
         interest_rate: r.interest_rate,
         interest_amount: fin.interest_amount ?? null,
         total_payable: fin.total_payable ?? null,
-        outstanding_balance: fin.outstanding_balance ?? null,
+        // Lenders only owe money once the loan is actually released — an
+        // approved-but-undisbursed loan shows no balance to the lender.
+        outstanding_balance:
+          user.role === ROLES.LENDER && !disb?.disbursed_at
+            ? 0
+            : (fin.outstanding_balance ?? null),
         payment_frequency: r.payment_frequency,
         frequency: r.payment_frequency,
         term_days: r.term_days,

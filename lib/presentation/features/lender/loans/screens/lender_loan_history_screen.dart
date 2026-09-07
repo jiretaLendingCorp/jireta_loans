@@ -113,6 +113,10 @@ class _LoanCard extends StatelessWidget {
     final isApproved = status == 'approved';
     final isRejected = status == 'rejected';
     final isPending = ['pending', 'under_review', 'ci_required', 'ci_assigned', 'ci_completed'].contains(status);
+    // A loan only carries a balance once it is actually disbursed. Approved
+    // (or pending) loans still show the approved loan amount instead.
+    final isReleased =
+        isActive || status == 'overdue' || loan.disbursedAt != null;
 
     final Color accent;
     final IconData icon;
@@ -177,7 +181,7 @@ class _LoanCard extends StatelessWidget {
                         style: TextStyle(fontSize: 11, color: accent, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 2),
                     Text(
-                      loan.createdAt != null ? (loan.createdAt as DateTime).toDateString() : '',
+                      loan.createdAt != null ? (loan.createdAt as DateTime).formattedWithTime : '',
                       style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
                     ),
                   ],
@@ -186,7 +190,7 @@ class _LoanCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('₱${(loan.outstandingBalance > 0 ? loan.outstandingBalance : loan.principalAmount).toStringAsFixed(2)}',
+                  Text('₱${(isReleased && loan.outstandingBalance > 0 ? loan.outstandingBalance : loan.principalAmount).toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary)),
                   const SizedBox(height: 2),
                   Text((loan.paymentFrequency ?? '').toString().toUpperCase(),

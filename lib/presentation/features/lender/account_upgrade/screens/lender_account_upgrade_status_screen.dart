@@ -413,7 +413,7 @@ class _DocumentTile extends StatelessWidget {
                         color: AppColors.textPrimary)),
                 Text(
                     doc.createdAt != null
-                        ? (doc.createdAt as DateTime).toDateString()
+                        ? (doc.createdAt as DateTime).formattedWithTime
                         : '',
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.textSecondary)),

@@ -386,7 +386,7 @@ class _HmPaymentListScreenState extends ConsumerState<HmPaymentListScreen>
     if (d == null) return '-';
     final dt = parseManila(d);
     if (dt == null) return d.toString();
-    return DateFormat('MMM dd, yyyy').format(dt);
+    return DateFormat('MMM dd, yyyy h:mm a').format(dt);
   }
 
   String _capitalize(String s) =>

@@ -1182,7 +1182,7 @@ class _LoanHistoryTile extends StatelessWidget {
                     children: [
                       Text(loan.loanNumber, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.textPrimary)),
                       const SizedBox(height: 2),
-                      Text(loan.createdAt.toDateString(), style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                      Text(loan.createdAt.formattedWithTime, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
                       const SizedBox(height: 2),
                       Text(loan.paymentFrequency.toUpperCase(), style: const TextStyle(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
                     ],
