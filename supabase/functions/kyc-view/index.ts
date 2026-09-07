@@ -339,8 +339,19 @@ async function handleGetList(req: Request) {
     const addressMap = await getLenderAddressBatch(db, lenderIds);
 
     // Walk-in documents per lender: lenders created through the in-office
-    // wizard uploaded their documents at the office (application_documents),
-    // so count them alongside account_upgrade_documents.
+    // wizard uploaded their documents at the office (application_documents).
+    // Those are mirrored into account_upgrade_documents (status 'verified')
+    // at submit time and by the 00133 / 00136 backfills, so a document_type
+    // ALREADY present in account_upgrade_documents must NOT be counted again
+    // here — otherwise walk-in lenders show doubled document counts.
+    const upgradeTypesByLender: Record<string, Set<string>> = {};
+    for (const row of rows ?? []) {
+      upgradeTypesByLender[row.id] = new Set(
+        ((row.account_upgrade_documents ?? []) as any[]).map(
+          (d: any) => d.document_type,
+        ),
+      );
+    }
     const walkInCounts: Record<string, number> = {};
     const walkInTypes: Record<string, string[]> = {};
     if (lenderIds.length > 0) {
@@ -361,6 +372,9 @@ async function handleGetList(req: Request) {
           for (const d of appDocs ?? []) {
             const lid = appLender.get(d.application_id);
             if (!lid) continue;
+            // Already mirrored into the upgrade — counting it twice would
+            // inflate the walk-in lender's document count.
+            if (upgradeTypesByLender[lid]?.has(d.document_type)) continue;
             walkInCounts[lid] = (walkInCounts[lid] ?? 0) + 1;
             const types = walkInTypes[lid] ?? [];
             if (!types.includes(d.document_type)) types.push(d.document_type);

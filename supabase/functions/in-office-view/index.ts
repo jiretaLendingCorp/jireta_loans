@@ -253,6 +253,51 @@ async function findOrCreateWalkInLender(
   return { ok: true, lenderId: newUser.id, isNewLender: true };
 }
 
+// ── [shared by submit / submit-account] ──────────────────────────────────────
+// The walk-in wizard uploads its documents to application_documents (files in
+// the loan-documents bucket). Mirror them into account_upgrade_documents with
+// status 'verified' (staff checked them in person) so EVERY surface that reads
+// account_upgrade_documents — Account Upgrade details / status / list and the
+// lender's own Documents page — shows them. kyc-view get-details merges
+// application_documents as a fallback, but only that endpoint does.
+// Idempotent: a (lender, document_type) already mirrored is never duplicated.
+// Non-fatal on error (the kyc-view merge still lists the docs).
+async function mirrorWalkInDocsToAccountUpgrade(
+  db: ReturnType<typeof getAdminClient>,
+  opts: { lenderId: string; docRows: any[]; reviewedBy: string; logPrefix: string },
+) {
+  const { lenderId, docRows, reviewedBy, logPrefix } = opts;
+  const valid = (docRows ?? []).filter((d) => d && d.file_path);
+  if (valid.length === 0) return;
+  const { data: existing } = await db
+    .from('account_upgrade_documents')
+    .select('document_type')
+    .eq('lender_id', lenderId);
+  const existingTypes = new Set((existing ?? []).map((d) => d.document_type));
+  const rows = valid
+    .filter((d) => !existingTypes.has(d.document_type))
+    .map((d) => ({
+      lender_id: lenderId,
+      document_type: normalizeDocumentType(d.document_type ?? null) ?? 'other',
+      file_path: d.file_path,
+      file_name: d.file_name ?? d.document_type ?? 'document',
+      // application_documents has no file_size column — satisfy the
+      // CHECK (file_size > 0) with the same 1-byte placeholder migration
+      // 00133 uses. Only used for display.
+      file_size: d.file_size && d.file_size > 0 ? d.file_size : 1,
+      mime_type: d.mime_type ?? 'application/octet-stream',
+      status: 'verified',
+      reviewed_by: reviewedBy,
+      reviewed_at: new Date().toISOString(),
+      uploaded_at: d.uploaded_at ?? d.created_at ?? new Date().toISOString(),
+    }));
+  if (rows.length === 0) return;
+  const { error } = await db.from('account_upgrade_documents').insert(rows);
+  if (error) {
+    console.error(`${logPrefix}: mirror walk-in docs to account_upgrade_documents failed`, { lenderId, error });
+  }
+}
+
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'submit';
 
@@ -407,6 +452,15 @@ async function handleSubmit(req: Request) {
       lenderId = resolved.lenderId!;
       isNewLender = resolved.isNewLender ?? false;
     }
+
+    // Mirror the walk-in's application documents into the Account Upgrade
+    // (status 'verified') so every Account Upgrade surface lists them.
+    await mirrorWalkInDocsToAccountUpgrade(db, {
+      lenderId,
+      docRows: documents.data ?? [],
+      reviewedBy: authResult.id,
+      logPrefix: 'in-office-view submit',
+    });
 
     // Always ensure addresses/emergency are materialized for the lender on pause path (so KYC profile is prefilled)
     // We deduplicate by checking existing lender addresses/emergency before insert to avoid doubles on retry.
@@ -793,6 +847,15 @@ async function handleSubmitAccount(req: Request) {
         return errorResponse('Failed to verify lender account', 500, 'DB_ERROR');
       }
     }
+
+    // Mirror the walk-in's application documents into the Account Upgrade
+    // (status 'verified') so every Account Upgrade surface lists them.
+    await mirrorWalkInDocsToAccountUpgrade(db, {
+      lenderId,
+      docRows,
+      reviewedBy: authResult.id,
+      logPrefix: 'in-office-view submit-account',
+    });
 
     // Materialize the walk-in address onto the lender (once).
     const addrRows = addresses.data ?? [];
