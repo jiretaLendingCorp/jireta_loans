@@ -50,9 +50,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   late String _scheduleId;
   late double _amount;
   late String _dueDate;
-  final _amountCtrl = TextEditingController();
   double? _outstandingBalance;
-  String? _amountError;
 
   @override
   void initState() {
@@ -60,7 +58,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     _scheduleId = widget.extra['schedule_id'] as String? ?? '';
     _amount = (widget.extra['amount'] as num?)?.toDouble() ?? 0.0;
     _dueDate = widget.extra['due_date'] as String? ?? '';
-    _amountCtrl.text = _amount > 0 ? _amount.toStringAsFixed(2) : '';
     // When arriving with only a loan (e.g. from the dashboard card), resolve the
     // next payable installment so the cash-collection request has a schedule.
     if (_scheduleId.isEmpty) Future.microtask(_resolveSchedule);
@@ -69,7 +66,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
 
   @override
   void dispose() {
-    _amountCtrl.dispose();
     super.dispose();
   }
 
@@ -81,26 +77,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       final bal = ref.read(lenderLoanProvider).selectedLoan?.outstandingBalance ?? 0;
       if (mounted) setState(() => _outstandingBalance = bal);
     } catch (_) {}
-  }
-
-  double? get _customAmount {
-    final v = double.tryParse(_amountCtrl.text.trim());
-    if (v == null || v <= 0) return null;
-    return v;
-  }
-
-  bool _validateAmount() {
-    final v = double.tryParse(_amountCtrl.text.trim());
-    if (v == null || v <= 0) {
-      setState(() => _amountError = 'Enter a valid amount (> 0)');
-      return false;
-    }
-    if (_outstandingBalance != null && v > _outstandingBalance! + 0.01) {
-      setState(() => _amountError = 'Exceeds outstanding ${_outstandingBalance!.toCurrency}');
-      return false;
-    }
-    setState(() => _amountError = null);
-    return true;
   }
 
   Future<void> _resolveSchedule() async {
@@ -124,7 +100,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       setState(() {
         _scheduleId = resolved['id'] as String? ?? _scheduleId;
         _amount = amt;
-        _amountCtrl.text = amt > 0 ? amt.toStringAsFixed(2) : _amountCtrl.text;
         _dueDate = resolved['due_date'] as String? ?? _dueDate;
       });
     }
@@ -155,8 +130,8 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     await showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Already Pending'),
-        content: const Text('You have already pending payment'),
+        title: const Text('Payment Already Pending'),
+        content: const Text('You already have a pending payment for this installment. Please wait for it to be processed.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context), child: const Text('OK')),
@@ -196,25 +171,18 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       _showInfo('Missing installment information. Please return to Payment Schedule and tap Pay again.');
       return;
     }
-    if (!_validateAmount()) return;
-    // Client-side guard: if we already know this schedule has a pending
-    // collection, show the pending message immediately without a round-trip.
-    // The server is still the source of truth (see the 200/409 handlers below),
-    // but this avoids the spinner when we can answer locally.
     if (_hasPendingLocally()) {
       AppLogger.d('[PaymentMethod] _hasPendingLocally true for $_scheduleId — skipping server call');
       await _showPendingDialog();
       return;
     }
-    final customAmt = _customAmount;
-    final displayAmt = (customAmt ?? _amount).toCurrency;
+    final displayAmt = _amount.toCurrency;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Request Rider Collection'),
+        title: const Text('Request Cash on Delivery'),
         content: Text(
-          'A rider will visit your home to collect $displayAmt. '
-          'Amount is flexible: you may pay partial, exact, or advance to next installments. Continue?',
+          'A rider will visit your home to collect $displayAmt. Continue?',
         ),
         actions: [
           TextButton(
@@ -228,13 +196,13 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    AppLogger.d('[PaymentMethod] User confirmed rider collection schedule=$_scheduleId loan=${widget.extra['loan_id']} amount=$customAmt');
+    AppLogger.d('[PaymentMethod] User confirmed rider collection schedule=$_scheduleId loan=${widget.extra['loan_id']} amount=$_amount');
     setState(() => _requesting = true);
     bool ok = false;
     try {
       ok = await ref
           .read(lenderPaymentProvider.notifier)
-          .requestRiderCollection(loanScheduleId: _scheduleId, amount: customAmt);
+          .requestRiderCollection(loanScheduleId: _scheduleId, amount: _amount);
     } catch (e, st) {
       AppLogger.e('[PaymentMethod] requestRiderCollection threw', e, st);
       if (kDebugMode) debugPrint('[PaymentMethod] exception: $e');
@@ -286,7 +254,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         builder: (_) => AlertDialog(
           title: Text(title),
           content: Text(isPending
-              ? 'You have already pending payment'
+              ? 'You already have a pending payment for this installment. Please wait for it to be processed.'
               : err),
           actions: [
             TextButton(
@@ -309,8 +277,8 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       builder: (_) => AlertDialog(
         title: const Text('GCash Payment'),
         content: const Text(
-          'GCash payment is coming soon. Please use Cash (rider collection) '
-          'or pay at our office for now.',
+          'GCash payment is coming soon. Please pay via Cash on Delivery '
+          'or at our office for now.',
         ),
         actions: [
           TextButton(
@@ -362,51 +330,14 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          // Flexible amount input – lender can pay any amount
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _amountError != null ? AppColors.error : AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(children: [
-                  Icon(Icons.payments_rounded, size: 16, color: AppColors.lenderBlue),
-                  SizedBox(width: 6),
-                  Text('Amount to Pay', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
-                ]),
-                const SizedBox(height: 6),
-                const Text('Enter any amount – partial, exact, or advance. System will allocate across installments.',
-                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _amountCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    prefixText: '₱ ',
-                    hintText: 'e.g. ${_amount.toStringAsFixed(2)}',
-                    errorText: _amountError,
-                    filled: true,
-                    fillColor: AppColors.surfaceVariant,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _amountError != null ? AppColors.error : AppColors.border)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.lenderBlue, width: 1.5)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  onChanged: (_) => setState(() => _amountError = null),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          const Text('Choose how you want to pay this installment:',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 12),
           _MethodCard(
-            icon: Icons.home_work_outlined,
+            icon: Icons.delivery_dining_outlined,
             color: AppColors.riderGreen,
-            title: 'Cash — Rider Collection',
+            title: 'Cash on Delivery',
             subtitle:
                 'A rider will visit your home to collect the payment. Our office assigns the rider and notifies you.',
             badge: null,
@@ -422,16 +353,14 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
                 'Visit our office to pay in cash. Payment will be recorded on-site and a receipt will be issued.',
             badge: null,
             onTap: () {
-              if (!_validateAmount()) return;
               if (_hasPendingLocally()) {
                 _showPendingDialog();
                 return;
               }
-              final amt = _customAmount ?? _amount;
               context.push(RouteConstants.lenderOfficePayment, extra: {
                 'loan_id': widget.extra['loan_id'],
                 'schedule_id': _scheduleId,
-                'amount': amt,
+                'amount': _amount,
                 'due_date': _dueDate,
               });
             },

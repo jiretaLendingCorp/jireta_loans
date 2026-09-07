@@ -70,8 +70,8 @@ class LenderPromoCarousel extends StatefulWidget {
     this.banners = defaultLenderPromos,
     this.onCtaTap,
     this.autoPlayInterval = const Duration(seconds: 4),
-    this.mobileHeight = 210,
-    this.webHeight = 260,
+    this.mobileHeight = 170,
+    this.webHeight = 200,
   });
 
   @override
@@ -149,14 +149,10 @@ class _LenderPromoCarouselState extends State<LenderPromoCarousel> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isWeb = constraints.maxWidth > 600;
-            // Slide height follows the artwork aspect (16:9 base, 2:1 on
-            // wide screens) instead of a fixed box, so the image keeps
-            // its ratio on any screen size. mobileHeight/webHeight act
-            // as the upper caps.
+            // Fixed height matching the Outstanding Balance card so the
+            // carousel and balance card share the same visual height.
             final maxCardH = isWeb ? widget.webHeight : widget.mobileHeight;
-            final cardH = (constraints.maxWidth / (isWeb ? 2.0 : 16 / 9))
-                .clamp(150.0, maxCardH)
-                .toDouble();
+            final cardH = maxCardH;
             final height = cardH + shadowTopRoom + shadowBottomRoom;
 
             return Column(

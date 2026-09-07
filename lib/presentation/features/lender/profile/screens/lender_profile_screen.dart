@@ -8,7 +8,6 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/config/app_config.dart';
 import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/extensions/string_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -176,7 +175,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 ModernInfoRowData(
                     icon: Icons.phone_outlined,
                     label: 'Phone',
-                    value: phone.maskPhone()),
+                    value: phone.isEmpty ? '—' : phone),
                 ModernInfoRowData(
                     icon: Icons.wc_outlined,
                     label: 'Gender',
@@ -480,60 +479,58 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
 
   Future<void> _confirmLogout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
-    // The pressed Log out button itself shows loading while logging out —
-    // no "Logging out" modal is shown.
+    // The Log out button inside the dialog shows its own spinner while
+    // logging out, then goes straight to the login page — no intermediate
+    // shimmer screen.
+    bool dialogLoading = false;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        var isBusy = false;
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) => AlertDialog(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16)),
-            title: const Text('Log out?',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            content: const Text('You will need to log in again to continue.',
-                style: TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary)),
-            actions: [
-              TextButton(
-                  onPressed: isBusy ? null : () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel')),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: _accent,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10))),
-                onPressed: isBusy
-                    ? null
-                    : () async {
-                        setDialogState(() => isBusy = true);
-                        try {
-                          await ref.read(authProvider.notifier).logout();
-                          if (ctx.mounted) Navigator.pop(ctx, true);
-                        } catch (_) {
-                          setDialogState(() => isBusy = false);
-                        }
-                      },
-                child: isBusy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Log out'),
-              ),
-            ],
-          ),
-        );
-      },
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
+          title: const Text('Log out?',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          content: const Text('You will need to log in again to continue.',
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary)),
+          actions: [
+            TextButton(
+                onPressed: dialogLoading ? null : () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _accent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10))),
+              onPressed: dialogLoading
+                  ? null
+                  : () async {
+                      setDialogState(() => dialogLoading = true);
+                      try {
+                        await ref.read(authProvider.notifier).logout();
+                      } catch (_) {}
+                      if (ctx.mounted) Navigator.pop(ctx, true);
+                    },
+              child: dialogLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text('Log out'),
+            ),
+          ],
+        ),
+      ),
     );
     if (confirmed != true) return;
-    if (mounted && context.mounted) {
-      context.go(RouteConstants.mobileLogin);
-    }
+    if (!mounted || !context.mounted) return;
+    // Already logged out above — go straight to login, no shimmer in between.
+    context.go(RouteConstants.mobileLogin);
   }
 }
 

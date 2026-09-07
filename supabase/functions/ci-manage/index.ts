@@ -88,6 +88,12 @@ async function handleCiAssign(req: Request) {
   if (!rider) return errorResponse('Rider not found', 404, 'NOT_FOUND');
   if (!rider.is_available) return errorResponse('Rider is not available', 409, 'RIDER_UNAVAILABLE');
 
+  // FIX: close out any previous failed/expired/declined investigation for this
+  // loan so the old row no longer shows a "Reassign" button. The old row is
+  // marked as reassigned (kept for audit) and the new assignment becomes the
+  // single active one.
+  await db.from('credit_investigations').update({ status: 'reassigned' }).eq('loan_id', loan_id).in('status', ['failed', 'expired', 'declined']);
+
   const { data: ci, error: ciErr } = await db.from('credit_investigations').insert({
     loan_id,
     rider_id,
@@ -113,17 +119,36 @@ async function handleCiAssign(req: Request) {
 
   await sendPushNotification({
     userId: rider_id,
-    title: 'New CI Assignment',
-    body: 'You have been assigned a credit investigation. Tap to view details.',
+    title: 'New Credit Investigation Assignment',
+    body: 'You have a new credit investigation assignment. Please review the details and accept it promptly.',
     type: 'ci_assigned',
     referenceId: ci.id,
     sentBy: authResult.id,
   });
 
+  // Notify the lender that a rider has been assigned, including rider name
+  // and scheduled visit date for proper tracking.
+  try {
+    const { data: riderUser } = await db.from('users').select('first_name, last_name').eq('id', rider_id).single();
+    const { data: loanRow } = await db.from('loans').select('lender_id, loan_number').eq('id', loan_id).single();
+    const riderName = riderUser ? `${(riderUser as any).first_name ?? ''} ${(riderUser as any).last_name ?? ''}`.trim() : 'Our rider';
+    const visitDate = deadline ? new Date(deadline).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'soon';
+    if ((loanRow as any)?.lender_id) {
+      await sendPushNotification({
+        userId: (loanRow as any).lender_id,
+        title: 'Credit Investigation Scheduled',
+        body: `Hi! ${riderName} has been assigned to your loan application (${(loanRow as any).loan_number ?? 'your loan'}) and will visit your address by ${visitDate} for verification. Please be available. Tap to view your application status.`,
+        type: 'ci_assigned',
+        referenceId: loan_id,
+        sentBy: authResult.id,
+      });
+    }
+  } catch (_) {}
+
   await sendPushNotification({
     userId: authResult.id,
-    title: 'CI Assignment Confirmed',
-    body: `Credit investigation assigned to rider successfully.`,
+    title: 'Credit Investigation Assigned',
+    body: `A rider has been successfully assigned to the credit investigation.`,
     type: 'ci_assigned',
     referenceId: ci.id,
     sentBy: authResult.id,
@@ -151,7 +176,7 @@ async function handleCiAccept(req: Request) {
   await db.from('loans').update({ status: 'ci_assigned' }).eq('id', ci.loan_id);
   await db.from('rider_profiles').update({ is_available: false }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_accept', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
-  if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'CI Accepted', body: 'The rider has accepted the credit investigation assignment.', type: 'ci_accepted', referenceId: ci_id });
+  if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'Investigation Accepted', body: 'The rider has accepted the credit investigation assignment and will proceed with the visit.', type: 'ci_accepted', referenceId: ci_id });
   return jsonResponse({ message: 'CI assignment accepted' });
 }
 
@@ -173,7 +198,7 @@ async function handleCiDecline(req: Request) {
   await db.from('loans').update({ status: 'under_review' }).eq('id', ci.loan_id);
   await db.from('rider_profiles').update({ is_available: true }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_decline', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
-  if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'CI Declined', body: 'The rider has declined the CI assignment. Please reassign.', type: 'ci_declined', referenceId: ci_id });
+  if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'Investigation Declined', body: 'The rider has declined the credit investigation assignment. Please assign a new rider.', type: 'ci_declined', referenceId: ci_id });
   return jsonResponse({ message: 'CI declined' });
 }
 
@@ -227,10 +252,10 @@ async function handleCiApproveReport(req: Request) {
     ipAddress: ip,
   });
   // Notify rider and lender
-  if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'CI Report Approved', body: 'Your investigation report has been approved by management. Thank you!', type: 'ci_approved', referenceId: ci_id });
+  if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'Investigation Report Approved', body: 'Your investigation report has been approved by management. Thank you for your work!', type: 'ci_approved', referenceId: ci_id });
   // Notify lender via loan — loan is now approved, lender can choose disbursement
   const { data: loan } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
-  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved!', body: 'Your credit investigation has been approved and your loan is now approved. Please choose your disbursement method.', type: 'loan_approved', referenceId: ci.loan_id });
+  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved!', body: 'Good news! Your credit investigation is approved and your loan is now approved. Please choose your disbursement method to receive your funds.', type: 'loan_approved', referenceId: ci.loan_id });
   return jsonResponse({ message: 'CI report approved. Loan has been auto-approved.' });
 }
 
@@ -269,8 +294,8 @@ async function handleCiRejectReport(req: Request) {
     newValues: { status: 'rejected', reason },
     ipAddress: ip,
   });
-  if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'CI Report Needs Revision', body: `Your report was not approved: ${reason}. Please contact management.`, type: 'ci_rejected', referenceId: ci_id });
+  if (ci.rider_id) await sendPushNotification({ userId: ci.rider_id, title: 'Investigation Report Needs Revision', body: `Your report was not approved: ${reason}. Please contact management for guidance.`, type: 'ci_rejected', referenceId: ci_id });
   const { data: loan } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
-  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Update', body: 'Your loan credit investigation requires additional review. Our team will contact you.', type: 'ci_rejected', referenceId: ci.loan_id });
+  if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Update', body: 'Your loan application needs additional review. Our team will contact you shortly with the next steps.', type: 'ci_rejected', referenceId: ci.loan_id });
   return jsonResponse({ message: 'CI report rejected. Loan has been rejected.' });
 }

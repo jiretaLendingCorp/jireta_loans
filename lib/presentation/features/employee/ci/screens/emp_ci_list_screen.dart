@@ -282,6 +282,7 @@ class _StatusInline extends StatelessWidget {
       case 'declined': c = AppColors.error; label = 'Declined'; break;
       case 'failed':
       case 'expired': c = AppColors.error; label = 'Failed — Overdue'; break;
+      case 'reassigned': c = AppColors.textSecondary; label = 'Reassigned'; break;
       default: c = AppColors.textSecondary; label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
     }
     return Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 7, height: 7, decoration: BoxDecoration(color: c, shape: BoxShape.circle)), const SizedBox(width: 6), Flexible(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c), overflow: TextOverflow.ellipsis))]);

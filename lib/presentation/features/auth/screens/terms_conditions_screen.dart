@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../shared/providers/auth_state_provider.dart';
 import '../providers/auth_provider.dart';
 
 class TermsConditionsScreen extends ConsumerStatefulWidget {
@@ -31,6 +32,13 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConstants.termsAcceptedKey, true);
+    // Per-account key so the one-time post-login prompt shows exactly once
+    // per lender, even on a shared device.
+    final userId = ref.read(authStateProvider).user?.id ?? '';
+    if (userId.isNotEmpty) {
+      await prefs.setBool(
+          '${AppConstants.termsAcceptedKey}_$userId', true);
+    }
     final platform = kIsWeb
         ? 'web'
         : defaultTargetPlatform == TargetPlatform.iOS
@@ -42,6 +50,16 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
           appVersion: AppConstants.appVersion,
         );
     if (!mounted) return;
+    // Post-login one-time prompt: the lender is already authenticated, so
+    // just return to the dashboard behind this full-screen page.
+    if (ref.read(authStateProvider).isAuthenticated) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      } else {
+        context.go(RouteConstants.lenderDashboard);
+      }
+      return;
+    }
     if (kIsWeb) {
       context.go(RouteConstants.webLogin);
     } else {

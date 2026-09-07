@@ -155,6 +155,18 @@ class CollectionAssignmentModel {
   double get amountDue =>
       (loanSchedule?['amount_due'] as num?)?.toDouble() ?? 0;
 
+  String get collectionTypeLabel {
+    switch (collectionType) {
+      case 'office':
+        return 'Office';
+      case 'gcash':
+        return 'GCash';
+      case 'rider':
+      default:
+        return 'Cash on Delivery';
+    }
+  }
+
   String get statusLabel {
     switch (status) {
       case 'pending':

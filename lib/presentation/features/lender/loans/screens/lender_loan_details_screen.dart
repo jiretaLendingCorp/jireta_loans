@@ -146,6 +146,11 @@ class _LoanHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // An approved-but-not-yet-disbursed loan has no outstanding balance yet.
+    // The lender must first choose a disbursement method and wait for the
+    // rider delivery or office pickup before any balance appears.
+    final isReleased =
+        loan.status == 'active' || loan.status == 'overdue' || loan.disbursedAt != null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -183,13 +188,22 @@ class _LoanHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          const Text('Outstanding Balance',
-              style: TextStyle(color: Colors.white70, fontSize: 12)),
+          Text(isReleased ? 'Outstanding Balance' : 'Approved Amount',
+              style: const TextStyle(color: Colors.white70, fontSize: 12)),
           Text(
-            (loan.outstandingBalance as num?)?.toCurrency ?? '₱0.00',
+            isReleased
+                ? ((loan.outstandingBalance as num?)?.toCurrency ?? '₱0.00')
+                : ((loan.principalAmount as num?)?.toCurrency ?? '₱0.00'),
             style: const TextStyle(
                 color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
           ),
+          if (!isReleased)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text(
+                  'Choose a disbursement method to receive your funds. Your balance will appear after release.',
+                  style: TextStyle(color: Colors.white70, fontSize: 11)),
+            ),
           const SizedBox(height: 8),
           Text(
               'Applied: ${loan.createdAt != null ? (loan.createdAt as DateTime).toDateString() : ''}',

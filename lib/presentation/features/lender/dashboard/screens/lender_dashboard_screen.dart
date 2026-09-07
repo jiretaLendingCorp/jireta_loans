@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:rive/rive.dart';
 
+import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
@@ -13,6 +14,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -91,6 +93,32 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..forward();
+    // Terms & Conditions appear exactly once per lender account, right after
+    // login on the dashboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTermsOnce());
+  }
+
+  /// Opens the full-screen Terms & Conditions page the first time each lender
+  /// account logs in on the device. Same full-screen design as the original
+  /// pre-login terms screen — it covers the whole screen. The decision is
+  /// strictly per-account, so EVERY new lender account sees it on login even
+  /// on a shared device where another account already accepted.
+  Future<void> _maybeShowTermsOnce() async {
+    if (!mounted) return;
+    // Wait for the real logged-in user id — deciding before auth resolves
+    // (empty id) is what used to hide the prompt for new accounts.
+    var userId = ref.read(authStateProvider).user?.id ?? '';
+    for (var i = 0; i < 50 && mounted && userId.isEmpty; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      userId = ref.read(authStateProvider).user?.id ?? '';
+    }
+    if (!mounted || userId.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final perAccountKey = '${AppConstants.termsAcceptedKey}_$userId';
+    if (prefs.getBool(perAccountKey) ?? false) return;
+    if (!mounted || !context.mounted) return;
+    context.push(RouteConstants.terms);
   }
 
   @override
@@ -589,68 +617,8 @@ class _PendingLoanCard extends StatelessWidget {
   final LoanModel loan;
   const _PendingLoanCard({required this.loan});
 
-  String _titleForStatus(String status, String? ciStatus) {
-    switch (status) {
-      case 'ci_required':
-        return 'CI Required';
-      case 'ci_assigned':
-        if (ciStatus == 'assigned') return 'Rider Assigned for CI';
-        if (ciStatus == 'in_progress' || ciStatus == 'accepted') return 'CI In Progress';
-        return 'Credit Investigation';
-      case 'ci_completed':
-        if (ciStatus == 'completed') return 'CI Submitted — Awaiting Approval';
-        if (ciStatus == 'approved') return 'CI Approved';
-        if (ciStatus == 'rejected') return 'CI Needs Review';
-        return 'CI Completed';
-      default:
-        return 'Loan #${loan.loanNumber} Under Review';
-    }
-  }
-
-  String _subtitleForStatus(String status, String? ciStatus) {
-    switch (status) {
-      case 'pending':
-        return 'Your application has been submitted. Track its progress here.';
-      case 'under_review':
-        return 'Our team is reviewing your application.';
-      case 'ci_required':
-        return 'A credit investigation is required. A rider will be assigned soon.';
-      case 'ci_assigned':
-        if (ciStatus == 'assigned') return 'A rider has been assigned and will visit your address for verification.';
-        if (ciStatus == 'in_progress' || ciStatus == 'accepted') return 'Rider is conducting the investigation. Please be available at your address.';
-        return 'Credit investigation is in progress.';
-      case 'ci_completed':
-        if (ciStatus == 'completed') return 'Rider submitted the report. Manager is reviewing it before approval & disbursement.';
-        if (ciStatus == 'approved') return 'Investigation approved! Awaiting final loan approval. You\'ll choose disbursement method after approval.';
-        if (ciStatus == 'rejected') return 'Investigation needs additional review. Our team will contact you.';
-        return 'Investigation completed. Awaiting manager approval.';
-      default:
-        return 'Track the progress of your loan application.';
-    }
-  }
-
-  IconData _iconForStatus(String status, String? ciStatus) {
-    switch (status) {
-      case 'ci_assigned':
-        return Icons.delivery_dining_rounded;
-      case 'ci_completed':
-        if (ciStatus == 'completed') return Icons.rate_review_rounded;
-        if (ciStatus == 'approved') return Icons.verified_rounded;
-        if (ciStatus == 'rejected') return Icons.report_problem_rounded;
-        return Icons.assignment_turned_in_rounded;
-      case 'ci_required':
-        return Icons.search_rounded;
-      default:
-        return Icons.hourglass_top;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final title = _titleForStatus(loan.status, loan.ciStatus);
-    final subtitle = _subtitleForStatus(loan.status, loan.ciStatus);
-    final icon = _iconForStatus(loan.status, loan.ciStatus);
-    final isAwaitingApproval = loan.status == 'ci_completed' && loan.ciStatus == 'completed';
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -662,39 +630,52 @@ class _PendingLoanCard extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isAwaitingApproval ? AppColors.warning.withValues(alpha: 0.12) : AppColors.warningLight,
+            color: AppColors.warningLight,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: isAwaitingApproval ? AppColors.warning : AppColors.warning.withValues(alpha: 0.4)),
+            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
           ),
           child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isAwaitingApproval ? AppColors.warning : AppColors.warning,
+                decoration: const BoxDecoration(
+                  color: AppColors.warning,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: Colors.white, size: 22),
+                child: const Icon(Icons.hourglass_top_rounded,
+                    color: Colors.white, size: 22),
               ),
               const SizedBox(width: 12),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    if (isAwaitingApproval) ...[
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: AppColors.warning.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6), border: Border.all(color: AppColors.warning.withValues(alpha: 0.3))),
-                        child: const Text('Manager approval required before you can choose disbursement method', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.warning)),
-                      ),
-                    ],
+                    Text('Application Status',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.textPrimary)),
+                    SizedBox(height: 2),
+                    Text('Tap View Status to track your loan application.',
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
                   ],
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.deepNavy,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text('View Status',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              ),
+              const SizedBox(width: 6),
               const Icon(Icons.chevron_right, color: AppColors.warning),
             ],
           ),
@@ -950,7 +931,7 @@ class _PayWithSection extends StatelessWidget {
               child: _PayWithCard(
                 assetPath: 'assets/icons/paywithrider.jpg',
                 color: AppColors.riderGreen,
-                title: 'Rider',
+                title: 'Cash on Delivery',
                 onTap: () {
                   final current = loan;
                   if (current == null) {

@@ -53,62 +53,44 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
 
   Future<void> _logout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
-    // The pressed Log out button itself shows loading while logging out —
-    // no "Logging out" modal is shown.
+    // Pag pinindot mo na ng "Log out" sa dialog, agad mag-close yung dialog at mag-navigate
+    // sa login screen. Hindi na babalik sa profile screen — direktang logout agad.
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) {
-        var isBusy = false;
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) => AlertDialog(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16)),
-            title: const Text('Log out?',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            content: const Text('You will need to log in again to continue.',
-                style: TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary)),
-            actions: [
-              TextButton(
-                  onPressed: isBusy ? null : () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel')),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _accent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: isBusy
-                    ? null
-                    : () async {
-                        setDialogState(() => isBusy = true);
-                        try {
-                          await ref.read(authProvider.notifier).logout();
-                          if (ctx.mounted) Navigator.pop(ctx, true);
-                        } catch (_) {
-                          setDialogState(() => isBusy = false);
-                        }
-                      },
-                child: isBusy
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Log out'),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: const Text('Log out?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: const Text('You will need to log in again to continue.',
+            style: TextStyle(
+                fontSize: 13, color: AppColors.textSecondary)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _accent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Log out'),
           ),
-        );
-      },
+        ],
+      ),
     );
-    if (confirmed == true) {
-      if (mounted && context.mounted) {
-        context.go(RouteConstants.mobileLogin);
-      }
-    }
+    if (confirmed != true) return;
+    if (!mounted || !context.mounted) return;
+    // Direkta navigate sa login screen — hindi na babalik sa profile.
+    context.go(RouteConstants.mobileLogin);
+    // Tapos na mag-logout sa background.
+    try {
+      await ref.read(authProvider.notifier).logout();
+    } catch (_) {}
   }
 
   @override

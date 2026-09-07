@@ -67,7 +67,7 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
     final filtered = state.filteredPayments;
 
     return MobileScaffold(
-      title: 'Payment History',
+      title: 'Transaction',
       accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
@@ -148,6 +148,7 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
 
 class _FilterBar extends StatelessWidget {
   final LenderPaymentState state;
+  // Kept for API compatibility — search was removed per UX request.
   final TextEditingController searchCtrl;
   final ValueChanged<String> onMethod;
   final ValueChanged<String> onSearch;
@@ -161,23 +162,6 @@ class _FilterBar extends StatelessWidget {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border)),
       child: Column(
         children: [
-          TextField(
-            controller: searchCtrl,
-            decoration: InputDecoration(
-              hintText: 'Search',
-              hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-              prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
-              suffixIcon: searchCtrl.text.isNotEmpty
-                  ? IconButton(icon: const Icon(Icons.clear_rounded, size: 18), onPressed: () { searchCtrl.clear(); onSearch(''); })
-                  : null,
-              filled: true,
-              fillColor: AppColors.surfaceVariant,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-            onChanged: onSearch,
-          ),
-          const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
@@ -185,7 +169,9 @@ class _FilterBar extends StatelessWidget {
               const SizedBox(width: 6),
               _Pill(label: 'Office', selected: state.methodFilter == 'office_cash', onTap: () => onMethod('office_cash')),
               const SizedBox(width: 6),
-              _Pill(label: 'Rider', selected: state.methodFilter == 'rider_collection', onTap: () => onMethod('rider_collection')),
+              _Pill(label: 'Cash on Delivery', selected: state.methodFilter == 'rider_collection', onTap: () => onMethod('rider_collection')),
+              const SizedBox(width: 6),
+              _Pill(label: 'GCash', selected: state.methodFilter == 'gcash', onTap: () => onMethod('gcash')),
             ]),
           ),
         ],
@@ -234,7 +220,7 @@ class _EmptyFiltered extends StatelessWidget {
           const SizedBox(height: 14),
           const Text('No matches', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
           const SizedBox(height: 6),
-          const Text('Try adjusting status, method or search', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
+          const Text('Try a different payment method filter', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
           const SizedBox(height: 16),
           OutlinedButton(onPressed: onClear, child: const Text('Clear filters')),
         ]),

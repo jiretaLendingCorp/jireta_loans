@@ -57,7 +57,9 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   ];
 
   static const List<(String, String)> _docTypes = [
-    ('valid_id', 'Valid Government ID'),
+    ('valid_id', 'Valid Government ID (Front)'),
+    ('valid_id_back', 'Valid Government ID (Back)'),
+    ('selfie', 'Selfie Photo'),
     ('proof_of_income', 'Proof of Income'),
     ('barangay_clearance', 'Barangay Clearance'),
     ('pay_slip', 'Pay Slip'),
@@ -65,8 +67,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   static const Map<String, String> _docAssetIcons = {
     'valid_id': 'assets/icons/id_card.png',
+    'valid_id_back': 'assets/icons/id_card.png',
+    'selfie': 'assets/icons/id_card.png',
     'proof_of_income': 'assets/icons/PERMIT.png',
   };
+
+  static const List<String> _genderOptions = ['male', 'female'];
+  static const List<String> _civilStatusOptions = [
+    'single',
+    'married',
+    'widowed',
+    'separated',
+  ];
 
   int _step = 0;
   String? _appId;
@@ -74,11 +86,16 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   final _formKey = GlobalKey<FormState>();
 
-  // Step 1 controllers
+  // Step 1 controllers (mirrors Account Upgrade fields so walk-in creates
+  // a complete lender account up to upgrade stage)
   final _phoneCtrl = TextEditingController();
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _monthlyIncomeCtrl = TextEditingController();
+  String? _gender;
+  String? _civilStatus;
+  DateTime? _dob;
 
   // Step 2 controllers
   final _streetCtrl = TextEditingController();
@@ -258,7 +275,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const Text('Identify Lender',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('Search for an existing lender or create a new account.',
+        const Text('Search for an existing lender or create a new account. These fields match Account Upgrade so the walk-in account is ready for verification.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
         _field('Phone Number', _phoneCtrl,
@@ -275,6 +292,35 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           ],
         ),
         const SizedBox(height: 12),
+        _field('Email Address', _emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            maxLength: 100,
+            validator: _emailValidator),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _dropdown(
+                'Gender',
+                _gender,
+                _genderOptions,
+                (v) => setState(() => _gender = v),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _dropdown(
+                'Civil Status',
+                _civilStatus,
+                _civilStatusOptions,
+                (v) => setState(() => _civilStatus = v),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _dobField(),
+        const SizedBox(height: 12),
         _field('Monthly Income', _monthlyIncomeCtrl,
             keyboardType: TextInputType.number,
             prefix: '₱',
@@ -282,6 +328,34 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             validator: _numberValidator,
             onChanged: (_) => _updateIncomeDisplay()),
       ],
+    );
+  }
+
+  Widget _dobField() {
+    return TextFormField(
+      readOnly: true,
+      validator: (_) => _dob == null ? 'Date of birth is required' : null,
+      controller: TextEditingController(
+          text: _dob == null
+              ? ''
+              : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}'),
+      decoration: InputDecoration(
+        labelText: 'Date of Birth',
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+      ),
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: DateTime(now.year - 21, now.month, now.day),
+          firstDate: DateTime(1900),
+          lastDate: DateTime(now.year - 18, now.month, now.day),
+        );
+        if (picked != null) setState(() => _dob = picked);
+      },
     );
   }
 
@@ -885,8 +959,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     return switch (step) {
       0 => {
           'phone': _phoneCtrl.text.trim(),
+          'phone_number': _phoneCtrl.text.trim(),
           'first_name': _firstNameCtrl.text.trim(),
           'last_name': _lastNameCtrl.text.trim(),
+          'email': _emailCtrl.text.trim(),
+          'gender': _gender,
+          'civil_status': _civilStatus,
+          'date_of_birth': _dob == null
+              ? null
+              : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
           // Strip commas so backend Number() does not produce NaN (e.g. "10,000" → "10000").
           'monthly_income': _monthlyIncomeCtrl.text.replaceAll(',', '').trim(),
         },
@@ -1219,6 +1300,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     };
   }
 
+  String? _emailValidator(String? value) {
+    final v = _requiredValidator(value);
+    if (v != null) return v;
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value!.trim())) {
+      return 'Enter a valid email address';
+    }
+    return null;
+  }
+
   String? _requiredValidator(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'This field is required';
@@ -1338,6 +1428,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     _phoneCtrl.dispose();
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
+    _emailCtrl.dispose();
     _monthlyIncomeCtrl.dispose();
     _streetCtrl.dispose();
     _barangayCtrl.dispose();

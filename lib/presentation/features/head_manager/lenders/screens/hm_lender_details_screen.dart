@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/details_actions_card.dart';
@@ -19,6 +20,17 @@ final _lenderDetailProvider = FutureProvider.family<UserModel, String>((
   id,
 ) async {
   return sl<UserRemoteDataSource>().getProfile(userId: id);
+});
+
+final _lenderLoansProvider =
+    FutureProvider.family<List<dynamic>, String>((ref, lenderId) async {
+  try {
+    final res = await sl<LoanRemoteDataSource>()
+        .getList(lenderId: lenderId, limit: 50);
+    return (res['data'] as List? ?? []).toList();
+  } catch (_) {
+    return [];
+  }
 });
 
 class HmLenderDetailsScreen extends ConsumerWidget {
@@ -148,9 +160,83 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+              _PreviousLoansCard(lenderId: user.id),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PreviousLoansCard extends ConsumerWidget {
+  final String lenderId;
+  const _PreviousLoansCard({required this.lenderId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loansAsync = ref.watch(_lenderLoansProvider(lenderId));
+    return DetailsSectionCard(
+      title: 'Previous Loans',
+      icon: Icons.history_rounded,
+      accentColor: AppColors.lenderBlue,
+      items: const [],
+      footer: loansAsync.when(
+        loading: () => const SizedBox(
+            width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        error: (_, __) => const SizedBox.shrink(),
+        data: (loans) {
+          if (loans.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('No previous loans found for this lender.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+            );
+          }
+          return Column(
+            children: loans.take(10).map((e) {
+              final m = e is Map<String, dynamic>
+                  ? e
+                  : (e as dynamic).toJson() as Map<String, dynamic>;
+              final loanNum = m['loan_number']?.toString() ?? '—';
+              final status = m['status']?.toString() ?? '—';
+              final principal =
+                  (m['principal_amount'] as num?)?.toDouble() ?? 0;
+              final outstanding =
+                  (m['outstanding_balance'] as num?)?.toDouble();
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(loanNum,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700, fontSize: 13)),
+                            const SizedBox(height: 2),
+                            Text(
+                                '₱${principal.toStringAsFixed(2)}${outstanding != null ? ' · Outstanding: ₱${outstanding.toStringAsFixed(2)}' : ''}',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary)),
+                          ]),
+                    ),
+                    StatusBadge(status: status, small: true),
+                  ],
+                ),
+              );
+            }).toList(),
+          );
+        },
       ),
     );
   }

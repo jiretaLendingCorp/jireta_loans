@@ -28,7 +28,7 @@ const RELATIONSHIPS = new Set([
   'Friend', 'Colleague', 'Employer', 'Other',
 ]);
 const DOCUMENT_TYPES = new Set([
-  'valid_id', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
+  'valid_id', 'valid_id_back', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
   'proof_of_billing', 'certificate_of_employment', 'itr',
   'business_registration', 'co_maker', 'ci_photo', 'evidence', 'site_photo',
   'neighbor_interview', 'proof_of_residence', 'other',
@@ -193,6 +193,7 @@ async function handleSubmit(req: Request) {
         id: authUser.user.id,
         role_id: roleRow?.id,
         phone_number: s1.phone_number,
+        email: (s1 as any).email ?? null,
         first_name: s1.first_name,
         last_name: s1.last_name,
         middle_name: s1.middle_name,
@@ -277,11 +278,13 @@ async function handleSubmit(req: Request) {
         newValues: { lender_id: lenderId, status: 'submitted', note: 'Account created, awaiting KYC verification before loan' },
       });
 
-      // Notify lender that account exists via walk-in and needs upgrade before loan
+      // Notify lender that account exists via walk-in and needs upgrade before loan.
+      // The lender can now open this walk-in application in the lender role;
+      // no loan is created yet — only the account up to the upgrade stage.
       await sendPushNotification({
         userId: lenderId,
-        title: 'Walk-in Account Created — Verify to Apply for Loan',
-        body: `Your account was created via Walk-in Application by staff. Please log in with your phone number (default password 12345678) and complete Account Upgrade. You can then apply for your ₱${Number(String(s3.principal_amount).replace(/,/g,'')).toLocaleString()} loan.`,
+        title: 'Your Account Has Been Created',
+        body: `Hello! Your account was created through a walk-in application at our office. Please log in with your phone number (default password: 12345678) and complete your Account Upgrade. Once verified, you can apply for your loan yourself.`,
         type: 'account_upgrade_required',
         referenceId: application_id,
       });

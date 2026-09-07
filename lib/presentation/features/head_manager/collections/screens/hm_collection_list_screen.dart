@@ -131,7 +131,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     _TabDef('all', 'All', Icons.layers_outlined),
     _TabDef('gcash', 'GCash', Icons.phone_android_rounded),
     _TabDef('office_cash', 'Office', Icons.storefront_rounded),
-    _TabDef('rider_collection', 'Rider', Icons.delivery_dining_rounded),
+    _TabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
   ];
 
   @override

@@ -96,7 +96,7 @@ class PaymentModel {
       case 'cash':
         return 'Office';
       case 'rider_collection':
-        return 'Rider Collection';
+        return 'Cash on Delivery';
       case 'gcash_xendit':
         return 'GCash';
       default:

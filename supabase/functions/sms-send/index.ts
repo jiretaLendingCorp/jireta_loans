@@ -124,9 +124,22 @@ async function handleSendReminder(req: Request) {
     const amount = new Intl.NumberFormat('en-PH', {
       style: 'currency', currency: 'PHP',
     }).format(Number(schedule.amount_due));
-    const message = `Hi ${name}, your Jireta Loans payment of ${amount} is due on ${targetDateStr} (Loan: ${loan.loan_number}). Pay on time to avoid penalties.`;
+    const message = `Hello ${name}, this is a friendly reminder that your Jireta Loans payment of ${amount} is due on ${targetDateStr} (Loan: ${loan.loan_number}). Please pay on time to avoid penalties. Thank you!`;
 
     const smsResult = await sendSms({ to: lender.phone_number, message, userId: lender.id, loanScheduleId: schedule.id });
+
+    // Also send an in-app push notification so the lender is notified even
+    // without SMS. Proper, grammatically correct reminder 2 days before due.
+    try {
+      const { sendPushNotification } = await import('../_shared/notifications.ts');
+      await sendPushNotification({
+        userId: lender.id,
+        title: 'Payment Due in 2 Days',
+        body: `Hello ${name}, your payment of ${amount} for loan ${loan.loan_number} is due on ${targetDateStr}. Please pay on time to avoid penalties. Tap to view details.`,
+        type: 'payment_due',
+        referenceId: schedule.id,
+      });
+    } catch (_) {}
 
     results.push({ phone: lender.phone_number, status: smsResult ? 'sent' : 'failed' });
   }

@@ -28,7 +28,7 @@ const RELATIONSHIPS = new Set([
   'Friend', 'Colleague', 'Employer', 'Other',
 ]);
 const DOCUMENT_TYPES = new Set([
-  'valid_id', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
+  'valid_id', 'valid_id_back', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
   'proof_of_billing', 'certificate_of_employment', 'itr',
   'business_registration', 'co_maker', 'ci_photo', 'evidence', 'site_photo',
   'neighbor_interview', 'proof_of_residence', 'other',
@@ -185,6 +185,7 @@ async function handleSaveStep(req: Request) {
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
 async function saveStep1(applicationId: string, data: Record<string, unknown>) {
   const client = db();
+  const email = typeof data.email === 'string' && data.email.includes('@') ? String(data.email).trim().toLowerCase() : null;
   const { error: pErr } = await client.from('application_personal_info').upsert({
     application_id: applicationId,
     first_name: data.first_name ?? null,
@@ -194,6 +195,7 @@ async function saveStep1(applicationId: string, data: Record<string, unknown>) {
     gender: data.gender ?? null,
     civil_status: data.civil_status ?? null,
     date_of_birth: data.date_of_birth ?? null,
+    email: email,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'application_id' });
   if (pErr) { console.error('saveStep1 personal_info upsert failed', { applicationId, pErr }); throw pErr; }

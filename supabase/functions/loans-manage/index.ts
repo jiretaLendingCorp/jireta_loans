@@ -259,7 +259,7 @@ async function handleRequestCi(req: Request) {
     // assignment the loan shows "CI Required", never "CI Assigned".
     await db.from('loans').update({ status: 'ci_required' }).eq('id', loan_id);
     await writeAuditLog({ performedBy: user.id, action: 'request_ci', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'ci_required' }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Required', body: 'Your loan requires a credit investigation. A rider will visit your address.', type: 'ci_required', referenceId: loan_id });
+    await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Required', body: 'Hello! Your loan application requires a credit investigation. A rider will visit your address for verification. Please be available. Tap to view your application status.', type: 'ci_required', referenceId: loan_id });
 
     return jsonResponse({ message: 'CI requested' });
 }

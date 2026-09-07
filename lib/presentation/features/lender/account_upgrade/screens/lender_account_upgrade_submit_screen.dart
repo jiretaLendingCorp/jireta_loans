@@ -133,6 +133,10 @@ class _LenderAccountUpgradeSubmitScreenState
 
   int _step = 0;
   bool _isSubmitting = false;
+  // True once a submit succeeded and the success dialog is opening/opened.
+  // While set, the wizard stays on screen beneath the modal instead of
+  // swapping to the shimmer skeleton or the submitted/under-review page.
+  bool _successSubmitted = false;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _streetFocusNode = FocusNode();
   final FocusNode _barangayFocusNode = FocusNode();
@@ -591,7 +595,10 @@ class _LenderAccountUpgradeSubmitScreenState
       // Use mounted (not context.mounted) to guard all async context use
       if (ok) {
         if (!mounted) return;
-        if (mounted) setState(() => _isSubmitting = false);
+        setState(() {
+          _isSubmitting = false;
+          _successSubmitted = true;
+        });
         if (!mounted) return;
         // Success modal, then auto-direct straight to home.
         // No toast, no splash, no account-upgrade-status screen.
@@ -666,7 +673,10 @@ class _LenderAccountUpgradeSubmitScreenState
       return const SizedBox.shrink();
     }
     if (status == 'submitted' || status == 'under_review') {
-      return _buildSubmittedView(state);
+      // After an in-screen successful submit the success dialog is about to
+      // open — stay on the wizard underneath it. Do not swap to the status
+      // page (that is for when the screen is reopened later).
+      if (!_successSubmitted) return _buildSubmittedView(state);
     }
     // Rejected: 1-month cooldown before resubmit.
     // Still in cooldown → blocked view (text + button only, no icon).
@@ -1224,6 +1234,9 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Widget _buildStatusBanner(LenderAccountUpgradeState state) {
+    // While the success dialog is open, keep the top of the wizard clean —
+    // the banner belongs on the status page shown on the next visit.
+    if (_successSubmitted) return const SizedBox.shrink();
     Color bgColor;
     Color textColor;
     IconData? icon;

@@ -234,8 +234,8 @@ async function handleRiderDelivery(req: Request) {
 
   await sendPushNotification({
     userId: rider_id,
-    title: 'New Cash Delivery Assignment',
-    body: `You have been assigned to deliver ₱${amount.toLocaleString()} for loan ${loan.loan_number} on ${delivery_date}.`,
+    title: 'New Cash Delivery Task',
+    body: `Hello! You have a new cash delivery task: please deliver ₱${amount.toLocaleString()} for loan ${loan.loan_number} on ${delivery_date}. Please review the details and proceed.`,
     type: 'disbursement',
     referenceId: disbursement.id,
     sentBy: authResult.id,
@@ -243,8 +243,8 @@ async function handleRiderDelivery(req: Request) {
 
   await sendPushNotification({
     userId: loan.lender_id,
-    title: 'Loan Delivery Scheduled',
-    body: `A rider has been assigned to deliver your loan of ₱${amount.toLocaleString()} on ${delivery_date}.`,
+    title: 'Your Loan Is on the Way',
+    body: `Good news! A rider has been assigned to deliver your loan amount of ₱${amount.toLocaleString()} on ${delivery_date}. Please be available to receive it. Thank you!`,
     type: 'disbursement',
     referenceId: loan_id,
     sentBy: authResult.id,

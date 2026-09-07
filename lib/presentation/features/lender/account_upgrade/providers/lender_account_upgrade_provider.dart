@@ -83,7 +83,11 @@ class LenderAccountUpgradeNotifier
     try {
       await _ds.submitAccountUpgrade(documents, info: info);
       state = state.copyWith(isSubmitting: false);
-      await loadStatus();
+      // Silent refresh: keep the stored status current without flipping
+      // isLoading. A non-silent reload right after submitting swaps the
+      // screen to the shimmer skeleton (then the status page) while the
+      // success dialog is about to open — jarring flash the user sees.
+      await loadStatus(silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(

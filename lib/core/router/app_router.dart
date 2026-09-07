@@ -205,7 +205,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final publicRoutes = [
         RouteConstants.splash,
-        RouteConstants.terms,
         RouteConstants.webLogin,
         RouteConstants.webRegister,
         RouteConstants.mobileLogin,
@@ -238,7 +237,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
         }
 
+        // The one-time post-login Terms page is an authenticated overlay:
+        // logged-in users may stay on it (it pops back to the dashboard
+        // after acceptance) instead of being bounced to their dashboard.
         if (path != RouteConstants.forceChangePassword &&
+            path != RouteConstants.terms &&
             !publicRoutes.contains(path)) {
           return redirectForRole(path, authState.role);
         }

@@ -5,10 +5,8 @@ import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -62,24 +60,6 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     );
     _fadeController.forward();
     _lifecycleListener = AppLifecycleListener(onResume: _onAppResumed);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstRun());
-  }
-
-  Future<void> _checkFirstRun() async {
-    var authState = ref.read(authStateProvider);
-    if (authState.isLoading) {
-      for (var i = 0; i < 50 && mounted; i++) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        authState = ref.read(authStateProvider);
-        if (!authState.isLoading) break;
-      }
-    }
-    if (!mounted || authState.isAuthenticated) return;
-    final prefs = await SharedPreferences.getInstance();
-    final termsAccepted = prefs.getBool(AppConstants.termsAcceptedKey) ?? false;
-    if (mounted && !termsAccepted) {
-      context.go(RouteConstants.terms);
-    }
   }
 
   @override

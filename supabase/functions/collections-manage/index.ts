@@ -307,7 +307,7 @@ async function handleCollectionAssign(req: Request) {
     if (updErr) return errorResponse('Failed to assign rider', 500, 'SERVER_ERROR');
 
     await writeAuditLog({ performedBy: user.id, action: 'collection_assign', tableName: 'collection_assignments', recordId: assignment_id, newValues: { rider_id, status: 'assigned' }, ipAddress: ip });
-    await sendPushNotification({ userId: rider_id, title: 'New Collection Assignment', body: 'You have a new cash collection assignment. Please review and accept.', type: 'collection_assigned', referenceId: assignment_id });
+    await sendPushNotification({ userId: rider_id, title: 'New Cash on Delivery Collection Task', body: 'Hello! You have a new Cash on Delivery collection task. Please review the details and accept it promptly.', type: 'collection_assigned', referenceId: assignment_id });
     return jsonResponse({ message: 'Collection assigned', assignment_id }, 200);
   }
 
@@ -328,7 +328,7 @@ async function handleCollectionAssign(req: Request) {
   }).select('id').single();
   if (insErr) return errorResponse('Failed to create assignment', 500, 'SERVER_ERROR');
   await writeAuditLog({ performedBy: user.id, action: 'collection_assign', tableName: 'collection_assignments', recordId: assignment.id, ipAddress: ip });
-  await sendPushNotification({ userId: rider_id, title: 'New Collection Assignment', body: 'You have a new cash collection assignment. Please review and accept.', type: 'collection_assigned', referenceId: assignment.id });
+  await sendPushNotification({ userId: rider_id, title: 'New Cash on Delivery Collection Task', body: 'Hello! You have a new Cash on Delivery collection task. Please review the details and accept it promptly.', type: 'collection_assigned', referenceId: assignment.id });
   return jsonResponse({ message: 'Collection assigned', assignment_id: assignment.id }, 201);
 }
 
@@ -348,7 +348,7 @@ async function handleCollectionAccept(req: Request) {
   if (assignment.status !== 'assigned') return errorResponse('Assignment is not in assigned status', 400, 'INVALID_STATUS');
   await db.from('collection_assignments').update({ status: 'accepted', response_at: nowManilaISO() }).eq('id', assignment_id);
   await writeAuditLog({ performedBy: user.id, action: 'collection_accept', tableName: 'collection_assignments', recordId: assignment_id, ipAddress: ip });
-  if (assignment.assigned_by) await sendPushNotification({ userId: assignment.assigned_by, title: 'Collection Accepted', body: 'The rider has accepted the collection assignment.', type: 'collection_accepted', referenceId: assignment_id });
+  if (assignment.assigned_by) await sendPushNotification({ userId: assignment.assigned_by, title: 'Collection Accepted by Rider', body: 'The rider has accepted the Cash on Delivery collection task and will proceed.', type: 'collection_accepted', referenceId: assignment_id });
   return jsonResponse({ message: 'Assignment accepted' });
 }
 
@@ -368,7 +368,7 @@ async function handleCollectionDecline(req: Request) {
   if (assignment.status !== 'assigned') return errorResponse('Assignment is not pending', 400, 'INVALID_STATUS');
   await db.from('collection_assignments').update({ status: 'declined', response_at: nowManilaISO(), collection_notes: reason ?? null }).eq('id', assignment_id);
   await writeAuditLog({ performedBy: user.id, action: 'collection_decline', tableName: 'collection_assignments', recordId: assignment_id, ipAddress: ip });
-  if (assignment.assigned_by) await sendPushNotification({ userId: assignment.assigned_by, title: 'Collection Declined', body: 'The rider declined the collection assignment. Please reassign.', type: 'collection_declined', referenceId: assignment_id });
+  if (assignment.assigned_by) await sendPushNotification({ userId: assignment.assigned_by, title: 'Collection Declined by Rider', body: 'The rider has declined the Cash on Delivery collection task. Please assign a new rider.', type: 'collection_declined', referenceId: assignment_id });
   return jsonResponse({ message: 'Assignment declined' });
 }
 
@@ -441,7 +441,7 @@ async function handleCollectionRecord(req: Request) {
   await db.from('collection_assignments').update({ status: 'in_progress', completed_at: nowManilaISO(), amount_collected }).eq('id', assignment_id);
 
   await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payments[0].id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });
-  await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Collected', body: `Payment of ₱${amount_collected.toLocaleString()} has been collected. Remaining: ₱${newBalance.toLocaleString()}`, type: 'payment_collected', referenceId: payments[0].id });
+  await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Received', body: `Hello! Your payment of ₱${amount_collected.toLocaleString()} has been successfully collected. Your remaining balance is ₱${newBalance.toLocaleString()}. Thank you!`, type: 'payment_collected', referenceId: payments[0].id });
 
   return jsonResponse({ message: 'Payment recorded', payment_id: payments[0].id, new_balance: newBalance }, 201);
 }
