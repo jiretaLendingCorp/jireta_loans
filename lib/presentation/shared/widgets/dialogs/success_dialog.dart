@@ -1,4 +1,6 @@
 // lib/presentation/shared/widgets/dialogs/success_dialog.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 
@@ -33,6 +35,39 @@ class SuccessDialog extends StatelessWidget {
         onDismiss: onDismiss,
       ),
     );
+  }
+
+  /// Shows the success modal and auto-dismisses it after [duration]
+  /// (default 2 seconds). Tapping the button dismisses immediately.
+  /// Completes once the modal is gone — ideal for "steady 2s, then proceed".
+  static Future<void> showAutoDismiss(
+    BuildContext context, {
+    String title = 'Success',
+    required String message,
+    String buttonText = 'OK',
+    Duration duration = const Duration(seconds: 2),
+  }) async {
+    var dismissed = false;
+    Timer? timer;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        timer ??= Timer(duration, () {
+          if (!dismissed && Navigator.canPop(ctx)) {
+            dismissed = true;
+            Navigator.pop(ctx);
+          }
+        });
+        return SuccessDialog(
+          title: title,
+          message: message,
+          buttonText: buttonText,
+          onDismiss: () => dismissed = true,
+        );
+      },
+    );
+    timer?.cancel();
   }
 
   @override

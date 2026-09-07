@@ -19,6 +19,16 @@ class AppConstants {
   static const int locationUpdateIntervalSeconds = 30;
 
   static const String termsAcceptedKey = 'terms_accepted';
+
+  /// In-memory flag (NOT persisted): set to true right before a mobile logout
+  /// so the login page can show a one-shot "Successfully Logged Out" modal on
+  /// arrival. Static — survives the router redirect that follows logout.
+  static bool pendingLogoutSuccess = false;
+
+  /// In-memory guard (NOT persisted): while true, the router redirect is held
+  /// so the post-logout success modal can stay steady for 2 seconds on the
+  /// profile screen before navigating to login.
+  static bool suppressLogoutRedirect = false;
   static const String accessTokenKey = 'access_token';
   static const String refreshTokenKey = 'refresh_token';
   static const String userIdKey = 'user_id';

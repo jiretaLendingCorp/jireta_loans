@@ -57,19 +57,17 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   ];
 
   static const List<(String, String)> _docTypes = [
-    ('valid_id', 'Valid Government ID (Front)'),
-    ('valid_id_back', 'Valid Government ID (Back)'),
-    ('selfie', 'Selfie Photo'),
-    ('proof_of_income', 'Proof of Income'),
-    ('barangay_clearance', 'Barangay Clearance'),
-    ('pay_slip', 'Pay Slip'),
+    ('valid_id', 'Valid ID'),
+    ('selfie', 'Selfie with ID'),
+    ('mayors_permit', "Mayor's Permit"),
+    ('birth_certificate', 'Birth Certificate'),
   ];
 
   static const Map<String, String> _docAssetIcons = {
     'valid_id': 'assets/icons/id_card.png',
-    'valid_id_back': 'assets/icons/id_card.png',
-    'selfie': 'assets/icons/id_card.png',
-    'proof_of_income': 'assets/icons/PERMIT.png',
+    'selfie': 'assets/icons/selfie with id.png',
+    'mayors_permit': 'assets/icons/PERMIT.png',
+    'birth_certificate': 'assets/icons/birth certificate.jpg',
   };
 
   static const List<String> _genderOptions = ['male', 'female'];
@@ -90,22 +88,21 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   // a complete lender account up to upgrade stage)
   final _phoneCtrl = TextEditingController();
   final _firstNameCtrl = TextEditingController();
+  final _middleNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
+  final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _monthlyIncomeCtrl = TextEditingController();
   String? _gender;
   String? _civilStatus;
   DateTime? _dob;
 
-  // Step 2 controllers
+  // Step 2 controllers (address only — monthly income + emergency contact
+  // now live on the loans table per-loan, not on the in-office application)
   final _streetCtrl = TextEditingController();
   final _barangayCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
   final _provinceCtrl = TextEditingController();
   final _zipCtrl = TextEditingController();
-  final _emergencyNameCtrl = TextEditingController();
-  final _emergencyPhoneCtrl = TextEditingController();
-  String? _emergencyRel;
 
   // Step 3 controllers
   final _amountCtrl = TextEditingController();
@@ -184,7 +181,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Widget _buildStepIndicator() {
-    final steps = ['Identify', 'Address', 'Loan', 'Co-Maker', 'Docs & Sign'];
+    final steps = ['Identify', 'Address', 'Documents', 'Loan', 'Co-Maker'];
     return Container(
       color: AppColors.surfaceVariant,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
@@ -256,12 +253,16 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       padding: const EdgeInsets.all(24),
       child: Form(
         key: _formKey,
+        // UI order: Identify → Address → Documents → Loan → Co-Maker
+        // (+ Lender Signature). Backend save-step numbers stay fixed
+        // (1=personal, 2=address, 3=loan, 4=co-maker, 5=documents+signature)
+        // and are remapped in _backendStepForUiStep().
         child: switch (_step) {
           0 => _buildStep1(),
           1 => _buildStep2(),
-          2 => _buildStep3(),
-          3 => _buildStep4(),
-          4 => _buildStep5(),
+          2 => _buildDocumentsStep(),
+          3 => _buildStep3(),
+          4 => _buildStep4(),
           _ => const SizedBox(),
         },
       ),
@@ -289,6 +290,20 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                 child: _field('First Name', _firstNameCtrl, maxLength: 100)),
             const SizedBox(width: 12),
             Expanded(child: _field('Last Name', _lastNameCtrl, maxLength: 100)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+                child: _optionalField('Middle Name (Optional)',
+                    _middleNameCtrl,
+                    maxLength: 100)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _optionalField('Suffix (Optional, e.g. Jr., Sr., III)',
+                    _suffixCtrl,
+                    maxLength: 20)),
           ],
         ),
         const SizedBox(height: 12),
@@ -320,13 +335,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         ),
         const SizedBox(height: 12),
         _dobField(),
-        const SizedBox(height: 12),
-        _field('Monthly Income', _monthlyIncomeCtrl,
-            keyboardType: TextInputType.number,
-            prefix: '₱',
-            maxLength: 12,
-            validator: _numberValidator,
-            onChanged: (_) => _updateIncomeDisplay()),
       ],
     );
   }
@@ -363,10 +371,10 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Address & Emergency Contacts',
+        const Text('Address',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('Enter home/work address and emergency contact.',
+        const Text('Enter home/work address.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
         _sectionTitle('Home Address'),
@@ -392,30 +400,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             controller: _zipCtrl,
             keyboardType: TextInputType.number,
             maxLength: 4),
-        const SizedBox(height: 20),
-        _sectionTitle('Emergency Contact'),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-                child: _simpleField('Contact Name',
-                    controller: _emergencyNameCtrl, maxLength: 100)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _dropdown(
-                'Relationship',
-                _emergencyRel,
-                _relationshipOptions,
-                (v) => setState(() => _emergencyRel = v),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _simpleField('Phone Number',
-            controller: _emergencyPhoneCtrl,
-            keyboardType: TextInputType.phone,
-            maxLength: 11),
       ],
     );
   }
@@ -700,33 +684,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         ),
         const SizedBox(height: 12),
         _simpleField('Address', controller: _coAddressCtrl, maxLength: 100),
-      ],
-    );
-  }
-
-  Widget _buildStep5() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Documents & Signature',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        const Text(
-            'Upload all required documents and capture the lender signature.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 20),
-        ..._docTypes.map((d) => _docUploadCard(d.$1, d.$2)),
-        if (_docsError != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 8),
-            child: Text(
-              _docsError!,
-              style: const TextStyle(fontSize: 12, color: AppColors.error),
-            ),
-          ),
-        const SizedBox(height: 16),
         const Text('Lender Signature',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        const Text(
+            'Lender signs here to confirm the walk-in application.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 8),
         SignaturePad(
           onSignatureChanged: (sig) {
@@ -744,6 +708,30 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               _signatureError!,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDocumentsStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Documents',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text(
+            'Upload all required documents.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 20),
+        ..._docTypes.map((d) => _docUploadCard(d.$1, d.$2)),
+        if (_docsError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Text(
+              _docsError!,
               style: const TextStyle(fontSize: 12, color: AppColors.error),
             ),
           ),
@@ -911,11 +899,23 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         children: [
           if (_step > 0)
             OutlinedButton(
-              onPressed: () => setState(() => _step--),
+              onPressed: _loading ? null : () => setState(() => _step--),
               child: const Text('Back'),
             ),
           const Spacer(),
-          if (_step < 4)
+          if (_step == 2)
+            // Step 3 (Documents) is a SUBMIT: creates the lender account +
+            // auto-verifies the upgrade (no loan yet). The lender logs in and
+            // self-applies, or staff continues to Steps 4-5.
+            ElevatedButton(
+              onPressed: _loading ? null : _submitAccountAndContinue,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.black87,
+              ),
+              child: const Text('Submit'),
+            )
+          else if (_step < 4)
             ElevatedButton(
               onPressed: _nextStep,
               style: ElevatedButton.styleFrom(
@@ -938,14 +938,45 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
+  /// Maps the visible UI step to the fixed backend save-step number.
+  /// UI order is Identify(0) → Address(1) → Documents(2) → Loan(3) →
+  /// Co-Maker(4), while the backend contract stays 1=personal, 2=address,
+  /// 3=loan, 4=co-maker, 5=documents+signature.
+  int _backendStepForUiStep(int uiStep) => switch (uiStep) {
+        0 => 1,
+        1 => 2,
+        2 => 5,
+        3 => 3,
+        4 => 4,
+        _ => uiStep + 1,
+      };
+
   Future<void> _nextStep() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    // Documents live on UI step 2 — block Next until all uploads are present.
+    if (_step == 2) {
+      final missingDocs = _docTypes
+          .where((d) => !_docs.containsKey(d.$1))
+          .map((d) => d.$2)
+          .toList();
+      if (missingDocs.isNotEmpty) {
+        setState(() => _docsError =
+            'Please upload all required documents: ${missingDocs.join(', ')}');
+        return;
+      }
+    }
+    // Lender signature lives on the Co-Maker UI step (4).
+    if (_step == 4 && (_signature == null || _signature!.isEmpty)) {
+      setState(() => _signatureError = 'Lender signature is required');
+      return;
+    }
     if (_appId != null) {
+      final backendStep = _backendStepForUiStep(_step);
       final data = _collectStepData(_step);
       if (data.isNotEmpty) {
         final ok = await ref
             .read(hmInOfficeProvider.notifier)
-            .saveStep(_appId!, _step + 1, data);
+            .saveStep(_appId!, backendStep, data);
         if (!ok) {
           if (mounted) _showMessage('Failed to save step ${_step + 1}. Please try again.');
           return;
@@ -955,21 +986,21 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     if (mounted) setState(() => _step++);
   }
 
-  Map<String, dynamic> _collectStepData(int step) {
-    return switch (step) {
+  Map<String, dynamic> _collectStepData(int uiStep) {
+    return switch (uiStep) {
       0 => {
           'phone': _phoneCtrl.text.trim(),
           'phone_number': _phoneCtrl.text.trim(),
           'first_name': _firstNameCtrl.text.trim(),
+          'middle_name': _middleNameCtrl.text.trim(),
           'last_name': _lastNameCtrl.text.trim(),
+          'suffix': _suffixCtrl.text.trim(),
           'email': _emailCtrl.text.trim(),
           'gender': _gender,
           'civil_status': _civilStatus,
           'date_of_birth': _dob == null
               ? null
               : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
-          // Strip commas so backend Number() does not produce NaN (e.g. "10,000" → "10000").
-          'monthly_income': _monthlyIncomeCtrl.text.replaceAll(',', '').trim(),
         },
       1 => {
           'addresses': [
@@ -982,15 +1013,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
               'zip_code': _zipCtrl.text.trim(),
             }
           ],
-          'emergency_contacts': [
-            {
-              'name': _emergencyNameCtrl.text.trim(),
-              'relationship': _emergencyRel,
-              'phone_number': _emergencyPhoneCtrl.text.trim(),
-            }
-          ],
+          // Emergency contact + monthly income now live on the loans table
+          // per-loan (00128/00130) — no longer collected in-office.
+          'emergency_contacts': <Map<String, dynamic>>[],
         },
-      2 => {
+      2 => {'documents': <Map<String, dynamic>>[]},
+      3 => {
           // Strip commas: Number("10,000") === NaN on the server, causing INCOMPLETE_WIZARD/DB_ERROR.
           'principal_amount':
               _amountCtrl.text.replaceAll(',', '').trim(),
@@ -998,35 +1026,19 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           'term_periods': _termPeriods,
           'purpose': _purposeCtrl.text.trim(),
         },
-      3 => {
+      4 => {
           'first_name': _coFirstCtrl.text.trim(),
           'last_name': _coLastCtrl.text.trim(),
           'relationship': _coRel,
           'phone_number': _coPhoneCtrl.text.trim(),
           'address': _coAddressCtrl.text.trim(),
         },
-      4 => {'documents': <Map<String, dynamic>>[]},
       _ => <String, dynamic>{},
     };
   }
 
   double _currentAmount() =>
       double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
-
-  void _updateIncomeDisplay() {
-    final raw = _monthlyIncomeCtrl.text.replaceAll(',', '').replaceAll('₱', '').trim();
-    if (raw.isEmpty) return;
-    final val = double.tryParse(raw);
-    if (val != null) {
-      final formatted = val.toStringAsFixed(2);
-      if (_monthlyIncomeCtrl.text != formatted) {
-        _monthlyIncomeCtrl.text = formatted;
-        _monthlyIncomeCtrl.selection = TextSelection.fromPosition(
-          TextPosition(offset: formatted.length),
-        );
-      }
-    }
-  }
 
   void _onLoanInputChanged() {
     final amount = _currentAmount();
@@ -1181,12 +1193,20 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         .map((d) => d.$2)
         .toList();
     if (missingDocs.isNotEmpty) {
-      setState(() => _docsError =
-          'Please upload all required documents: ${missingDocs.join(', ')}');
+      // Documents live on UI step 2 — jump back so the user sees the error.
+      setState(() {
+        _docsError =
+            'Please upload all required documents: ${missingDocs.join(', ')}';
+        _step = 2;
+      });
       return;
     }
     if (_signature == null || _signature!.isEmpty) {
-      setState(() => _signatureError = 'Lender signature is required');
+      // Lender signature lives on the Co-Maker UI step (4).
+      setState(() {
+        _signatureError = 'Lender signature is required';
+        _step = 4;
+      });
       return;
     }
 
@@ -1201,17 +1221,23 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         }
         _appId = id;
       }
-      for (var step = 0; step < 5; step++) {
-        var data = _collectStepData(step);
-        if (step == 4) {
-          data = await _buildStep5Data();
-        }
+      // Save in backend step order (1..5) regardless of UI order.
+      // UI step → backend step: 0→1, 1→2, 3→3, 4→4, docs+signature→5.
+      final backendPayloads = <int, Map<String, dynamic>>{
+        1: _collectStepData(0),
+        2: _collectStepData(1),
+        3: _collectStepData(3),
+        4: _collectStepData(4),
+        5: await _buildStep5Data(),
+      };
+      for (var backendStep = 1; backendStep <= 5; backendStep++) {
+        final data = backendPayloads[backendStep]!;
         if (data.isNotEmpty) {
           final ok = await ref
               .read(hmInOfficeProvider.notifier)
-              .saveStep(_appId!, step + 1, data);
+              .saveStep(_appId!, backendStep, data);
           if (!ok) {
-            if (mounted) _showMessage('Failed to save step ${step + 1}. Server rejected the data.');
+            if (mounted) _showMessage('Failed to save step $backendStep. Server rejected the data.');
             setState(() => _loading = false);
             return;
           }
@@ -1251,7 +1277,151 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     }
   }
 
-  Future<Map<String, dynamic>> _buildStep5Data() async {
+  /// Step-3 SUBMIT: saves Identify + Address + uploads Documents, then calls
+  /// the submit-account endpoint (creates the lender account + auto-verifies
+  /// the upgrade — no loan yet). On success shows the login credentials and
+  /// lets staff continue to Step 4 (Loan) or finish (lender self-applies).
+  Future<void> _submitAccountAndContinue() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final missingDocs = _docTypes
+        .where((d) => !_docs.containsKey(d.$1))
+        .map((d) => d.$2)
+        .toList();
+    if (missingDocs.isNotEmpty) {
+      setState(() => _docsError =
+          'Please upload all required documents: ${missingDocs.join(', ')}');
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      if (_appId == null) {
+        final id = await ref.read(hmInOfficeProvider.notifier).createDraft();
+        if (id == null) {
+          if (mounted) _showMessage('Failed to create draft. Check connection and try again.');
+          setState(() => _loading = false);
+          return;
+        }
+        _appId = id;
+      }
+      // Backend steps 1 (personal) + 2 (address) + 5 (documents only).
+      final saves = <int, Map<String, dynamic>>{
+        1: _collectStepData(0),
+        2: _collectStepData(1),
+        5: await _buildDocsOnlyData(),
+      };
+      for (final e in saves.entries) {
+        if (e.value.isEmpty) continue;
+        final ok = await ref
+            .read(hmInOfficeProvider.notifier)
+            .saveStep(_appId!, e.key, e.value);
+        if (!ok) {
+          if (mounted) _showMessage('Failed to save step ${e.key}. Server rejected the data.');
+          setState(() => _loading = false);
+          return;
+        }
+      }
+      final res = await ref.read(hmInOfficeProvider.notifier).submitAccount(_appId!);
+      if (res == null) {
+        if (mounted) _showMessage('Account submit failed. Please try again.');
+        setState(() => _loading = false);
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _loading = false);
+      final loginPhone = (res['login_phone']?.toString() ?? _phoneCtrl.text.trim());
+      final goOn = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_user, color: AppColors.success),
+              SizedBox(width: 8),
+              Expanded(child: Text('Account Created & Verified')),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'The lender can now log in and apply for a loan on their own. Or continue to encode the loan here.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              _credentialRow('Phone', loginPhone),
+              const SizedBox(height: 6),
+              _credentialRow('Temp password', '12345678'),
+              const SizedBox(height: 6),
+              const Text(
+                'Lender will be asked to change the password on first login.',
+                style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Done'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepNavy,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Continue to Loan'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      widget.onComplete();
+      if (goOn == true) {
+        setState(() => _step = 3);
+      } else {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) _showMessage('Account submit failed: $e');
+      setState(() => _loading = false);
+    }
+  }
+
+  Widget _credentialRow(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Text('$label: ',
+              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Uploads the picked document files and returns the backend step-5 payload
+  /// WITHOUT the signature (used by the Step-3 account submit).
+  Future<Map<String, dynamic>> _buildDocsOnlyData() async {
+    final docs = await _uploadDocs();
+    return {'documents': docs};
+  }
+
+  Future<List<Map<String, dynamic>>> _uploadDocs() async {
     final docs = <Map<String, dynamic>>[];
     for (final entry in _docs.entries) {
       final f = entry.value;
@@ -1269,6 +1439,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         'mime_type': f.mimeType,
       });
     }
+    return docs;
+  }
+
+  Future<Map<String, dynamic>> _buildStep5Data() async {
+    final docs = await _uploadDocs();
     String? signaturePath;
     if (_signature != null && _signature!.isNotEmpty) {
       try {
@@ -1312,16 +1487,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   String? _requiredValidator(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'This field is required';
-    }
-    return null;
-  }
-
-  String? _numberValidator(String? value) {
-    final v = _requiredValidator(value);
-    if (v != null) return v;
-    final d = double.tryParse(value!.trim());
-    if (d == null || d <= 0) {
-      return 'Enter a valid amount';
     }
     return null;
   }
@@ -1391,6 +1556,23 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
+  /// Optional text field (middle name / suffix) — no required validator.
+  Widget _optionalField(String label, TextEditingController ctrl,
+      {int? maxLength}) {
+    return TextFormField(
+      controller: ctrl,
+      maxLength: maxLength,
+      decoration: InputDecoration(
+        labelText: label,
+        counterText: '',
+        errorMaxLines: 2,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+    );
+  }
+
   Widget _dropdown(
     String label,
     String? value,
@@ -1427,16 +1609,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   void dispose() {
     _phoneCtrl.dispose();
     _firstNameCtrl.dispose();
+    _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
+    _suffixCtrl.dispose();
     _emailCtrl.dispose();
-    _monthlyIncomeCtrl.dispose();
     _streetCtrl.dispose();
     _barangayCtrl.dispose();
     _cityCtrl.dispose();
     _provinceCtrl.dispose();
     _zipCtrl.dispose();
-    _emergencyNameCtrl.dispose();
-    _emergencyPhoneCtrl.dispose();
     _amountCtrl.dispose();
     _purposeCtrl.dispose();
     _coFirstCtrl.dispose();

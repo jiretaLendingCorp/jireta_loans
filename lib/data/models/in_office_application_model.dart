@@ -54,6 +54,13 @@ class InOfficeApplicationModel {
   String get borrowerName {
     final s = personalInfo;
     if (s == null) return 'Unknown';
-    return '${s['first_name'] ?? ''} ${s['last_name'] ?? ''}'.trim();
+    final parts = [
+      s['first_name'],
+      s['middle_name'],
+      s['last_name'],
+      s['suffix'],
+    ].where((p) => p != null && p.toString().trim().isNotEmpty).toList();
+    if (parts.isEmpty) return 'Unknown';
+    return parts.join(' ');
   }
 }

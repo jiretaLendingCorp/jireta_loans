@@ -166,6 +166,11 @@ async function handleVerify(req: Request) {
             installment_amount: sched.installmentAmount,
             status: 'pending',
             purpose: loanDet.purpose ?? 'Walk-in loan',
+            // 00130: fan out any legacy in-office financial snapshot (old
+            // drafts) onto the per-loan columns. New drafts omit these.
+            employment_type: (eRes as any)?.data?.employment_type ?? null,
+            employer_name: (eRes as any)?.data?.employer_name ?? null,
+            monthly_income: (eRes as any)?.data?.monthly_income ?? null,
           }).select().single();
           if (loanErr || !newLoan) {
             console.error('kyc-verify auto-convert loan insert failed', { appId, loanErr });
@@ -178,6 +183,24 @@ async function handleVerify(req: Request) {
             amount_due: (sched.amounts as number[])[i],
           }));
           await db.from('loan_schedules').insert(scheduleRows);
+          // 00130: fan out legacy emergency contacts onto the per-loan snapshot.
+          const autoEc = (ecRes as any).data ?? [];
+          if (Array.isArray(autoEc) && autoEc.length > 0) {
+            const relSetEc = new Set(['Spouse','Parent','Sibling','Child','Relative','Friend','Colleague','Employer','Other']);
+            const loanEcRows = autoEc
+              .filter((ec: any) => ec?.name && ec?.phone_number)
+              .map((ec: any) => ({
+                loan_id: newLoan.id,
+                name: ec.name,
+                relationship: relSetEc.has(ec.relationship) ? ec.relationship : 'Other',
+                phone_number: ec.phone_number,
+                address: ec.address ?? null,
+              }));
+            if (loanEcRows.length > 0) {
+              const { error: autoEcErr } = await db.from('loan_emergency_contacts').insert(loanEcRows);
+              if (autoEcErr) console.error('kyc-verify auto-convert loan_emergency_contacts failed', { appId, autoEcErr });
+            }
+          }
           const coMakers = (cmRes as any).data ?? [];
           for (const cm of coMakers) {
             const { data: person } = await db.from('co_makers').insert({
@@ -195,15 +218,22 @@ async function handleVerify(req: Request) {
           }
           const docs = (dRes as any).data ?? [];
           if (docs.length > 0) {
-            const docSet = new Set(['valid_id','proof_of_income','barangay_clearance','pay_slip','selfie','proof_of_billing','certificate_of_employment','itr','business_registration','co_maker','ci_photo','evidence','site_photo','neighbor_interview','proof_of_residence','other']);
-            const docRows = docs.map((d: any) => ({
-              loan_id: newLoan.id,
-              document_type: docSet.has(d.document_type) ? d.document_type : 'other',
-              file_path: d.file_path ?? d.file_url,
-              file_name: d.file_name ?? 'document',
-              mime_type: d.mime_type ?? 'application/octet-stream',
-              uploaded_by: user.id,
-            }));
+            // 00130: accept the in-office + account-upgrade doc set, including
+            // the new mayors_permit / birth_certificate / selfie_with_id codes.
+            // selfie_with_id is stored as selfie for consistency.
+            const docSet = new Set(['valid_id','valid_id_back','proof_of_income','barangay_clearance','pay_slip','selfie','selfie_with_id','mayors_permit','birth_certificate','proof_of_billing','certificate_of_employment','itr','business_registration','co_maker','ci_photo','evidence','site_photo','neighbor_interview','proof_of_residence','other']);
+            const docRows = docs.map((d: any) => {
+              const raw = String(d.document_type ?? 'other');
+              const normalized = raw === 'selfie_with_id' ? 'selfie' : (docSet.has(raw) ? raw : 'other');
+              return {
+                loan_id: newLoan.id,
+                document_type: normalized,
+                file_path: d.file_path ?? d.file_url,
+                file_name: d.file_name ?? 'document',
+                mime_type: d.mime_type ?? 'application/octet-stream',
+                uploaded_by: user.id,
+              };
+            });
             await db.from('loan_documents').insert(docRows);
           }
           await db.from('in_office_applications').update({ status: 'converted', wizard_step: 5, updated_at: new Date().toISOString() }).eq('id', appId);

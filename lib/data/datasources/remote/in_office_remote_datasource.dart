@@ -32,6 +32,18 @@ class InOfficeRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  /// Step-3 account submit: creates the lender account + auto-verifies the
+  /// upgrade (no loan yet). The lender logs in and self-applies afterwards.
+  Future<Map<String, dynamic>> submitAccount({
+    required String applicationId,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.inOfficeSubmitAccount,
+      data: {'application_id': applicationId},
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<List<Map<String, dynamic>>> getList({
     String? status,
     int page = 1,

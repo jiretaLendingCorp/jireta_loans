@@ -123,6 +123,7 @@ class ApiEndpoints {
   static const String inOfficeCreateDraft = 'in-office-create?fn=create-draft';
   static const String inOfficeSaveStep = 'in-office-create?fn=save-step';
   static const String inOfficeSubmit = 'in-office-view?fn=submit';
+  static const String inOfficeSubmitAccount = 'in-office-view?fn=submit-account';
   static const String inOfficeGetList = 'in-office-view?fn=get-list';
 
   // KPIs

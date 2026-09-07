@@ -30,10 +30,11 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
   bool _isNewLender = false;
 
   final _firstNameCtrl = TextEditingController();
+  final _middleNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
+  final _suffixCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _incomeCtrl = TextEditingController();
   String _gender = 'male';
   String _civilStatus = 'single';
   String _employmentType = 'employed';
@@ -51,10 +52,11 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
   void dispose() {
     _searchCtrl.dispose();
     _firstNameCtrl.dispose();
+    _middleNameCtrl.dispose();
     _lastNameCtrl.dispose();
+    _suffixCtrl.dispose();
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
-    _incomeCtrl.dispose();
     super.dispose();
   }
 
@@ -110,11 +112,11 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
     widget.onDataChanged({
       'is_new_lender': true,
       'first_name': _firstNameCtrl.text.trim(),
+      'middle_name': _middleNameCtrl.text.trim(),
       'last_name': _lastNameCtrl.text.trim(),
+      'suffix': _suffixCtrl.text.trim(),
       'phone': _phoneCtrl.text.trim(),
       'email': _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-      'monthly_income':
-          double.tryParse(_incomeCtrl.text.replaceAll(',', '')) ?? 0,
       'gender': _gender,
       'civil_status': _civilStatus,
       'employment_type': _employmentType,
@@ -257,6 +259,28 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
               ],
             ),
             const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    controller: _middleNameCtrl,
+                    label: 'Middle Name (Optional)',
+                    maxLength: 100,
+                    onChanged: (_) => _updateNewLenderData(),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AppTextField(
+                    controller: _suffixCtrl,
+                    label: 'Suffix (Optional)',
+                    maxLength: 20,
+                    onChanged: (_) => _updateNewLenderData(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             AppTextField(
               controller: _phoneCtrl,
               label: 'Phone Number *',
@@ -270,14 +294,6 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
               label: 'Email (Optional)',
               keyboardType: TextInputType.emailAddress,
               maxLength: 254,
-              onChanged: (_) => _updateNewLenderData(),
-            ),
-            const SizedBox(height: 12),
-            AppTextField(
-              controller: _incomeCtrl,
-              label: 'Monthly Income (₱)',
-              keyboardType: TextInputType.number,
-              maxLength: 12,
               onChanged: (_) => _updateNewLenderData(),
             ),
             const SizedBox(height: 12),

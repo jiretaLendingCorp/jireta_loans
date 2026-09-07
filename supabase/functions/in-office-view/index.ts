@@ -29,6 +29,7 @@ const RELATIONSHIPS = new Set([
 ]);
 const DOCUMENT_TYPES = new Set([
   'valid_id', 'valid_id_back', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
+  'selfie_with_id', 'mayors_permit', 'birth_certificate',
   'proof_of_billing', 'certificate_of_employment', 'itr',
   'business_registration', 'co_maker', 'ci_photo', 'evidence', 'site_photo',
   'neighbor_interview', 'proof_of_residence', 'other',
@@ -42,6 +43,10 @@ function normalizeRelationship(v?: string | null): string | null {
 
 function normalizeDocumentType(v?: string | null): string | null {
   if (!v) return null;
+  // 'selfie_with_id' is an explicit alias for 'selfie' (selfie holding the
+  // valid ID) — both are accepted, stored as 'selfie' for consistency with
+  // Account Upgrade.
+  if (v === 'selfie_with_id') return 'selfie';
   return DOCUMENT_TYPES.has(v) ? v : 'other';
 }
 
@@ -58,6 +63,10 @@ serve(async (req) => {
       case 'submit':
         // ── [moved from functions/in-office-submit/index.ts] ───────────
         return await handleSubmit(req);
+      case 'submit-account':
+        // ── Step-3 account submit: create lender + auto-verify upgrade ──
+        // (no loan yet; lender may self-apply afterwards).
+        return await handleSubmitAccount(req);
       case 'get-list':
         // ── [moved from functions/in-office-get-list/index.ts] ─────────
         return await handleGetList(req);
@@ -96,10 +105,12 @@ async function handleSubmit(req: Request) {
       .from('in_office_applications')
       .select('id, created_by, status, lender_id, borrower_signature')
       .eq('id', application_id)
-      .eq('status', 'draft')
       .single();
 
-    if (appErr || !app) return errorResponse('Application not found or already submitted', 404);
+    if (appErr || !app) return errorResponse('Application not found', 404);
+    if (app.status === 'converted') {
+      return errorResponse('Application already submitted', 404);
+    }
 
     const canAccess =
       authResult.role === 'head_manager' || app.created_by === authResult.id;
@@ -148,21 +159,16 @@ async function handleSubmit(req: Request) {
     // Normalize s3 principal for later use.
     s3.principal_amount = sanitizedPrincipal;
 
-    // ── BUSINESS RULE: In-office must mirror Lender self-service flow ──────────
-    // Lender self flow: 1) Register -> 2) Account Upgrade (KYC) verified -> 3) Apply loan.
-    // In-office before fix: created loan immediately, bypassing step 2 (verified check).
-    // AFTER FIX (parity):
-    //   • submit always creates the LENDER ACCOUNT first (phone + default pwd 12345678, force change)
-    //   • then we CHECK lender_profiles.account_upgrade_status
-    //   • If NOT verified, we STOP before loan creation: set application to 'submitted' (pending upgrade),
-    //     store lender_id, insert addresses/emergency_contacts for lender, notify lender to log in & complete KYC.
-    //     The walk-in loan details (amount/frequency/co-maker/docs) stay in application_* tables.
-    //   • Loan creation is DEFERRED until account is verified. Verification (kyc-verify) will auto-convert
-    //     the pending in_office_application into a real loan (see kyc-view handler). Same result as lender
-    //     clicking "Apply" after KYC — parity achieved.
-    //   • If lender already exists AND is verified, we create loan immediately (legacy fast-path for repeat borrowers).
-    //   • Lender app shows "Created via Walk-in" badge whenever in_office_applications.lender_id == lender.id
-    //     and can then apply loan after verification.
+    // ── BUSINESS RULE: In-office = staff-assisted, docs collected in person ──
+    // Staff verifies the borrower face-to-face at Step 3 (Documents), so the
+    // created account is AUTO-VERIFIED (no separate KYC review needed):
+    //   • Step-3 submit (?fn=submit-account) creates the account (verified)
+    //     with NO loan yet — the lender logs in and self-applies.
+    //   • Final submit (this handler) creates the loan immediately when the
+    //     lender is verified (always true for accounts created in-office).
+    //   • PAUSE PATH below is LEGACY only: pre-existing walk-in accounts that
+    //     were created before auto-verify (still 'not_submitted') keep flowing
+    //     through KYC review + kyc-verify auto-convert.
     // ─────────────────────────────────────────────────────────────────────────────
     let lenderId = app.lender_id ?? null;
     let isNewLender = false;
@@ -195,8 +201,9 @@ async function handleSubmit(req: Request) {
         phone_number: s1.phone_number,
         email: (s1 as any).email ?? null,
         first_name: s1.first_name,
+        middle_name: (s1 as any).middle_name ?? null,
         last_name: s1.last_name,
-        middle_name: s1.middle_name,
+        suffix: (s1 as any).suffix ?? null,
         account_status: 'active',
         force_password_change: true,
         created_by: authResult.id,
@@ -206,16 +213,18 @@ async function handleSubmit(req: Request) {
       lenderId = newUser.id;
       isNewLender = true;
 
+      // 00130: financial snapshot (employment/monthly_income) no longer lives
+      // on lender_profiles — it lives on loans per-loan (00128). Only identity
+      // fields are stored here. Status is 'verified' right away: staff
+      // collected + checked the documents in person at Step 3 (auto-verify),
+      // so the lender can log in and self-apply without a KYC review queue.
       await db.from('lender_profiles').insert({
         id: lenderId,
         gender: s1.gender,
         civil_status: s1.civil_status,
         date_of_birth: s1.date_of_birth,
-        employment_type: s1.employment_type ?? employment.data?.employment_type,
-        employer_name: s1.employer_name ?? employment.data?.employer_name,
-        monthly_income: s1.monthly_income ?? employment.data?.monthly_income,
         gcash_number: s1.gcash_number,
-        account_upgrade_status: 'not_submitted',
+        account_upgrade_status: 'verified',
       });
     }
 
@@ -228,7 +237,8 @@ async function handleSubmit(req: Request) {
     const isVerified = curProfile?.account_upgrade_status === 'verified';
 
     if (!isVerified) {
-      // ── PAUSE PATH: account not yet verified → do NOT create loan yet ──────
+      // ── PAUSE PATH (LEGACY): pre-existing walk-in account still unverified
+      // (created before auto-verify) → do NOT create loan yet ──────
       // Insert addresses/emergency if not already present (idempotent)
       if (s2.addresses.length > 0) {
         // Simple: delete existing home addresses for this lender before inserting walk-in ones if we are new lender; otherwise skip if already has addresses
@@ -364,6 +374,12 @@ async function handleSubmit(req: Request) {
       installment_amount: sched.installmentAmount,
       status: 'pending',
       purpose: s3.purpose,
+      // 00130: fan out any legacy in-office financial snapshot (old drafts)
+      // onto the per-loan columns. New drafts omit these (null) — the
+      // per-loan declaration now happens in the Apply Loan flow.
+      employment_type: (employment.data as any)?.employment_type ?? null,
+      employer_name: (employment.data as any)?.employer_name ?? null,
+      monthly_income: (employment.data as any)?.monthly_income ?? null,
     }).select().single();
 
     if (loanErr || !loan) return errorResponse('Failed to create loan', 500);
@@ -381,6 +397,26 @@ async function handleSubmit(req: Request) {
     }));
 
     await db.from('loan_schedules').insert(scheduleRows);
+
+    // 00130: fan out any legacy in-office emergency contacts (old drafts)
+    // onto the per-loan snapshot. New drafts send an empty list — no-op.
+    // Legacy per-lender emergency_contacts were already written above for
+    // compat; this is the canonical per-loan copy.
+    if (s2.emergency_contacts.length > 0) {
+      const loanEcRows = s2.emergency_contacts
+        .filter((ec) => ec?.name && ec?.phone_number)
+        .map((ec) => ({
+          loan_id: loan.id,
+          name: ec.name,
+          relationship: normalizeRelationship(ec.relationship ?? null) ?? 'Other',
+          phone_number: ec.phone_number,
+          address: ec.address ?? null,
+        }));
+      if (loanEcRows.length > 0) {
+        const { error: loanEcErr } = await db.from('loan_emergency_contacts').insert(loanEcRows);
+        if (loanEcErr) console.error('in-office-view submit: loan_emergency_contacts insert failed', { application_id, loanEcErr });
+      }
+    }
 
     for (const coMaker of s4) {
       const { data: person, error: cmErr } = await db.from('co_makers').insert({
@@ -446,6 +482,199 @@ async function handleSubmit(req: Request) {
   }
 }
 
+// ── Step-3 account submit ────────────────────────────────────────────────────
+// Wizard Step 3 (Documents) button is a SUBMIT, not Next: staff has collected
+// identity + address + the 4 required documents in person, so this handler
+// creates the lender account and AUTO-VERIFIES the account upgrade — NO loan
+// is created here. The lender logs in (phone + default password 12345678,
+// force-change on first login) and applies for the loan themselves, OR staff
+// continues the wizard (Steps 4-5) to encode the loan right away (final
+// ?fn=submit then converts immediately since the account is verified).
+// Idempotent: re-submitting an application that already has a lender returns
+// the existing lender (and ensures it is verified).
+// ─────────────────────────────────────────────────────────────────────────────
+const STEP3_REQUIRED_DOCS = new Set([
+  'valid_id',
+  'selfie',
+  'mayors_permit',
+  'birth_certificate',
+]);
+
+async function handleSubmitAccount(req: Request) {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+
+  const permCheck = checkPermission(authResult.role, 'in_office', 'submit');
+  if (permCheck) return permCheck;
+
+  if (req.method !== 'POST') return errorResponse('Method not allowed', 405);
+
+  try {
+    const body = await req.json().catch(() => null);
+    const application_id = body?.application_id ?? body?.applicationId;
+    if (!application_id) {
+      return errorResponse('application_id is required', 400, 'VALIDATION_ERROR');
+    }
+
+    const db = getAdminClient();
+
+    const { data: app, error: appErr } = await db
+      .from('in_office_applications')
+      .select('id, created_by, status, lender_id')
+      .eq('id', application_id)
+      .single();
+
+    if (appErr || !app) return errorResponse('Application not found', 404, 'NOT_FOUND');
+    if (app.status === 'converted') {
+      return errorResponse('Application already submitted', 422, 'ALREADY_CONVERTED');
+    }
+    const canAccess =
+      authResult.role === 'head_manager' || app.created_by === authResult.id;
+    if (!canAccess) return errorResponse('Access denied', 403, 'FORBIDDEN');
+
+    const [personal, addresses, documents] = await Promise.all([
+      db.from('application_personal_info').select('*').eq('application_id', application_id).maybeSingle(),
+      db.from('application_addresses').select('*').eq('application_id', application_id),
+      db.from('application_documents').select('*').eq('application_id', application_id),
+    ]);
+
+    const s1 = personal.data;
+    const hasIdentity = !!s1 && !!(s1.first_name || s1.last_name || s1.phone_number);
+    if (!s1 || !hasIdentity) {
+      console.error('in-office-view submit-account: personal_info incomplete', { application_id });
+      return errorResponse('Step 1 is incomplete: name/phone missing', 400, 'INCOMPLETE_WIZARD');
+    }
+    const docRows = documents.data ?? [];
+    const haveTypes = new Set(
+      docRows.map((d) => normalizeDocumentType(d.document_type ?? null)),
+    );
+    const missingDocs = [...STEP3_REQUIRED_DOCS].filter((t) => !haveTypes.has(t));
+    if (missingDocs.length > 0) {
+      console.error('in-office-view submit-account: documents incomplete', { application_id, missingDocs });
+      return errorResponse(
+        `Step 3 is incomplete: missing ${missingDocs.join(', ')}`,
+        400,
+        'INCOMPLETE_WIZARD',
+      );
+    }
+
+    let lenderId = app.lender_id ?? null;
+    let isNewLender = false;
+
+    if (!lenderId) {
+      const { data: roleRow } = await db.from('roles').select('id').eq('name', 'lender').single();
+      const rawPhone = String(s1.phone_number ?? '').trim();
+      if (!rawPhone) {
+        return errorResponse('Step 1 phone_number is required', 400, 'VALIDATION_ERROR');
+      }
+      const digits = rawPhone.replace(/\D/g, '');
+      if (digits.length < 10) {
+        return errorResponse('Invalid phone_number', 400, 'VALIDATION_ERROR');
+      }
+      const e164Phone = digits.startsWith('63') ? `+${digits}` : (digits.startsWith('0') ? `+63${digits.slice(1)}` : `+63${digits}`);
+      const { data: authUser, error: authErr } = await db.auth.admin.createUser({
+        phone: e164Phone,
+        password: '12345678',
+        phone_confirm: true,
+        app_metadata: { role: 'lender' },
+      });
+      if (authErr) console.error('in-office-view submit-account: createUser failed', { application_id, e164Phone, authErr });
+      if (!authUser?.user) return errorResponse(`Failed to create lender auth account: ${authErr?.message ?? 'unknown'}`, 500);
+
+      const { data: newUser, error: userErr } = await db.from('users').upsert({
+        id: authUser.user.id,
+        role_id: roleRow?.id,
+        phone_number: s1.phone_number,
+        email: (s1 as any).email ?? null,
+        first_name: s1.first_name,
+        middle_name: (s1 as any).middle_name ?? null,
+        last_name: s1.last_name,
+        suffix: (s1 as any).suffix ?? null,
+        account_status: 'active',
+        force_password_change: true,
+        created_by: authResult.id,
+      }, { onConflict: 'id' }).select().single();
+
+      if (userErr) return errorResponse('Failed to create lender user', 500);
+      lenderId = newUser.id;
+      isNewLender = true;
+
+      // Auto-verified: staff collected + checked the documents in person.
+      await db.from('lender_profiles').insert({
+        id: lenderId,
+        gender: s1.gender,
+        civil_status: s1.civil_status,
+        date_of_birth: s1.date_of_birth,
+        gcash_number: s1.gcash_number,
+        account_upgrade_status: 'verified',
+      });
+    } else {
+      // Idempotent retry: ensure the linked account is verified.
+      await db.from('lender_profiles')
+        .update({ account_upgrade_status: 'verified' })
+        .eq('id', lenderId);
+    }
+
+    // Materialize the walk-in address onto the lender (once).
+    const addrRows = addresses.data ?? [];
+    if (addrRows.length > 0) {
+      const { count: existingAddrCount } = await db.from('addresses').select('*', { count: 'exact', head: true }).eq('user_id', lenderId);
+      if ((existingAddrCount ?? 0) === 0) {
+        await db.from('addresses').insert(
+          addrRows.map((a) => ({
+            user_id: lenderId,
+            address_type: a.address_type,
+            street: a.street,
+            barangay: a.barangay,
+            city: a.city,
+            province: a.province,
+            zip_code: a.zip_code,
+            latitude: a.latitude,
+            longitude: a.longitude,
+          })),
+        );
+      }
+    }
+
+    await db.from('in_office_applications').update({
+      lender_id: lenderId,
+      status: 'submitted',
+      wizard_step: 3,
+      updated_at: new Date().toISOString(),
+    }).eq('id', application_id);
+
+    await writeAuditLog({
+      performedBy: authResult.id,
+      action: 'in_office_account_submitted_auto_verified',
+      tableName: 'in_office_applications',
+      recordId: application_id,
+      newValues: { lender_id: lenderId, status: 'submitted', auto_verified: true, note: 'Step-3 submit: account created + upgrade auto-verified by staff, no loan yet' },
+    });
+
+    await sendPushNotification({
+      userId: lenderId,
+      title: 'Your Account Is Verified',
+      body: `Hello! Your account was created and verified through our walk-in application. Log in with your phone number (default password: 12345678) — you will be asked to change it — then apply for your loan in the app.`,
+      type: 'account_upgrade_update',
+      referenceId: application_id,
+    });
+
+    return successResponse({
+      message: 'Account created and verified. Lender may now log in and apply for a loan.',
+      lender_id: lenderId,
+      application_id,
+      auto_verified: true,
+      is_new_lender: isNewLender,
+      login_phone: s1.phone_number,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : undefined;
+    return errorResponse(message ?? 'Internal server error', 500);
+  }
+}
+
 // ── [moved from functions/in-office-get-list/index.ts] ──────────────────────
 async function handleGetList(req: Request) {
   const authResult = await requireAuth(req);
@@ -470,9 +699,9 @@ async function handleGetList(req: Request) {
     .from('in_office_applications')
     .select(
       `id, status, wizard_step, created_at, submitted_at, updated_at,
-       personal_info:application_personal_info!application_personal_info_application_id_fkey(
-         first_name, last_name, phone_number
-       ),
+        personal_info:application_personal_info!application_personal_info_application_id_fkey(
+          first_name, middle_name, last_name, suffix, phone_number
+        ),
        created_by_user:users!in_office_applications_created_by_fkey(
          id, first_name, last_name, roles!users_role_id_fkey(name)
        ),
@@ -502,7 +731,11 @@ async function handleGetList(req: Request) {
       ...rest,
       loan_id: loan?.id ?? null,
       loan,
-      lender_name: pi ? `${pi.first_name ?? ''} ${pi.last_name ?? ''}`.trim() : null,
+      lender_name: pi
+        ? [pi.first_name, pi.middle_name, pi.last_name, pi.suffix]
+            .filter((p) => p && String(p).trim() !== '')
+            .join(' ')
+        : null,
     };
   });
 

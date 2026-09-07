@@ -29,6 +29,7 @@ const RELATIONSHIPS = new Set([
 ]);
 const DOCUMENT_TYPES = new Set([
   'valid_id', 'valid_id_back', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
+  'selfie_with_id', 'mayors_permit', 'birth_certificate',
   'proof_of_billing', 'certificate_of_employment', 'itr',
   'business_registration', 'co_maker', 'ci_photo', 'evidence', 'site_photo',
   'neighbor_interview', 'proof_of_residence', 'other',
@@ -42,6 +43,10 @@ function normalizeRelationship(v?: string | null): string | null {
 
 function normalizeDocumentType(v?: string | null): string | null {
   if (!v) return null;
+  // 'selfie_with_id' is an explicit alias for 'selfie' (selfie holding the
+  // valid ID) — both are accepted, stored as 'selfie' for consistency with
+  // Account Upgrade.
+  if (v === 'selfie_with_id') return 'selfie';
   return DOCUMENT_TYPES.has(v) ? v : 'other';
 }
 
@@ -186,11 +191,13 @@ async function handleSaveStep(req: Request) {
 async function saveStep1(applicationId: string, data: Record<string, unknown>) {
   const client = db();
   const email = typeof data.email === 'string' && data.email.includes('@') ? String(data.email).trim().toLowerCase() : null;
+  const suffixRaw = typeof data.suffix === 'string' ? String(data.suffix).trim().substring(0, 20) : null;
   const { error: pErr } = await client.from('application_personal_info').upsert({
     application_id: applicationId,
     first_name: data.first_name ?? null,
-    middle_name: data.middle_name ?? null,
+    middle_name: (typeof data.middle_name === 'string' && String(data.middle_name).trim() !== '') ? String(data.middle_name).trim().substring(0, 100) : null,
     last_name: data.last_name ?? null,
+    suffix: (suffixRaw && suffixRaw !== '') ? suffixRaw : null,
     phone_number: data.phone_number ?? data.phone ?? null,
     gender: data.gender ?? null,
     civil_status: data.civil_status ?? null,
@@ -200,6 +207,9 @@ async function saveStep1(applicationId: string, data: Record<string, unknown>) {
   }, { onConflict: 'application_id' });
   if (pErr) { console.error('saveStep1 personal_info upsert failed', { applicationId, pErr }); throw pErr; }
 
+  // 00130: monthly_income no longer collected in-office — it lives on the
+  // loans table per-loan (00128). Still persist it when old clients send it
+  // (backward compat for in-flight drafts); new clients omit the key.
   const { error: eErr } = await client.from('application_employment_info').upsert({
     application_id: applicationId,
     employment_type: data.employment_type ?? null,
@@ -234,6 +244,11 @@ async function saveStep2(applicationId: string, data: Record<string, unknown>) {
     if (insAddrErr) { console.error('saveStep2 insert addresses failed', { applicationId, insAddrErr }); throw insAddrErr; }
   }
 
+  // 00130: emergency contact no longer collected in-office — source of truth
+  // is loan_emergency_contacts per-loan. New clients send an empty array (or
+  // omit the key); the delete above clears any legacy rows. Old in-flight
+  // drafts may still send contacts — persist them for backward compat so
+  // submit can fan them out onto the loan snapshot.
   const { error: delEcErr } = await client.from('application_emergency_contacts').delete().eq('application_id', applicationId);
   if (delEcErr) { console.error('saveStep2 delete emergency_contacts failed', { applicationId, delEcErr }); throw delEcErr; }
   const contacts = Array.isArray(data.emergency_contacts) ? data.emergency_contacts : [];

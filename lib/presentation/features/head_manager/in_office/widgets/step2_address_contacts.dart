@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 
 class Step2AddressContacts extends StatefulWidget {
@@ -31,14 +30,6 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
 
   bool _hasWorkAddress = false;
 
-  final List<Map<String, TextEditingController>> _contacts = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _addContact();
-  }
-
   @override
   void dispose() {
     _homeStreetCtrl.dispose();
@@ -48,31 +39,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
     _workStreetCtrl.dispose();
     _workCityCtrl.dispose();
     _workProvinceCtrl.dispose();
-    for (final c in _contacts) {
-      for (final ctrl in c.values) {
-        ctrl.dispose();
-      }
-    }
     super.dispose();
-  }
-
-  void _addContact() {
-    setState(() {
-      _contacts.add({
-        'name': TextEditingController(),
-        'phone': TextEditingController(),
-        'relationship': TextEditingController(),
-      });
-    });
-  }
-
-  void _removeContact(int index) {
-    setState(() {
-      for (final ctrl in _contacts[index].values) {
-        ctrl.dispose();
-      }
-      _contacts.removeAt(index);
-    });
   }
 
   void _update() {
@@ -91,14 +58,9 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
           'province': _workProvinceCtrl.text.trim(),
           'type': 'work',
         },
-      'emergency_contacts': _contacts
-          .map((c) => {
-                'name': c['name']!.text.trim(),
-                'phone': c['phone']!.text.trim(),
-                'relationship': c['relationship']!.text.trim(),
-              })
-          .where((c) => c['name']!.isNotEmpty)
-          .toList(),
+      // Emergency contact now lives on the loans table per-loan
+      // (loan_emergency_contacts) — no longer collected in-office.
+      'emergency_contacts': <Map<String, dynamic>>[],
     });
   }
 
@@ -110,7 +72,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Address & Emergency Contacts',
+            'Address',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -119,7 +81,7 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Provide the lender\'s home address and emergency contact information.',
+            'Provide the lender\'s home address.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 20),
@@ -218,89 +180,6 @@ class _Step2AddressContactsState extends State<Step2AddressContacts> {
               ],
             ),
           ],
-          const SizedBox(height: 28),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const _SectionHeader(
-                  title: 'Emergency Contacts',
-                  icon: Icons.contact_phone_outlined),
-              AppButton(
-                label: 'Add Contact',
-                onPressed: _addContact,
-                variant: AppButtonVariant.secondary,
-                icon: Icons.add,
-                compact: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...List.generate(_contacts.length, (i) {
-            final c = _contacts[i];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.border),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Contact ${i + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      if (_contacts.length > 1)
-                        IconButton(
-                          onPressed: () => _removeContact(i),
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          color: AppColors.error,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  AppTextField(
-                    controller: c['name']!,
-                    label: 'Full Name *',
-                    maxLength: 100,
-                    onChanged: (_) => _update(),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: c['phone']!,
-                          label: 'Phone Number *',
-                          keyboardType: TextInputType.phone,
-                          maxLength: 11,
-                          onChanged: (_) => _update(),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AppTextField(
-                          controller: c['relationship']!,
-                          label: 'Relationship *',
-                          maxLength: 50,
-                          onChanged: (_) => _update(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }),
         ],
       ),
     );

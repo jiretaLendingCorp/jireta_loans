@@ -6,9 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/config/app_config.dart';
+import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
@@ -53,44 +55,22 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
 
   Future<void> _logout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
-    // Pag pinindot mo na ng "Log out" sa dialog, agad mag-close yung dialog at mag-navigate
-    // sa login screen. Hindi na babalik sa profile screen — direktang logout agad.
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: const Text('Log out?',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        content: const Text('You will need to log in again to continue.',
-            style: TextStyle(
-                fontSize: 13, color: AppColors.textSecondary)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    if (!mounted || !context.mounted) return;
-    // Direkta navigate sa login screen — hindi na babalik sa profile.
-    context.go(RouteConstants.mobileLogin);
-    // Tapos na mag-logout sa background.
+    // No confirmation modal. Flow: button loading → logout → success modal
+    // steady for 2s → login page. The redirect is held while the modal is up
+    // so it can't yank the stack mid-modal.
+    AppConstants.suppressLogoutRedirect = true;
     try {
       await ref.read(authProvider.notifier).logout();
     } catch (_) {}
+    AppConstants.suppressLogoutRedirect = false;
+    if (!mounted || !context.mounted) return;
+    await SuccessDialog.showAutoDismiss(
+      context,
+      title: 'Successfully Logged Out',
+      message: 'You have been logged out successfully.',
+    );
+    if (!mounted || !context.mounted) return;
+    context.go(RouteConstants.mobileLogin);
   }
 
   @override

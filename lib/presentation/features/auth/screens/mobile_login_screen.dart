@@ -9,10 +9,12 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../../../shared/widgets/legal_links.dart';
 import '../providers/auth_provider.dart';
@@ -1035,6 +1037,45 @@ class _MenuIcon extends StatelessWidget {
 }
 
 enum _InfoMenuAction { helpCenter, about, appVersion }
+
+/// "Successfully Logged Out" modal shown once right after a mobile logout.
+/// The login page stays visible behind it (dim backdrop only) and the modal
+/// auto-dismisses after 2 seconds, or immediately via the OK button.
+class _LogoutSuccessModal extends StatefulWidget {
+  const _LogoutSuccessModal();
+
+  @override
+  State<_LogoutSuccessModal> createState() => _LogoutSuccessModalState();
+}
+
+class _LogoutSuccessModalState extends State<_LogoutSuccessModal> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(const Duration(seconds: 2), () {
+      if (mounted) Navigator.of(context).pop();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SuccessDialog(
+        title: 'Successfully Logged Out',
+        message: 'You have been logged out successfully.',
+        buttonText: 'OK',
+      ),
+    );
+  }
+}
 
 class _InfoSection {
   final String title;

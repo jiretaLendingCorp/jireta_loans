@@ -7,12 +7,14 @@ import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/config/app_config.dart';
+import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
+import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../providers/lender_profile_provider.dart';
 
@@ -479,57 +481,21 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
 
   Future<void> _confirmLogout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
-    // The Log out button inside the dialog shows its own spinner while
-    // logging out, then goes straight to the login page — no intermediate
-    // shimmer screen.
-    bool dialogLoading = false;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16)),
-          title: const Text('Log out?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          content: const Text('You will need to log in again to continue.',
-              style: TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary)),
-          actions: [
-            TextButton(
-                onPressed: dialogLoading ? null : () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: _accent,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10))),
-              onPressed: dialogLoading
-                  ? null
-                  : () async {
-                      setDialogState(() => dialogLoading = true);
-                      try {
-                        await ref.read(authProvider.notifier).logout();
-                      } catch (_) {}
-                      if (ctx.mounted) Navigator.pop(ctx, true);
-                    },
-              child: dialogLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Text('Log out'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (confirmed != true) return;
+    // No confirmation modal. Flow: button loading → logout → success modal
+    // steady for 2s → login page. The redirect is held while the modal is up
+    // so it can't yank the stack mid-modal.
+    AppConstants.suppressLogoutRedirect = true;
+    try {
+      await ref.read(authProvider.notifier).logout();
+    } catch (_) {}
+    AppConstants.suppressLogoutRedirect = false;
     if (!mounted || !context.mounted) return;
-    // Already logged out above — go straight to login, no shimmer in between.
+    await SuccessDialog.showAutoDismiss(
+      context,
+      title: 'Successfully Logged Out',
+      message: 'You have been logged out successfully.',
+    );
+    if (!mounted || !context.mounted) return;
     context.go(RouteConstants.mobileLogin);
   }
 }

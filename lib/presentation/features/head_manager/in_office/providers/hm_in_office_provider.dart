@@ -102,6 +102,20 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
     }
   }
 
+  /// Step-3 account submit: creates + auto-verifies the lender account
+  /// (no loan). Returns backend payload (lender_id, login_phone, ...).
+  Future<Map<String, dynamic>?> submitAccount(String applicationId) async {
+    try {
+      final res = await _ds.submitAccount(applicationId: applicationId);
+      await load();
+      return res;
+    } catch (e) {
+      // ignore: avoid_print
+      print('[HmInOffice] submitAccount failed for $applicationId: ${ErrorHandler.handle(e).message}');
+      return null;
+    }
+  }
+
   /// Legacy bool wrapper for callers that only care about success/failure
   Future<bool> submitApplicationBool(String applicationId) async {
     final r = await submitApplication(applicationId);

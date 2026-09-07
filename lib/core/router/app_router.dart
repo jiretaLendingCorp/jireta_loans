@@ -162,6 +162,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLoading = authState.isLoading;
       if (isLoading) return null;
 
+      // During mobile logout the profile shows a steady 2s success modal
+      // before navigating to login — hold the redirect so it can't yank the
+      // stack (and kill the modal) the moment logout completes.
+      if (AppConstants.suppressLogoutRedirect) return null;
+
       final path = state.uri.path;
 
       // While offline (or still probing for connectivity) the web app stays on
