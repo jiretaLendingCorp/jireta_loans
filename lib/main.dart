@@ -109,12 +109,16 @@ class _PlaceholderEnvApp extends StatelessWidget {
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706), size: 32),
+                        Icon(Icons.warning_amber_rounded,
+                            color: Color(0xFFD97706), size: 32),
                         SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             'Production configuration missing',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A)),
                           ),
                         ),
                       ],
@@ -125,7 +129,8 @@ class _PlaceholderEnvApp extends StatelessWidget {
                       style: TextStyle(color: Colors.black87),
                     ),
                     const SizedBox(height: 16),
-                    const Text('Fix in Vercel (takes 2 min):', style: TextStyle(fontWeight: FontWeight.w800)),
+                    const Text('Fix in Vercel (takes 2 min):',
+                        style: TextStyle(fontWeight: FontWeight.w800)),
                     const SizedBox(height: 8),
                     const SelectableText(
                       '1. Vercel Dashboard → jireta → Settings → Environment Variables\n'
@@ -141,7 +146,10 @@ class _PlaceholderEnvApp extends StatelessWidget {
                     const SizedBox(height: 12),
                     const Text(
                       'If you already added the vars but still see this screen, you forgot the Redeploy — env vars only take effect on the next build.',
-                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.black54),
                     ),
                     const SizedBox(height: 12),
                     const Text(

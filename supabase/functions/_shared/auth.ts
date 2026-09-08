@@ -213,12 +213,62 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     p_session_identifier: sessionIdentifier,
   });
 
-  if (sessionIsActive.error || sessionIsActive.data !== true) {
-    return errorResponse(
-      'Your account was signed in on another device. This session has been logged out for security.',
-      401,
-      'SESSION_REVOKED',
+  // Fail-open on infrastructure errors. If the RPC itself errors (e.g. the
+  // `active_sessions` migration was never applied to this database, or the
+  // function/grants are missing), log it loudly and ALLOW the request.
+  // Locking every user out of the whole app because single-session
+  // enforcement is unavailable is worse than degrading to no enforcement.
+  // Only a CLEAN `false` — this session identifier was superseded by a newer
+  // login — revokes the device.
+  if (sessionIsActive.error) {
+    console.error(
+      '[requireAuth] validate_active_session RPC error — single-session enforcement degraded, allowing request',
+      {
+        userId: dbUser.id,
+        sessionIdentifier,
+        error: sessionIsActive.error.message,
+        code: (sessionIsActive.error as { code?: string })?.code ?? null,
+      },
     );
+  } else if (sessionIsActive.data !== true) {
+    // A clean `false` can mean either:
+    //   1. This sign-in was superseded by a newer login on another device
+    //      (an active_sessions row exists, but with a different identifier)
+    //      → genuinely revoked, the ONLY case that returns SESSION_REVOKED.
+    //   2. NO row exists for the account at all — the claim at login never
+    //      persisted (login function deployed without claims, claim RPC
+    //      missing/half-applied, etc.). There is nothing to supersede, so we
+    //      must NOT revoke. We also must NOT lazily create the row here:
+    //      a lazy claim would revoke OTHER devices whose logins also skipped
+    //      the claim, causing false "Session Ended" on every account.
+    //      Allow the request (fail-open) and log; the next proper login
+    //      claims the session server-side.
+    const { data: anyRow, error: anyErr } = await supabase
+      .from('active_sessions')
+      .select('id')
+      .eq('user_id', dbUser.id)
+      .maybeSingle();
+    if (anyErr) {
+      console.error(
+        '[requireAuth] active_sessions existence check failed — allowing request',
+        {
+          userId: dbUser.id,
+          error: anyErr.message,
+          code: (anyErr as { code?: string })?.code ?? null,
+        },
+      );
+    } else if (!anyRow) {
+      console.warn(
+        '[requireAuth] validate miss with no active_sessions row — allowing (enforcement degraded, no lazy claim)',
+        { userId: dbUser.id, sessionIdentifier },
+      );
+    } else {
+      return errorResponse(
+        'Your account was signed in on another device. This session has been logged out for security.',
+        401,
+        'SESSION_REVOKED',
+      );
+    }
   }
 
   return {

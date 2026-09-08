@@ -13,6 +13,7 @@ import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../shared/widgets/legal_links.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -105,6 +106,9 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       _showError('Enter a valid Philippine mobile number (09XXXXXXXXX).');
       return;
     }
+    // Dismiss the keyboard right away so the loading state / next screen is
+    // not covered by it.
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _loading = true);
     final ok = await ref.read(authProvider.notifier).sendOtp(phone: _rawPhone);
     if (!mounted) return;
@@ -414,531 +418,662 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        resizeToAvoidBottomInset: false,
+        resizeToAvoidBottomInset: true,
         backgroundColor: const Color(0xFFF7F8FA),
         body: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnim,
             child: SlideTransition(
               position: _slideAnim,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return Column(
-                    children: [
-                      // Top bar: menu right-aligned
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: _buildInfoMenuButton(),
-                        ),
-                      ),
-                      Expanded(
-                          child: SingleChildScrollView(
-                        padding: EdgeInsets.only(
-                            bottom: MediaQuery.of(context).viewInsets.bottom),
-                        physics: const BouncingScrollPhysics(),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              // ── Card ──
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 20),
-                                child: Container(
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(24),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.deepNavy
-                                            .withValues(alpha: 0.06),
-                                        blurRadius: 24,
-                                        offset: const Offset(0, 10),
-                                      ),
-                                    ],
+              child: Column(
+                children: [
+                  // Top bar: menu right-aligned
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _buildInfoMenuButton(),
+                    ),
+                  ),
+                  // Card: centered in the FULL remaining space — its position is
+                  // locked and never moves, no matter where the brand text sits.
+                  // The brand text floats at a fixed offset above the card.
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Track the card's rise: the card is centered in the
+                        // remaining space, so it moves up by half the keyboard
+                        // height. The brand text moves up the same distance,
+                        // keeping the gap constant and never getting covered.
+                        final keyboardInset =
+                            MediaQuery.of(context).viewInsets.bottom;
+                        return Stack(
+                          children: [
+                            // Card centered in the full area (keyboard-aware)
+                            Positioned.fill(
+                              child: SingleChildScrollView(
+                                physics: const ClampingScrollPhysics(),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight,
                                   ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        24, 24, 24, 24),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        // Handle
-                                        const SizedBox(height: 4),
-                                        const Text(
-                                          'Login',
-                                          style: TextStyle(
-                                            fontFamily: 'PlayfairDisplay',
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.deepNavy,
-                                            height: 1.1,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 22),
-                                        const Text(
-                                          'Mobile Number',
-                                          style: TextStyle(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.deepNavy,
-                                            letterSpacing: 0.2,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        // Premium input — simple (no extra smooth anim)
-                                        TextFormField(
-                                          controller: _phoneCtrl,
-                                          keyboardType: TextInputType.phone,
-                                          maxLength: 13,
-                                          inputFormatters: [_phoneMask],
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.deepNavy,
-                                            letterSpacing: 0.8,
-                                          ),
-                                          onChanged: (_) => setState(() {}),
-                                          decoration: InputDecoration(
-                                            hintText: '09XX XXX XXXX',
-                                            hintStyle: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w500,
-                                              color: AppColors.textTertiary
-                                                  .withValues(alpha: 0.7),
-                                              letterSpacing: 0.6,
-                                            ),
-                                            counterText: '',
-                                            filled: true,
-                                            fillColor: const Color(0xFFF2F3F7),
-                                            contentPadding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 14,
-                                                    vertical: 16),
-                                            prefixIcon: Padding(
-                                              padding: const EdgeInsets.only(
-                                                  left: 16, right: 10),
-                                              child: Icon(
-                                                Icons.phone_rounded,
-                                                size: 19,
-                                                color: _isPhoneValid
-                                                    ? AppColors.deepNavy
-                                                    : AppColors.textTertiary,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      // Push the card down a bit while the
+                                      // keyboard is open so it sits slightly
+                                      // lower, closer to the keyboard.
+                                      if (keyboardInset > 0)
+                                        const SizedBox(height: 120),
+                                      // ── Card ──
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 20),
+                                        child: Container(
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(24),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: AppColors.deepNavy
+                                                    .withValues(alpha: 0.06),
+                                                blurRadius: 24,
+                                                offset: const Offset(0, 10),
                                               ),
-                                            ),
-                                            suffixIcon: _phoneCtrl
-                                                    .text.isNotEmpty
-                                                ? Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                            right: 12),
-                                                    child: Icon(
-                                                      _isPhoneValid
-                                                          ? Icons
-                                                              .check_circle_rounded
-                                                          : Icons
-                                                              .error_outline_rounded,
-                                                      size: 20,
-                                                      color: _isPhoneValid
-                                                          ? const Color(
-                                                              0xFF2E7D32)
-                                                          : AppColors
-                                                              .textTertiary
-                                                              .withValues(
-                                                                  alpha: 0.6),
-                                                    ),
-                                                  )
-                                                : null,
-                                            suffixIconConstraints:
-                                                const BoxConstraints(
-                                                    minWidth: 0, minHeight: 0),
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                              borderSide: const BorderSide(
-                                                  color: Color(0xFFE3E5EB)),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                              borderSide: const BorderSide(
-                                                  color: AppColors.deepNavy,
-                                                  width: 1.6),
-                                            ),
+                                            ],
                                           ),
-                                        ),
-                                        const SizedBox(height: 8),
-
-                                        const SizedBox(height: 22),
-
-                                        // ── Lock countdown inline ──
-                                        if (_lockSecondsLeft > 0)
-                                          Container(
-                                            margin: const EdgeInsets.only(
-                                                bottom: 14),
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 14, vertical: 12),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.errorLight,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              border: Border.all(
-                                                  color: AppColors.error
-                                                      .withValues(alpha: 0.18)),
-                                            ),
-                                            child: Row(
+                                          child: Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                                24, 24, 24, 24),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
                                               children: [
-                                                Container(
-                                                  width: 28,
-                                                  height: 28,
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                    color: AppColors.error,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                      Icons.timer_rounded,
-                                                      size: 14,
-                                                      color: Colors.white),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      const Text(
-                                                        'Too many attempts',
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          color:
-                                                              AppColors.error,
-                                                        ),
-                                                      ),
-                                                      Text(
-                                                        'Try again in $_lockLabel',
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color:
-                                                              AppColors.error,
-                                                        ),
-                                                      ),
-                                                    ],
+                                                // Handle
+                                                const SizedBox(height: 4),
+                                                const Text(
+                                                  'Login',
+                                                  style: TextStyle(
+                                                    fontFamily:
+                                                        'PlayfairDisplay',
+                                                    fontSize: 20,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.deepNavy,
+                                                    height: 1.1,
                                                   ),
                                                 ),
-                                                Text(
-                                                  _lockLabel,
+                                                const SizedBox(height: 22),
+                                                const Text(
+                                                  'Mobile Number',
+                                                  style: TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.deepNavy,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                // Premium input — simple (no extra smooth anim)
+                                                TextFormField(
+                                                  controller: _phoneCtrl,
+                                                  keyboardType:
+                                                      TextInputType.phone,
+                                                  maxLength: 13,
+                                                  inputFormatters: [_phoneMask],
                                                   style: const TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w800,
-                                                    color: AppColors.error,
-                                                    fontFeatures: [
-                                                      FontFeature
-                                                          .tabularFigures()
-                                                    ],
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.deepNavy,
+                                                    letterSpacing: 0.8,
+                                                  ),
+                                                  onChanged: (_) =>
+                                                      setState(() {}),
+                                                  decoration: InputDecoration(
+                                                    hintText: '09XX XXX XXXX',
+                                                    hintStyle: TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: AppColors
+                                                          .textTertiary
+                                                          .withValues(
+                                                              alpha: 0.7),
+                                                      letterSpacing: 0.6,
+                                                    ),
+                                                    counterText: '',
+                                                    filled: true,
+                                                    fillColor:
+                                                        const Color(0xFFF2F3F7),
+                                                    contentPadding:
+                                                        const EdgeInsets
+                                                            .symmetric(
+                                                            horizontal: 14,
+                                                            vertical: 16),
+                                                    prefixIcon: Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              left: 16,
+                                                              right: 10),
+                                                      child: Icon(
+                                                        Icons.phone_rounded,
+                                                        size: 19,
+                                                        color: _isPhoneValid
+                                                            ? AppColors.deepNavy
+                                                            : AppColors
+                                                                .textTertiary,
+                                                      ),
+                                                    ),
+                                                    suffixIcon: _phoneCtrl
+                                                            .text.isNotEmpty
+                                                        ? Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .only(
+                                                                    right: 12),
+                                                            child: Icon(
+                                                              _isPhoneValid
+                                                                  ? Icons
+                                                                      .check_circle_rounded
+                                                                  : Icons
+                                                                      .error_outline_rounded,
+                                                              size: 20,
+                                                              color: _isPhoneValid
+                                                                  ? const Color(
+                                                                      0xFF2E7D32)
+                                                                  : AppColors
+                                                                      .textTertiary
+                                                                      .withValues(
+                                                                          alpha:
+                                                                              0.6),
+                                                            ),
+                                                          )
+                                                        : null,
+                                                    suffixIconConstraints:
+                                                        const BoxConstraints(
+                                                            minWidth: 0,
+                                                            minHeight: 0),
+                                                    enabledBorder:
+                                                        OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              14),
+                                                      borderSide:
+                                                          const BorderSide(
+                                                              color: Color(
+                                                                  0xFFE3E5EB)),
+                                                    ),
+                                                    focusedBorder:
+                                                        OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              14),
+                                                      borderSide:
+                                                          const BorderSide(
+                                                              color: AppColors
+                                                                  .deepNavy,
+                                                              width: 1.6),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+
+                                                const SizedBox(height: 22),
+
+                                                // ── Lock countdown inline ──
+                                                if (_lockSecondsLeft > 0)
+                                                  Container(
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                            bottom: 14),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 12),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          AppColors.errorLight,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                      border: Border.all(
+                                                          color: AppColors.error
+                                                              .withValues(
+                                                                  alpha: 0.18)),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        Container(
+                                                          width: 28,
+                                                          height: 28,
+                                                          decoration:
+                                                              const BoxDecoration(
+                                                            color:
+                                                                AppColors.error,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                          child: const Icon(
+                                                              Icons
+                                                                  .timer_rounded,
+                                                              size: 14,
+                                                              color:
+                                                                  Colors.white),
+                                                        ),
+                                                        const SizedBox(
+                                                            width: 10),
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              const Text(
+                                                                'Too many attempts',
+                                                                style:
+                                                                    TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  color:
+                                                                      AppColors
+                                                                          .error,
+                                                                ),
+                                                              ),
+                                                              Text(
+                                                                'Try again in $_lockLabel',
+                                                                style:
+                                                                    const TextStyle(
+                                                                  fontSize: 11,
+                                                                  color:
+                                                                      AppColors
+                                                                          .error,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          _lockLabel,
+                                                          style:
+                                                              const TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight:
+                                                                FontWeight.w800,
+                                                            color:
+                                                                AppColors.error,
+                                                            fontFeatures: [
+                                                              FontFeature
+                                                                  .tabularFigures()
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+
+                                                // ── Premium CTA ──
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  height: 54,
+                                                  child: DecoratedBox(
+                                                    decoration: BoxDecoration(
+                                                      gradient: canSendOtp
+                                                          ? const LinearGradient(
+                                                              colors: [
+                                                                AppColors
+                                                                    .deepNavy,
+                                                                Color(
+                                                                    0xFF1A3658),
+                                                              ],
+                                                              begin: Alignment
+                                                                  .topLeft,
+                                                              end: Alignment
+                                                                  .bottomRight,
+                                                            )
+                                                          : null,
+                                                      color: canSendOtp
+                                                          ? null
+                                                          : const Color(
+                                                              0xFFE8E8EE),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              14),
+                                                      boxShadow: canSendOtp
+                                                          ? [
+                                                              BoxShadow(
+                                                                color: AppColors
+                                                                    .deepNavy
+                                                                    .withValues(
+                                                                        alpha:
+                                                                            0.35),
+                                                                blurRadius: 16,
+                                                                offset:
+                                                                    const Offset(
+                                                                        0, 8),
+                                                              ),
+                                                            ]
+                                                          : null,
+                                                    ),
+                                                    child: ElevatedButton(
+                                                      onPressed: canSendOtp
+                                                          ? _sendOtp
+                                                          : null,
+                                                      style: ElevatedButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            Colors.transparent,
+                                                        shadowColor:
+                                                            Colors.transparent,
+                                                        disabledBackgroundColor:
+                                                            Colors.transparent,
+                                                        disabledForegroundColor:
+                                                            AppColors
+                                                                .textTertiary
+                                                                .withValues(
+                                                                    alpha: 0.6),
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                        elevation: 0,
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(14),
+                                                        ),
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                horizontal: 20),
+                                                      ),
+                                                      child: _loading
+                                                          ? const SizedBox(
+                                                              height: 22,
+                                                              width: 22,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                strokeWidth:
+                                                                    2.4,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                            )
+                                                          : Row(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .center,
+                                                              children: [
+                                                                Text(
+                                                                  _lockSecondsLeft >
+                                                                          0
+                                                                      ? 'Locked · $_lockLabel'
+                                                                      : 'Send OTP',
+                                                                  style:
+                                                                      TextStyle(
+                                                                    fontSize:
+                                                                        15.5,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w700,
+                                                                    letterSpacing:
+                                                                        0.3,
+                                                                    color: canSendOtp
+                                                                        ? Colors
+                                                                            .white
+                                                                        : AppColors
+                                                                            .textTertiary,
+                                                                  ),
+                                                                ),
+                                                                if (canSendOtp) ...[
+                                                                  const SizedBox(
+                                                                      width: 8),
+                                                                  Container(
+                                                                    width: 22,
+                                                                    height: 22,
+                                                                    decoration:
+                                                                        BoxDecoration(
+                                                                      color: Colors
+                                                                          .white
+                                                                          .withValues(
+                                                                              alpha: 0.22),
+                                                                      shape: BoxShape
+                                                                          .circle,
+                                                                    ),
+                                                                    child:
+                                                                        const Icon(
+                                                                      Icons
+                                                                          .arrow_forward_rounded,
+                                                                      size: 14,
+                                                                      color: Colors
+                                                                          .white,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ],
+                                                            ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 18),
+
+                                                // Divider (short centered lines)
+                                                const Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    SizedBox(
+                                                        width: 40,
+                                                        child: Divider(
+                                                            color: Color(
+                                                                0xFFE8E8EE),
+                                                            thickness: 1)),
+                                                    Padding(
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                              horizontal: 12),
+                                                      child: Text(
+                                                        'or continue with',
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          color: AppColors
+                                                              .textTertiary,
+                                                          letterSpacing: 0.3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    SizedBox(
+                                                        width: 40,
+                                                        child: Divider(
+                                                            color: Color(
+                                                                0xFFE8E8EE),
+                                                            thickness: 1)),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 18),
+
+                                                // Google button
+                                                SizedBox(
+                                                  width: double.infinity,
+                                                  height: 52,
+                                                  child: OutlinedButton.icon(
+                                                    onPressed: (_loading ||
+                                                            _googleLoading ||
+                                                            !isOnline)
+                                                        ? null
+                                                        : _signInWithGoogle,
+                                                    style: OutlinedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.white,
+                                                      foregroundColor:
+                                                          AppColors.deepNavy,
+                                                      side: const BorderSide(
+                                                          color:
+                                                              Color(0xFFE8E8EE),
+                                                          width: 1.2),
+                                                      shape:
+                                                          RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(14),
+                                                      ),
+                                                      elevation: 0,
+                                                    ),
+                                                    icon: _googleLoading
+                                                        ? const SizedBox(
+                                                            height: 20,
+                                                            width: 20,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                              color: AppColors
+                                                                  .deepNavy,
+                                                            ),
+                                                          )
+                                                        : Image.network(
+                                                            'https://www.google.com/favicon.ico',
+                                                            width: 22,
+                                                            height: 22,
+                                                            errorBuilder: (_,
+                                                                    __, ___) =>
+                                                                const Icon(
+                                                                    Icons
+                                                                        .g_mobiledata_rounded,
+                                                                    size: 20,
+                                                                    color: AppColors
+                                                                        .deepNavy),
+                                                          ),
+                                                    label: const Text(
+                                                      'Continue with Google',
+                                                      style: TextStyle(
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color:
+                                                            AppColors.deepNavy,
+                                                        letterSpacing: 0.1,
+                                                      ),
+                                                    ),
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
-
-                                        // ── Premium CTA ──
-                                        SizedBox(
-                                          width: double.infinity,
-                                          height: 54,
-                                          child: DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              gradient: canSendOtp
-                                                  ? const LinearGradient(
-                                                      colors: [
-                                                        AppColors.deepNavy,
-                                                        Color(0xFF1A3658),
-                                                      ],
-                                                      begin: Alignment.topLeft,
-                                                      end:
-                                                          Alignment.bottomRight,
-                                                    )
-                                                  : null,
-                                              color: canSendOtp
-                                                  ? null
-                                                  : const Color(0xFFE8E8EE),
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                              boxShadow: canSendOtp
-                                                  ? [
-                                                      BoxShadow(
-                                                        color: AppColors
-                                                            .deepNavy
-                                                            .withValues(
-                                                                alpha: 0.35),
-                                                        blurRadius: 16,
-                                                        offset:
-                                                            const Offset(0, 8),
-                                                      ),
-                                                    ]
-                                                  : null,
-                                            ),
-                                            child: ElevatedButton(
-                                              onPressed:
-                                                  canSendOtp ? _sendOtp : null,
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                    Colors.transparent,
-                                                shadowColor: Colors.transparent,
-                                                disabledBackgroundColor:
-                                                    Colors.transparent,
-                                                disabledForegroundColor:
-                                                    AppColors.textTertiary
-                                                        .withValues(alpha: 0.6),
-                                                foregroundColor: Colors.white,
-                                                elevation: 0,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(14),
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 20),
-                                              ),
-                                              child: _loading
-                                                  ? const SizedBox(
-                                                      height: 22,
-                                                      width: 22,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        strokeWidth: 2.4,
-                                                        color: Colors.white,
-                                                      ),
-                                                    )
-                                                  : Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .center,
-                                                      children: [
-                                                        Text(
-                                                          _lockSecondsLeft > 0
-                                                              ? 'Locked · $_lockLabel'
-                                                              : 'Send OTP',
-                                                          style: TextStyle(
-                                                            fontSize: 15.5,
-                                                            fontWeight:
-                                                                FontWeight.w700,
-                                                            letterSpacing: 0.3,
-                                                            color: canSendOtp
-                                                                ? Colors.white
-                                                                : AppColors
-                                                                    .textTertiary,
-                                                          ),
-                                                        ),
-                                                        if (canSendOtp) ...[
-                                                          const SizedBox(
-                                                              width: 8),
-                                                          Container(
-                                                            width: 22,
-                                                            height: 22,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color: Colors
-                                                                  .white
-                                                                  .withValues(
-                                                                      alpha:
-                                                                          0.22),
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                            ),
-                                                            child: const Icon(
-                                                              Icons
-                                                                  .arrow_forward_rounded,
-                                                              size: 14,
-                                                              color:
-                                                                  Colors.white,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ],
-                                                    ),
-                                            ),
-                                          ),
                                         ),
-                                        const SizedBox(height: 18),
+                                      ),
+                                      const SizedBox(height: 8),
 
-                                        // Divider
-                                        const Row(
-                                          children: [
-                                            Expanded(
-                                                child: Divider(
-                                                    color: Color(0xFFE8E8EE),
-                                                    thickness: 1)),
-                                            Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                  horizontal: 12),
-                                              child: Text(
-                                                'or continue with',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: AppColors.textTertiary,
-                                                  letterSpacing: 0.3,
-                                                ),
-                                              ),
-                                            ),
-                                            Expanded(
-                                                child: Divider(
-                                                    color: Color(0xFFE8E8EE),
-                                                    thickness: 1)),
-                                          ],
+                                      // Offline banner
+                                      if (!isOnline)
+                                        const Padding(
+                                          padding: EdgeInsets.fromLTRB(
+                                              20, 0, 20, 12),
+                                          child: OfflineToast(),
                                         ),
-                                        const SizedBox(height: 18),
-
-                                        // Google button
-                                        SizedBox(
-                                          width: double.infinity,
-                                          height: 52,
-                                          child: OutlinedButton.icon(
-                                            onPressed: (_loading ||
-                                                    _googleLoading ||
-                                                    !isOnline)
-                                                ? null
-                                                : _signInWithGoogle,
-                                            style: OutlinedButton.styleFrom(
-                                              backgroundColor: Colors.white,
-                                              foregroundColor:
-                                                  AppColors.deepNavy,
-                                              side: const BorderSide(
-                                                  color: Color(0xFFE8E8EE),
-                                                  width: 1.2),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                              ),
-                                              elevation: 0,
-                                            ),
-                                            icon: _googleLoading
-                                                ? const SizedBox(
-                                                    height: 20,
-                                                    width: 20,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: AppColors.deepNavy,
-                                                    ),
-                                                  )
-                                                : Container(
-                                                    width: 26,
-                                                    height: 26,
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.white,
-                                                      borderRadius:
-                                                          BorderRadius.zero,
-                                                      border: Border.all(
-                                                          color: const Color(
-                                                              0xFFE8E8EE)),
-                                                    ),
-                                                    padding:
-                                                        const EdgeInsets.all(4),
-                                                    child: Image.network(
-                                                      'https://www.google.com/favicon.ico',
-                                                      width: 18,
-                                                      height: 18,
-                                                      errorBuilder: (_, __,
-                                                              ___) =>
-                                                          const Icon(
-                                                              Icons
-                                                                  .g_mobiledata_rounded,
-                                                              size: 20,
-                                                              color: AppColors
-                                                                  .deepNavy),
-                                                    ),
-                                                  ),
-                                            label: const Text(
-                                              'Continue with Google',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: AppColors.deepNavy,
-                                                letterSpacing: 0.1,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 8),
-
-                              // Offline banner
-                              if (!isOnline)
-                                const Padding(
-                                  padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-                                  child: OfflineToast(),
-                                ),
-                            ],
-                          ),
-                        ),
-                      )),
-
-                      // Legal + version footer (fixed at bottom)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  width: 4,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.textTertiary
-                                        .withValues(alpha: 0.5),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '© 1966  Jireta Loans & Credit Corp',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textTertiary
-                                        .withValues(alpha: 0.9),
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 4,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.textTertiary
-                                        .withValues(alpha: 0.5),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                              ],
                             ),
-                            SizedBox(
-                              height: MediaQuery.of(context).padding.bottom + 4,
+                            // Brand text floating at a fixed offset — its height
+                            // does not affect the card's centered position.
+                            AnimatedPositioned(
+                              // Pinned at the very top of the page (below the
+                              // menu bar); rises out of the way when the
+                              // keyboard opens (half its height, same as the
+                              // card).
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOutCubic,
+                              top: 32.0 - keyboardInset * 0.5,
+                              left: 20,
+                              right: 20,
+                              child: const Column(
+                                children: [
+                                  Text(
+                                    'Jireta Loans',
+                                    style: TextStyle(
+                                      fontFamily: 'PlayfairDisplay',
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.deepNavy,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    '& CREDIT CORP 1966',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 2.6,
+                                      color: AppColors.goldDark,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
-                        ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Legal + version footer (hidden while the keyboard is open)
+                  if (MediaQuery.of(context).viewInsets.bottom == 0)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Terms & Conditions · Privacy Policy (text links)
+                          const LegalLinks(),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 4,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: AppColors.textTertiary
+                                      .withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '© 1966  Jireta Loans & Credit Corp',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.textTertiary
+                                      .withValues(alpha: 0.9),
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 4,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: AppColors.textTertiary
+                                      .withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(
+                            height: MediaQuery.of(context).padding.bottom + 4,
+                          ),
+                        ],
                       ),
-                    ],
-                  );
-                },
+                    ),
+                ],
               ),
             ),
           ),

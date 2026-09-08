@@ -207,9 +207,14 @@ class ModernProfileHeader extends StatelessWidget {
     );
 
     if (flat) {
+      // Full width so the avatar + name + status block is centered on the
+      // page (like the card variant) instead of hugging the left edge.
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        child: content,
+        child: SizedBox(
+          width: double.infinity,
+          child: content,
+        ),
       );
     }
     return Container(

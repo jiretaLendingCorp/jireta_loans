@@ -522,8 +522,9 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email is required';
-                    if (!AppValidators.isValidEmail(v))
+                    if (!AppValidators.isValidEmail(v)) {
                       return 'Enter a valid email';
+                    }
                     return null;
                   },
                   onFieldSubmitted: (_) => widget.passFocus.requestFocus(),

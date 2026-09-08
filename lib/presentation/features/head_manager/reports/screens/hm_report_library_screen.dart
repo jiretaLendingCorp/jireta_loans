@@ -654,8 +654,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                               result['rows'] ??
                               result['records'] ??
                               result;
-                          if (rawData is Map && rawData.containsKey('data'))
+                          if (rawData is Map && rawData.containsKey('data')) {
                             rawData = rawData['data'];
+                          }
                         }
                         debugPrint('[DEBUG] Generate result rawData: $rawData');
                         final dataForPreview = rawData ?? [];
@@ -921,10 +922,11 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                             await Printing.layoutPdf(
                                 onLayout: (_) async => bytes);
                           } catch (_) {
-                            if (ctx.mounted)
+                            if (ctx.mounted) {
                               ctx.showSnackBarAsToast(const SnackBar(
                                   content: Text('Print failed'),
                                   backgroundColor: AppColors.error));
+                            }
                           }
                         },
                         icon: const Icon(Icons.print_rounded, size: 16),

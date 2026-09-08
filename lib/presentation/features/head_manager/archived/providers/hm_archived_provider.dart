@@ -76,8 +76,9 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
-      if (seq != _requestSeq)
+      if (seq != _requestSeq) {
         return; // stale response — a newer request owns the UI
+      }
       state = state.copyWith(users: list, isLoading: false);
     } catch (e) {
       if (seq != _requestSeq) return;

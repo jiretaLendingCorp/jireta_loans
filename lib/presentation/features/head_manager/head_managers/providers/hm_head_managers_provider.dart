@@ -74,8 +74,9 @@ class HmHeadManagersNotifier extends StateNotifier<HmHeadManagersState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
-      if (seq != _requestSeq)
+      if (seq != _requestSeq) {
         return; // stale response — a newer request owns the UI
+      }
       // Kapag naka "All Status" hindi ipapakita ang archived — nasa Archived container na sila.
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()

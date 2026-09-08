@@ -84,8 +84,9 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
-      if (seq != _requestSeq)
+      if (seq != _requestSeq) {
         return; // stale response — a newer request owns the UI
+      }
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()
           : list;

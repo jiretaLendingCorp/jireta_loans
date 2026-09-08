@@ -37,6 +37,13 @@ serve(async (req) => {
       case 'terms-accept':
         // ── [moved from functions/auth-terms-accept/index.ts] ────────────
         return await handleTermsAccept(req);
+      case 'ping':
+        // Session heartbeat: the app pings ~every 60s while open. requireAuth
+        // → validate_active_session bumps last_seen_at, so an open app keeps
+        // its row "recently seen" and continues to block other logins
+        // (first-login-wins). A force-closed app stops pinging and its row
+        // expires after 5 minutes.
+        return await handlePing(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -71,18 +78,16 @@ async function handleRefreshSession(req: Request) {
   // TEMP HOTFIX: role check disabled
   // try { const rName = dbUser?.roles?.name as string | undefined; if (rName) { const { data: _raS } = await db.from('roles').select('is_archived').eq('name', rName).maybeSingle(); if ((_raS as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 
-  // ── Single-active-session + 10-minute idle backstop ────────────────────
+  // ── Single-active-session check ────────────────────────────────────────
   // The refresh call itself never claims a session (refreshing is just the
   // SAME sign-in rotating its token — claiming would revoke it). Instead we
-  // check that this sign-in is still the active one and that it has been
-  // seen recently. Routine authenticated requests bump last_seen_at via
-  // validate_active_session in _shared/auth.ts, so last_seen_at is the true
-  // activity anchor (last_login_at stays the real last successful login).
-  // Grace +30s to avoid immediate expiry on clock skew for a second login.
+  // check that this sign-in is still the active one. Routine authenticated
+  // requests bump last_seen_at via validate_active_session in _shared/auth.ts
+  // (last_login_at stays the real last successful login).
   const sessionIdentifier =
     cleanSessionId(bodySessionId) ??
     sessionIdentifierFromToken(data.session.access_token);
-  const { data: activeRow } = await db
+  const { data: activeRow, error: activeErr } = await db
     .from('active_sessions')
     .select('last_seen_at')
     .eq('user_id', dbUser.id)
@@ -90,20 +95,53 @@ async function handleRefreshSession(req: Request) {
     .is('revoked_at', null)
     .maybeSingle();
 
-  if (!activeRow) {
-    return errorResponse(
-      'Your account was signed in on another device. This session has been logged out for security.',
-      401,
-      'SESSION_REVOKED',
+  // Fail-open on infrastructure errors (table/function missing): log loudly
+  // and allow the refresh. A CLEAN missing row means this sign-in was
+  // superseded by a newer login → revoke. The client owns the idle-expiry
+  // timer; the server no longer double-enforces it (a stale last_seen_at for
+  // benign reasons, e.g. an offline device, must not kill a healthy session).
+  if (activeErr) {
+    console.error(
+      '[auth-session] active_sessions query failed — single-session enforcement degraded, allowing refresh',
+      {
+        userId: dbUser.id,
+        sessionIdentifier,
+        error: activeErr.message,
+        code: (activeErr as { code?: string })?.code ?? null,
+      },
     );
-  }
-
-  const TEN_MIN_MS = 10 * 60 * 1000;
-  const GRACE_MS = 30 * 1000;
-  const elapsed = Date.now() - new Date(activeRow.last_seen_at).getTime();
-  console.log(`[auth-session] refresh check user=${dbUser.id} elapsed=${Math.floor(elapsed/1000)}s last_seen_at=${activeRow.last_seen_at}`);
-  if (elapsed > TEN_MIN_MS + GRACE_MS) {
-    return errorResponse('Session expired after 10 minutes of inactivity, please login again', 401, 'SESSION_EXPIRED');
+  } else if (!activeRow) {
+    // Clean miss: either superseded (an active_sessions row exists with a
+    // different identifier → revoke) or the claim at login never persisted
+    // (no row at all → allow, enforcement degraded). Never lazily create the
+    // row here: a lazy claim would revoke OTHER devices whose logins also
+    // skipped the claim, causing false "Session Ended" on every account.
+    const { data: anyRow, error: anyErr } = await db
+      .from('active_sessions')
+      .select('id')
+      .eq('user_id', dbUser.id)
+      .maybeSingle();
+    if (anyErr) {
+      console.error(
+        '[auth-session] active_sessions existence check failed — allowing refresh',
+        {
+          userId: dbUser.id,
+          error: anyErr.message,
+          code: (anyErr as { code?: string })?.code ?? null,
+        },
+      );
+    } else if (!anyRow) {
+      console.warn(
+        '[auth-session] refresh miss with no active_sessions row — allowing (enforcement degraded, no lazy claim)',
+        { userId: dbUser.id, sessionIdentifier },
+      );
+    } else {
+      return errorResponse(
+        'Your account was signed in on another device. This session has been logged out for security.',
+        401,
+        'SESSION_REVOKED',
+      );
+    }
   }
 
   // Keep the active record fresh and mark this device as active/seen now.
@@ -128,6 +166,13 @@ async function handleRefreshSession(req: Request) {
       force_password_change: dbUser.force_password_change,
     },
   });
+}
+
+// ── Session heartbeat ────────────────────────────────────────────────────────
+async function handlePing(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  return jsonResponse({ ok: true });
 }
 
 // ── [moved from functions/auth-terms-accept/index.ts] ───────────────────────

@@ -47,6 +47,9 @@ class AppConstants {
 
   static const String authRefreshPath = 'auth-session?fn=refresh-session';
 
+  /// Session heartbeat: validates + bumps last_seen_at while the app is open.
+  static const String authPingPath = 'auth-session?fn=ping';
+
   /// Idle session timeout: 10 minutes of inactivity → auto logout.
   /// Any user interaction (tap, scroll, typing) or authenticated API call
   /// bumps the idle deadline forward by 10 minutes.

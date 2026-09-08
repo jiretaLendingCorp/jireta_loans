@@ -125,19 +125,19 @@ class AuthInterceptor extends Interceptor {
       options.headers['Authorization'] = 'Bearer ${EnvConfig.supabaseAnonKey}';
     }
 
-    // Single-active-session: attach the STABLE client session id so the
-    // server validates this device's session. The JWT session_id claim
-    // changes whenever GoTrue mints a new session (sign-in, refresh), so
-    // relying on it would falsely revoke a healthy session after a token
-    // rotation — locking BOTH devices out instead of just the superseded one.
-    if (token != null && token.isNotEmpty && !ownsNoSession) {
-      try {
-        final sid = await SecureStorage.getSessionId();
-        if (sid != null && sid.isNotEmpty) {
-          options.headers[AppConstants.sessionIdHeaderName] = sid;
-        }
-      } catch (_) {}
-    }
+    // Single-active-session: attach the STABLE client session id on EVERY
+    // request (authenticated calls, refresh, AND logout). The JWT session_id
+    // claim changes whenever GoTrue mints a new session (sign-in, refresh),
+    // so relying on it would falsely revoke a healthy session after a token
+    // rotation. The logout call travels with the anon key but still carries
+    // this id so the server can revoke the active session and free the
+    // account for the next login (first-login-wins).
+    try {
+      final sid = await SecureStorage.getSessionId();
+      if (sid != null && sid.isNotEmpty) {
+        options.headers[AppConstants.sessionIdHeaderName] = sid;
+      }
+    } catch (_) {}
     handler.next(options);
   }
 
