@@ -5,13 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
-import '../../../shared/widgets/legal_links.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class OtpVerifyScreen extends ConsumerStatefulWidget {
@@ -314,50 +312,25 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                       ],
                                     ),
                                     const SizedBox(height: 14),
-                                    // Logo
-                                    Container(
-                                      width: 74,
-                                      height: 74,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: AppColors.deepNavy.withValues(alpha: 0.9),
-                                          width: 2.4,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(alpha: 0.18),
-                                            blurRadius: 20,
-                                          ),
-                                        ],
-                                      ),
-                                      padding: const EdgeInsets.all(3),
-                                      child: ClipOval(
-                                        child: Image.asset(
-                                          AssetConstants.logoJpg,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => const Icon(
-                                            Icons.account_balance_rounded,
-                                            color: AppColors.deepNavy,
-                                            size: 34,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 14),
+                                    // Simple title (no logo, no badges)
                                     const Text(
-                                      'JIRETA',
+                                      'Verify code',
                                       style: TextStyle(
-                                        fontFamily: 'PlayfairDisplay',
-                                        fontSize: 28,
+                                        fontSize: 24,
                                         fontWeight: FontWeight.w700,
                                         color: AppColors.deepNavy,
-                                        letterSpacing: 6.5,
-                                        height: 1,
+                                        height: 1.2,
                                       ),
                                     ),
-                                    const SizedBox(height: 68),
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      'We sent a 6-digit code to your phone.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
                                   ],
                                 ),
                               ),
@@ -391,25 +364,6 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.stretch,
                                       children: [
-                                        // Title
-                                        const Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Verify code',
-                                              style: TextStyle(
-                                                fontFamily: 'PlayfairDisplay',
-                                                fontSize: 19,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.deepNavy,
-                                                height: 1.1,
-                                              ),
-                                            ),
-                                            SizedBox(height: 2),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 16),
-
                                         // Phone info (no box)
                                         Row(
                                           children: [
@@ -669,8 +623,6 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const LegalLinks(textColor: AppColors.textSecondary),
-                            const SizedBox(height: 8),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [

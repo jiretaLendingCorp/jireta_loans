@@ -742,23 +742,13 @@ class _MyLoanCardState extends ConsumerState<_MyLoanCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        loan.status == 'overdue'
-                            ? 'Overdue Loan'
-                            : 'Active Loan',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    StatusBadge(status: loan.status, small: true),
-                  ],
+                Text(
+                  loan.status == 'overdue' ? 'Overdue Loan' : 'Active Loan',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -805,27 +795,6 @@ class _MyLoanCardState extends ConsumerState<_MyLoanCard> {
                         prefix: '₱',
                         decimalPlaces: 2,
                       ),
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total Payable',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 12,
-                      ),
-                    ),
-                    Text(
-                      obscured ? '₱ ••••••' : loan.totalPayable.toCurrency,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

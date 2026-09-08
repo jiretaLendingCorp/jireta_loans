@@ -20,6 +20,14 @@ import { validateUUID } from '../_shared/validators.ts';
 
 const PROOF_BUCKET = 'disbursement-proofs';
 
+// The proof bucket may not exist in a fresh project. Without this guard every
+// upload fails and the rider is stuck at the upload screen.
+async function ensureProofBucket(db: ReturnType<typeof getAdminClient>): Promise<void> {
+  const { data: buckets } = await db.storage.listBuckets();
+  if (buckets?.some((b) => b.name === PROOF_BUCKET)) return;
+  await db.storage.createBucket(PROOF_BUCKET, { public: false, fileSizeLimit: '10MB' });
+}
+
 const DISB_PROOF_COLUMN_BY_TYPE: Record<string, string> = {
   proof_photo: 'delivery_proof',
   signature: 'borrower_signature',
@@ -30,6 +38,18 @@ function decodeBase64(content: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+// delivery_date arrives as a full ISO string (e.g. 2026-09-10T00:00:00.000)
+// from the assign modal's DateTime picker. Notifications should only show the
+// date, never the raw timestamp.
+function formatDeliveryDate(raw?: string | null): string {
+  const iso = String(raw ?? '').trim();
+  const datePart = iso.split('T')[0]; // YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return iso || 'the scheduled date';
+  const [y, m, d] = datePart.split('-').map(Number);
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return `${months[m - 1] ?? m} ${d}, ${y}`;
 }
 
 function extFromMime(mimeType?: string): string {
@@ -235,7 +255,7 @@ async function handleRiderDelivery(req: Request) {
   await sendPushNotification({
     userId: rider_id,
     title: 'New Cash Delivery Task',
-    body: `Hello! You have a new cash delivery task: please deliver ₱${amount.toLocaleString()} for loan ${loan.loan_number} on ${delivery_date}. Please review the details and proceed.`,
+    body: `Hello! You have a new cash delivery task: please deliver ₱${amount.toLocaleString()} for loan ${loan.loan_number} on ${formatDeliveryDate(delivery_date)}. Please review the details and proceed.`,
     type: 'disbursement',
     referenceId: disbursement.id,
     sentBy: authResult.id,
@@ -244,7 +264,7 @@ async function handleRiderDelivery(req: Request) {
   await sendPushNotification({
     userId: loan.lender_id,
     title: 'Your Loan Is on the Way',
-    body: `Good news! A rider has been assigned to deliver your loan amount of ₱${amount.toLocaleString()} on ${delivery_date}. Please be available to receive it. Thank you!`,
+    body: `Good news! A rider has been assigned to deliver your loan amount of ₱${amount.toLocaleString()} on ${formatDeliveryDate(delivery_date)}. Please be available to receive it. Thank you!`,
     type: 'disbursement',
     referenceId: loan_id,
     sentBy: authResult.id,
@@ -302,6 +322,9 @@ async function handleUploadProof(req: Request) {
   }
 
   const updates: Record<string, string> = {};
+  const failed: string[] = [];
+  await ensureProofBucket(db);
+
   for (const proof of proofs) {
     const type = proof?.type as string;
     const column = DISB_PROOF_COLUMN_BY_TYPE[type];
@@ -316,17 +339,25 @@ async function handleUploadProof(req: Request) {
       .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true });
 
     if (uploadError) {
-      console.warn('disbursement proof storage upload failed, falling back to data uri:', uploadError.message);
-      const mime = proof.mime_type ?? 'image/jpeg';
-      updates[column] = `data:${mime};base64,${proof.content_base64}`;
-    } else {
-      const { data: signedUrl } = await db.storage.from(PROOF_BUCKET).createSignedUrl(path, 3600 * 24 * 7);
-      updates[column] = signedUrl?.signedUrl ?? path;
+      // Never fall back to inline data URIs: a base64 image can exceed the
+      // proof column width and the completion UPDATE fails silently, leaving
+      // the disbursement stuck at 'pending' while the rider sees an error.
+      console.error(`disbursement proof storage upload failed for ${type}:`, uploadError.message);
+      failed.push(type);
+      continue;
     }
+    // Store the STORAGE PATH, not the signed URL: signed URLs embed a JWT
+    // that historically overflowed VARCHAR(255) and made every completion
+    // UPDATE fail. Views sign paths on read so URLs are always fresh.
+    updates[column] = path;
   }
 
   if (Object.keys(updates).length === 0) {
-    return errorResponse('No valid proofs provided', 400, 'VALIDATION_ERROR');
+    return errorResponse(
+      `Proof storage failed (${failed.join(', ') || 'no valid proofs'}). Please try again.`,
+      502,
+      'PROOF_UPLOAD_FAILED',
+    );
   }
 
   const { error: disbUpdateErr } = await db

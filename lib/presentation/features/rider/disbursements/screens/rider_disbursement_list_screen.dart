@@ -218,7 +218,7 @@ class _RiderDisbursementListScreenState
                     ':id', disbursement.id),
               ),
               icon: const Icon(Icons.camera_alt_outlined, size: 18),
-              label: const Text('Upload Delivery Proof'),
+              label: const Text('Upload Cash on Delivery Proof'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.riderGreen,
                 foregroundColor: Colors.white,

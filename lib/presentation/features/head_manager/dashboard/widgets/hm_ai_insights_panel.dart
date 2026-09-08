@@ -1,11 +1,11 @@
 // lib/presentation/features/head_manager/dashboard/widgets/hm_ai_insights_panel.dart
 //
-// "AI-Powered Dashboard Insights" section — a natural extension of the
-// existing dashboard (same card style, grey header strip, colors). All
-// content is generated server-side by the ai-dashboard-insights Edge
-// Function from the CURRENT verified dashboard statistics. If the AI service
-// is unavailable, this panel shows a friendly error and the rest of the
-// dashboard keeps working untouched.
+// "Dashboard Insight" section — a natural extension of the existing
+// dashboard (same card style, grey header strip, colors). All content is
+// generated server-side by the ai-dashboard-insights Edge Function from the
+// CURRENT verified dashboard statistics. If the service is unavailable, this
+// panel shows a friendly error and the rest of the dashboard keeps working
+// untouched.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,7 +69,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'AI-Powered Dashboard Insights',
+                        'Dashboard Insight',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -78,7 +78,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        'AI analysis based on current lending system data',
+                        'Automated analysis based on current lending data',
                         style: TextStyle(
                           fontSize: 10,
                           color: Colors.white70,
@@ -88,26 +88,6 @@ class HmAiInsightsPanel extends ConsumerWidget {
                     ],
                   ),
                 ),
-                if (ai.hasInsights)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.riderGreen.withValues(alpha: 0.18),
-                      border: Border.all(
-                          color: AppColors.riderGreen.withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: const Text(
-                      'AI READY',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -168,7 +148,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Get a professional AI read on your current data',
+                    'Get an insight read on your current data',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -177,7 +157,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
                   ),
                   Text(
                     'Summary, trends, attention flags and recommendations \u2014 '
-                    'generated only from the verified statistics shown above.',
+                    'generated from the verified statistics shown above.',
                     style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
                   ),
                 ],
@@ -222,7 +202,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
             duration: const Duration(milliseconds: 350),
             child: Text(
               phase == 'generating'
-                  ? 'Generating AI insights...'
+                  ? 'Generating insights...'
                   : 'Analyzing lending data...',
               key: ValueKey(phase),
               style: const TextStyle(
@@ -234,8 +214,8 @@ class HmAiInsightsPanel extends ConsumerWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'The AI only reads aggregated statistics from the backend \u2014 '
-            'no financial values are modified.',
+            'Insights are generated from aggregated statistics in the '
+            'backend \u2014 no financial values are modified.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 10.5, color: AppColors.textTertiary),
           ),
@@ -263,7 +243,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
                   size: 18, color: AppColors.error),
               SizedBox(width: 8),
               Text(
-                'Unable to generate AI insights right now. Please try again.',
+                'Unable to generate insights right now. Please try again.',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -440,7 +420,7 @@ class HmAiInsightsPanel extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Generated by AI • Updated: ${_formatTimestamp(insights.generatedAt)} • $label',
+              'Updated: ${_formatTimestamp(insights.generatedAt)} • $label',
               style: const TextStyle(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w600,

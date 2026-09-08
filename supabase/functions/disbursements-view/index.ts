@@ -17,6 +17,18 @@ import { validatePagination } from '../_shared/validators.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
 
+// Proof columns hold STORAGE PATHS (short, permanent) — the upload handler
+// stores paths, not signed URLs, because signed URLs embed a JWT that can
+// overflow the proof column width. Convert them to fresh signed URLs on read
+// so every consumer always receives a viewable link.
+const PROOF_FIELDS = ['delivery_proof', 'borrower_signature'] as const;
+async function signProof(db: ReturnType<typeof getAdminClient>, value: unknown): Promise<unknown> {
+  if (typeof value !== 'string' || value.length === 0) return value;
+  if (value.startsWith('http') || value.startsWith('data:')) return value;
+  const { data: signed } = await db.storage.from('disbursement-proofs').createSignedUrl(value, 3600 * 24 * 7);
+  return signed?.signedUrl ?? value;
+}
+
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
 
@@ -92,18 +104,23 @@ async function handleGetList(req: Request) {
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch disbursements', 500, 'SERVER_ERROR');
 
-  const mapped = (data ?? []).map((r) => {
+  const mapped = await Promise.all((data ?? []).map(async (r) => {
     const loan = embedAsObject(r.loan);
     const lp = loan ? embedAsObject(loan.lender_profiles) : null;
     const users = lp ? embedAsObject(lp.users) : null;
+    const proofs: Record<string, unknown> = {};
+    for (const field of PROOF_FIELDS) {
+      proofs[field] = await signProof(db, r[field]);
+    }
     return {
       ...r,
+      ...proofs,
       lender_name: users
         ? `${users.first_name} ${users.last_name}`.trim()
         : null,
       loan_number: loan?.loan_number ?? null,
     };
-  });
+  }));
 
   return jsonResponse({
     data: mapped,

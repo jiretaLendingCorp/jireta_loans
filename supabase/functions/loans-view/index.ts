@@ -83,6 +83,7 @@ async function handleGetList(req: Request) {
     const search = url.searchParams.get('search');
     const dateFrom = url.searchParams.get('date_from');
     const dateTo = url.searchParams.get('date_to');
+    const lenderId = url.searchParams.get('lender_id');
     const offset = (page - 1) * limit;
 
     const db = getAdminClient();
@@ -94,7 +95,8 @@ async function handleGetList(req: Request) {
         updated_at,
         lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)),
         in_office_applications!fk_loans_in_office(created_by),
-        credit_investigations(ci_id:id, status, created_at, rider:rider_profiles(users!rider_profiles_id_fkey(first_name, last_name)))`,
+        credit_investigations(ci_id:id, status, created_at, rider:rider_profiles(users!rider_profiles_id_fkey(first_name, last_name))),
+        disbursements(id, method, rider:rider_profiles(users!rider_profiles_id_fkey(first_name, last_name)))`,
         { count: 'exact' });
 
     if (user.role === ROLES.LENDER) {
@@ -102,7 +104,9 @@ async function handleGetList(req: Request) {
     } else if (user.role === ROLES.RIDER) {
       return errorResponse('Access denied', 403, 'FORBIDDEN');
     }
-    // head_manager and employee see the full pipeline of loan applications.
+    // head_manager and employee see the full pipeline of loan applications,
+    // optionally narrowed to a single lender (used by lender detail screens).
+    if (lenderId) query = query.eq('lender_id', lenderId);
 
     if (status) {
       const statuses = status.split(',').map((s) => s.trim()).filter(Boolean);
@@ -167,6 +171,21 @@ async function handleGetList(req: Request) {
         : null;
       const ciRiderEmbed = latestCi ? embedAsObject(latestCi.rider) : null;
       const ciRider = ciRiderEmbed ? embedAsObject(ciRiderEmbed.users) : null;
+      // Delivery rider assigned for rider_delivery disbursement (loan stays
+      // 'approved' until the rider hands over the cash, so surface the name
+      // directly from the disbursements row).
+      const disbRows = (r.disbursements ?? []) as Array<Record<string, unknown>>;
+      const deliveryDisb = disbRows.find((d) => d?.method === 'rider_delivery');
+      const deliveryRiderEmbed = deliveryDisb
+        ? embedAsObject(
+            deliveryDisb.rider as
+              | { users?: { first_name?: string; last_name?: string } | null }
+              | null
+          )
+        : null;
+      const deliveryRider = deliveryRiderEmbed
+        ? embedAsObject(deliveryRiderEmbed.users)
+        : null;
       return {
         id: r.id,
         loan_number: r.loan_number,
@@ -202,6 +221,9 @@ async function handleGetList(req: Request) {
           ? `${ciRider.first_name} ${ciRider.last_name}`.trim()
           : null,
         rider_delivery_assigned: disb?.method === 'rider_delivery',
+        delivery_rider_name: deliveryRider
+          ? `${deliveryRider.first_name} ${deliveryRider.last_name}`.trim()
+          : null,
       };
     });
 

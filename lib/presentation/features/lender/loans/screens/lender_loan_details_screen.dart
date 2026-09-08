@@ -65,7 +65,7 @@ class _LenderLoanDetailsScreenState
       navItems: _lenderNavItems,
       showBackButton: true,
       body: state.isLoading
-          ? const ShimmerLoader()
+          ? const _LoanDetailsSkeleton()
           : loan == null
               ? const Center(
                   child: Text('Loan not found',
@@ -137,6 +137,115 @@ class _LenderLoanDetailsScreenState
       if (!context.mounted) return;
       context.pop();
     }
+  }
+}
+
+class _LoanDetailsSkeleton extends StatelessWidget {
+  const _LoanDetailsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header card skeleton
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.lenderBlue,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerLoader(width: 120, height: 12),
+                SizedBox(height: 12),
+                ShimmerLoader(width: 140, height: 12, borderRadius: 4),
+                SizedBox(height: 6),
+                ShimmerLoader(width: 180, height: 28, borderRadius: 6),
+                SizedBox(height: 8),
+                ShimmerLoader(width: 160, height: 11, borderRadius: 4),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Loan summary card skeleton
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2))
+              ],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerLoader(width: 120, height: 14, borderRadius: 4),
+                SizedBox(height: 16),
+                _SkeletonRow(),
+                SizedBox(height: 12),
+                _SkeletonRow(),
+                SizedBox(height: 12),
+                _SkeletonRow(),
+                SizedBox(height: 12),
+                _SkeletonRow(),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Disbursement info card skeleton
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2))
+              ],
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerLoader(width: 140, height: 14, borderRadius: 4),
+                SizedBox(height: 16),
+                _SkeletonRow(),
+                SizedBox(height: 12),
+                _SkeletonRow(),
+                SizedBox(height: 12),
+                _SkeletonRow(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        ShimmerLoader(width: 110, height: 13, borderRadius: 4),
+        ShimmerLoader(width: 90, height: 13, borderRadius: 4),
+      ],
+    );
   }
 }
 

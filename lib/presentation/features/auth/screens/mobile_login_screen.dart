@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
@@ -15,7 +14,6 @@ import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../shared/widgets/offline_toast.dart';
-import '../../../shared/widgets/legal_links.dart';
 import '../providers/auth_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -387,85 +385,42 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                               physics: const BouncingScrollPhysics(),
                               child: Column(
                                 children: [
-                              // ── Premium Brand Header ──
+                              // ── Simple header (no logo, no badges) ──
                               Padding(
                                 padding:
                                     const EdgeInsets.fromLTRB(24, 12, 24, 0),
                                 child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     // Top bar: menu right-aligned
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const SizedBox(),
-                                        _buildInfoMenuButton(),
-                                      ],
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: _buildInfoMenuButton(),
                                     ),
                                     const SizedBox(height: 20),
-                                    // Logo
-                                    Container(
-                                      width: 78,
-                                      height: 78,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: AppColors.deepNavy
-                                              .withValues(alpha: 0.9),
-                                          width: 2.5,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black
-                                                .withValues(alpha: 0.18),
-                                            blurRadius: 20,
-                                            offset: const Offset(0, 8),
-                                          ),
-                                        ],
-                                      ),
-                                      padding: const EdgeInsets.all(3),
-                                      child: ClipOval(
-                                        child: Image.asset(
-                                          AssetConstants.logoJpg,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              const Icon(
-                                            Icons.account_balance_rounded,
-                                            color: AppColors.deepNavy,
-                                            size: 36,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    // Brand name
                                     const Text(
-                                      'JIRETA',
+                                      'Welcome back',
                                       style: TextStyle(
-                                        fontFamily: 'PlayfairDisplay',
-                                        fontSize: 30,
+                                        fontSize: 24,
                                         fontWeight: FontWeight.w700,
                                         color: AppColors.deepNavy,
-                                        letterSpacing: 7,
-                                        height: 1,
+                                        height: 1.2,
                                       ),
                                     ),
                                     const SizedBox(height: 6),
-                                    Container(
-                                    width: 36,
-                                    height: 2,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.deepNavy
-                                          .withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.zero,
+                                    const Text(
+                                      'Enter your mobile number to receive a one-time verification code.',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: AppColors.textSecondary,
+                                        height: 1.4,
+                                      ),
                                     ),
-                                    ),
-                                    const SizedBox(height: 28),
+                                    const SizedBox(height: 20),
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 40),
+                              const SizedBox(height: 8),
 
                               // ── Card ──
                               Padding(
@@ -961,10 +916,6 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const LegalLinks(
-                            textColor: AppColors.textSecondary,
-                          ),
-                          const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [

@@ -50,7 +50,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   late String _scheduleId;
   late double _amount;
   late String _dueDate;
-  double? _outstandingBalance;
 
   @override
   void initState() {
@@ -61,22 +60,11 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     // When arriving with only a loan (e.g. from the dashboard card), resolve the
     // next payable installment so the cash-collection request has a schedule.
     if (_scheduleId.isEmpty) Future.microtask(_resolveSchedule);
-    Future.microtask(_loadOutstanding);
   }
 
   @override
   void dispose() {
     super.dispose();
-  }
-
-  Future<void> _loadOutstanding() async {
-    final loanId = widget.extra['loan_id'] as String? ?? '';
-    if (loanId.isEmpty) return;
-    try {
-      await ref.read(lenderLoanProvider.notifier).loadLoanDetails(loanId);
-      final bal = ref.read(lenderLoanProvider).selectedLoan?.outstandingBalance ?? 0;
-      if (mounted) setState(() => _outstandingBalance = bal);
-    } catch (_) {}
   }
 
   Future<void> _resolveSchedule() async {
@@ -271,24 +259,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         SnackBar(content: Text(message)));
   }
 
-  void _showComingSoon() {
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('GCash Payment'),
-        content: const Text(
-          'GCash payment is coming soon. Please pay via Cash on Delivery '
-          'or at our office for now.',
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK')),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
@@ -299,38 +269,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.lenderBlue,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Installment Amount',
-                    style: TextStyle(fontSize: 12, color: Colors.white70)),
-                const SizedBox(height: 4),
-                Text(_amount.toCurrency,
-                    style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
-                if (_outstandingBalance != null) ...[
-                  const SizedBox(height: 4),
-                  Text('Outstanding: ${_outstandingBalance!.toCurrency}',
-                      style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                ],
-                if (_dueDate.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text('Due: $_dueDate',
-                      style: const TextStyle(
-                          fontSize: 12, color: Colors.white70)),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
           const Text('Choose how you want to pay this installment:',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
@@ -366,13 +304,14 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
             },
           ),
           const SizedBox(height: 12),
-          _MethodCard(
+          const _MethodCard(
             icon: Icons.account_balance_wallet,
-            color: const Color(0xFF007DFF),
+            color: Color(0xFF007DFF),
             title: 'GCash',
             subtitle: 'Pay securely via GCash through our payment partner.',
-            badge: 'Coming Soon',
-            onTap: _showComingSoon,
+            badge: null,
+            onTap: null,
+            disabled: true,
           ),
         ],
       ),
@@ -388,6 +327,7 @@ class _MethodCard extends StatelessWidget {
   final String? badge;
   final VoidCallback? onTap;
   final bool loading;
+  final bool disabled;
 
   const _MethodCard({
     required this.icon,
@@ -397,16 +337,18 @@ class _MethodCard extends StatelessWidget {
     required this.badge,
     required this.onTap,
     this.loading = false,
+    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = disabled ? AppColors.textTertiary : color;
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
+        onTap: disabled ? null : onTap,
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -419,10 +361,10 @@ class _MethodCard extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
+                  color: effectiveColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: effectiveColor, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -471,7 +413,7 @@ class _MethodCard extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2)),
                 )
-              else
+              else if (!disabled)
                 const Icon(Icons.chevron_right,
                     color: AppColors.textTertiary),
             ],

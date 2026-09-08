@@ -139,19 +139,31 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             statusLabel: status.label,
             statusColor: status.fg,
             statusBg: status.bg,
+            statusAsText: true,
           ),
           if (userModel?.isWalkIn == true) ...[
             const SizedBox(height: 12),
-            _buildWalkInNote(userModel?.inOfficeApplication),
+            _buildWalkInNote(
+                userModel?.inOfficeApplication, isVerified: isVerified),
           ],
           const SizedBox(height: 16),
           if (isVerified)
-            ModernPrimaryButton(
-              label: 'Edit Profile',
-              icon: Icons.edit_outlined,
-              color: _accent,
-              onPressed: () =>
-                  context.push('${RouteConstants.lenderProfile}/edit'),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () =>
+                    context.push('${RouteConstants.lenderProfile}/edit'),
+                icon: const Icon(Icons.edit_outlined,
+                    size: 16, color: _accent),
+                label: const Text(
+                  'Edit Profile',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _accent,
+                  ),
+                ),
+              ),
             )
           else
             ModernMenuCard(items: [
@@ -383,7 +395,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         .join(' ');
   }
 
-  Widget _buildWalkInNote(Map<String, dynamic>? app) {
+  Widget _buildWalkInNote(Map<String, dynamic>? app,
+      {bool isVerified = false}) {
     String dateLabel = '';
     final createdAt = app?['created_at']?.toString();
     if (createdAt != null) {
@@ -394,9 +407,13 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       }
     }
     final status = (app?['status']?.toString() ?? 'submitted').toLowerCase();
+    // A walk-in account is auto-verified by staff at the office, so once the
+    // upgrade is verified the "pending upgrade" copy is wrong — show verified.
     final detail = status == 'converted'
         ? 'Converted — loan created'
-        : 'Pending upgrade — complete verification to apply for a loan';
+        : (isVerified
+            ? 'Account verified — you can now apply for a loan'
+            : 'Pending upgrade — complete verification to apply for a loan');
     return Container(
       width: double.infinity,
       decoration: ModernProfileStyles.card,

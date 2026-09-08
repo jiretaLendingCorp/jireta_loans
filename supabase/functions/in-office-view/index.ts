@@ -549,7 +549,7 @@ async function handleSubmit(req: Request) {
       await sendPushNotification({
         userId: lenderId,
         title: 'Your Account Has Been Created',
-        body: `Hello! Your account was created through a walk-in application at our office. Please log in with your phone number (default password: 12345678) and complete your Account Upgrade. Once verified, you can apply for your loan yourself.`,
+        body: `Hello! Your account was created through a walk-in application at our office. Please log in with your phone number and complete your Account Upgrade. Once verified, you can apply for your loan yourself.`,
         type: 'account_upgrade_required',
         referenceId: application_id,
       });
@@ -898,7 +898,7 @@ async function handleSubmitAccount(req: Request) {
       await sendPushNotification({
         userId: lenderId,
         title: 'Your Account Is Verified',
-        body: 'Hello! Your account was created and verified through our walk-in application. Log in with your phone number (password: 12345678), then apply for your loan in the app.',
+        body: 'Hello! Your account was created and verified through our walk-in application. Log in with your phone number, then apply for your loan in the app.',
         type: 'account_upgrade_update',
         referenceId: application_id,
       });

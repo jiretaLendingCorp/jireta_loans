@@ -61,7 +61,7 @@ class _RiderDisbursementUploadProofScreenState
     if (_proofPhoto == null) {
       context.showSnackBarAsToast(
         const SnackBar(
-            content: Text('Delivery proof photo is required'),
+            content: Text('Cash on Delivery proof photo is required'),
             backgroundColor: AppColors.error),
       );
       return;
@@ -101,41 +101,19 @@ class _RiderDisbursementUploadProofScreenState
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
-      title: 'Upload Delivery Proof',
+      title: 'Upload Cash on Delivery Proof',
       accentColor: AppColors.riderGreen,
       showBottomNav: false,
       navItems: const [],
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.riderGreen.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border:
-                  Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, color: AppColors.riderGreen, size: 18),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Take a clear photo showing that the cash was handed to the lender. The loan will be released once proof is uploaded.',
-                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
           _buildPhotoSection(),
           const SizedBox(height: 16),
           _buildSignaturePad(),
           const SizedBox(height: 24),
           AppButton(
-            label: 'Submit & Complete Delivery',
+            label: 'Submit',
             onPressed: _isSubmitting ? null : _submit,
             isLoading: _isSubmitting,
             backgroundColor: AppColors.riderGreen,
@@ -152,7 +130,7 @@ class _RiderDisbursementUploadProofScreenState
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: const Text('Skip & Complete Later'),
+            child: const Text('Skip'),
           ),
         ],
       ),
@@ -160,48 +138,32 @@ class _RiderDisbursementUploadProofScreenState
   }
 
   Widget _buildPhotoSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: _proofPhoto == null
-                ? AppColors.error.withValues(alpha: 0.3)
-                : AppColors.border),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.camera_alt_outlined,
-                  color: AppColors.riderGreen, size: 20),
-              SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Delivery Proof Photo *',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: AppColors.textPrimary)),
-                    Text('Photo of the cash handed to the lender',
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.camera_alt_outlined,
+                color: AppColors.riderGreen, size: 20),
+            SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Cash on Delivery Proof Photo *',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.textPrimary)),
+                  Text('Photo of the cash handed to the lender',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
           if (_proofPhoto != null)
             Stack(
               children: [
@@ -249,64 +211,49 @@ class _RiderDisbursementUploadProofScreenState
               ],
             ),
         ],
-      ),
     );
   }
 
   Widget _buildSignaturePad() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
-              SizedBox(width: 8),
-              Text('Lender Signature (Optional)',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: AppColors.textPrimary)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          const Text('Ask the lender to sign as acknowledgement of receipt',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          const SizedBox(height: 12),
-          SignaturePad(
-            height: 150,
-            onSignatureChanged: (base64) =>
-                setState(() => _signatureBase64 = base64),
-          ),
-          if (_signatureBase64 != null)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, color: AppColors.riderGreen, size: 16),
-                  SizedBox(width: 6),
-                  Text('Signature captured',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.riderGreen,
-                          fontWeight: FontWeight.w500)),
-                ],
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
+            SizedBox(width: 8),
+            Text('Lender Signature (Optional)',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: AppColors.textPrimary)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text('Ask the lender to sign as acknowledgement of receipt',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        const SizedBox(height: 12),
+        SignaturePad(
+          height: 150,
+          onSignatureChanged: (base64) =>
+              setState(() => _signatureBase64 = base64),
+        ),
+        if (_signatureBase64 != null)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, color: AppColors.riderGreen, size: 16),
+                SizedBox(width: 6),
+                Text('Signature captured',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.riderGreen,
+                        fontWeight: FontWeight.w500)),
+              ],
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

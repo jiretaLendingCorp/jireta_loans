@@ -204,11 +204,11 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
                     const SizedBox(height: 14),
                     _buildLoanStatsGrid(dashState.kpi),
                     const SizedBox(height: 32),
-                    // ── AI-Powered Dashboard Insights (isolated module) ──
+                    // ── Dashboard Insight (isolated module) ──
                     _buildSectionTitle(
                       Icons.auto_awesome_rounded,
-                      'AI-Powered Dashboard Insights',
-                      'AI analysis based on current lending system data',
+                      'Dashboard Insight',
+                      'Automated analysis based on current lending data',
                     ),
                     const SizedBox(height: 14),
                     HmAiInsightsPanel(month: dashState.selectedMonth),

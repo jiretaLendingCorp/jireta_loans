@@ -9,6 +9,7 @@ class LoanModel extends LoanEntity {
   final List<Map<String, dynamic>>? payments;
   final String? assignedRiderName;
   final String? ciStatus;
+  final String? deliveryRiderName;
   final String? disbursementAccount;
   final String? purpose;
   final Map<String, dynamic>? lenderAddress;
@@ -42,6 +43,7 @@ class LoanModel extends LoanEntity {
     this.payments,
     this.assignedRiderName,
     this.ciStatus,
+    this.deliveryRiderName,
     this.disbursementAccount,
     this.purpose,
     this.lenderAddress,
@@ -107,6 +109,7 @@ class LoanModel extends LoanEntity {
       payments: (json['payments'] as List?)?.cast<Map<String, dynamic>>(),
       assignedRiderName: json['assigned_rider_name'],
       ciStatus: json['ci_status'],
+      deliveryRiderName: json['delivery_rider_name'],
       disbursementAccount: json['disbursement_account'],
       purpose: json['purpose'],
       lenderAddress: json['lender_address'],

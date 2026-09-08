@@ -647,6 +647,39 @@ class _HmLoanApplicationsListScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _StatusInline(status: status),
+                          // Delivery rider assigned → show the rider's name
+                          // right below the status so staff see who is
+                          // delivering the cash.
+                          if (loan.riderDeliveryAssigned &&
+                              loan.status == 'approved') ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.goldDark,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    loan.deliveryRiderName != null
+                                        ? 'Rider: ${loan.deliveryRiderName}'
+                                        : 'Delivery rider assigned',
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.goldDark),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                           if (loan.ciStatus != null &&
                               (loan.ciStatus == 'assigned' ||
                                   loan.ciStatus == 'accepted' ||
@@ -1145,6 +1178,10 @@ class _StatusInline extends StatelessWidget {
       case 'approved':
         c = AppColors.success;
         label = 'Approved';
+        break;
+      case 'rider_delivery_assigned':
+        c = AppColors.goldDark;
+        label = 'Assigned';
         break;
       case 'rejected':
         c = AppColors.error;
