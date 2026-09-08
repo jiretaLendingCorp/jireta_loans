@@ -15,6 +15,8 @@ class HmLoanState {
   final String statusFilter;
   final String search;
   final String tabFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmLoanState({
     this.loans = const [],
@@ -25,6 +27,8 @@ class HmLoanState {
     this.statusFilter = 'all',
     this.search = '',
     this.tabFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmLoanState copyWith({
@@ -36,6 +40,8 @@ class HmLoanState {
     String? statusFilter,
     String? search,
     String? tabFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmLoanState(
         loans: loans ?? this.loans,
@@ -46,6 +52,8 @@ class HmLoanState {
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
         tabFilter: tabFilter ?? this.tabFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -79,6 +87,8 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
         page: page,
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       if (seq != _requestSeq) return;
       final loans = (res['data'] as List? ?? [])
@@ -106,6 +116,11 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
 
   void setSearch(String q) {
     state = state.copyWith(search: q);
+    fetchLoans();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetchLoans();
   }
 

@@ -50,6 +50,9 @@ async function handleCiGetList(req: Request) {
   const status = url.searchParams.get('status');
   const riderId = url.searchParams.get('rider_id');
   const ciId = url.searchParams.get('ci_id');
+  const search = url.searchParams.get('search');
+  const dateFrom = url.searchParams.get('date_from');
+  const dateTo = url.searchParams.get('date_to');
   const offset = (page - 1) * limit;
   const db = getAdminClient();
   // Expire overdue assignments before listing so rider sees them disappear
@@ -70,6 +73,17 @@ async function handleCiGetList(req: Request) {
   else if (riderId) query = query.eq('rider_id', riderId);
   if (ciId) query = query.eq('id', ciId);
   if (status) query = query.eq('status', status);
+  if (search) {
+    // Strip postgREST filter metacharacters so user input can't break the `.or()`.
+    const term = String(search).replace(/[(),.%*[\].]/g, '');
+    query = query.or(
+      `loans.loan_number.ilike.%${term}%,` +
+      `loans.lender_profiles.users.first_name.ilike.%${term}%,` +
+      `loans.lender_profiles.users.last_name.ilike.%${term}%`,
+    );
+  }
+  if (dateFrom) query = query.gte('created_at', dateFrom);
+  if (dateTo) query = query.lte('created_at', dateTo);
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   const { data, error, count } = await query;
   if (error) {

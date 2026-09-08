@@ -11,6 +11,8 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/emp_collection_provider.dart';
 import '../widgets/emp_assign_rider_modal.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -22,14 +24,18 @@ class _EmpPaymentsState {
   final String? error;
   final int currentPage;
   final int totalPages;
+  final int totalCount;
   final String methodFilter;
+  final String search;
   const _EmpPaymentsState({
     this.payments = const [],
     this.isLoading = false,
     this.error,
     this.currentPage = 1,
     this.totalPages = 1,
+    this.totalCount = 0,
     this.methodFilter = 'all',
+    this.search = '',
   });
   _EmpPaymentsState copyWith({
     List<Map<String, dynamic>>? payments,
@@ -37,7 +43,9 @@ class _EmpPaymentsState {
     String? error,
     int? currentPage,
     int? totalPages,
+    int? totalCount,
     String? methodFilter,
+    String? search,
   }) =>
       _EmpPaymentsState(
         payments: payments ?? this.payments,
@@ -45,7 +53,9 @@ class _EmpPaymentsState {
         error: error,
         currentPage: currentPage ?? this.currentPage,
         totalPages: totalPages ?? this.totalPages,
+        totalCount: totalCount ?? this.totalCount,
         methodFilter: methodFilter ?? this.methodFilter,
+        search: search ?? this.search,
       );
 }
 
@@ -64,6 +74,7 @@ class _EmpPaymentsNotifier extends StateNotifier<_EmpPaymentsState>
       final res = await _ds.getPaymentListPage(
         page: page,
         method: m == 'all' ? null : m,
+        search: state.search.isEmpty ? null : state.search,
       );
       final payments = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
       final meta = res['meta'] as Map<String, dynamic>? ?? {};
@@ -73,6 +84,7 @@ class _EmpPaymentsNotifier extends StateNotifier<_EmpPaymentsState>
         isLoading: false,
         currentPage: meta['page'] as int? ?? 1,
         totalPages: meta['total_pages'] as int? ?? 1,
+        totalCount: (meta['total'] as num?)?.toInt() ?? payments.length,
         methodFilter: m,
       );
     } catch (e) {
@@ -85,6 +97,11 @@ class _EmpPaymentsNotifier extends StateNotifier<_EmpPaymentsState>
   void setMethod(String method) {
     state = state.copyWith(methodFilter: method);
     fetch(method: method);
+  }
+
+  void setSearch(String s) {
+    state = state.copyWith(search: s);
+    fetch();
   }
 
   Future<bool> reversePayment(String paymentId) async {
@@ -113,6 +130,7 @@ class EmpCollectionListScreen extends ConsumerStatefulWidget {
 class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  DateTimeRange? _dateRange;
   String _activeTab = 'all';
 
   final _dropdownTabs = const [
@@ -134,6 +152,14 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     _TabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
   ];
 
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(empCollectionProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
+
   @override
   void dispose() {
     _searchCtrl.dispose();
@@ -145,6 +171,8 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     if (key == _activeTab) return;
     setState(() => _activeTab = key);
     _searchCtrl.clear();
+    ref.read(empCollectionProvider.notifier).setSearch('');
+    ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
     if (key == 'payments') {
       ref.read(_empPaymentsInCollectionProvider.notifier).fetch(method: 'all');
     } else {
@@ -179,10 +207,10 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                   _buildLoadingShimmer()
                 else if (paymentsState.error != null && paymentsState.payments.isEmpty)
                   _buildPaymentError(paymentsState.error!)
-                else if (_filteredPayments(paymentsState.payments).isEmpty)
+                else if (paymentsState.payments.isEmpty)
                   _buildPaymentEmpty(paymentsState)
                 else
-                  _Entrance(child: _buildPaymentsTable(_filteredPayments(paymentsState.payments))),
+                  _Entrance(child: _buildPaymentsTable(paymentsState.payments)),
                 if (paymentsState.totalPages > 1) ...[
                   const SizedBox(height: 16),
                   _buildPaymentPagination(paymentsState),
@@ -338,9 +366,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
   Widget _buildToolbar(EmpCollectionState cState, _EmpPaymentsState pState, bool isPayments) {
     final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = isPayments
-        ? _filteredPayments(pState.payments).length
-        : _filteredCollections(cState.items).length;
+    final resultsCount = isPayments ? pState.totalCount : cState.totalCount;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
@@ -356,7 +382,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
           Expanded(
             child: TextField(
               controller: _searchCtrl,
-              onChanged: (v) => setState(() {}),
+              onChanged: (v) => isPayments
+                  ? ref.read(_empPaymentsInCollectionProvider.notifier).setSearch(v)
+                  : ref.read(empCollectionProvider.notifier).setSearch(v),
               style: const TextStyle(fontSize: 13),
               decoration: const InputDecoration(
                 hintText: 'Search',
@@ -371,7 +399,8 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             InkWell(
               onTap: () {
                 _searchCtrl.clear();
-                setState(() {});
+                ref.read(empCollectionProvider.notifier).setSearch('');
+                ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
               },
               borderRadius: BorderRadius.circular(20),
               child: Container(
@@ -389,46 +418,18 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                 : ref.read(empCollectionProvider.notifier).fetch(),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(10)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.layers_outlined, size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-                Text('$resultsCount results', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-              ],
-            ),
-          ),
+          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+          const SizedBox(width: 8),
+          SearchResultsChip(count: resultsCount),
         ],
       ),
     );
   }
 
-  List<dynamic> _filteredCollections(List<dynamic> items) {
-    final q = _searchCtrl.text.toLowerCase().trim();
-    if (q.isEmpty) return items;
-    return items.where((c) => c.loanNumber.toString().toLowerCase().contains(q) || c.lenderName.toString().toLowerCase().contains(q) || c.riderName.toString().toLowerCase().contains(q)).toList();
-  }
-
-  List<Map<String, dynamic>> _filteredPayments(List<Map<String, dynamic>> payments) {
-    final q = _searchCtrl.text.toLowerCase().trim();
-    if (q.isEmpty) return payments;
-    return payments.where((p) {
-      final lender = p['lender'] as Map<String, dynamic>? ?? {};
-      final loan = p['loan'] as Map<String, dynamic>? ?? {};
-      final lenderName = '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.toLowerCase();
-      final loanNum = (loan['loan_number'] ?? '').toString().toLowerCase();
-      final method = (p['payment_method'] ?? '').toString().toLowerCase();
-      return lenderName.contains(q) || loanNum.contains(q) || method.contains(q);
-    }).toList();
-  }
-
   Widget _buildCollectionsContent(EmpCollectionState state) {
-    final items = _filteredCollections(state.items);
+    final items = state.items;
     if (items.isEmpty) {
-      final isFiltered = _searchCtrl.text.isNotEmpty || state.statusFilter != 'all';
+      final isFiltered = state.search.isNotEmpty || state.statusFilter != 'all';
       if (isFiltered) {
         return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -439,7 +440,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             const SizedBox(height: 4),
             const Text('Try a different search or status filter', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             const SizedBox(height: 14),
-            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(empCollectionProvider.notifier).setStatus('all'); setState(() {}); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(empCollectionProvider.notifier).setSearch(''); ref.read(empCollectionProvider.notifier).setStatus('all'); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
           ]),
         );
       }
@@ -740,7 +741,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
   }
 
   Widget _buildPaymentEmpty(_EmpPaymentsState state) {
-    final isFiltered = _searchCtrl.text.isNotEmpty || state.methodFilter != 'all';
+    final isFiltered = state.search.isNotEmpty || state.methodFilter != 'all';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),

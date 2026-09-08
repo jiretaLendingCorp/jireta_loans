@@ -10,6 +10,8 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../audit_action_catalog.dart';
 
@@ -57,12 +59,18 @@ class _AuditNotifier extends StateNotifier<_AuditState>
     int page = 1,
     String? action,
     String? performedBy,
+    String? startDate,
+    String? endDate,
     bool silent = false,
   }) async {
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.getAuditLogs(
-          page: page, action: action, performedBy: performedBy);
+          page: page,
+          action: action,
+          performedBy: performedBy,
+          startDate: startDate,
+          endDate: endDate);
       final logs = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
       final meta = res['meta'] as Map<String, dynamic>? ?? {};
       state = state.copyWith(
@@ -109,7 +117,16 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   final _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
   String? _selectedAction;
+  DateTimeRange? _dateRange;
   Map<String, dynamic>? _expandedLog;
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(_auditProvider.notifier).fetch(
+          startDate: r == null ? null : SearchDateFilter.fromParam(r.start),
+          endDate: r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -125,14 +142,22 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
       title: 'Audit Logs',
       actions: [
         IconButton(
-            onPressed: () => ref.read(_auditProvider.notifier).fetch(),
+            onPressed: () => ref
+                .read(_auditProvider.notifier)
+                .fetch(
+                    startDate: _dateRange == null
+                        ? null
+                        : SearchDateFilter.fromParam(_dateRange!.start),
+                    endDate: _dateRange == null
+                        ? null
+                        : SearchDateFilter.toParam(_dateRange!.end)),
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh'),
         const SizedBox(width: 12),
       ],
       body: Column(
         children: [
-          _buildFilters(),
+          _buildFilters(state),
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
@@ -148,7 +173,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
     );
   }
 
-  Widget _buildFilters() => Container(
+  Widget _buildFilters(_AuditState state) => Container(
         padding: const EdgeInsets.all(16),
         color: Colors.white,
         child: Row(
@@ -170,11 +195,21 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                       () {
                     ref
                         .read(_auditProvider.notifier)
-                        .fetch(performedBy: v.trim().isEmpty ? null : v.trim());
+                        .fetch(performedBy: v.trim().isEmpty ? null : v.trim(),
+                            startDate: _dateRange == null
+                                ? null
+                                : SearchDateFilter.fromParam(_dateRange!.start),
+                            endDate: _dateRange == null
+                                ? null
+                                : SearchDateFilter.toParam(_dateRange!.end));
                   });
                 },
               ),
             ),
+            const SizedBox(width: 12),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(count: state.logs.length),
             const SizedBox(width: 12),
             DropdownButtonHideUnderline(
               child: Container(
@@ -194,7 +229,14 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                   ],
                   onChanged: (v) {
                     setState(() => _selectedAction = v);
-                    ref.read(_auditProvider.notifier).fetch(action: v);
+                    ref.read(_auditProvider.notifier).fetch(
+                        action: v,
+                        startDate: _dateRange == null
+                            ? null
+                            : SearchDateFilter.fromParam(_dateRange!.start),
+                        endDate: _dateRange == null
+                            ? null
+                            : SearchDateFilter.toParam(_dateRange!.end));
                   },
                 ),
               ),
@@ -413,7 +455,13 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
-              onPressed: () => ref.read(_auditProvider.notifier).fetch(),
+              onPressed: () => ref.read(_auditProvider.notifier).fetch(
+                startDate: _dateRange == null
+                    ? null
+                    : SearchDateFilter.fromParam(_dateRange!.start),
+                endDate: _dateRange == null
+                    ? null
+                    : SearchDateFilter.toParam(_dateRange!.end)),
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Retry'),
             ),
@@ -431,7 +479,14 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                 onPressed: state.currentPage > 1
                     ? () => ref
                         .read(_auditProvider.notifier)
-                        .fetch(page: state.currentPage - 1)
+                        .fetch(
+                          page: state.currentPage - 1,
+                          startDate: _dateRange == null
+                              ? null
+                              : SearchDateFilter.fromParam(_dateRange!.start),
+                          endDate: _dateRange == null
+                              ? null
+                              : SearchDateFilter.toParam(_dateRange!.end))
                     : null,
                 icon: const Icon(Icons.chevron_left)),
             Text('Page ${state.currentPage} of ${state.totalPages}'),
@@ -439,7 +494,14 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                 onPressed: state.currentPage < state.totalPages
                     ? () => ref
                         .read(_auditProvider.notifier)
-                        .fetch(page: state.currentPage + 1)
+                        .fetch(
+                            page: state.currentPage + 1,
+                            startDate: _dateRange == null
+                                ? null
+                                : SearchDateFilter.fromParam(_dateRange!.start),
+                            endDate: _dateRange == null
+                                ? null
+                                : SearchDateFilter.toParam(_dateRange!.end))
                     : null,
                 icon: const Icon(Icons.chevron_right)),
           ],

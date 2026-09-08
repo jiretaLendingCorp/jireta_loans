@@ -108,6 +108,9 @@ class PaymentRemoteDataSource {
   Future<Map<String, dynamic>> getPaymentListPage({
     String? method,
     String? status,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
     int page = 1,
     int limit = 20,
   }) async {
@@ -116,6 +119,9 @@ class PaymentRemoteDataSource {
       queryParams: {
         if (method != null) 'method': method,
         if (status != null) 'status': status,
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         'page': page,
         'limit': limit,
       },

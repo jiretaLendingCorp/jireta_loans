@@ -10,8 +10,8 @@ class AccountUpgradeRemoteDataSource {
   Future<Map<String, dynamic>> accountUpgradeGetList({
     String? status,
     String? lenderName,
-    String? startDate,
-    String? endDate,
+    String? dateFrom,
+    String? dateTo,
     int page = 1,
     int limit = 20,
   }) async {
@@ -20,8 +20,8 @@ class AccountUpgradeRemoteDataSource {
       queryParams: {
         if (status != null) 'status': status,
         if (lenderName != null) 'lender_name': lenderName,
-        if (startDate != null) 'start_date': startDate,
-        if (endDate != null) 'end_date': endDate,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         'page': page,
         'limit': limit,
       },
@@ -39,6 +39,8 @@ class AccountUpgradeRemoteDataSource {
   Future<Map<String, dynamic>> getList({
     String? status,
     String? search,
+    String? dateFrom,
+    String? dateTo,
     int page = 1,
     int limit = 20,
   }) async {
@@ -47,6 +49,8 @@ class AccountUpgradeRemoteDataSource {
       queryParams: {
         if (status != null) 'status': status,
         if (search != null) 'lender_name': search,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         'page': page,
         'limit': limit,
       },

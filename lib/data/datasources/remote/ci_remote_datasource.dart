@@ -119,6 +119,8 @@ class CiRemoteDataSource {
   Future<Map<String, dynamic>> getList({
     String? status,
     String? search,
+    String? dateFrom,
+    String? dateTo,
     int page = 1,
     int limit = 20,
   }) async {
@@ -127,6 +129,8 @@ class CiRemoteDataSource {
       queryParams: {
         if (status != null) 'status': status,
         if (search != null) 'search': search,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         'page': page,
         'limit': limit,
       },

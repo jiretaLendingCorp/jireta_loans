@@ -25,6 +25,7 @@
 // When isMonthly==false: all metrics are LIFETIME cumulative (legacy).
 // ─────────────────────────────────────────────────────────────────────────────
 import { getLoanFinancialsBatch } from './loan_financials.ts';
+import { manilaMidnightUTC, nowManila } from './timezone.ts';
 import type { DbClient } from './types.ts';
 
 export interface HeadManagerStatsParams {
@@ -56,13 +57,15 @@ export function parseMonthlyFilter(params: HeadManagerStatsParams): {
   let selectedMonth = '';
   let isDaily = false;
   let selectedDate = '';
-  // Exact-day filter wins over monthly.
+  // Exact-day filter wins over monthly. Boundaries are MANILA midnights
+  // (UTC+8), not UTC midnights — a day filter must cover 00:00–24:00 Manila
+  // or the first 8 hours of the day get silently excluded.
   if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
     const [yy, mm, dd] = dateParam.split('-').map(Number);
     const probe = new Date(Date.UTC(yy, mm - 1, dd));
     if (probe.getUTCFullYear() === yy && probe.getUTCMonth() === mm - 1 && probe.getUTCDate() === dd) {
-      monthStart = new Date(Date.UTC(yy, mm - 1, dd, 0, 0, 0));
-      monthEndNext = new Date(Date.UTC(yy, mm - 1, dd + 1, 0, 0, 0));
+      monthStart = manilaMidnightUTC(yy, mm, dd);
+      monthEndNext = manilaMidnightUTC(yy, mm, dd + 1);
       isMonthly = true;
       isDaily = true;
       selectedDate = dateParam;
@@ -73,15 +76,15 @@ export function parseMonthlyFilter(params: HeadManagerStatsParams): {
     if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       const [yy, mm] = monthParam.split('-').map(Number);
       if (mm >= 1 && mm <= 12) {
-        monthStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0));
-        monthEndNext = new Date(Date.UTC(yy, mm, 1, 0, 0, 0));
+        monthStart = manilaMidnightUTC(yy, mm, 1);
+        monthEndNext = manilaMidnightUTC(yy, mm + 1, 1);
         isMonthly = true;
         selectedMonth = monthParam;
       }
     } else if (periodParam === 'monthly') {
-      const now = new Date();
-      monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      monthEndNext = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+      const now = nowManila();
+      monthStart = manilaMidnightUTC(now.getFullYear(), now.getMonth() + 1, 1);
+      monthEndNext = manilaMidnightUTC(now.getFullYear(), now.getMonth() + 2, 1);
       isMonthly = true;
       selectedMonth = `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth() + 1).padStart(2, '0')}`;
     }
@@ -208,9 +211,19 @@ export async function getHeadManagerDashboardStats(
   if (isMonthly) penaltiesQuery = penaltiesQuery.gte('applied_at', isoStart!).lt('applied_at', isoEnd!);
 
   // Trend series — only records within the 6-month window to avoid full scans.
-  const trendAnchor = isMonthly && monthStart ? new Date(monthStart) : new Date();
-  const trendStart = new Date(Date.UTC(trendAnchor.getFullYear(), trendAnchor.getMonth() - 5, 1));
-  const trendEnd = new Date(Date.UTC(trendAnchor.getFullYear(), trendAnchor.getMonth() + 1, 1));
+  // Anchored to the MANILA calendar month so window boundaries and the
+  // monthly buckets below always match the selected month (never shifted).
+  const anchorManila = isMonthly
+    ? (() => {
+        const [ay, am] = selectedMonth.split('-').map(Number);
+        return { y: ay, m: am };
+      })()
+    : (() => {
+        const n = nowManila();
+        return { y: n.getFullYear(), m: n.getMonth() + 1 };
+      })();
+  const trendStart = manilaMidnightUTC(anchorManila.y, anchorManila.m - 5, 1);
+  const trendEnd = manilaMidnightUTC(anchorManila.y, anchorManila.m + 1, 1);
   const trendIsoStart = trendStart.toISOString();
   const trendIsoEnd = trendEnd.toISOString();
   const trendLoansRawP = db.from('loans').select('created_at, status, principal_amount').gte('created_at', trendIsoStart).lt('created_at', trendIsoEnd);
@@ -265,11 +278,10 @@ export async function getHeadManagerDashboardStats(
     released: number;
     collected: number;
   }> = [];
-  const anchor = isMonthly && monthStart ? new Date(monthStart) : new Date();
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(anchor.getFullYear(), anchor.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const d = manilaMidnightUTC(anchorManila.y, anchorManila.m - i, 1);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+    const next = manilaMidnightUTC(anchorManila.y, anchorManila.m - i + 1, 1);
     const inRange = (ts: string | null | undefined) => {
       if (!ts) return false;
       const t = new Date(ts).getTime();

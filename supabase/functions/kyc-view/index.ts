@@ -311,6 +311,8 @@ async function handleGetList(req: Request) {
     const status = url.searchParams.get('status');
     // Accept both spellings used by the app.
     const search = url.searchParams.get('search') ?? url.searchParams.get('lender_name');
+    const dateFrom = url.searchParams.get('date_from');
+    const dateTo = url.searchParams.get('date_to');
     const offset = (page - 1) * limit;
 
     const db = getAdminClient();
@@ -328,6 +330,8 @@ async function handleGetList(req: Request) {
 
     if (status) query = query.eq('account_upgrade_status', status);
     if (search) query = query.or(`users.first_name.ilike.%${search}%,users.last_name.ilike.%${search}%,users.middle_name.ilike.%${search}%`);
+    if (dateFrom) query = query.gte('updated_at', dateFrom);
+    if (dateTo) query = query.lte('updated_at', dateTo);
 
     const { data, error, count } = await query
       .order('updated_at', { ascending: false })

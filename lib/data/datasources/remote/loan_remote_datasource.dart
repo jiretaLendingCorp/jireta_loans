@@ -44,6 +44,8 @@ class LoanRemoteDataSource {
     int limit = 20,
     String? search,
     String? lenderId,
+    String? dateFrom,
+    String? dateTo,
   }) async {
     final res = await _client.get(
       ApiEndpoints.loansGetList,
@@ -53,6 +55,8 @@ class LoanRemoteDataSource {
         'limit': limit,
         if (search != null) 'search': search,
         if (lenderId != null) 'lender_id': lenderId,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
       },
     );
     final list = (res.data['data'] as List?) ?? [];
@@ -67,6 +71,8 @@ class LoanRemoteDataSource {
     int limit = 20,
     String? search,
     String? lenderId,
+    String? dateFrom,
+    String? dateTo,
   }) async {
     final res = await _client.get(
       ApiEndpoints.loansGetList,
@@ -76,6 +82,8 @@ class LoanRemoteDataSource {
         'limit': limit,
         if (search != null) 'search': search,
         if (lenderId != null) 'lender_id': lenderId,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
       },
     );
     final list = (res.data['data'] as List?) ?? [];

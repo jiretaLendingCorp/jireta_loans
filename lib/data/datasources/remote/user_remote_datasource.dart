@@ -94,6 +94,8 @@ class UserRemoteDataSource {
     int page = 1,
     int limit = 20,
     String? search,
+    String? dateFrom,
+    String? dateTo,
   }) async {
     final res = await _client.get(
       ApiEndpoints.usersGetList,
@@ -103,6 +105,8 @@ class UserRemoteDataSource {
         'page': page,
         'limit': limit,
         if (search != null) 'search': search,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
       },
     );
     final list = (res.data['data'] as List?) ?? [];

@@ -12,6 +12,8 @@ class HmArchivedState {
   final String? error;
   final String search;
   final String roleFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmArchivedState({
     this.users = const [],
@@ -19,6 +21,8 @@ class HmArchivedState {
     this.error,
     this.search = '',
     this.roleFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmArchivedState copyWith({
@@ -27,6 +31,8 @@ class HmArchivedState {
     String? error,
     String? search,
     String? roleFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmArchivedState(
         users: users ?? this.users,
@@ -34,6 +40,8 @@ class HmArchivedState {
         error: error,
         search: search ?? this.search,
         roleFilter: roleFilter ?? this.roleFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -54,6 +62,8 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
         role: state.roleFilter == 'all' ? null : state.roleFilter,
         status: 'archived',
         search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       state = state.copyWith(users: list, isLoading: false);
     } catch (e) {
@@ -70,6 +80,11 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
 
   void setRole(String v) {
     state = state.copyWith(roleFilter: v);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     load();
   }
 

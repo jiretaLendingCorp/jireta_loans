@@ -7,6 +7,8 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/hm_ci_provider.dart';
 import '../widgets/ci_assign_modal.dart';
 
@@ -19,6 +21,7 @@ class HmCiListScreen extends ConsumerStatefulWidget {
 class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  DateTimeRange? _dateRange;
 
   final _dropdownTabs = const [
     _TabDef('all', 'All', Icons.layers_outlined),
@@ -31,6 +34,14 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
     _TabDef('rejected', 'Rejected', Icons.cancel_outlined),
     _TabDef('failed', 'Failed', Icons.warning_amber_rounded),
   ];
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(hmCiProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -151,6 +162,13 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
                 onChanged: (v) => ref.read(hmCiProvider.notifier).setSearch(v),
               ),
             ),
+            const SizedBox(width: 12),
+            SearchDateFilter(
+              value: _dateRange,
+              onChanged: _onDateRangeChanged,
+            ),
+            const SizedBox(width: 12),
+            SearchResultsChip(count: state.items.length),
           ],
         ),
       );

@@ -11,6 +11,8 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/hm_collection_provider.dart';
 import '../widgets/assign_rider_collection_modal.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -23,6 +25,8 @@ class _PaymentsState {
   final int currentPage;
   final int totalPages;
   final String methodFilter;
+  final String? dateFrom;
+  final String? dateTo;
   const _PaymentsState({
     this.payments = const [],
     this.isLoading = false,
@@ -30,6 +34,8 @@ class _PaymentsState {
     this.currentPage = 1,
     this.totalPages = 1,
     this.methodFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
   _PaymentsState copyWith({
     List<Map<String, dynamic>>? payments,
@@ -38,6 +44,8 @@ class _PaymentsState {
     int? currentPage,
     int? totalPages,
     String? methodFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       _PaymentsState(
         payments: payments ?? this.payments,
@@ -46,6 +54,8 @@ class _PaymentsState {
         currentPage: currentPage ?? this.currentPage,
         totalPages: totalPages ?? this.totalPages,
         methodFilter: methodFilter ?? this.methodFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -64,6 +74,8 @@ class _PaymentsNotifier extends StateNotifier<_PaymentsState>
       final res = await _ds.getPaymentListPage(
         page: page,
         method: m == 'all' ? null : m,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final payments = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
       final meta = res['meta'] as Map<String, dynamic>? ?? {};
@@ -85,6 +97,11 @@ class _PaymentsNotifier extends StateNotifier<_PaymentsState>
   void setMethod(String method) {
     state = state.copyWith(methodFilter: method);
     fetch(method: method);
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
+    fetch();
   }
 
   Future<bool> reversePayment(String paymentId) async {
@@ -113,6 +130,7 @@ class HmCollectionListScreen extends ConsumerStatefulWidget {
 class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  DateTimeRange? _dateRange;
   String _activeTab = 'all'; // all, payments, requested, assigned, in_progress, completed
 
   final _dropdownTabs = const [
@@ -133,6 +151,14 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     _TabDef('office_cash', 'Office', Icons.storefront_rounded),
     _TabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
   ];
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    final from = r == null ? null : SearchDateFilter.fromParam(r.start);
+    final to = r == null ? null : SearchDateFilter.toParam(r.end);
+    ref.read(hmCollectionProvider.notifier).setDateRange(from, to);
+    ref.read(_hmPaymentsInCollectionProvider.notifier).setDateRange(from, to);
+  }
 
   @override
   void dispose() {
@@ -364,6 +390,14 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
                   }
                 },
               ),
+            ),
+            const SizedBox(width: 12),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(
+              count: isPayments
+                  ? _filteredPayments(pState.payments).length
+                  : cState.items.length,
             ),
           ],
         ),

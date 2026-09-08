@@ -15,6 +15,8 @@ class HmCiState {
   final int totalCount;
   final String statusFilter;
   final String search;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmCiState({
     this.items = const [],
@@ -25,6 +27,8 @@ class HmCiState {
     this.totalCount = 0,
     this.statusFilter = 'all',
     this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmCiState copyWith({
@@ -36,6 +40,8 @@ class HmCiState {
     int? totalCount,
     String? statusFilter,
     String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmCiState(
         items: items ?? this.items,
@@ -46,6 +52,8 @@ class HmCiState {
         totalCount: totalCount ?? this.totalCount,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -65,6 +73,8 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
         page: page,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final list = (res['data'] as List? ?? [])
           .map((e) =>
@@ -92,6 +102,11 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
 
   void setSearch(String v) {
     state = state.copyWith(search: v);
+    fetch();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();
   }
 

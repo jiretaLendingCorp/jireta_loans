@@ -6,6 +6,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../head_manager/loans/providers/hm_loan_provider.dart';
 import '../providers/emp_active_loan_provider.dart';
 import '../widgets/emp_loan_details_modal.dart';
@@ -21,6 +23,7 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
   final _tabs = [
     ('active', 'Active'),
     ('completed', 'Completed'),
@@ -42,6 +45,14 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
         .setTab(_tabs[_tabController.index].$1);
   }
 
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(empActiveLoanProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -57,7 +68,7 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
       body: Column(
         children: [
           _buildTabBar(),
-          _buildFilters(),
+          _buildFilters(state),
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
@@ -83,22 +94,32 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
         ),
       );
 
-  Widget _buildFilters() => Container(
+  Widget _buildFilters(HmLoanState state) => Container(
         padding: const EdgeInsets.all(16),
         color: Colors.white,
-        child: TextField(
-          controller: _searchCtrl,
-          decoration: InputDecoration(
-            hintText: 'Search by loan # or lender name...',
-            prefixIcon: const Icon(Icons.search, size: 20),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: AppColors.border),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search by loan # or lender name...',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.border),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                onChanged: (v) =>
+                    ref.read(empActiveLoanProvider.notifier).setSearch(v),
+              ),
             ),
-            contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          ),
-          onChanged: (v) =>
-              ref.read(empActiveLoanProvider.notifier).setSearch(v),
+            const SizedBox(width: 12),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(count: state.loans.length),
+          ],
         ),
       );
 

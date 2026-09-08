@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
@@ -19,11 +21,9 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   @override
   ConsumerState<EmpLoanApplicationsScreen> createState() =>
       _EmpLoanApplicationsScreenState();
-}
-
-class _EmpLoanApplicationsScreenState
-    extends ConsumerState<EmpLoanApplicationsScreen> {
+}class _EmpLoanApplicationsScreenState extends ConsumerState<EmpLoanApplicationsScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
   final _scrollCtrl = ScrollController();
   // Keeps In-Office / Active Loan selected locally while staying on /employee/loans
   // so WebScaffold continues to highlight "Loan Records" in the side nav.
@@ -42,6 +42,14 @@ class _EmpLoanApplicationsScreenState
     _TabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
     _TabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
   ];
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(empLoanProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -216,8 +224,6 @@ class _EmpLoanApplicationsScreenState
               decoration: InputDecoration(
                 hintText: 'Search loan applications...',
                 prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: const Icon(Icons.search,
-                    size: 20, color: AppColors.textTertiary),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: const BorderSide(color: AppColors.border),
@@ -232,6 +238,16 @@ class _EmpLoanApplicationsScreenState
                 }
               },
             ),
+          ),
+          const SizedBox(width: 12),
+          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+          const SizedBox(width: 12),
+          SearchResultsChip(
+            count: isInOffice
+                ? _filteredEmpInOffice(
+                        (inOfficeAsync.valueOrNull?['items'] as List?) ?? [])
+                    .length
+                : loanState.loans.length,
           ),
         ],
       ),
@@ -281,7 +297,7 @@ class _EmpLoanApplicationsScreenState
                     flex: 3,
                     child: _HLabel('Lender', Icons.person_outline)),
                 const Expanded(
-                    flex: 2, child: _HLabel('Step', Icons.layers_outlined)),
+                    flex: 2, child: _HLabel('Loan', Icons.request_quote_outlined)),
                 const Expanded(
                     flex: 2, child: _HLabel('Created', Icons.event_outlined)),
                 const Expanded(
@@ -344,9 +360,11 @@ class _EmpLoanApplicationsScreenState
                   Expanded(
                     flex: 2,
                     child: Text(
-                      'Step ${m['wizard_step'] ?? 1} of 5',
+                      _empInOfficeLoanLabel(m),
                       style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                   Expanded(
@@ -1116,24 +1134,21 @@ class _EmpInOfficeActions extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(width: 6),
-        _ActionIcon(
-          icon: Icons.edit_outlined,
-          color: AppColors.info,
-          tooltip: 'Resume wizard',
-          onTap: () => showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => InOfficeWizard(
-              applicationId: appId.isEmpty ? null : appId,
-              onComplete: () =>
-                  ref.read(empInOfficeProvider.notifier).loadList(),
-            ),
-          ),
-        ),
       ],
     );
   }
+}
+
+String _empInOfficeLoanLabel(Map<String, dynamic> m) {
+  final loan = m['loan'];
+  if (loan is Map && loan.isNotEmpty) {
+    final loanNumber = (loan['loan_number'] ?? '').toString();
+    final loanStatus = (loan['status'] ?? '').toString();
+    if (loanNumber.isNotEmpty) {
+      return loanStatus.isNotEmpty ? '$loanNumber • $loanStatus' : loanNumber;
+    }
+  }
+  return 'No loan yet';
 }
 
 class _ActionIcon extends StatelessWidget {

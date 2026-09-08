@@ -1,5 +1,4 @@
 // lib/presentation/features/head_manager/in_office/widgets/in_office_wizard.dart
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,10 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/signature_pad.dart';
 import '../providers/hm_in_office_provider.dart';
 
 class _DocFile {
@@ -47,21 +44,7 @@ class InOfficeWizard extends ConsumerStatefulWidget {
 }
 
 class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
-  static const double _minAmount = 3000;
-  static const double _maxAmount = 500000;
   static const int _maxDocBytes = 5 * 1024 * 1024;
-
-  static const List<String> _relationshipOptions = [
-    'Spouse',
-    'Parent',
-    'Sibling',
-    'Child',
-    'Relative',
-    'Friend',
-    'Colleague',
-    'Employer',
-    'Other',
-  ];
 
   // Valid ID is collected as FRONT + BACK (matches Account Upgrade), so the
   // required document set is: valid_id, valid_id_back, selfie, mayors_permit,
@@ -130,27 +113,24 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   final _provinceCtrl = TextEditingController();
   final _zipCtrl = TextEditingController();
 
-  // Step 3 controllers
+  // Loan/co-maker fields are retained for read-only display in View mode
+  // (when a lender has already self-applied) — the walk-in wizard itself no
+  // longer collects them.
   final _amountCtrl = TextEditingController();
   String _frequency = 'monthly';
   int? _termPeriods;
-  bool _previewLoading = false;
-  String? _previewError;
-  Map<String, dynamic>? _schedulePreview;
   final _purposeCtrl = TextEditingController();
 
-  // Step 4 controllers
   final _coFirstCtrl = TextEditingController();
   final _coLastCtrl = TextEditingController();
   final _coPhoneCtrl = TextEditingController();
   final _coAddressCtrl = TextEditingController();
   String? _coRel;
 
-  // Step 5 state
+  // Documents + signature state
   final Map<String, _DocFile> _docs = {};
   String? _docsError;
   String? _signature;
-  String? _signatureError;
 
   /// True when the whole wizard must be read-only: opened via View AND the
   /// lender already self-applied a loan (steps 4-5 are prefilled from the
@@ -434,7 +414,9 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Widget _buildStepIndicator() {
-    final steps = ['Identify', 'Address', 'Documents', 'Loan', 'Co-Maker'];
+    // Walk-in wizard is account setup only — the lender applies for the loan
+    // themselves. Steps: Identify → Address → Documents.
+    final steps = ['Identify', 'Address', 'Documents'];
     return Container(
       color: AppColors.surfaceVariant,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
@@ -503,32 +485,26 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   Widget _buildStepContent() {
     // Fully read-only (View of an already-submitted loan): every step is a
-    // read-only display. View mode without a loan yet: steps 1-3 read-only,
-    // steps 4-5 stay editable so staff can finish encoding the loan.
+    // read-only display.
     final readOnlyStep = _fullyReadOnly || (_isViewOnly && _step < 3);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Form(
         key: _formKey,
-        // UI order: Identify → Address → Documents → Loan → Co-Maker
-        // (+ Lender Signature). Backend save-step numbers stay fixed
-        // (1=personal, 2=address, 3=loan, 4=co-maker, 5=documents+signature)
-        // and are remapped in _backendStepForUiStep().
+        // UI order: Identify → Address → Documents. Backend save-step numbers
+        // stay fixed (1=personal, 2=address, 3=loan, 4=co-maker, 5=documents
+        // +signature) and are remapped in _backendStepForUiStep().
         child: readOnlyStep
             ? switch (_step) {
                 0 => _buildStep1ReadOnly(),
                 1 => _buildStep2ReadOnly(),
                 2 => _buildDocumentsReadOnly(),
-                3 => _buildStep3ReadOnly(),
-                4 => _buildStep4ReadOnly(),
                 _ => const SizedBox(),
               }
             : switch (_step) {
                 0 => _buildStep1(),
                 1 => _buildStep2(),
                 2 => _buildDocumentsStep(),
-                3 => _buildStep3(),
-                4 => _buildStep4(),
                 _ => const SizedBox(),
               },
       ),
@@ -670,319 +646,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  Widget _buildStep3() {
-    final maxPeriods = (_schedulePreview?['max_periods'] as num?)?.toInt() ?? 0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Loan Details',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        const Text(
-            'Set the loan amount, frequency, and how many periods to pay.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const SizedBox(height: 20),
-        _field('Loan Amount', _amountCtrl,
-            keyboardType: TextInputType.number,
-            prefix: '₱',
-            maxLength: 12,
-            validator: _amountValidator,
-            onChanged: (_) => _onLoanInputChanged()),
-        const SizedBox(height: 8),
-        if (_currentAmount() > 0 &&
-            (_currentAmount() < _minAmount || _currentAmount() > _maxAmount))
-          const Text(
-            'Amount must be between ₱3,000 and ₱500,000',
-            style: TextStyle(color: AppColors.error, fontSize: 12),
-          ),
-        const SizedBox(height: 16),
-        const Text('Payment Frequency',
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary)),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _freqChip('daily', Icons.calendar_today),
-            const SizedBox(width: 10),
-            _freqChip('weekly', Icons.date_range),
-            const SizedBox(width: 10),
-            _freqChip('monthly', Icons.calendar_month),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _buildTermSelector(maxPeriods),
-        const SizedBox(height: 16),
-        _field('Purpose', _purposeCtrl, maxLines: 2, maxLength: 255),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.warningLight,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-          ),
-          child: const Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.warning_amber_rounded,
-                  size: 16, color: AppColors.warning),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Late payment penalty: an additional 20% is added automatically if the lender fails to pay within one month.',
-                  style: TextStyle(fontSize: 12, color: AppColors.warning),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_previewLoading)
-          const Center(
-              child: Padding(
-            padding: EdgeInsets.all(12),
-            child: CircularProgressIndicator(),
-          )),
-        if (_previewError != null)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.error.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-            ),
-            child: Text(
-              _previewError!,
-              style: const TextStyle(color: AppColors.error, fontSize: 13),
-            ),
-          ),
-        if (_schedulePreview != null && !_previewLoading)
-          _buildSchedulePreview(),
-      ],
-    );
-  }
-
-  Widget _freqChip(String value, IconData icon) {
-    final selected = _frequency == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _frequency = value;
-            _termPeriods = null;
-          });
-          _onLoanInputChanged();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.deepNavy.withValues(alpha: 0.08)
-                : Colors.white,
-            border: Border.all(
-              color: selected ? AppColors.gold : AppColors.border,
-              width: selected ? 2 : 1,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            children: [
-              Icon(icon,
-                  size: 20,
-                  color: selected ? AppColors.gold : AppColors.textSecondary),
-              const SizedBox(height: 4),
-              Text(
-                value[0].toUpperCase() + value.substring(1),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                  color:
-                      selected ? AppColors.deepNavy : AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<int> _termOptions(int max) {
-    const candidates = <String, List<int>>{
-      'daily': [
-        7,
-        10,
-        14,
-        20,
-        21,
-        28,
-        30,
-        35,
-        40,
-        45,
-        60,
-        70,
-        80,
-        90,
-        120,
-        180
-      ],
-      'weekly': [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 26],
-      'monthly': [1, 2, 3, 4, 5, 6],
-    };
-    final opts = (candidates[_frequency] ?? const <int>[])
-        .where((v) => v <= max)
-        .toList();
-    if (!opts.contains(max)) opts.add(max);
-    return opts;
-  }
-
-  Widget _buildTermSelector(int maxPeriods) {
-    if (maxPeriods < 1) return const SizedBox.shrink();
-    final unit = _termUnitFor(_frequency);
-    final options = _termOptions(maxPeriods);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Loan Term',
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary)),
-        const SizedBox(height: 4),
-        Text(
-          'Choose how many $unit the lender wants to repay.',
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: options.map((value) {
-            final isMax = value == maxPeriods;
-            final selected =
-                isMax ? _termPeriods == null : _termPeriods == value;
-            return InkWell(
-              onTap: () {
-                setState(() => _termPeriods = isMax ? null : value);
-                _onLoanInputChanged();
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.deepNavy : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: selected ? AppColors.deepNavy : AppColors.border,
-                  ),
-                ),
-                child: Text(
-                  isMax ? '$value $unit (Full)' : '$value $unit',
-                  style: TextStyle(
-                    color: selected ? Colors.white : AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStep4() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Co-Maker Information',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.warningLight,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-          ),
-          child: const Text(
-            'Note: Co-maker is NOT subjected to Credit Investigation (CI).',
-            style: TextStyle(fontSize: 12, color: AppColors.warning),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-                child: _simpleField('Co-Maker First Name',
-                    controller: _coFirstCtrl, maxLength: 100)),
-            const SizedBox(width: 12),
-            Expanded(
-                child: _simpleField('Co-Maker Last Name',
-                    controller: _coLastCtrl, maxLength: 100)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _dropdown(
-                'Relationship',
-                _coRel,
-                _relationshipOptions,
-                (v) => setState(() => _coRel = v),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-                child: _simpleField('Phone',
-                    controller: _coPhoneCtrl,
-                    keyboardType: TextInputType.phone,
-                    maxLength: 11)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _simpleField('Address', controller: _coAddressCtrl, maxLength: 100),
-        const SizedBox(height: 20),
-        const Text('Lender Signature',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        const Text(
-            'Lender signs here to confirm the walk-in application.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const SizedBox(height: 8),
-        SignaturePad(
-          onSignatureChanged: (sig) {
-            setState(() {
-              _signature = sig;
-              _signatureError = (sig == null || sig.isEmpty)
-                  ? 'Lender signature is required'
-                  : null;
-            });
-          },
-          height: 130,
-        ),
-        if (_signatureError != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              _signatureError!,
-              style: const TextStyle(fontSize: 12, color: AppColors.error),
-            ),
-          ),
-      ],
-    );
-  }
-
-  // ───────────────────────── Read-only (View) builders ─────────────────────
-
   Widget _readOnlyRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1096,134 +759,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  Widget _buildDocumentsReadOnly() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Documents',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        const Text('Read-only: these documents were already uploaded.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const SizedBox(height: 16),
-        ..._docTypes.map((d) {
-          final type = d.$1;
-          final file = _docs[type];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border.all(
-                  color: file != null
-                      ? AppColors.success.withValues(alpha: 0.5)
-                      : AppColors.border),
-              borderRadius: BorderRadius.circular(8),
-              color: file != null
-                  ? AppColors.success.withValues(alpha: 0.04)
-                  : Colors.white,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  file != null
-                      ? Icons.check_circle
-                      : Icons.description_outlined,
-                  color: file != null
-                      ? AppColors.success
-                      : AppColors.textSecondary,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(d.$2,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
-                ),
-                Text(
-                  file != null ? (file.name.isNotEmpty ? file.name : 'Uploaded') : 'Missing',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: file != null
-                        ? AppColors.success
-                        : AppColors.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          );
-        }),
-        _readOnlyCard('Lender Signature', Icons.draw_outlined, [
-          _readOnlyRow('Signature',
-              (_signature != null && _signature!.isNotEmpty) ? 'Signed ✓' : 'Not signed'),
-        ]),
-      ],
-    );
-  }
-
-  Widget _buildStep3ReadOnly() {
-    final loan = _details?['loan'] as Map<String, dynamic>?;
-    final loanNumber =
-        (loan?['loan_number'] ?? '').toString().trim();
-    final amount = _amountCtrl.text.trim();
-    final freq = _frequency;
-    final term = _termPeriods?.toString() ?? '';
-    final unit = _termUnitFor(freq);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Loan Details',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        Text(
-          loanNumber.isNotEmpty
-              ? 'This lender already applied for this loan — read-only view.'
-              : 'Read-only: these loan details were already submitted.',
-          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const SizedBox(height: 16),
-        _readOnlyCard('Loan', Icons.payments_outlined, [
-          if (loanNumber.isNotEmpty)
-            _readOnlyRow('Loan Number', loanNumber),
-          _readOnlyRow('Loan Amount',
-              amount.isEmpty ? '' : '₱${_formatMoney(amount)}'),
-          _readOnlyRow('Payment Frequency',
-              freq.isEmpty ? '' : freq[0].toUpperCase() + freq.substring(1)),
-          _readOnlyRow('Loan Term',
-              term.isEmpty ? '' : '$term $unit'),
-          _readOnlyRow('Purpose', _purposeCtrl.text.trim()),
-        ]),
-      ],
-    );
-  }
-
-  Widget _buildStep4ReadOnly() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Co-Maker Information',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        const Text('Read-only: these details were already submitted.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const SizedBox(height: 16),
-        _readOnlyCard('Co-Maker', Icons.group_outlined, [
-          _readOnlyRow('First Name', _coFirstCtrl.text.trim()),
-          _readOnlyRow('Last Name', _coLastCtrl.text.trim()),
-          _readOnlyRow('Relationship', _coRel ?? ''),
-          _readOnlyRow('Phone', _coPhoneCtrl.text.trim()),
-          _readOnlyRow('Address', _coAddressCtrl.text.trim()),
-        ]),
-      ],
-    );
-  }
-
-  String _formatMoney(String raw) {
-    final d = double.tryParse(raw.replaceAll(',', '').trim());
-    if (d == null) return raw;
-    return d.toStringAsFixed(2);
-  }
 
   Widget _buildDocumentsStep() {
     return Column(
@@ -1395,6 +930,74 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     });
   }
 
+
+  Widget _buildDocumentsReadOnly() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Documents',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('Read-only: these documents were already uploaded.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 16),
+        ..._docTypes.map((d) {
+          final type = d.$1;
+          final file = _docs[type];
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: file != null
+                      ? AppColors.success.withValues(alpha: 0.5)
+                      : AppColors.border),
+              borderRadius: BorderRadius.circular(8),
+              color: file != null
+                  ? AppColors.success.withValues(alpha: 0.04)
+                  : Colors.white,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  file != null
+                      ? Icons.check_circle
+                      : Icons.description_outlined,
+                  color: file != null
+                      ? AppColors.success
+                      : AppColors.textSecondary,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(d.$2,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                Text(
+                  file != null ? (file.name.isNotEmpty ? file.name : 'Uploaded') : 'Missing',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: file != null
+                        ? AppColors.success
+                        : AppColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          );
+        }),
+        _readOnlyCard('Lender Signature', Icons.draw_outlined, [
+          _readOnlyRow('Signature',
+              (_signature != null && _signature!.isNotEmpty) ? 'Signed ✓' : 'Not signed'),
+        ]),
+      ],
+    );
+  }
+
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -1417,22 +1020,29 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             ),
           const Spacer(),
           if (_fullyReadOnly)
-            // View of an already-submitted loan (or plain View mode of a
-            // converted application): nothing to edit or submit.
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.deepNavy,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Close'),
-            )
+            // View mode: browse the read-only steps (Identify → Address →
+            // Documents), then Close. Nothing to edit or submit.
+            _step < 2
+                ? ElevatedButton(
+                    onPressed: () => setState(() => _step++),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepNavy,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Next'),
+                  )
+                : ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepNavy,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Close'),
+                  )
           else if (_step == 2 && !_isViewOnly && !_isSubmitted)
-            // Step 3 (Documents) is a SUBMIT: creates the lender account +
-            // auto-verifies the upgrade (no loan yet). The lender logs in and
-            // self-applies, or staff continues to Steps 4-5. Skipped in View
-            // mode and once the application is already submitted — the
-            // account already exists (and is verified), so only Next is shown.
+            // Step 3 (Documents) is the FINAL step and a SUBMIT: creates the
+            // lender account + auto-verifies the upgrade. The walk-in ends
+            // here — the lender logs in and applies for a loan themselves.
             ElevatedButton(
               onPressed: _loading ? null : _submitAccountAndContinue,
               style: ElevatedButton.styleFrom(
@@ -1448,7 +1058,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                     )
                   : const Text('Submit'),
             )
-          else if (_step < 4)
+          else if (_step < 2)
             ElevatedButton(
               onPressed: _loading ? null : _nextStep,
               style: ElevatedButton.styleFrom(
@@ -1465,20 +1075,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                   : const Text('Next'),
             )
           else
+            // Already submitted in this session (or the application already
+            // has an account): nothing left to do — just close.
             ElevatedButton(
-              onPressed: _loading ? null : _submit,
+              onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: Colors.black87,
+                backgroundColor: AppColors.deepNavy,
+                foregroundColor: Colors.white,
               ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.black87),
-                    )
-                  : const Text('Submit Application'),
+              child: const Text('Close'),
             ),
         ],
       ),
@@ -1511,11 +1116,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             'Please upload all required documents: ${missingDocs.join(', ')}');
         return;
       }
-    }
-    // Lender signature lives on the Co-Maker UI step (4).
-    if (_step == 4 && (_signature == null || _signature!.isEmpty)) {
-      setState(() => _signatureError = 'Lender signature is required');
-      return;
     }
     // View mode: read-only steps (1-3) display the saved values and must
     // never overwrite them.
@@ -1590,258 +1190,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     };
   }
 
-  double _currentAmount() =>
-      double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
-
-  void _onLoanInputChanged() {
-    final amount = _currentAmount();
-    if (amount < _minAmount || amount > _maxAmount) {
-      setState(() {
-        _schedulePreview = null;
-        _previewError = null;
-      });
-      return;
-    }
-    _previewSchedule();
-  }
-
-  Future<void> _previewSchedule() async {
-    final amount = _currentAmount();
-    if (amount < _minAmount || amount > _maxAmount) {
-      setState(() => _schedulePreview = null);
-      return;
-    }
-    setState(() {
-      _previewLoading = true;
-      _previewError = null;
-    });
-    try {
-      var preview = await ref
-          .read(hmInOfficeProvider.notifier)
-          .getSchedulePreview(amount, _frequency, termPeriods: _termPeriods);
-      // Clamp the chosen term to the new maximum so a stale selection (after
-      // the amount or frequency changed) never exceeds what the server allows.
-      final maxPeriods = (preview?['max_periods'] as num?)?.toInt();
-      if (maxPeriods != null &&
-          _termPeriods != null &&
-          _termPeriods! > maxPeriods) {
-        _termPeriods = null;
-        preview = await ref
-            .read(hmInOfficeProvider.notifier)
-            .getSchedulePreview(amount, _frequency);
-      }
-      if (!mounted) return;
-      setState(() {
-        _schedulePreview = preview;
-        _previewError = preview == null
-            ? 'Could not load preview. Please check the amount.'
-            : null;
-      });
-    } finally {
-      if (mounted) setState(() => _previewLoading = false);
-    }
-  }
-
-  Widget _buildSchedulePreview() {
-    final p = _schedulePreview!;
-    final principal = (p['principal'] as num?)?.toDouble() ?? 0;
-    final interest = (p['interest'] as num?)?.toDouble() ??
-        (p['interest_amount'] as num?)?.toDouble() ??
-        0;
-    final totalPayable = (p['total_payable'] as num?)?.toDouble() ?? 0;
-    final installments = (p['installments'] as num?)?.toInt() ?? 0;
-    final installmentAmt = (p['installment_amount'] as num?)?.toDouble() ?? 0;
-    final dueDates = (p['due_dates'] as List?) ?? const [];
-    final amounts = (p['amounts'] as List?) ?? const [];
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.infoLight,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Loan Schedule Preview',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          _previewRow('Principal Amount', principal.toCurrency),
-          _previewRow('Interest (20%)', interest.toCurrency),
-          _previewRow('Total Payable', totalPayable.toCurrency),
-          _previewRow('Term', '$installments ${_termUnitFor(p['frequency'])}'),
-          _previewRow('Installment Amount', installmentAmt.toCurrency),
-          _previewRow('Number of Payments', '$installments'),
-          if (dueDates.isNotEmpty) ...[
-            const Divider(height: 16),
-            const Text('Payment Schedule',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 160),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: dueDates.length,
-                separatorBuilder: (_, __) =>
-                    const Divider(height: 1, color: AppColors.border),
-                itemBuilder: (context, i) {
-                  final date = dueDates[i]?.toString() ?? '';
-                  final amt = (amounts[i] as num?)?.toDouble() ?? 0;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(
-                      children: [
-                        Text('#${i + 1}',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: Text(date,
-                                style: const TextStyle(fontSize: 12))),
-                        Text(amt.toCurrency,
-                            style: const TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  String _termUnitFor(dynamic frequency) {
-    final f = (frequency ?? _frequency).toString().toLowerCase();
-    if (f == 'weekly') return 'weeks';
-    if (f == 'monthly') return 'months';
-    return 'days';
-  }
-
-  Widget _previewRow(String l, String v) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Text(l,
-              style: const TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary)),
-          const Spacer(),
-          Text(v,
-              style:
-                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    // Once the application has been converted, it can never be submitted
-    // again — guard against resubmission from a stale/reopened wizard.
-    final appStatus = (_details?['status'] as String?) ?? '';
-    if (appStatus == 'converted') {
-      if (mounted) _showMessage('This application is already submitted.');
-      return;
-    }
-
-    final missingDocs = _docTypes
-        .where((d) => !_docs.containsKey(d.$1))
-        .map((d) => d.$2)
-        .toList();
-    if (missingDocs.isNotEmpty) {
-      // Documents live on UI step 2 — jump back so the user sees the error.
-      setState(() {
-        _docsError =
-            'Please upload all required documents: ${missingDocs.join(', ')}';
-        _step = 2;
-      });
-      return;
-    }
-    if (_signature == null || _signature!.isEmpty) {
-      // Lender signature lives on the Co-Maker UI step (4).
-      setState(() {
-        _signatureError = 'Lender signature is required';
-        _step = 4;
-      });
-      return;
-    }
-
-    setState(() => _loading = true);
-    try {
-      if (_appId == null) {
-        final id = await ref.read(hmInOfficeProvider.notifier).createDraft();
-        if (id == null) {
-          if (mounted) _showMessage('Failed to create draft. Check connection and try again.');
-          setState(() => _loading = false);
-          return;
-        }
-        _appId = id;
-      }
-      // Save in backend step order (1..5) regardless of UI order.
-      // UI step → backend step: 0→1, 1→2, 3→3, 4→4, docs+signature→5.
-      final backendPayloads = <int, Map<String, dynamic>>{
-        1: _collectStepData(0),
-        2: _collectStepData(1),
-        3: _collectStepData(3),
-        4: _collectStepData(4),
-        5: await _buildStep5Data(),
-      };
-      for (var backendStep = 1; backendStep <= 5; backendStep++) {
-        final data = backendPayloads[backendStep]!;
-        if (data.isNotEmpty) {
-          final ok = await ref
-              .read(hmInOfficeProvider.notifier)
-              .saveStep(_appId!, backendStep, data);
-          if (!ok) {
-            if (mounted) _showMessage('Failed to save step $backendStep. Server rejected the data.');
-            setState(() => _loading = false);
-            return;
-          }
-        }
-      }
-      final submittedRes = await ref.read(hmInOfficeProvider.notifier).submitApplication(_appId!);
-      if (submittedRes == null) {
-        if (mounted) _showMessage('Submit failed. Application data is incomplete or already submitted.');
-        setState(() => _loading = false);
-        return;
-      }
-      // Business rule parity: if lender not yet verified, account is created but loan is PENDING upgrade
-      final pendingUpgrade = submittedRes['pending_upgrade'] == true;
-      if (mounted) {
-        if (pendingUpgrade) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Account created via Walk-in. Lender must complete Account Upgrade before loan is created.'),
-              backgroundColor: AppColors.success,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(submittedRes['message']?.toString() ?? 'Application submitted.'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-        }
-      }
-      widget.onComplete();
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) _showMessage('Submit failed: $e');
-      setState(() => _loading = false);
-    }
-  }
-
-  /// Step-3 SUBMIT: saves Identify + Address + uploads Documents, then calls
-  /// the submit-account endpoint (creates the lender account + auto-verifies
-  /// the upgrade — no loan yet). On success shows the login credentials and
-  /// lets staff continue to Step 4 (Loan) or finish (lender self-applies).
   Future<void> _submitAccountAndContinue() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -1904,7 +1252,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       });
       final isNewLender = (res['is_new_lender'] as bool?) ?? true;
       final loginPhone = (res['login_phone']?.toString() ?? _phoneCtrl.text.trim());
-      final goOn = await showDialog<bool>(
+      await showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
@@ -1922,8 +1270,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             children: [
               Text(
                 isNewLender
-                    ? 'The lender can now log in and apply for a loan on their own. Or continue to encode the loan here.'
-                    : 'This phone number already has a lender account — it was linked and verified. Continue to encode the loan here, or let the lender log in with their existing password.',
+                    ? 'The walk-in is complete. The lender can now log in and apply for a loan on their own.'
+                    : 'This phone number already has a lender account — it was linked and verified. The lender can log in with their existing password and apply for a loan.',
                 style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               if (isNewLender) ...[
@@ -1935,28 +1283,20 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             ],
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Done'),
-            ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
+              onPressed: () => Navigator.pop(ctx),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepNavy,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Continue to Loan'),
+              child: const Text('Done'),
             ),
           ],
         ),
       );
       if (!mounted) return;
       widget.onComplete();
-      if (goOn == true) {
-        setState(() => _step = 3);
-      } else {
-        Navigator.pop(context);
-      }
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) _showMessage('Account submit failed: $e');
       setState(() => _loading = false);
@@ -2019,50 +1359,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     return docs;
   }
 
-  Future<Map<String, dynamic>> _buildStep5Data() async {
-    final docs = await _uploadDocs();
-    String? signaturePath;
-    if (_signature != null && _signature!.isNotEmpty) {
-      // Existing storage path (loaded from a saved draft) — reuse it directly
-      // instead of trying to base64-decode a path.
-      final sig = _signature!;
-      final isExistingPath = sig.contains('/') &&
-          sig.length < 500 &&
-          !sig.startsWith('data:') &&
-          !RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(sig);
-      if (isExistingPath) {
-        signaturePath = sig;
-      } else {
-        try {
-          // _signature is base64-encoded PNG bytes (no data: prefix). Upload
-          // to storage so DB column (VARCHAR 255 / future TEXT) stores a short
-          // path, not a 20KB base64 string that overflows and causes PATCH 500.
-          final sigBytes = base64Decode(_signature!);
-          final path = await SupabaseStorageService.instance.uploadFile(
-            bucket: 'loan-documents',
-            folder: 'in-office-applications/signatures',
-            bytes: sigBytes,
-            fileName: 'signature_${DateTime.now().millisecondsSinceEpoch}.png',
-            contentType: 'image/png',
-          );
-          signaturePath = path;
-        } catch (e) {
-          // Fallback: if upload fails (offline, bucket missing), store the raw
-          // base64 but truncated to 255 to avoid DB "value too long" 500. The
-          // server will also truncate/log. Signature will be degraded but
-          // wizard can still complete and submit.
-          // ignore: avoid_print
-          print('[InOfficeWizard] signature upload failed, falling back to truncated base64: $e');
-          signaturePath = _signature!.length > 255 ? _signature!.substring(0, 255) : _signature;
-        }
-      }
-    }
-    return {
-      'documents': docs,
-      if (signaturePath != null) 'borrower_signature': signaturePath,
-    };
-  }
-
   String? _emailValidator(String? value) {
     final v = _requiredValidator(value);
     if (v != null) return v;
@@ -2075,16 +1371,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   String? _requiredValidator(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'This field is required';
-    }
-    return null;
-  }
-
-  String? _amountValidator(String? value) {
-    final v = _requiredValidator(value);
-    if (v != null) return v;
-    final d = double.tryParse(value!.replaceAll(',', '').trim());
-    if (d == null || d < _minAmount || d > _maxAmount) {
-      return 'Amount must be between ₱3,000 and ₱500,000';
     }
     return null;
   }

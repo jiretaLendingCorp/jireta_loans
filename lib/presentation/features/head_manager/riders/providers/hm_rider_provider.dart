@@ -12,6 +12,8 @@ class HmRiderState {
   final String? error;
   final String search;
   final String statusFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmRiderState({
     this.riders = const [],
@@ -19,6 +21,8 @@ class HmRiderState {
     this.error,
     this.search = '',
     this.statusFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmRiderState copyWith({
@@ -27,6 +31,8 @@ class HmRiderState {
     String? error,
     String? search,
     String? statusFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmRiderState(
         riders: riders ?? this.riders,
@@ -34,6 +40,8 @@ class HmRiderState {
         error: error,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -52,6 +60,8 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
         role: 'rider',
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()
@@ -71,6 +81,11 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
 
   void setStatus(String v) {
     state = state.copyWith(statusFilter: v);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     load();
   }
 

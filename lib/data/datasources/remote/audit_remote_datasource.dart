@@ -23,8 +23,8 @@ class AuditRemoteDataSource {
         // users.first_name / users.last_name (ilike), NOT the raw UUID column.
         if (performedBy != null) 'performed_by_name': performedBy,
         if (tableName != null) 'table_name': tableName,
-        if (startDate != null) 'start_date': startDate,
-        if (endDate != null) 'end_date': endDate,
+        if (startDate != null) 'date_from': startDate,
+        if (endDate != null) 'date_to': endDate,
         'page': page,
         'limit': limit,
       },
@@ -47,6 +47,8 @@ class AuditRemoteDataSource {
     String? action,
     String? performedBy,
     String? tableName,
+    String? startDate,
+    String? endDate,
     int page = 1,
     int limit = 20,
   }) =>
@@ -54,6 +56,8 @@ class AuditRemoteDataSource {
         action: action,
         performedBy: performedBy,
         tableName: tableName,
+        startDate: startDate,
+        endDate: endDate,
         page: page,
         limit: limit,
       );

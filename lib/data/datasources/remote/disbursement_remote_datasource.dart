@@ -30,6 +30,9 @@ class DisbursementRemoteDataSource {
   Future<List<DisbursementModel>> getDisbursementList({
     String? method,
     String? status,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
     int page = 1,
     int limit = 20,
   }) async {
@@ -38,6 +41,9 @@ class DisbursementRemoteDataSource {
       queryParams: {
         if (method != null) 'method': method,
         if (status != null) 'status': status,
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         'page': page,
         'limit': limit,
       },
@@ -89,11 +95,20 @@ class DisbursementRemoteDataSource {
   Future<List<DisbursementModel>> getDisbursements({
     String? method,
     String? status,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
     int page = 1,
     int limit = 20,
   }) =>
       getDisbursementList(
-          method: method, status: status, page: page, limit: limit);
+          method: method,
+          status: status,
+          search: search,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
+          page: page,
+          limit: limit);
 
   Future<Map<String, dynamic>> disburseGcash({
     required String loanId,

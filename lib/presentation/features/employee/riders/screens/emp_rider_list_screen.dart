@@ -6,6 +6,8 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_rider_provider.dart';
 import '../widgets/emp_create_rider_modal.dart';
@@ -19,6 +21,15 @@ class EmpRiderListScreen extends ConsumerStatefulWidget {
 
 class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(empRiderProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -80,6 +91,10 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
                   ref.read(empRiderProvider.notifier).setSearch(v),
             ),
           ),
+          const SizedBox(width: 12),
+          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+          const SizedBox(width: 12),
+          SearchResultsChip(count: state.riders.length),
           const SizedBox(width: 12),
           DropdownButton<String>(
             value: state.statusFilter,

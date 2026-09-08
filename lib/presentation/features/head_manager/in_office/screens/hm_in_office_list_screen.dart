@@ -125,10 +125,23 @@ class _HmInOfficeListScreenState extends ConsumerState<HmInOfficeListScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Step ${app['wizard_step'] ?? 1} of 5 • ${createdAt != null ? DateFormat('MMM d, y h:mm a').format(createdAt) : ''}',
+                        createdAt != null
+                            ? DateFormat('MMM d, y h:mm a').format(createdAt)
+                            : '',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textSecondary),
                       ),
+                      if (app['loan'] != null &&
+                          (app['loan'] as Map).isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Loan ${(app['loan'] as Map)['loan_number'] ?? ''}',
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.deepNavy,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ],
                     ],
                   ),
                 ),

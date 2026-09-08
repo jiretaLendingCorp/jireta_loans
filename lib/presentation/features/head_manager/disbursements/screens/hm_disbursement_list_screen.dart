@@ -7,6 +7,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/disbursement_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_disbursement_provider.dart';
@@ -22,6 +24,15 @@ class HmDisbursementListScreen extends ConsumerStatefulWidget {
 class _HmDisbursementListScreenState
     extends ConsumerState<HmDisbursementListScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(hmDisbursementProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -75,6 +86,10 @@ class _HmDisbursementListScreenState
                   ref.read(hmDisbursementProvider.notifier).setSearch(v),
             ),
           ),
+          const SizedBox(width: 12),
+          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+          const SizedBox(width: 12),
+          SearchResultsChip(count: state.disbursements.length),
           const SizedBox(width: 12),
           DropdownButton<String>(
             value: state.methodFilter,

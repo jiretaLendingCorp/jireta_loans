@@ -18,6 +18,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { getHeadManagerDashboardStats } from '../_shared/dashboard_stats.ts';
 import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
+import { manilaMidnightUTC } from '../_shared/timezone.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'head-manager';
@@ -91,12 +92,15 @@ async function handleEmployee(req: Request) {
   let selectedMonth = '';
   let isDaily = false;
   let selectedDate = '';
+  // Boundaries are MANILA midnights (UTC+8), not UTC midnights — a day or
+  // month filter must cover the full Manila calendar day/month or the first
+  // 8 hours of the day get silently excluded from the dashboard.
   if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
     const [yy, mm, dd] = dateParam.split('-').map(Number);
     const probe = new Date(Date.UTC(yy, mm - 1, dd));
     if (probe.getUTCFullYear() === yy && probe.getUTCMonth() === mm - 1 && probe.getUTCDate() === dd) {
-      isoStart = new Date(Date.UTC(yy, mm - 1, dd, 0, 0, 0)).toISOString();
-      isoEnd = new Date(Date.UTC(yy, mm - 1, dd + 1, 0, 0, 0)).toISOString();
+      isoStart = manilaMidnightUTC(yy, mm, dd).toISOString();
+      isoEnd = manilaMidnightUTC(yy, mm, dd + 1).toISOString();
       isMonthly = true;
       isDaily = true;
       selectedDate = dateParam;
@@ -105,8 +109,8 @@ async function handleEmployee(req: Request) {
   } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
     const [yy, mm] = monthParam.split('-').map(Number);
     if (mm >= 1 && mm <= 12) {
-      isoStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0)).toISOString();
-      isoEnd = new Date(Date.UTC(yy, mm, 1, 0, 0, 0)).toISOString();
+      isoStart = manilaMidnightUTC(yy, mm, 1).toISOString();
+      isoEnd = manilaMidnightUTC(yy, mm + 1, 1).toISOString();
       isMonthly = true;
       selectedMonth = monthParam;
     }
@@ -179,12 +183,14 @@ async function handleRider(req: Request) {
   let selectedMonth = '';
   let isDaily = false;
   let selectedDate = '';
+  // Manila-midnight boundaries (UTC+8) so day/month filters cover the full
+  // Manila calendar period — same fix as the employee dashboard.
   if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
     const [yy, mm, dd] = dateParam.split('-').map(Number);
     const probe = new Date(Date.UTC(yy, mm - 1, dd));
     if (probe.getUTCFullYear() === yy && probe.getUTCMonth() === mm - 1 && probe.getUTCDate() === dd) {
-      isoStart = new Date(Date.UTC(yy, mm - 1, dd, 0, 0, 0)).toISOString();
-      isoEnd = new Date(Date.UTC(yy, mm - 1, dd + 1, 0, 0, 0)).toISOString();
+      isoStart = manilaMidnightUTC(yy, mm, dd).toISOString();
+      isoEnd = manilaMidnightUTC(yy, mm, dd + 1).toISOString();
       isMonthly = true;
       isDaily = true;
       selectedDate = dateParam;
@@ -193,8 +199,8 @@ async function handleRider(req: Request) {
   } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
     const [yy, mm] = monthParam.split('-').map(Number);
     if (mm >= 1 && mm <= 12) {
-      isoStart = new Date(Date.UTC(yy, mm - 1, 1, 0, 0, 0)).toISOString();
-      isoEnd = new Date(Date.UTC(yy, mm, 1, 0, 0, 0)).toISOString();
+      isoStart = manilaMidnightUTC(yy, mm, 1).toISOString();
+      isoEnd = manilaMidnightUTC(yy, mm + 1, 1).toISOString();
       isMonthly = true;
       selectedMonth = monthParam;
     }

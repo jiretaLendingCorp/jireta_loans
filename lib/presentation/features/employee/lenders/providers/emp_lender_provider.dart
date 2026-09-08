@@ -14,6 +14,8 @@ class EmpLenderState {
   final int page;
   final String search;
   final String statusFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const EmpLenderState({
     this.lenders = const [],
@@ -23,6 +25,8 @@ class EmpLenderState {
     this.page = 1,
     this.search = '',
     this.statusFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   EmpLenderState copyWith({
@@ -33,6 +37,8 @@ class EmpLenderState {
     int? page,
     String? search,
     String? statusFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       EmpLenderState(
         lenders: lenders ?? this.lenders,
@@ -42,6 +48,8 @@ class EmpLenderState {
         page: page ?? this.page,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -62,6 +70,8 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
         page: state.page,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()
@@ -76,6 +86,11 @@ class EmpLenderNotifier extends StateNotifier<EmpLenderState>
 
   void setSearch(String v) {
     state = state.copyWith(search: v, page: 1);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to, page: 1);
     load();
   }
 

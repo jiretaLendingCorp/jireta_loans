@@ -8,6 +8,8 @@ import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_head_managers_provider.dart';
 import '../widgets/create_head_manager_modal.dart';
@@ -22,6 +24,15 @@ class HmHeadManagersScreen extends ConsumerStatefulWidget {
 
 class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(hmHeadManagersProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -86,6 +97,10 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
                     .setSearch(v),
               ),
             ),
+            const SizedBox(width: 12),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(count: state.users.length),
             const SizedBox(width: 12),
             DropdownButton<String>(
               value: state.statusFilter,

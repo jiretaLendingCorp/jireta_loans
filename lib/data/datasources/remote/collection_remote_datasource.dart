@@ -10,8 +10,8 @@ class CollectionRemoteDataSource {
   Future<List<CollectionAssignmentModel>> getCollectionList({
     String? status,
     String? riderId,
-    String? startDate,
-    String? endDate,
+    String? dateFrom,
+    String? dateTo,
     String? search,
     int page = 1,
     int limit = 20,
@@ -21,8 +21,8 @@ class CollectionRemoteDataSource {
       queryParams: {
         if (status != null) 'status': status,
         if (riderId != null) 'rider_id': riderId,
-        if (startDate != null) 'start_date': startDate,
-        if (endDate != null) 'end_date': endDate,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         if (search != null) 'search': search,
         'page': page,
         'limit': limit,
@@ -39,8 +39,8 @@ class CollectionRemoteDataSource {
   Future<Map<String, dynamic>> getList({
     String? status,
     String? riderId,
-    String? startDate,
-    String? endDate,
+    String? dateFrom,
+    String? dateTo,
     String? search,
     int page = 1,
     int limit = 20,
@@ -50,8 +50,8 @@ class CollectionRemoteDataSource {
       queryParams: {
         if (status != null) 'status': status,
         if (riderId != null) 'rider_id': riderId,
-        if (startDate != null) 'start_date': startDate,
-        if (endDate != null) 'end_date': endDate,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         if (search != null) 'search': search,
         'page': page,
         'limit': limit,

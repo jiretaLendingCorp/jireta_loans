@@ -18,6 +18,8 @@ class EmpCiState {
   final int totalCount;
   final String statusFilter;
   final String search;
+  final String? dateFrom;
+  final String? dateTo;
 
   const EmpCiState({
     this.items = const [],
@@ -30,6 +32,8 @@ class EmpCiState {
     this.totalCount = 0,
     this.statusFilter = 'all',
     this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
 
   EmpCiState copyWith({
@@ -43,6 +47,8 @@ class EmpCiState {
     int? totalCount,
     String? statusFilter,
     String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       EmpCiState(
         items: items ?? this.items,
@@ -55,6 +61,8 @@ class EmpCiState {
         totalCount: totalCount ?? this.totalCount,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -75,6 +83,9 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
       final res = await _ds.getList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         page: page,
+        search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final list = (res['data'] as List? ?? [])
           .map((e) =>
@@ -125,6 +136,16 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
 
   void setStatus(String s) {
     state = state.copyWith(statusFilter: s);
+    fetch();
+  }
+
+  void setSearch(String s) {
+    state = state.copyWith(search: s);
+    fetch();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();
   }
 

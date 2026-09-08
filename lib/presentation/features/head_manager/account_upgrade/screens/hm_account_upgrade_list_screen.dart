@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/hm_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -17,6 +19,7 @@ class HmAccountUpgradeListScreen extends ConsumerStatefulWidget {
 
 class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeListScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
   final _scrollCtrl = ScrollController();
 
   final _dropdownTabs = const [
@@ -27,6 +30,14 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
     _TabDef('verified', 'Verified', Icons.verified_rounded),
     _TabDef('rejected', 'Rejected', Icons.cancel_rounded),
   ];
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(hmAccountUpgradeProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -148,17 +159,9 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
               ),
             ),
             const SizedBox(width: 12),
-            DropdownButton<String>(
-              value: state.statusFilter,
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('All')),
-                DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
-                DropdownMenuItem(value: 'verified', child: Text('Verified')),
-                DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
-              ],
-              onChanged: (v) =>
-                  ref.read(hmAccountUpgradeProvider.notifier).setStatus(v!),
-            ),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(count: state.docs.length),
           ],
         ),
       );

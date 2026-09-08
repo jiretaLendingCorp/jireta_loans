@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/emp_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -18,6 +20,7 @@ class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
 class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeListScreen> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  DateTimeRange? _dateRange;
 
   final _dropdownTabs = const [
     _TabDef('all', 'All', Icons.layers_outlined),
@@ -27,6 +30,14 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
     _TabDef('verified', 'Verified', Icons.verified_rounded),
     _TabDef('rejected', 'Rejected', Icons.cancel_rounded),
   ];
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(empAccountUpgradeProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -59,7 +70,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
               else if (state.docs.isEmpty)
                 _buildEmpty(state)
               else
-                _Entrance(child: _buildPremiumTable(_filtered(state.docs))),
+                _Entrance(child: _buildPremiumTable(state.docs)),
               if (state.totalPages > 1) ...[
                 const SizedBox(height: 16),
                 _buildPagination(state),
@@ -70,12 +81,6 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
         ),
       ),
     );
-  }
-
-  List<dynamic> _filtered(List<dynamic> docs) {
-    final q = _searchCtrl.text.toLowerCase().trim();
-    if (q.isEmpty) return docs;
-    return docs.where((d) => d.lenderName.toString().toLowerCase().contains(q) || (d.lender?['email']?.toString().toLowerCase().contains(q) ?? false)).toList();
   }
 
   Widget _buildTabPills(String active) {
@@ -133,7 +138,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
 
   Widget _buildToolbar(EmpAccountUpgradeState state) {
     final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = _filtered(state.docs).length;
+    final resultsCount = state.totalCount;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2))]),
@@ -143,29 +148,26 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
         Expanded(
           child: TextField(
             controller: _searchCtrl,
-            onChanged: (_) => setState(() {}),
+            onChanged: (v) => ref.read(empAccountUpgradeProvider.notifier).setSearch(v),
             style: const TextStyle(fontSize: 13),
             decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)),
           ),
         ),
         if (hasSearch)
           InkWell(
-            onTap: () => setState(() => _searchCtrl.clear()),
+            onTap: () {
+              _searchCtrl.clear();
+              ref.read(empAccountUpgradeProvider.notifier).setSearch('');
+            },
             borderRadius: BorderRadius.circular(20),
             child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary)),
           ),
         if (hasSearch) const SizedBox(width: 10),
         _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch()),
         const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(10)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.layers_outlined, size: 14, color: Colors.white),
-            const SizedBox(width: 6),
-            Text('$resultsCount results', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
-          ]),
-        ),
+        SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+        const SizedBox(width: 8),
+        SearchResultsChip(count: resultsCount),
       ]),
     );
   }
@@ -283,7 +285,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
   }
 
   Widget _buildEmpty(EmpAccountUpgradeState state) {
-    final isFiltered = state.statusFilter != 'all';
+    final isFiltered = state.statusFilter != 'all' || state.search.isNotEmpty;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
@@ -296,7 +298,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
         Text(isFiltered ? 'Try a different filter.' : 'Lender KYC upgrade requests will appear here for review.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
         if (isFiltered) ...[
           const SizedBox(height: 18),
-          OutlinedButton.icon(onPressed: () => ref.read(empAccountUpgradeProvider.notifier).setStatus('all'), icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+          OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(empAccountUpgradeProvider.notifier).setSearch(''); ref.read(empAccountUpgradeProvider.notifier).setStatus('all'); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
         ],
       ]),
     );

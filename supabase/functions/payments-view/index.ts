@@ -53,6 +53,7 @@ async function handleGetList(req: Request) {
   const status = url.searchParams.get('status');
   const method = url.searchParams.get('method');
   const paymentId = url.searchParams.get('payment_id');
+  const search = url.searchParams.get('search');
   const dateFrom = url.searchParams.get('date_from');
   const dateTo = url.searchParams.get('date_to');
   const offset = (page - 1) * limit;
@@ -66,6 +67,15 @@ async function handleGetList(req: Request) {
   if (paymentId) query = query.eq('id', paymentId);
   if (status) query = query.eq('status', status);
   if (method) query = query.eq('payment_method', method);
+  if (search) {
+    // Strip postgREST filter metacharacters so user input can't break the `.or()`.
+    const term = String(search).replace(/[(),.%*[\].]/g, '');
+    query = query.or(
+      `loan_schedules.loans.loan_number.ilike.%${term}%,` +
+      `loan_schedules.loans.lender_profiles.users.first_name.ilike.%${term}%,` +
+      `loan_schedules.loans.lender_profiles.users.last_name.ilike.%${term}%`,
+    );
+  }
   if (dateFrom) query = query.gte('created_at', dateFrom);
   if (dateTo) query = query.lte('created_at', dateTo);
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);

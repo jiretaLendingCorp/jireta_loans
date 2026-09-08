@@ -15,6 +15,9 @@ class EmpCollectionState {
   final int totalPages;
   final int totalCount;
   final String statusFilter;
+  final String search;
+  final String? dateFrom;
+  final String? dateTo;
 
   const EmpCollectionState({
     this.items = const [],
@@ -24,6 +27,9 @@ class EmpCollectionState {
     this.totalPages = 1,
     this.totalCount = 0,
     this.statusFilter = 'all',
+    this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
 
   EmpCollectionState copyWith({
@@ -34,6 +40,9 @@ class EmpCollectionState {
     int? totalPages,
     int? totalCount,
     String? statusFilter,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       EmpCollectionState(
         items: items ?? this.items,
@@ -43,6 +52,9 @@ class EmpCollectionState {
         totalPages: totalPages ?? this.totalPages,
         totalCount: totalCount ?? this.totalCount,
         statusFilter: statusFilter ?? this.statusFilter,
+        search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -64,6 +76,9 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
       final list = await _ds.getCollectionList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         page: page,
+        search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       state = state.copyWith(
         items: list,
@@ -88,6 +103,16 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
 
   void setStatus(String status) {
     state = state.copyWith(statusFilter: status);
+    fetch();
+  }
+
+  void setSearch(String s) {
+    state = state.copyWith(search: s);
+    fetch();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();
   }
 

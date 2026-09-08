@@ -13,6 +13,8 @@ class HmAllUsersState {
   final String search;
   final String statusFilter;
   final String roleFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmAllUsersState({
     this.users = const [],
@@ -21,6 +23,8 @@ class HmAllUsersState {
     this.search = '',
     this.statusFilter = 'all',
     this.roleFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmAllUsersState copyWith({
@@ -30,6 +34,8 @@ class HmAllUsersState {
     String? search,
     String? statusFilter,
     String? roleFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmAllUsersState(
         users: users ?? this.users,
@@ -38,6 +44,8 @@ class HmAllUsersState {
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
         roleFilter: roleFilter ?? this.roleFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -57,6 +65,8 @@ class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
         role: state.roleFilter == 'all' ? null : state.roleFilter,
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       // Kapag naka "All Status" hindi ipapakita ang archived — nasa Archived container na sila.
       final filtered = state.statusFilter == 'all'
@@ -82,6 +92,11 @@ class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
 
   void setRole(String v) {
     state = state.copyWith(roleFilter: v);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     load();
   }
 

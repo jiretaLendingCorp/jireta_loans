@@ -15,6 +15,8 @@ class HmAccountUpgradeState {
   final int totalCount;
   final String statusFilter;
   final String search;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmAccountUpgradeState({
     this.docs = const [],
@@ -25,6 +27,8 @@ class HmAccountUpgradeState {
     this.totalCount = 0,
     this.statusFilter = 'all',
     this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmAccountUpgradeState copyWith({
@@ -36,6 +40,8 @@ class HmAccountUpgradeState {
     int? totalCount,
     String? statusFilter,
     String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmAccountUpgradeState(
         docs: docs ?? this.docs,
@@ -46,6 +52,8 @@ class HmAccountUpgradeState {
         totalCount: totalCount ?? this.totalCount,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -66,6 +74,8 @@ class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         page: page,
         lenderName: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final list = (res['data'] as List? ?? [])
           .map((e) =>
@@ -93,6 +103,11 @@ class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
 
   void setSearch(String s) {
     state = state.copyWith(search: s);
+    fetch();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();
   }
 

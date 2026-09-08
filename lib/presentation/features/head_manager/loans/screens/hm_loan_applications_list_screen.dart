@@ -7,6 +7,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/hm_loan_provider.dart';
@@ -27,6 +29,7 @@ class HmLoanApplicationsListScreen extends ConsumerStatefulWidget {
 class _HmLoanApplicationsListScreenState
     extends ConsumerState<HmLoanApplicationsListScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
   final _scrollCtrl = ScrollController();
   // Keeps In-Office selected locally while staying on /hm/loan-applications
   // so WebScaffold continues to highlight "Loan Records" in the side nav.
@@ -46,6 +49,14 @@ class _HmLoanApplicationsListScreenState
     _TabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
     _TabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
   ];
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(hmLoanProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -229,7 +240,6 @@ class _HmLoanApplicationsListScreenState
                 decoration: InputDecoration(
                   hintText: 'Search loan applications...',
                   prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: const Icon(Icons.search, size: 20, color: AppColors.textTertiary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: const BorderSide(color: AppColors.border),
@@ -244,6 +254,14 @@ class _HmLoanApplicationsListScreenState
                   }
                 },
               ),
+            ),
+            const SizedBox(width: 12),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(
+              count: isInOffice
+                  ? _filteredInOffice(inOfficeState.applications).length
+                  : loanState.loans.length,
             ),
           ],
         ),
@@ -294,7 +312,7 @@ class _HmLoanApplicationsListScreenState
                     flex: 3,
                     child: _HLabel('Lender', Icons.person_outline)),
                 const Expanded(
-                    flex: 2, child: _HLabel('Step', Icons.layers_outlined)),
+                    flex: 2, child: _HLabel('Loan', Icons.request_quote_outlined)),
                 const Expanded(
                     flex: 2, child: _HLabel('Created', Icons.event_outlined)),
                 const Expanded(
@@ -361,9 +379,11 @@ class _HmLoanApplicationsListScreenState
                   Expanded(
                     flex: 2,
                     child: Text(
-                      'Step ${app['wizard_step'] ?? 1} of 5',
+                      _inOfficeLoanLabel(app),
                       style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                   Expanded(
@@ -1383,6 +1403,20 @@ class _RowActions extends StatelessWidget {
   }
 }
 
+String _inOfficeLoanLabel(Map<String, dynamic> app) {
+  final loan = app['loan'];
+  if (loan is Map && loan.isNotEmpty) {
+    final loanNumber = (loan['loan_number'] ?? '').toString();
+    final loanStatus = (loan['status'] ?? '').toString();
+    if (loanNumber.isNotEmpty) {
+      return loanStatus.isNotEmpty
+          ? '$loanNumber • $loanStatus'
+          : loanNumber;
+    }
+  }
+  return 'No loan yet';
+}
+
 class _InOfficeActions extends ConsumerWidget {
   final Map<String, dynamic> app;
   const _InOfficeActions({required this.app});
@@ -1403,20 +1437,6 @@ class _InOfficeActions extends ConsumerWidget {
             builder: (_) => InOfficeWizard(
               applicationId: id.isEmpty ? null : id,
               viewOnly: true,
-              onComplete: () => ref.read(hmInOfficeProvider.notifier).load(),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        _ActionIcon(
-          icon: Icons.edit_outlined,
-          color: AppColors.info,
-          tooltip: 'Resume wizard',
-          onTap: () => showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => InOfficeWizard(
-              applicationId: id.isEmpty ? null : id,
               onComplete: () => ref.read(hmInOfficeProvider.notifier).load(),
             ),
           ),

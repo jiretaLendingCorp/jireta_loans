@@ -13,6 +13,8 @@ class HmDisbursementState {
   final String methodFilter;
   final String statusFilter;
   final String search;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmDisbursementState({
     this.disbursements = const [],
@@ -21,6 +23,8 @@ class HmDisbursementState {
     this.methodFilter = 'all',
     this.statusFilter = 'all',
     this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmDisbursementState copyWith({
@@ -30,6 +34,8 @@ class HmDisbursementState {
     String? methodFilter,
     String? statusFilter,
     String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmDisbursementState(
         disbursements: disbursements ?? this.disbursements,
@@ -38,6 +44,8 @@ class HmDisbursementState {
         methodFilter: methodFilter ?? this.methodFilter,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -57,6 +65,9 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
       final list = await _ds.getDisbursements(
         method: state.methodFilter == 'all' ? null : state.methodFilter,
         status: state.statusFilter == 'all' ? null : state.statusFilter,
+        search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       state = state.copyWith(disbursements: list, isLoading: false);
     } catch (e) {
@@ -78,6 +89,11 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
 
   void setSearch(String v) {
     state = state.copyWith(search: v);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     load();
   }
 

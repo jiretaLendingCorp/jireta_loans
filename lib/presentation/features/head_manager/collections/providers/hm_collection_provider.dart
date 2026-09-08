@@ -15,6 +15,8 @@ class HmCollectionState {
   final int totalCount;
   final String statusFilter;
   final String search;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmCollectionState({
     this.items = const [],
@@ -25,6 +27,8 @@ class HmCollectionState {
     this.totalCount = 0,
     this.statusFilter = 'all',
     this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmCollectionState copyWith({
@@ -36,6 +40,8 @@ class HmCollectionState {
     int? totalCount,
     String? statusFilter,
     String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmCollectionState(
         items: items ?? this.items,
@@ -46,6 +52,8 @@ class HmCollectionState {
         totalCount: totalCount ?? this.totalCount,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -65,6 +73,8 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
         page: page,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       state = state.copyWith(
         items: list,
@@ -87,6 +97,11 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
 
   void setSearch(String v) {
     state = state.copyWith(search: v);
+    fetch();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();
   }
 

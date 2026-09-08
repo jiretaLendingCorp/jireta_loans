@@ -7,6 +7,8 @@ import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/hm_lender_provider.dart';
 import '../widgets/create_lender_modal.dart';
 
@@ -19,6 +21,15 @@ class HmLenderListScreen extends ConsumerStatefulWidget {
 
 class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(hmLenderProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -82,6 +93,10 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                     ref.read(hmLenderProvider.notifier).setSearch(v),
               ),
             ),
+            const SizedBox(width: 12),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(count: state.lenders.length),
             const SizedBox(width: 12),
             DropdownButton<String>(
               value: state.statusFilter,

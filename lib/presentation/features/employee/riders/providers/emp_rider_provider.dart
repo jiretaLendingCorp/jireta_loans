@@ -14,6 +14,8 @@ class EmpRiderState {
   final int page;
   final String search;
   final String statusFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const EmpRiderState({
     this.riders = const [],
@@ -23,6 +25,8 @@ class EmpRiderState {
     this.page = 1,
     this.search = '',
     this.statusFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   EmpRiderState copyWith({
@@ -33,6 +37,8 @@ class EmpRiderState {
     int? page,
     String? search,
     String? statusFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       EmpRiderState(
         riders: riders ?? this.riders,
@@ -42,6 +48,8 @@ class EmpRiderState {
         page: page ?? this.page,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -61,6 +69,8 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
         page: state.page,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()
@@ -75,6 +85,11 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
 
   void setSearch(String v) {
     state = state.copyWith(search: v, page: 1);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to, page: 1);
     load();
   }
 

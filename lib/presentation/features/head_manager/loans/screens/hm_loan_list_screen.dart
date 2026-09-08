@@ -9,6 +9,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/loan_details_modal.dart';
@@ -27,6 +29,7 @@ class HmLoanListScreen extends ConsumerStatefulWidget {
 
 class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
   final _searchCtrl = TextEditingController();
+  DateTimeRange? _dateRange;
 
   final _tabs = const [
     _ActiveTab('active', 'Active', Icons.bolt_rounded),
@@ -34,6 +37,14 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
     _ActiveTab('overdue', 'Overdue', Icons.warning_rounded),
     _ActiveTab('all', 'All History', Icons.history_rounded),
   ];
+
+  void _onDateRangeChanged(DateTimeRange? r) {
+    setState(() => _dateRange = r);
+    ref.read(hmActiveLoanProvider.notifier).setDateRange(
+          r == null ? null : SearchDateFilter.fromParam(r.start),
+          r == null ? null : SearchDateFilter.toParam(r.end),
+        );
+  }
 
   @override
   void dispose() {
@@ -160,28 +171,9 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: AppColors.deepNavy,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.account_balance_wallet_outlined,
-                      size: 14, color: Colors.white),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${state.loans.length} results',
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            const SizedBox(width: 12),
+            SearchResultsChip(count: state.loans.length),
           ],
         ),
       );

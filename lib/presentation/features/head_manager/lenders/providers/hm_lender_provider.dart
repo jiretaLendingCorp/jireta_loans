@@ -12,6 +12,8 @@ class HmLenderState {
   final String? error;
   final String search;
   final String statusFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmLenderState({
     this.lenders = const [],
@@ -19,6 +21,8 @@ class HmLenderState {
     this.error,
     this.search = '',
     this.statusFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmLenderState copyWith({
@@ -27,6 +31,8 @@ class HmLenderState {
     String? error,
     String? search,
     String? statusFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmLenderState(
         lenders: lenders ?? this.lenders,
@@ -34,6 +40,8 @@ class HmLenderState {
         error: error,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -53,6 +61,8 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
         role: 'lender',
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()
@@ -72,6 +82,11 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
 
   void setStatus(String v) {
     state = state.copyWith(statusFilter: v);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     load();
   }
 

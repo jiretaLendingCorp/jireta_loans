@@ -119,6 +119,9 @@ async function handleCollectionGetList(req: Request) {
   const { page, limit } = validatePagination(url.searchParams.get('page'), url.searchParams.get('limit'));
   const status = url.searchParams.get('status');
   const riderId = url.searchParams.get('rider_id');
+  const search = url.searchParams.get('search');
+  const dateFrom = url.searchParams.get('date_from');
+  const dateTo = url.searchParams.get('date_to');
   const offset = (page - 1) * limit;
   const db = getAdminClient();
   // Auto-expire overdue before listing so overdue assignments disappear
@@ -131,6 +134,17 @@ async function handleCollectionGetList(req: Request) {
     .select(COLLECTION_SELECT, { count: 'exact' });
   query = scopeQueryToUser(query, user, riderId);
   if (status) query = query.eq('status', status);
+  if (search) {
+    // Strip postgREST filter metacharacters so user input can't break the `.or()`.
+    const term = String(search).replace(/[(),.%*[\].]/g, '');
+    query = query.or(
+      `loan_schedule.loan.loan_number.ilike.%${term}%,` +
+      `loan_schedule.loan.lender_profiles.users.first_name.ilike.%${term}%,` +
+      `loan_schedule.loan.lender_profiles.users.last_name.ilike.%${term}%`,
+    );
+  }
+  if (dateFrom) query = query.gte('created_at', dateFrom);
+  if (dateTo) query = query.lte('created_at', dateTo);
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   // The deeply-nested renamed embeds in the select string trip supabase-js's
   // type-level PostgREST parser (ParserError), so the row type is re-typed

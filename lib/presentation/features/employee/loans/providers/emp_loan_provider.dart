@@ -13,6 +13,8 @@ class EmpLoanState {
   final int page;
   final String search;
   final String? statusFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const EmpLoanState({
     this.loans = const [],
@@ -21,6 +23,8 @@ class EmpLoanState {
     this.page = 1,
     this.search = '',
     this.statusFilter,
+    this.dateFrom,
+    this.dateTo,
   });
 
   static const _unset = Object();
@@ -32,6 +36,8 @@ class EmpLoanState {
     int? page,
     String? search,
     Object? statusFilter = _unset,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       EmpLoanState(
         loans: loans ?? this.loans,
@@ -42,6 +48,8 @@ class EmpLoanState {
         statusFilter: statusFilter == _unset
             ? this.statusFilter
             : statusFilter as String?,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -60,6 +68,8 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
         status: state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
         page: state.page,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       state = state.copyWith(loans: list, isLoading: false);
     } catch (e) {
@@ -76,6 +86,11 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
 
   void setStatus(String? v) {
     state = state.copyWith(statusFilter: v, page: 1);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to, page: 1);
     load();
   }
 

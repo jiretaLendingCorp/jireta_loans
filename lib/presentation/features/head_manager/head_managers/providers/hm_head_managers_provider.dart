@@ -12,6 +12,8 @@ class HmHeadManagersState {
   final String? error;
   final String search;
   final String statusFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmHeadManagersState({
     this.users = const [],
@@ -19,6 +21,8 @@ class HmHeadManagersState {
     this.error,
     this.search = '',
     this.statusFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmHeadManagersState copyWith({
@@ -27,6 +31,8 @@ class HmHeadManagersState {
     String? error,
     String? search,
     String? statusFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmHeadManagersState(
         users: users ?? this.users,
@@ -34,6 +40,8 @@ class HmHeadManagersState {
         error: error,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -52,6 +60,8 @@ class HmHeadManagersNotifier extends StateNotifier<HmHeadManagersState>
         role: 'head_manager',
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       // Kapag naka "All Status" hindi ipapakita ang archived — nasa Archived container na sila.
       final filtered = state.statusFilter == 'all'
@@ -72,6 +82,11 @@ class HmHeadManagersNotifier extends StateNotifier<HmHeadManagersState>
 
   void setStatus(String v) {
     state = state.copyWith(statusFilter: v);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     load();
   }
 

@@ -86,6 +86,8 @@ async function handleGetList(req: Request) {
   const role = url.searchParams.get('role');
   const status = url.searchParams.get('status');
   const search = url.searchParams.get('search');
+  const dateFrom = url.searchParams.get('date_from');
+  const dateTo = url.searchParams.get('date_to');
   const offset = (page - 1) * limit;
 
   if (user.role === ROLES.EMPLOYEE) {
@@ -132,6 +134,8 @@ async function handleGetList(req: Request) {
 
   if (status) query = query.eq('account_status', status);
   if (search) query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,phone_number.ilike.%${search}%`);
+  if (dateFrom) query = query.gte('created_at', dateFrom);
+  if (dateTo) query = query.lte('created_at', dateTo);
 
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
 

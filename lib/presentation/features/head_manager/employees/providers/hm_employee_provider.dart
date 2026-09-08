@@ -14,6 +14,8 @@ class HmEmployeeState {
   final int page;
   final String search;
   final String statusFilter;
+  final String? dateFrom;
+  final String? dateTo;
 
   const HmEmployeeState({
     this.employees = const [],
@@ -23,6 +25,8 @@ class HmEmployeeState {
     this.page = 1,
     this.search = '',
     this.statusFilter = 'all',
+    this.dateFrom,
+    this.dateTo,
   });
 
   HmEmployeeState copyWith({
@@ -33,6 +37,8 @@ class HmEmployeeState {
     int? page,
     String? search,
     String? statusFilter,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       HmEmployeeState(
         employees: employees ?? this.employees,
@@ -42,6 +48,8 @@ class HmEmployeeState {
         page: page ?? this.page,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -62,6 +70,8 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
         page: state.page,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()
@@ -81,6 +91,11 @@ class HmEmployeeNotifier extends StateNotifier<HmEmployeeState>
 
   void setStatus(String v) {
     state = state.copyWith(statusFilter: v, page: 1);
+    load();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to, page: 1);
     load();
   }
 

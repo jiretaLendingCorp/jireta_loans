@@ -15,6 +15,8 @@ class EmpAccountUpgradeState {
   final int totalCount;
   final String statusFilter;
   final String search;
+  final String? dateFrom;
+  final String? dateTo;
 
   const EmpAccountUpgradeState({
     this.docs = const [],
@@ -25,6 +27,8 @@ class EmpAccountUpgradeState {
     this.totalCount = 0,
     this.statusFilter = 'all',
     this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
 
   EmpAccountUpgradeState copyWith({
@@ -36,6 +40,8 @@ class EmpAccountUpgradeState {
     int? totalCount,
     String? statusFilter,
     String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
       EmpAccountUpgradeState(
         docs: docs ?? this.docs,
@@ -46,6 +52,8 @@ class EmpAccountUpgradeState {
         totalCount: totalCount ?? this.totalCount,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
@@ -66,6 +74,8 @@ class EmpAccountUpgradeNotifier extends StateNotifier<EmpAccountUpgradeState>
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         page: page,
         lenderName: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final list = (res['data'] as List? ?? [])
           .map((e) =>
@@ -101,6 +111,11 @@ class EmpAccountUpgradeNotifier extends StateNotifier<EmpAccountUpgradeState>
 
   void setSearch(String s) {
     state = state.copyWith(search: s);
+    fetch();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();
   }
 

@@ -137,7 +137,6 @@ class _ApplicationList extends StatelessWidget {
         final app = items[i] as Map<String, dynamic>;
         final lenderName = app['lender_name'] as String? ?? 'New Applicant';
         final status = app['status'] as String? ?? 'submitted';
-        final step = app['wizard_step'] as int? ?? 1;
         final createdAt = app['created_at'] as String?;
 
         return Card(
@@ -172,9 +171,13 @@ class _ApplicationList extends StatelessWidget {
                         children: [
                           StatusBadge(status: status),
                           const SizedBox(width: 8),
-                          Text('Step $step/5',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.textTertiary)),
+                          Text(
+                            _loanLabel(app),
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textTertiary,
+                                fontWeight: FontWeight.w600),
+                          ),
                         ],
                       ),
                       if (createdAt != null)
@@ -190,5 +193,17 @@ class _ApplicationList extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _loanLabel(Map<String, dynamic> app) {
+    final loan = app['loan'];
+    if (loan is Map && loan.isNotEmpty) {
+      final loanNumber = (loan['loan_number'] ?? '').toString();
+      final loanStatus = (loan['status'] ?? '').toString();
+      if (loanNumber.isNotEmpty) {
+        return loanStatus.isNotEmpty ? '$loanNumber • $loanStatus' : loanNumber;
+      }
+    }
+    return 'No loan yet';
   }
 }
