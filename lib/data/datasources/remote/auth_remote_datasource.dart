@@ -9,10 +9,15 @@ class AuthRemoteDataSource {
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
+    String? sessionId,
   }) async {
     final res = await _client.post(
       ApiEndpoints.authLogin,
-      data: {'email': email, 'password': password},
+      data: {
+        'email': email,
+        'password': password,
+        if (sessionId != null && sessionId.isNotEmpty) 'session_id': sessionId,
+      },
     );
     return res.data as Map<String, dynamic>;
   }
@@ -79,10 +84,15 @@ class AuthRemoteDataSource {
   Future<Map<String, dynamic>> verifyOtp({
     required String phone,
     required String otp,
+    String? sessionId,
   }) async {
     final res = await _client.post(
       ApiEndpoints.authVerifyOtp,
-      data: {'phone_number': phone, 'otp': otp},
+      data: {
+        'phone_number': phone,
+        'otp': otp,
+        if (sessionId != null && sessionId.isNotEmpty) 'session_id': sessionId,
+      },
     );
     return res.data as Map<String, dynamic>;
   }
@@ -107,10 +117,15 @@ class AuthRemoteDataSource {
   Future<Map<String, dynamic>> googleExchange({
     required String accessToken,
     String? refreshToken,
+    String? sessionId,
   }) async {
     final res = await _client.post(
       ApiEndpoints.authGoogle,
-      data: {'access_token': accessToken, 'refresh_token': refreshToken},
+      data: {
+        'access_token': accessToken,
+        'refresh_token': refreshToken,
+        if (sessionId != null && sessionId.isNotEmpty) 'session_id': sessionId,
+      },
     );
     return res.data as Map<String, dynamic>;
   }
@@ -139,7 +154,8 @@ class AuthRemoteDataSource {
     await _client.post(ApiEndpoints.authForgotPassword, data: {'email': email});
   }
 
-  Future<void> verifyResetOtp({required String email, required String otp}) async {
+  Future<void> verifyResetOtp(
+      {required String email, required String otp}) async {
     await _client.post(
       ApiEndpoints.authVerifyResetOtp,
       data: {'email': email, 'otp': otp},

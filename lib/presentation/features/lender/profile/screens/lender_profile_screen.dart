@@ -1,4 +1,4 @@
-﻿// lib/presentation/features/lender/profile/screens/lender_profile_screen.dart
+// lib/presentation/features/lender/profile/screens/lender_profile_screen.dart
 // Modern Minimalist redesign: neutral cards, hairline dividers,
 // quiet icons, single accent (lender navy). No serif, no heavy shadows.
 import 'package:flutter/material.dart';
@@ -98,16 +98,14 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             ),
             const SizedBox(height: 12),
             Text(message ?? 'Unable to load profile',
-                textAlign: TextAlign.center,
-                style: ModernProfileStyles.sub),
+                textAlign: TextAlign.center, style: ModernProfileStyles.sub),
             const SizedBox(height: 16),
             ModernPrimaryButton(
               label: 'Retry',
               icon: Icons.refresh_rounded,
               color: _accent,
-              onPressed: () => ref
-                  .read(lenderProfileProvider.notifier)
-                  .loadProfile(),
+              onPressed: () =>
+                  ref.read(lenderProfileProvider.notifier).loadProfile(),
             ),
           ],
         ),
@@ -140,21 +138,23 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             statusColor: status.fg,
             statusBg: status.bg,
             statusAsText: true,
+            // Lender profile: photo sits directly on the page background —
+            // no card / ring "plate" behind the profile picture.
+            flat: true,
           ),
           if (userModel?.isWalkIn == true) ...[
             const SizedBox(height: 12),
-            _buildWalkInNote(
-                userModel?.inOfficeApplication, isVerified: isVerified),
+            _buildWalkInNote(userModel?.inOfficeApplication,
+                isVerified: isVerified),
           ],
           const SizedBox(height: 16),
           if (isVerified)
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.center,
               child: TextButton.icon(
                 onPressed: () =>
                     context.push('${RouteConstants.lenderProfile}/edit'),
-                icon: const Icon(Icons.edit_outlined,
-                    size: 16, color: _accent),
+                icon: const Icon(Icons.edit_outlined, size: 16, color: _accent),
                 label: const Text(
                   'Edit Profile',
                   style: TextStyle(
@@ -171,8 +171,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 icon: Icons.verified_outlined,
                 title: 'Complete Verification',
                 subtitle: 'Unlock loan applications',
-                onTap: () => context
-                    .push(RouteConstants.lenderAccountUpgradeStatus),
+                onTap: () =>
+                    context.push(RouteConstants.lenderAccountUpgradeStatus),
               ),
             ]),
           if (isVerified) ...[
@@ -321,8 +321,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           const Center(
             child: Text(
               'Version ${AppConfig.appVersion}',
-              style: TextStyle(
-                  fontSize: 12, color: AppColors.textTertiary),
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
             ),
           ),
         ],
@@ -339,20 +338,20 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ModernInfoSheet(
-          title: title, icon: icon, sections: sections),
+      builder: (_) =>
+          ModernInfoSheet(title: title, icon: icon, sections: sections),
     );
   }
 
   _StatusStyle _statusStyle(String? status) {
     final s = (status ?? 'active').toLowerCase();
     return switch (s) {
-      'active' => const _StatusStyle('Active', AppColors.success,
-          AppColors.successLight),
-      'whitelisted' => const _StatusStyle('Whitelisted', AppColors.success,
-          AppColors.successLight),
-      'suspended' => const _StatusStyle('Suspended', AppColors.warning,
-          AppColors.warningLight),
+      'active' =>
+        const _StatusStyle('Active', AppColors.success, AppColors.successLight),
+      'whitelisted' => const _StatusStyle(
+          'Whitelisted', AppColors.success, AppColors.successLight),
+      'suspended' => const _StatusStyle(
+          'Suspended', AppColors.warning, AppColors.warningLight),
       'blacklisted' || 'deactivated' => _StatusStyle(
           s[0].toUpperCase() + s.substring(1),
           AppColors.error,
@@ -489,8 +488,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Color(0xFFF0CFCF)),
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );

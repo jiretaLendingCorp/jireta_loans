@@ -48,13 +48,25 @@ class HmRiderState {
 class HmRiderNotifier extends StateNotifier<HmRiderState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
+  // Guards against out-of-order responses: a slow older request must never
+  // overwrite a newer search/filter result (this made the list look stuck on
+  // "loading" and hid the actual matches).
+  int _requestSeq = 0;
+
   HmRiderNotifier(this._ds) : super(const HmRiderState()) {
-    bindRealtimeRefresh(['users', 'rider_profiles'], refresh: () => load(silent: true));
+    bindRealtimeRefresh(['users', 'rider_profiles'],
+        refresh: () => load(silent: true));
     load();
   }
 
   Future<void> load({bool silent = false}) async {
-    if (!silent) state = state.copyWith(isLoading: true);
+    final seq = ++_requestSeq;
+    // Only the very first load (or a reload on an empty list) may replace the
+    // whole body with a shimmer. Searches/filters keep the current rows on
+    // screen and swap in the new result when it arrives.
+    if (!silent && state.riders.isEmpty) {
+      state = state.copyWith(isLoading: true, error: null);
+    }
     try {
       final list = await _ds.getUsers(
         role: 'rider',
@@ -63,11 +75,14 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
+      if (seq != _requestSeq)
+        return; // stale response — a newer request owns the UI
       final filtered = state.statusFilter == 'all'
           ? list.where((u) => u.accountStatus != 'archived').toList()
           : list;
       state = state.copyWith(riders: filtered, isLoading: false);
     } catch (e) {
+      if (seq != _requestSeq) return;
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
@@ -76,21 +91,28 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
 
   void setSearch(String v) {
     state = state.copyWith(search: v);
-    load();
+    load(silent: true);
   }
 
   void setStatus(String v) {
     state = state.copyWith(statusFilter: v);
-    load();
+    load(silent: true);
   }
 
   void setDateRange(String? from, String? to) {
     state = state.copyWith(dateFrom: from, dateTo: to);
-    load();
+    load(silent: true);
   }
 
   Future<void> createRider(Map<String, dynamic> data) async {
     await _ds.createRider(data);
+    await load(silent: true);
+  }
+
+  /// Resets the rider's password to the default (backend forces a change
+  /// on next login) — mirrors the employee / head-manager action.
+  Future<void> resetPassword(String userId) async {
+    await _ds.resetPassword(userId);
     await load(silent: true);
   }
 
@@ -114,12 +136,12 @@ class HmRiderNotifier extends StateNotifier<HmRiderState>
       'vehicle_type': vehicleType,
       'vehicle_brand': vehicleBrand,
     });
-    await load();
+    await load(silent: true);
   }
 
   Future<void> archive(String userId) async {
     await _ds.archive(userId);
-    await load();
+    await load(silent: true);
   }
 }
 

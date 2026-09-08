@@ -17,11 +17,14 @@ import { getAdminClient } from '../_shared/db.ts';
 import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from reports-get-list] ───────────────────────────────────────────
+// Keys MUST match the `report_templates` seeds and the branches implemented in
+// reports-generate. Any mismatch shows a template that can never generate.
 const REPORT_TEMPLATES = [
-  { key: 'loan_report', name: 'Loan Report', description: 'All loan applications with status breakdown', category: 'Loans' },
+  { key: 'loan_summary', name: 'Loan Summary Report', description: 'Overview of all loan applications with status breakdown', category: 'Loans' },
   { key: 'payment_report', name: 'Payment Report', description: 'All verified payments with method breakdown', category: 'Payments' },
-  { key: 'collection_report', name: 'Collection Report', description: 'Rider collection assignments and outcomes', category: 'Collections' },
-  { key: 'borrower_report', name: 'Borrower Report', description: 'All lender accounts with Account Upgrade and profile data', category: 'Borrowers' },
+  { key: 'collection_report', name: 'Collection Report', description: 'Cash and GCash collections by rider and period', category: 'Collections' },
+  { key: 'lender_report', name: 'Lender Report', description: 'Registered lender accounts with account and verification status', category: 'Lenders' },
+  { key: 'account_upgrade_report', name: 'Account Upgrade Report', description: 'Lender account upgrade submissions and verification status', category: 'Lenders' },
   { key: 'rider_report', name: 'Rider Report', description: 'Rider performance and assignment history', category: 'Riders' },
   { key: 'employee_report', name: 'Employee Report', description: 'Employee activity and processed applications', category: 'Employees' },
   { key: 'financial_report', name: 'Financial Report', description: 'Revenue, interest, and penalties breakdown', category: 'Financial' },
@@ -70,7 +73,11 @@ async function handleGetList(req: Request) {
     const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER);
     if (roleCheck) return roleCheck;
 
-    return jsonResponse({ templates: REPORT_TEMPLATES });
+    return jsonResponse({
+      templates: REPORT_TEMPLATES,
+      data: REPORT_TEMPLATES,
+      total: REPORT_TEMPLATES.length,
+    });
   } catch (err) {
     console.error('reports-get-list error:', err);
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');

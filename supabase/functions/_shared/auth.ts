@@ -9,6 +9,52 @@ export interface AuthUser {
   role: string;
   email?: string;
   phone?: string;
+  sessionIdentifier: string;
+}
+
+/**
+ * Validates a client-supplied session id (sent at login and on every request
+ * via the `X-Session-Id` header / `session_id` body field).
+ *
+ * The id is generated ONCE per login by the client and kept in secure
+ * storage, so it is STABLE across token refreshes. The JWT `session_id`
+ * claim is NOT used as the primary identifier because every GoTrue
+ * sign-in/refresh can mint a new session id — using it here would make the
+ * app falsely revoke its own healthy session the moment its token rotates
+ * ("both devices locked out" bug).
+ */
+export function cleanSessionId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed === '' || trimmed.length > 100) return null;
+  return trimmed;
+}
+
+export function sessionIdentifierFromRequest(
+  req: Request,
+  token: string,
+): string {
+  const header = req.headers.get('x-session-id');
+  const fromHeader = cleanSessionId(header);
+  if (fromHeader) return fromHeader;
+  return sessionIdentifierFromToken(token);
+}
+
+/** Claim the one active session for a newly issued Supabase session. */
+export async function claimActiveSession(
+  db: ReturnType<typeof getAdminClient>,
+  userId: string,
+  sessionIdentifier: string,
+): Promise<boolean> {
+  const { data, error } = await db.rpc('claim_active_session', {
+    p_user_id: userId,
+    p_session_identifier: sessionIdentifier,
+  });
+  if (error) {
+    console.error('[session] claim_active_session failed', error.message);
+    return false;
+  }
+  return data === true;
 }
 
 export async function requireAuth(req: Request): Promise<AuthUser | Response> {
@@ -38,6 +84,9 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
   }
 
   const token = rawToken;
+  // Prefer the client's stable session id (survives token refresh); fall back
+  // to the JWT-derived identifier for older clients that predate it.
+  const sessionIdentifier = sessionIdentifierFromRequest(req, token);
   const supabase = getAdminClient();
 
   const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -159,23 +208,38 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     );
   }
 
-  // ── 10-minute idle tracking: bump last_login_at on every authenticated request ──
-  // Fire-and-forget so the API response is not delayed. Ensures the server-side
-  // 10m idle window in auth-session stays in sync with client idle detector.
-  try {
-    supabase
-      .from('users')
-      .update({ last_login_at: nowManilaISO() })
-      .eq('id', dbUser.id)
-      .then(() => {}, () => { /* fire-and-forget: ignore update errors */ });
-  } catch (_) {}
+  const sessionIsActive = await supabase.rpc('validate_active_session', {
+    p_user_id: dbUser.id,
+    p_session_identifier: sessionIdentifier,
+  });
+
+  if (sessionIsActive.error || sessionIsActive.data !== true) {
+    return errorResponse(
+      'Your account was signed in on another device. This session has been logged out for security.',
+      401,
+      'SESSION_REVOKED',
+    );
+  }
 
   return {
     id: dbUser.id,
     role: dbUser?.roles?.name ?? '',
     email: user.email,
     phone: user.phone,
+    sessionIdentifier,
   };
+}
+
+export function sessionIdentifierFromToken(token: string): string {
+  try {
+    const encoded = token.split('.')[1];
+    const payload = JSON.parse(atob(encoded.replace(/-/g, '+').replace(/_/g, '/')));
+    const value = payload?.session_id ?? payload?.sessionId;
+    if (typeof value === 'string' && value.trim() !== '') return value;
+  } catch (_) {}
+  // Legacy tokens do not expose session_id. They still receive a server-side
+  // record and remain compatible until they are refreshed.
+  return token;
 }
 
 export function isAuthUser(val: AuthUser | Response): val is AuthUser {

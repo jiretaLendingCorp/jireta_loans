@@ -48,6 +48,11 @@ class HmArchivedState {
 class HmArchivedNotifier extends StateNotifier<HmArchivedState>
     with RealtimeRefreshMixin {
   final UserRemoteDataSource _ds;
+  // Guards against out-of-order responses: a slow older request must never
+  // overwrite a newer search/filter result (this made the list look stuck on
+  // "loading" and hid the actual matches).
+  int _requestSeq = 0;
+
   HmArchivedNotifier(this._ds) : super(const HmArchivedState()) {
     bindRealtimeRefresh(
         ['users', 'rider_profiles', 'lender_profiles', 'employee_profiles'],
@@ -56,7 +61,13 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
   }
 
   Future<void> load({bool silent = false}) async {
-    if (!silent) state = state.copyWith(isLoading: true);
+    final seq = ++_requestSeq;
+    // Only the very first load (or a reload on an empty list) may replace the
+    // whole body with a shimmer. Searches/filters keep the current rows on
+    // screen and swap in the new result when it arrives.
+    if (!silent && state.users.isEmpty) {
+      state = state.copyWith(isLoading: true, error: null);
+    }
     try {
       final list = await _ds.getUsers(
         role: state.roleFilter == 'all' ? null : state.roleFilter,
@@ -65,8 +76,11 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
+      if (seq != _requestSeq)
+        return; // stale response — a newer request owns the UI
       state = state.copyWith(users: list, isLoading: false);
     } catch (e) {
+      if (seq != _requestSeq) return;
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
@@ -75,17 +89,17 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
 
   void setSearch(String v) {
     state = state.copyWith(search: v);
-    load();
+    load(silent: true);
   }
 
   void setRole(String v) {
     state = state.copyWith(roleFilter: v);
-    load();
+    load(silent: true);
   }
 
   void setDateRange(String? from, String? to) {
     state = state.copyWith(dateFrom: from, dateTo: to);
-    load();
+    load(silent: true);
   }
 
   Future<void> restore(String userId) async {
@@ -98,7 +112,7 @@ class HmArchivedNotifier extends StateNotifier<HmArchivedState>
         'account_status': 'active',
       });
     }
-    await load();
+    await load(silent: true);
   }
 }
 

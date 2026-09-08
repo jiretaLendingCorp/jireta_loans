@@ -16,6 +16,11 @@ import {
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
 import { guardRateLimit } from '../_shared/rate_limiter.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
+import {
+  claimActiveSession,
+  cleanSessionId,
+  sessionIdentifierFromToken,
+} from '../_shared/auth.ts';
 
 // ── Persistent, escalating login lockout ───────────────────────────────────
 // Stored in `login_lockouts` (keyed by user_id) so the lock survives a browser
@@ -82,9 +87,12 @@ serve(async (req) => {
 
   try {
     // ── Step 1: parse body ────────────────────────────────────────────────
-    let email: string, password: string;
+    // session_id is the client-generated stable identifier claimed as the one
+    // active session (see _shared/auth.ts cleanSessionId). Older clients omit
+    // it and fall back to the JWT-derived identifier.
+    let email: string, password: string, bodySessionId: unknown;
     try {
-      ({ email, password } = await req.json());
+      ({ email, password, session_id: bodySessionId } = await req.json());
     } catch {
       return errorResponse('Request body must be valid JSON', 400, 'VALIDATION_ERROR');
     }
@@ -305,12 +313,26 @@ serve(async (req) => {
       is_locked:       false,
     });
 
-    // Explicitly update last_login_at for 10m idle tracking (don't rely solely on trigger)
-    // Ensures second login's timestamp is fresh even if trigger missed, prevents immediate 401 on refresh
+    // Explicitly update last_login_at so the Profile/Security screen shows the
+    // REAL last successful login (never bumped by routine API traffic).
     try {
       await db.from('users').update({ last_login_at: nowManilaISO() }).eq('id', user.id);
     } catch (e) {
       console.warn('[auth-login] last_login_at update failed', e);
+    }
+
+    // Single-active-session: this login is now the one active session. Any
+    // other device logged in with this account has its session revoked and
+    // will be logged out server-side on its next authenticated request.
+    try {
+      await claimActiveSession(
+        db,
+        user.id,
+        cleanSessionId(bodySessionId) ??
+          sessionIdentifierFromToken(authData.session.access_token),
+      );
+    } catch (e) {
+      console.warn('[auth-login] claimActiveSession failed', e);
     }
 
    return jsonResponse({

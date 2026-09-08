@@ -18,6 +18,11 @@ import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 import { guardRateLimit, recordSecurityEvent, blockKey, checkBlock } from '../_shared/rate_limiter.ts';
 import { sanitizeIpAddress } from '../_shared/audit.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
+import {
+  claimActiveSession,
+  cleanSessionId,
+  sessionIdentifierFromToken,
+} from '../_shared/auth.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 10;
@@ -316,7 +321,7 @@ async function handleSendOtp(req: Request) {
 
 // ── [moved from functions/auth-verify-otp/index.ts] ─────────────────────────
 async function handleVerifyOtp(req: Request) {
-  const { phone_number, code, otp } = await req.json();
+  const { phone_number, code, otp, session_id: bodySessionId } = await req.json();
   const phone = sanitizeString(String(phone_number ?? ''));
   const otpCode = sanitizeString(String(otp ?? code ?? ''));
   const ip = clientIp(req);
@@ -540,6 +545,20 @@ async function handleVerifyOtp(req: Request) {
     ip_address: sanitizeIpAddress(req.headers.get('x-forwarded-for')),
   });
   await db.from('users').update({ last_login_at: nowManilaISO() }).eq('id', user.id);
+
+  // Single-active-session: claiming on every successful OTP verification means
+  // the newest verified login becomes the active session and any older one is
+  // revoked server-side (its next request returns SESSION_REVOKED → auto-logout).
+  try {
+    await claimActiveSession(
+      db,
+      user.id,
+      cleanSessionId(bodySessionId) ??
+        sessionIdentifierFromToken(session.access_token),
+    );
+  } catch (e) {
+    console.warn('[auth-verify-otp] claimActiveSession failed', e);
+  }
 
   return jsonResponse({
     access_token: session.access_token,

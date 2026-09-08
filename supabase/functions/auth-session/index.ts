@@ -10,7 +10,12 @@
 // only wrapped so it can live in a single `serve()`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { isAuthUser, requireAuth } from '../_shared/auth.ts';
+import {
+  cleanSessionId,
+  isAuthUser,
+  requireAuth,
+  sessionIdentifierFromToken,
+} from '../_shared/auth.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
@@ -43,7 +48,11 @@ serve(async (req) => {
 
 // ── [moved from functions/auth-refresh-session/index.ts] ────────────────────
 async function handleRefreshSession(req: Request) {
-  const { refresh_token } = await req.json();
+  // session_id is the client-generated stable identifier (see cleanSessionId).
+  // The refresh NEVER claims — it only checks that this sign-in is still the
+  // active one, using the SAME stable id the client claimed at login so a
+  // token rotation can never self-revoke the session.
+  const { refresh_token, session_id: bodySessionId } = await req.json();
   if (!refresh_token) return errorResponse('refresh_token is required', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
@@ -62,20 +71,52 @@ async function handleRefreshSession(req: Request) {
   // TEMP HOTFIX: role check disabled
   // try { const rName = dbUser?.roles?.name as string | undefined; if (rName) { const { data: _raS } = await db.from('roles').select('is_archived').eq('name', rName).maybeSingle(); if ((_raS as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 
-  // ── 10-minute idle session: hard expiry on inactivity ──────────────────
-  // After 10 minutes of no activity (no authenticated API call), refresh is
-  // rejected and user must re-login. Note: client bumps last_login_at on every
-  // authenticated request via the idle detector + AuthInterceptor, so this
-  // check effectively enforces the same 10m idle window server-side.
-  // Grace +30s to avoid immediate expiry on clock skew for second login.
-  if (dbUser.last_login_at) {
-    const elapsed = Date.now() - new Date(dbUser.last_login_at).getTime();
-    const TEN_MIN_MS = 10 * 60 * 1000;
-    const GRACE_MS = 30 * 1000;
-    console.log(`[auth-session] refresh check user=${dbUser.id} elapsed=${Math.floor(elapsed/1000)}s last_login_at=${dbUser.last_login_at}`);
-    if (elapsed > TEN_MIN_MS + GRACE_MS) {
-      return errorResponse('Session expired after 10 minutes of inactivity, please login again', 401, 'SESSION_EXPIRED');
-    }
+  // ── Single-active-session + 10-minute idle backstop ────────────────────
+  // The refresh call itself never claims a session (refreshing is just the
+  // SAME sign-in rotating its token — claiming would revoke it). Instead we
+  // check that this sign-in is still the active one and that it has been
+  // seen recently. Routine authenticated requests bump last_seen_at via
+  // validate_active_session in _shared/auth.ts, so last_seen_at is the true
+  // activity anchor (last_login_at stays the real last successful login).
+  // Grace +30s to avoid immediate expiry on clock skew for a second login.
+  const sessionIdentifier =
+    cleanSessionId(bodySessionId) ??
+    sessionIdentifierFromToken(data.session.access_token);
+  const { data: activeRow } = await db
+    .from('active_sessions')
+    .select('last_seen_at')
+    .eq('user_id', dbUser.id)
+    .eq('session_identifier', sessionIdentifier)
+    .is('revoked_at', null)
+    .maybeSingle();
+
+  if (!activeRow) {
+    return errorResponse(
+      'Your account was signed in on another device. This session has been logged out for security.',
+      401,
+      'SESSION_REVOKED',
+    );
+  }
+
+  const TEN_MIN_MS = 10 * 60 * 1000;
+  const GRACE_MS = 30 * 1000;
+  const elapsed = Date.now() - new Date(activeRow.last_seen_at).getTime();
+  console.log(`[auth-session] refresh check user=${dbUser.id} elapsed=${Math.floor(elapsed/1000)}s last_seen_at=${activeRow.last_seen_at}`);
+  if (elapsed > TEN_MIN_MS + GRACE_MS) {
+    return errorResponse('Session expired after 10 minutes of inactivity, please login again', 401, 'SESSION_EXPIRED');
+  }
+
+  // Keep the active record fresh and mark this device as active/seen now.
+  try {
+    const { error: touchErr } = await db
+      .from('active_sessions')
+      .update({ last_seen_at: nowManilaISO() })
+      .eq('user_id', dbUser.id)
+      .eq('session_identifier', sessionIdentifier)
+      .is('revoked_at', null);
+    if (touchErr) console.warn('[auth-session] last_seen_at bump failed', touchErr.message);
+  } catch (e) {
+    console.warn('[auth-session] last_seen_at bump failed', e);
   }
 
   return jsonResponse({

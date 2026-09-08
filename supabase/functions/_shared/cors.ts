@@ -42,7 +42,7 @@ export const corsHeaders: Record<string, string> = {
   // Keeping it as '*' avoids stale first-origin bug when env has multiple origins.
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, accept, x-idempotency-key",
+    "authorization, x-client-info, apikey, content-type, accept, x-idempotency-key, x-session-id",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
 };
 

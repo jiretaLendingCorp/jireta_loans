@@ -60,9 +60,17 @@ class SessionRefresher {
         ),
       );
 
+      // Include the stable client session id so the refresh validates the
+      // SAME session the client claimed at login (the JWT session_id claim
+      // can rotate on refresh and would otherwise self-revoke the session).
+      final sessionId = await SecureStorage.getSessionId();
       final response = await dio.post(
         AppConstants.authRefreshPath,
-        data: {'refresh_token': refreshToken},
+        data: {
+          'refresh_token': refreshToken,
+          if (sessionId != null && sessionId.isNotEmpty)
+            'session_id': sessionId,
+        },
       );
       final data = response.data;
       if (data is! Map) return SessionRefreshResult.authRejected;
@@ -75,10 +83,9 @@ class SessionRefresher {
 
       await SecureStorage.saveTokens(
         accessToken: newAccessToken,
-        refreshToken:
-            newRefreshToken is String && newRefreshToken.isNotEmpty
-                ? newRefreshToken
-                : refreshToken,
+        refreshToken: newRefreshToken is String && newRefreshToken.isNotEmpty
+            ? newRefreshToken
+            : refreshToken,
       );
       return SessionRefreshResult.success;
     } on DioException catch (e) {

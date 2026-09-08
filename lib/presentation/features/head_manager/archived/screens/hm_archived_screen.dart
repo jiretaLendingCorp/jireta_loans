@@ -46,7 +46,10 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
         children: [
           _filters(state),
           Expanded(
-            child: state.isLoading
+            // Shimmer only replaces the body on the very first load. Search /
+            // filter / restore keep the current table visible until the new
+            // result arrives so the screen never flashes "loading everything".
+            child: state.isLoading && state.users.isEmpty
                 ? _shimmer()
                 : state.users.isEmpty
                     ? _empty()
@@ -100,7 +103,8 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
               decoration: BoxDecoration(
                 color: AppColors.errorLight,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: AppColors.error.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -202,16 +206,16 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
             flex: 2,
             child: Text(
               user.phoneNumber ?? '—',
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ),
           Expanded(
             flex: 2,
             child: Text(
               user.email ?? '—',
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -260,7 +264,8 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
   void _goToDetails(UserModel user) {
     switch (user.role) {
       case 'employee':
-        context.go(RouteConstants.hmEmployeeDetails.replaceFirst(':id', user.id));
+        context
+            .go(RouteConstants.hmEmployeeDetails.replaceFirst(':id', user.id));
         break;
       case 'rider':
         context.go(RouteConstants.hmRiderDetails.replaceFirst(':id', user.id));

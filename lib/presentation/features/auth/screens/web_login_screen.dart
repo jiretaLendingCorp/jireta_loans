@@ -47,10 +47,15 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
       duration: const Duration(milliseconds: 720),
     );
     _cardFade = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _pageCtrl, curve: const Interval(0.18, 0.82, curve: Curves.easeOutCubic)),
+      CurvedAnimation(
+          parent: _pageCtrl,
+          curve: const Interval(0.18, 0.82, curve: Curves.easeOutCubic)),
     );
-    _cardSlide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
-      CurvedAnimation(parent: _pageCtrl, curve: const Interval(0.18, 0.82, curve: Curves.easeOutCubic)),
+    _cardSlide =
+        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero).animate(
+      CurvedAnimation(
+          parent: _pageCtrl,
+          curve: const Interval(0.18, 0.82, curve: Curves.easeOutCubic)),
     );
     Future.delayed(const Duration(milliseconds: 120), () {
       if (mounted) _pageCtrl.forward();
@@ -119,7 +124,8 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
         _startLockCountdown(lockSecs);
         return;
       }
-      _showError(notifier.extractErrorMessage(err ?? 'Error') ?? 'Login failed.');
+      _showError(
+          notifier.extractErrorMessage(err ?? 'Error') ?? 'Login failed.');
     }
   }
 
@@ -155,6 +161,40 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
     );
   }
 
+  void _showSecurityNotice(String message) {
+    // Product spec: the "Session Ended" modal sticks for ~3 seconds, then the
+    // login page is revealed. OK remains as an early-dismiss option.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        var dismissed = false;
+        Future.delayed(const Duration(seconds: 3), () {
+          if (!dismissed && ctx.mounted) Navigator.of(ctx).pop();
+        });
+        return AlertDialog(
+          icon: const Icon(Icons.security_rounded,
+              color: AppColors.error, size: 34),
+          title: const Text('Session Ended',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          content: Text(message, textAlign: TextAlign.center),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () {
+                dismissed = true;
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('OK',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   String get _lockLabel {
     final m = _lockSecondsLeft ~/ 60;
     final s = _lockSecondsLeft % 60;
@@ -167,6 +207,18 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
       connectivityProvider.select((v) => v.valueOrNull ?? true),
       (previous, next) {
         if (previous == true && next == false) _showNoInternetToast();
+      },
+    );
+    // Single-active-session: if the previous session was revoked by a newer
+    // login on another device, explain why the user was signed out.
+    ref.listen<String?>(
+      authStateProvider.select((s) => s.securityMessage),
+      (previous, next) {
+        if (next == null || next.trim().isEmpty) return;
+        ref.read(authStateProvider.notifier).clearSecurityMessage();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showSecurityNotice(next);
+        });
       },
     );
     final isLoading = ref.watch(authProvider).isLoading;
@@ -212,14 +264,6 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
     );
   }
 }
-
-
-
-
-
-
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Form panel — light surface that hosts the login card
@@ -272,8 +316,6 @@ class _FormPanel extends StatelessWidget {
     );
   }
 }
-
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Premium login card — email/password form with animated interactions
@@ -329,8 +371,14 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFECEEF3)),
         boxShadow: [
-          BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.08), blurRadius: 36, offset: const Offset(0, 18)),
-          BoxShadow(color: AppColors.gold.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: AppColors.deepNavy.withValues(alpha: 0.08),
+              blurRadius: 36,
+              offset: const Offset(0, 18)),
+          BoxShadow(
+              color: AppColors.gold.withValues(alpha: 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 4)),
         ],
       ),
       child: Form(
@@ -342,20 +390,30 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
             // ── Eyebrow pill ──
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFBF6EA),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                  border:
+                      Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.gold, shape: BoxShape.circle)),
+                    Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                            color: AppColors.gold, shape: BoxShape.circle)),
                     const SizedBox(width: 7),
                     const Text(
                       'STAFF PORTAL',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.5, color: AppColors.deepNavy),
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.5,
+                          color: AppColors.deepNavy),
                     ),
                   ],
                 ),
@@ -381,7 +439,11 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
               child: Text(
                 'Sign in to continue to your workspace.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13.5, height: 1.6, color: AppColors.textSecondary.withValues(alpha: 0.9), fontWeight: FontWeight.w400),
+                style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.6,
+                    color: AppColors.textSecondary.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w400),
               ),
             ),
             const SizedBox(height: 30),
@@ -396,7 +458,12 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: widget.emailFocus.hasFocus || _emailHovered
-                      ? [BoxShadow(color: AppColors.gold.withValues(alpha: 0.14), blurRadius: 12, offset: const Offset(0, 4))]
+                      ? [
+                          BoxShadow(
+                              color: AppColors.gold.withValues(alpha: 0.14),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4))
+                        ]
                       : [],
                 ),
                 child: TextFormField(
@@ -410,22 +477,38 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                   readOnly: isLocked,
                   onTap: () => setState(() {}),
                   onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     hintText: 'you@example.com',
-                    hintStyle: TextStyle(fontSize: 13.5, color: AppColors.textTertiary.withValues(alpha: 0.75)),
-                    prefixIcon: Icon(Icons.mail_outlined, size: 18, color: widget.emailFocus.hasFocus ? AppColors.deepNavy : AppColors.textTertiary),
+                    hintStyle: TextStyle(
+                        fontSize: 13.5,
+                        color: AppColors.textTertiary.withValues(alpha: 0.75)),
+                    prefixIcon: Icon(Icons.mail_outlined,
+                        size: 18,
+                        color: widget.emailFocus.hasFocus
+                            ? AppColors.deepNavy
+                            : AppColors.textTertiary),
                     counterText: '',
                     filled: true,
-                    fillColor: widget.emailFocus.hasFocus ? Colors.white : const Color(0xFFF8F9FC),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    fillColor: widget.emailFocus.hasFocus
+                        ? Colors.white
+                        : const Color(0xFFF8F9FC),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 15),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: _emailHovered ? const Color(0xFFCBD2DE) : const Color(0xFFE4E7EE)),
+                      borderSide: BorderSide(
+                          color: _emailHovered
+                              ? const Color(0xFFCBD2DE)
+                              : const Color(0xFFE4E7EE)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.4),
+                      borderSide: const BorderSide(
+                          color: AppColors.deepNavy, width: 1.4),
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -433,12 +516,14 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                     ),
                     focusedErrorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+                      borderSide:
+                          const BorderSide(color: AppColors.error, width: 1.4),
                     ),
                   ),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email is required';
-                    if (!AppValidators.isValidEmail(v)) return 'Enter a valid email';
+                    if (!AppValidators.isValidEmail(v))
+                      return 'Enter a valid email';
                     return null;
                   },
                   onFieldSubmitted: (_) => widget.passFocus.requestFocus(),
@@ -457,7 +542,12 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: widget.passFocus.hasFocus || _passHovered
-                      ? [BoxShadow(color: AppColors.gold.withValues(alpha: 0.14), blurRadius: 12, offset: const Offset(0, 4))]
+                      ? [
+                          BoxShadow(
+                              color: AppColors.gold.withValues(alpha: 0.14),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4))
+                        ]
                       : [],
                 ),
                 child: TextFormField(
@@ -469,22 +559,38 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                   maxLength: 128,
                   readOnly: isLocked,
                   onTap: () => setState(() {}),
-                  style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
                     hintText: '••••••••',
-                    hintStyle: TextStyle(fontSize: 13.5, color: AppColors.textTertiary.withValues(alpha: 0.75)),
-                    prefixIcon: Icon(Icons.lock_outline_rounded, size: 18, color: widget.passFocus.hasFocus ? AppColors.deepNavy : AppColors.textTertiary),
+                    hintStyle: TextStyle(
+                        fontSize: 13.5,
+                        color: AppColors.textTertiary.withValues(alpha: 0.75)),
+                    prefixIcon: Icon(Icons.lock_outline_rounded,
+                        size: 18,
+                        color: widget.passFocus.hasFocus
+                            ? AppColors.deepNavy
+                            : AppColors.textTertiary),
                     counterText: '',
                     filled: true,
-                    fillColor: widget.passFocus.hasFocus ? Colors.white : const Color(0xFFF8F9FC),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    fillColor: widget.passFocus.hasFocus
+                        ? Colors.white
+                        : const Color(0xFFF8F9FC),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 15),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: _passHovered ? const Color(0xFFCBD2DE) : const Color(0xFFE4E7EE)),
+                      borderSide: BorderSide(
+                          color: _passHovered
+                              ? const Color(0xFFCBD2DE)
+                              : const Color(0xFFE4E7EE)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.4),
+                      borderSide: const BorderSide(
+                          color: AppColors.deepNavy, width: 1.4),
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -492,12 +598,19 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                     ),
                     focusedErrorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+                      borderSide:
+                          const BorderSide(color: AppColors.error, width: 1.4),
                     ),
                     suffixIcon: IconButton(
-                      icon: Icon(widget.obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18, color: AppColors.textSecondary),
+                      icon: Icon(
+                          widget.obscure
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 18,
+                          color: AppColors.textSecondary),
                       onPressed: widget.onToggleObscure,
-                      tooltip: widget.obscure ? 'Show password' : 'Hide password',
+                      tooltip:
+                          widget.obscure ? 'Show password' : 'Hide password',
                     ),
                   ),
                   validator: (v) {
@@ -514,36 +627,46 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
               child: TextButton(
                 onPressed: () => context.go(RouteConstants.forgotPassword),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   foregroundColor: AppColors.deepNavy,
                   shape: const RoundedRectangleBorder(),
                 ),
-                child: const Text('Forgot password?', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                child: const Text('Forgot password?',
+                    style:
+                        TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
               ),
             ),
             // ── Lock countdown banner ──
             if (isLocked) ...[
               const SizedBox(height: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: AppColors.errorLight,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.18)),
+                  border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.18)),
                 ),
                 child: Row(
                   children: [
                     Container(
                       width: 28,
                       height: 28,
-                      decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
-                      child: const Icon(Icons.timer_rounded, size: 14, color: Colors.white),
+                      decoration: const BoxDecoration(
+                          color: AppColors.error, shape: BoxShape.circle),
+                      child: const Icon(Icons.timer_rounded,
+                          size: 14, color: Colors.white),
                     ),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
                         'Too many attempts',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.error),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.error),
                       ),
                     ),
                     Text(
@@ -578,17 +701,37 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                         : const LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [Color(0xFF0D1B2A), Color(0xFF1E3A5F), Color(0xFF0D1B2A)],
+                            colors: [
+                              Color(0xFF0D1B2A),
+                              Color(0xFF1E3A5F),
+                              Color(0xFF0D1B2A)
+                            ],
                           ),
-                    color: isDisabled ? AppColors.deepNavy.withValues(alpha: 0.42) : null,
+                    color: isDisabled
+                        ? AppColors.deepNavy.withValues(alpha: 0.42)
+                        : null,
                     boxShadow: isDisabled
                         ? []
                         : _btnHovered
                             ? [
-                                BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.28), blurRadius: 20, offset: const Offset(0, 10)),
-                                BoxShadow(color: AppColors.gold.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 0)),
+                                BoxShadow(
+                                    color: AppColors.deepNavy
+                                        .withValues(alpha: 0.28),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10)),
+                                BoxShadow(
+                                    color:
+                                        AppColors.gold.withValues(alpha: 0.12),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 0)),
                               ]
-                            : [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.16), blurRadius: 12, offset: const Offset(0, 6))],
+                            : [
+                                BoxShadow(
+                                    color: AppColors.deepNavy
+                                        .withValues(alpha: 0.16),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6))
+                              ],
                   ),
                   child: ElevatedButton(
                     onPressed: isDisabled ? null : widget.onSubmit,
@@ -596,16 +739,27 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                       backgroundColor: Colors.transparent,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: Colors.transparent,
-                      disabledForegroundColor: Colors.white.withValues(alpha: 0.9),
+                      disabledForegroundColor:
+                          Colors.white.withValues(alpha: 0.9),
                       shadowColor: Colors.transparent,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+                      textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.1),
                     ),
                     child: widget.isLoading
-                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(isLocked ? 'Try again in ${widget.lockLabel}' : 'Login'),
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : Text(isLocked
+                            ? 'Try again in ${widget.lockLabel}'
+                            : 'Login'),
                   ),
                 ),
               ),
@@ -615,16 +769,21 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text("Don't have an account?", style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
+                const Text("Don't have an account?",
+                    style: TextStyle(
+                        fontSize: 12.5, color: AppColors.textSecondary)),
                 const SizedBox(width: 4),
                 TextButton(
                   onPressed: () => context.go(RouteConstants.webRegister),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     foregroundColor: AppColors.deepNavy,
                     shape: const RoundedRectangleBorder(),
                   ),
-                  child: const Text('Register', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  child: const Text('Register',
+                      style: TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
@@ -643,7 +802,10 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+      style: const TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary),
     );
   }
 }

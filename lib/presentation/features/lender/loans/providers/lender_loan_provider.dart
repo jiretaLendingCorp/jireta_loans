@@ -52,7 +52,8 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
   final DisbursementRemoteDataSource _disbDs;
 
   LenderLoanNotifier(this._ds, this._disbDs) : super(const LenderLoanState()) {
-    bindRealtimeRefresh(['loans', 'loan_schedules', 'disbursements', 'credit_investigations'],
+    bindRealtimeRefresh(
+        ['loans', 'loan_schedules', 'disbursements', 'credit_investigations'],
         refresh: () => loadLoans(silent: true));
     loadLoans();
   }
@@ -89,18 +90,31 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
     }
   }
 
+  // Serialises schedule-preview fetches: the user changes amount/frequency/
+  // term quickly, and each preview request hits the network. Without a queue a
+  // slower older response (e.g. for the previous monthly selection) could land
+  // AFTER the newer one and overwrite the preview with the wrong term/periods.
+  Future<void>? _previewChain;
+
   Future<void> getSchedulePreview({
     required double amount,
     required String frequency,
     int? termPeriods,
-  }) async {
-    try {
-      final preview =
-          await _ds.getSchedulePreview(amount, frequency, termPeriods: termPeriods);
-      state = state.copyWith(schedulePreview: preview);
-    } catch (e) {
-      state = state.copyWith(error: ErrorHandler.handle(e).message);
-    }
+  }) {
+    final previous = _previewChain ?? Future.value();
+    final request = previous.then((_) async {
+      try {
+        final preview = await _ds.getSchedulePreview(amount, frequency,
+            termPeriods: termPeriods);
+        if (!mounted) return;
+        state = state.copyWith(schedulePreview: preview);
+      } catch (e) {
+        if (!mounted) return;
+        state = state.copyWith(error: ErrorHandler.handle(e).message);
+      }
+    });
+    _previewChain = request;
+    return request;
   }
 
   Future<bool> applyLoan({

@@ -1,4 +1,4 @@
-﻿// lib/presentation/features/lender/payments/screens/lender_payment_schedule_screen.dart
+// lib/presentation/features/lender/payments/screens/lender_payment_schedule_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -72,7 +72,6 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
   /// are actually handed out.
   LoanModel? _pickLoan(LenderLoanState state) => state.activeLoan;
 
-
   @override
   Widget build(BuildContext context) {
     final loanState = ref.watch(lenderLoanProvider);
@@ -89,9 +88,8 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
     final raw = collAsync.valueOrNull;
     // Provider now normalizes to both 'items' and 'data', but be defensive
     // against old cached shapes or direct server shape.
-    final collItems = (raw?['items'] as List?) ??
-        (raw?['data'] as List?) ??
-        const [];
+    final collItems =
+        (raw?['items'] as List?) ?? (raw?['data'] as List?) ?? const [];
     final collectionBySchedule = <String, String>{};
     final collectionTypeBySchedule = <String, String>{};
     for (final item in collItems) {
@@ -147,8 +145,8 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.lenderBlue
-                                  .withValues(alpha: 0.35),
+                              color:
+                                  AppColors.lenderBlue.withValues(alpha: 0.35),
                               blurRadius: 18,
                               offset: const Offset(0, 8),
                             ),
@@ -188,8 +186,7 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                         color: AppColors.lenderBlue,
                         borderRadius: BorderRadius.circular(99),
                         child: InkWell(
-                          onTap: () =>
-                              context.push(RouteConstants.lenderLoans),
+                          onTap: () => context.push(RouteConstants.lenderLoans),
                           borderRadius: BorderRadius.circular(99),
                           child: const Padding(
                             padding: EdgeInsets.symmetric(
@@ -221,21 +218,37 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                     _LoanSummaryHeader(loan: loan),
                     Expanded(
                       child: schedules.isEmpty
-                          ? const Center(child: Text('No schedule available'))
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                              itemCount: schedules.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (_, i) => _ScheduleTile(
-                                schedule: schedules[i],
-                                index: i,
-                                activeLoanId: loan.id,
-                                loanStatus: loan.status,
-                                collectionStatus: collectionBySchedule[
-                                    schedules[i].id],
-                                collectionType: collectionTypeBySchedule[
-                                    schedules[i].id],
+                          ? _NoScheduleState(
+                              onRetry: _load,
+                              onContactUs: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Your schedule will appear as soon as your loan is released. If this loan is already active, pull down or tap Retry to reload.'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _load,
+                              child: ListView.separated(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                                itemCount: schedules.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (_, i) => _ScheduleTile(
+                                  schedule: schedules[i],
+                                  index: i,
+                                  activeLoanId: loan.id,
+                                  loanStatus: loan.status,
+                                  collectionStatus:
+                                      collectionBySchedule[schedules[i].id],
+                                  collectionType:
+                                      collectionTypeBySchedule[schedules[i].id],
+                                ),
                               ),
                             ),
                     ),
@@ -245,7 +258,89 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
   }
 }
 
-class _LoanSummaryHeader extends StatelessWidget {  final dynamic loan;
+class _NoScheduleState extends StatelessWidget {
+  final Future<void> Function() onRetry;
+  final VoidCallback onContactUs;
+  const _NoScheduleState({required this.onRetry, required this.onContactUs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.lenderBlueLight,
+              ),
+              child: const Icon(Icons.event_note_outlined,
+                  color: AppColors.lenderBlue, size: 34),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No Schedule Available Yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your repayment schedule is generated when your loan is released. '
+              'If your loan is already active and this still shows empty, tap '
+              'Retry to reload the latest schedule.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Material(
+              color: AppColors.lenderBlue,
+              borderRadius: BorderRadius.circular(99),
+              child: InkWell(
+                onTap: onRetry,
+                borderRadius: BorderRadius.circular(99),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 11),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded,
+                          color: Colors.white, size: 18),
+                      SizedBox(width: 6),
+                      Text(
+                        'Retry',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoanSummaryHeader extends StatelessWidget {
+  final dynamic loan;
   const _LoanSummaryHeader({required this.loan});
 
   @override
@@ -314,8 +409,7 @@ class _ScheduleTile extends ConsumerWidget {
         content: const Text('You have already pending payment'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK')),
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -334,8 +428,7 @@ class _ScheduleTile extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK')),
+              onPressed: () => Navigator.pop(context), child: const Text('OK')),
         ],
       ),
     );
@@ -353,7 +446,8 @@ class _ScheduleTile extends ConsumerWidget {
     // loans are not yet disbursed so the backend correctly rejects with
     // "Loan is not in a payable status". We surface that upfront.
     final canPay = !isPaid && collectionStatus == null && isLoanPayable;
-    final canPayButLoanNotReady = !isPaid && collectionStatus == null && !isLoanPayable;
+    final canPayButLoanNotReady =
+        !isPaid && collectionStatus == null && !isLoanPayable;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -398,15 +492,13 @@ class _ScheduleTile extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                    'Due: ${schedule.dueDate.toDateString()}',
+                Text('Due: ${schedule.dueDate.toDateString()}',
                     style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                         color: AppColors.textPrimary)),
                 const SizedBox(height: 3),
-                Text(
-                    'Amount: ${schedule.amountDue.toCurrency}',
+                Text('Amount: ${schedule.amountDue.toCurrency}',
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textSecondary)),
               ],
@@ -499,14 +591,11 @@ class _CollectionChip extends StatelessWidget {
     final isPendingRequest = status == 'requested';
     final isOffice = type == 'office';
     final label = isPendingRequest
-        ? (isOffice
-            ? 'Office visit pending'
-            : 'Rider collection pending')
+        ? (isOffice ? 'Office visit pending' : 'Rider collection pending')
         : (isOffice
             ? 'Office visit in progress'
             : 'Rider collection in progress');
-    final color =
-        isPendingRequest ? AppColors.warning : AppColors.lenderBlue;
+    final color = isPendingRequest ? AppColors.warning : AppColors.lenderBlue;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

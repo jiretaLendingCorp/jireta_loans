@@ -1,5 +1,6 @@
 // lib/presentation/shared/providers/ci_detail_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/di/injection.dart';
 import '../../../data/datasources/remote/ci_remote_datasource.dart';
 import 'realtime_refresh_mixin.dart';
@@ -70,8 +71,7 @@ class CiDetailNotifier extends StateNotifier<CiDetailState>
   }
 }
 
-final ciDetailProvider =
-    AutoDisposeStateNotifierProvider.family<CiDetailNotifier, CiDetailState,
-        String>((ref, ciId) {
+final ciDetailProvider = AutoDisposeStateNotifierProvider.family<
+    CiDetailNotifier, CiDetailState, String>((ref, ciId) {
   return CiDetailNotifier(sl<CiRemoteDataSource>(), ciId);
 });

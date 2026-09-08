@@ -1,5 +1,6 @@
 // lib/presentation/features/auth/providers/auth_provider.dart
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
@@ -36,17 +37,42 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// Returns the stable client session id, generating and persisting it on
+  /// first use. It is created once per login and survives token refreshes, so
+  /// the server can always validate THIS device's session even after the JWT
+  /// rotates (the JWT session_id claim is not stable across refreshes and
+  /// would falsely revoke a healthy session).
+  Future<String> _ensureSessionId() async {
+    final existing = await SecureStorage.getSessionId();
+    if (existing != null && existing.isNotEmpty) return existing;
+    final rand = Random.secure();
+    final id =
+        's_${DateTime.now().toUtc().millisecondsSinceEpoch.toRadixString(36)}'
+        '_${rand.nextInt(0x7FFFFFFF).toRadixString(36)}';
+    await SecureStorage.saveSessionId(id);
+    return id;
+  }
+
   Future<bool> login({required String email, required String password}) async {
     _authState.startInteractiveAuth();
     state = const AsyncLoading();
     try {
-      final res = await _ds.login(email: email, password: password);
+      // Claim this device's STABLE session id server-side (survives refresh).
+      final sessionId = await _ensureSessionId();
+      final res = await _ds.login(
+        email: email,
+        password: password,
+        sessionId: sessionId,
+      );
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String;
       final userData = res['user'] as Map<String, dynamic>;
       // Ensure clean slate for second login (avoids race where old auto-logout's clearAll deletes new tokens)
       await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
+      // clearAll wiped the session id — restore it so every request after this
+      // carries the same stable id the server just claimed.
+      await SecureStorage.saveSessionId(sessionId);
       await SecureStorage.saveUserInfo(
         userId: userData['id'],
         role: userData['role'],
@@ -116,7 +142,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }) async {
     state = const AsyncLoading();
     try {
-      await _ds.sendRegisterOtp(email: email, firstName: firstName, lastName: lastName);
+      await _ds.sendRegisterOtp(
+          email: email, firstName: firstName, lastName: lastName);
       state = const AsyncData(null);
       return null;
     } catch (e, s) {
@@ -125,7 +152,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<String?> verifyRegisterOtp({required String email, required String otp}) async {
+  Future<String?> verifyRegisterOtp(
+      {required String email, required String otp}) async {
     state = const AsyncLoading();
     try {
       await _ds.verifyRegisterOtp(email: email, otp: otp);
@@ -166,20 +194,26 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         state = const AsyncData(null);
         return false;
       }
+      // Claim this device's STABLE session id server-side (survives refresh).
+      final sessionId = await _ensureSessionId();
       final res = await _ds.googleExchange(
         accessToken: session.accessToken,
         refreshToken: session.refreshToken,
+        sessionId: sessionId,
       );
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String? ?? '';
       final userData = res['user'] as Map<String, dynamic>;
       await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
+      // clearAll wiped the session id — restore it (see login()).
+      await SecureStorage.saveSessionId(sessionId);
       await SecureStorage.saveUserInfo(
         userId: userData['id'],
         role: userData['role'],
       );
-      await SecureStorage.saveSessionStartedAt(JwtParser.sessionStartFromToken(token));
+      await SecureStorage.saveSessionStartedAt(
+          JwtParser.sessionStartFromToken(token));
       await SecureStorage.saveLastActivity(DateTime.now().toUtc());
       final user = UserModel(
         id: userData['id'],
@@ -266,17 +300,26 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     _authState.startInteractiveAuth();
     state = const AsyncLoading();
     try {
-      final res = await _ds.verifyOtp(phone: phone, otp: otp);
+      // Claim this device's STABLE session id server-side (survives refresh).
+      final sessionId = await _ensureSessionId();
+      final res = await _ds.verifyOtp(
+        phone: phone,
+        otp: otp,
+        sessionId: sessionId,
+      );
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String;
       final userData = res['user'] as Map<String, dynamic>;
       await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
+      // clearAll wiped the session id — restore it (see login()).
+      await SecureStorage.saveSessionId(sessionId);
       await SecureStorage.saveUserInfo(
         userId: userData['id'],
         role: userData['role'],
       );
-      await SecureStorage.saveSessionStartedAt(JwtParser.sessionStartFromToken(token));
+      await SecureStorage.saveSessionStartedAt(
+          JwtParser.sessionStartFromToken(token));
       await SecureStorage.saveLastActivity(DateTime.now().toUtc());
       final user = UserModel(
         id: userData['id'],
@@ -402,7 +445,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<bool> verifyResetOtp({required String email, required String otp}) async {
+  Future<bool> verifyResetOtp(
+      {required String email, required String otp}) async {
     state = const AsyncLoading();
     try {
       await _ds.verifyResetOtp(email: email, otp: otp);
@@ -554,9 +598,18 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     if (message.contains('Rate limit') || message.contains('RATE_LIMITED')) {
       return 'Too many attempts. Please wait.';
     }
-    if (message.contains('Invalid OTP code') ||
-        message.contains('OTP expired or not found')) {
-      return 'Invalid or expired OTP.';
+    // Wrong code vs expired are different situations for the user: a wrong
+    // code means "retype it", an expired/used code means "request a new one".
+    if (message.contains('Invalid OTP code')) {
+      return 'Wrong OTP code. Please check the code and try again.';
+    }
+    if (message.contains('OTP expired or not found') ||
+        message.contains('OTP has expired') ||
+        message.contains('OTP is expired')) {
+      return 'Your OTP has expired. Please request a new code.';
+    }
+    if (message.contains('Too many attempts. Request a new OTP')) {
+      return 'Too many attempts for this code. Please request a new OTP.';
     }
     if (message.contains('INVALID_TOKEN') ||
         message.contains('Invalid or expired reset token')) {

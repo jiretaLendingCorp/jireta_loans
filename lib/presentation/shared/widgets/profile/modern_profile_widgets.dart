@@ -82,6 +82,11 @@ class ModernProfileHeader extends StatelessWidget {
   final Color statusBg;
   final bool statusAsText;
 
+  /// When true the header is drawn directly on the page background without
+  /// the white card (and the ring "plate" behind the avatar is removed).
+  /// Defaults to false so every existing profile page keeps its card look.
+  final bool flat;
+
   const ModernProfileHeader({
     super.key,
     required this.name,
@@ -93,17 +98,39 @@ class ModernProfileHeader extends StatelessWidget {
     required this.statusColor,
     required this.statusBg,
     this.statusAsText = false,
+    this.flat = false,
   });
+
+  Widget _buildAvatar() {
+    if (onAvatarUploaded != null) {
+      return ProfileAvatarUpload(
+        photoUrl: photoUrl,
+        name: name,
+        color: accent,
+        radius: 36,
+        onUploaded: onAvatarUploaded!,
+      );
+    }
+    return CircleAvatar(
+      radius: 36,
+      backgroundColor: accent.withValues(alpha: 0.12),
+      child: Text(
+        _initials(name),
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: accent,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: ModernProfileStyles.card,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-      child: Column(
-        children: [
-          Container(
+    final avatar = flat
+        // Clean look: the photo sits directly on the page, no card behind it.
+        ? _buildAvatar()
+        : Container(
             padding: const EdgeInsets.all(3),
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
@@ -116,85 +143,80 @@ class ModernProfileHeader extends StatelessWidget {
                 border: Border.all(
                     color: ModernProfileStyles.cardBorder, width: 1.5),
               ),
-              child: onAvatarUploaded != null
-                  ? ProfileAvatarUpload(
-                      photoUrl: photoUrl,
-                      name: name,
-                      color: accent,
-                      radius: 36,
-                      onUploaded: onAvatarUploaded!,
-                    )
-                  : CircleAvatar(
-                      radius: 36,
-                      backgroundColor: accent.withValues(alpha: 0.1),
-                      child: Text(
-                        _initials(name),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: accent,
-                        ),
-                      ),
-                    ),
+              child: _buildAvatar(),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            name.isEmpty ? '—' : name,
-            textAlign: TextAlign.center,
-            style: ModernProfileStyles.name,
-          ),
-          for (final s in subtitles) ...[
-            const SizedBox(height: 3),
-            Text(s, textAlign: TextAlign.center,
-                style: ModernProfileStyles.sub),
-          ],
-          const SizedBox(height: 10),
-          if (statusAsText)
-            Text(
-              statusLabel,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.1,
-                color: statusColor,
-              ),
-            )
-          else
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusBg,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    statusLabel,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.1,
-                      color: statusColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          );
+
+    final content = Column(
+      children: [
+        avatar,
+        const SizedBox(height: 12),
+        Text(
+          name.isEmpty ? '—' : name,
+          textAlign: TextAlign.center,
+          style: ModernProfileStyles.name,
+        ),
+        for (final s in subtitles) ...[
+          const SizedBox(height: 3),
+          Text(s, textAlign: TextAlign.center, style: ModernProfileStyles.sub),
         ],
-      ),
+        const SizedBox(height: 10),
+        if (statusAsText)
+          Text(
+            statusLabel,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
+              color: statusColor,
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusBg,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  statusLabel,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.1,
+                    color: statusColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (flat) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: content,
+      );
+    }
+    return Container(
+      width: double.infinity,
+      decoration: ModernProfileStyles.card,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      child: content,
     );
   }
 
@@ -246,8 +268,7 @@ class ModernInfoCard extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: Icon(icon,
-                      size: 16,
-                      color: ModernProfileStyles.iconColor),
+                      size: 16, color: ModernProfileStyles.iconColor),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -261,8 +282,7 @@ class ModernInfoCard extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(
-              height: 1, color: ModernProfileStyles.hairline),
+          const Divider(height: 1, color: ModernProfileStyles.hairline),
           for (var i = 0; i < rows.length; i++) ...[
             _Row(entry: rows[i]),
             if (i != rows.length - 1)
@@ -302,15 +322,13 @@ class _Row extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(entry.icon,
-              size: 16, color: ModernProfileStyles.iconColor),
+          Icon(entry.icon, size: 16, color: ModernProfileStyles.iconColor),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.label,
-                    style: ModernProfileStyles.rowLabel),
+                Text(entry.label, style: ModernProfileStyles.rowLabel),
                 const SizedBox(height: 2),
                 Text(
                   entry.value.isEmpty ? '—' : entry.value,
@@ -395,8 +413,7 @@ class _MenuRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.title,
-                      style: ModernProfileStyles.menuTitle),
+                  Text(item.title, style: ModernProfileStyles.menuTitle),
                   if (item.subtitle != null) ...[
                     const SizedBox(height: 1),
                     Text(item.subtitle!,
@@ -459,8 +476,7 @@ class ModernPrimaryButton extends StatelessWidget {
                 : const SizedBox.shrink(),
         label: Text(
           loading ? 'Please wait…' : label,
-          style: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -476,8 +492,7 @@ class ModernSectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-      child: Text(text.toUpperCase(),
-          style: ModernProfileStyles.sectionLabel),
+      child: Text(text.toUpperCase(), style: ModernProfileStyles.sectionLabel),
     );
   }
 }
@@ -535,8 +550,7 @@ class ModernInfoSheet extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: Icon(icon,
-                        size: 17,
-                        color: ModernProfileStyles.iconColor),
+                        size: 17, color: ModernProfileStyles.iconColor),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -552,18 +566,15 @@ class ModernInfoSheet extends StatelessWidget {
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded,
-                        size: 20,
-                        color: AppColors.textTertiary),
+                        size: 20, color: AppColors.textTertiary),
                   ),
                 ],
               ),
             ),
-            const Divider(
-                height: 1, color: ModernProfileStyles.hairline),
+            const Divider(height: 1, color: ModernProfileStyles.hairline),
             Flexible(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

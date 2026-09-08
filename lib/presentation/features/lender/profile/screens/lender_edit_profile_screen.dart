@@ -1,4 +1,4 @@
-﻿// lib/presentation/features/lender/profile/screens/lender_edit_profile_screen.dart
+// lib/presentation/features/lender/profile/screens/lender_edit_profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -231,153 +231,163 @@ class _LenderEditProfileScreenState
               key: _formKey,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionCard(
-                      'Personal Information',
-                      Icons.person_outline,
-                      [
-                        AppTextField(
-                          label: 'First Name',
-                          controller: _firstNameCtrl,
-                          maxLength: 100,
-                          validator: _requiredValidator('First name'),
-                        ),
-                        const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'Middle Name (Optional)',
-                          controller: _middleNameCtrl,
-                          maxLength: 2,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z.]')),
-                            LengthLimitingTextInputFormatter(2),
+                // Center the form on wider screens while keeping a clean,
+                // readable column on phones.
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionCard(
+                          'Personal Information',
+                          Icons.person_outline,
+                          [
+                            AppTextField(
+                              label: 'First Name',
+                              controller: _firstNameCtrl,
+                              maxLength: 100,
+                              validator: _requiredValidator('First name'),
+                            ),
+                            const SizedBox(height: 12),
+                            AppTextField(
+                              label: 'Middle Name (Optional)',
+                              controller: _middleNameCtrl,
+                              maxLength: 2,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                    RegExp(r'[a-zA-Z.]')),
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                              validator: (v) {
+                                if (v == null || v.isEmpty) return null;
+                                if (!RegExp(r'^[a-zA-Z.]{1,2}$').hasMatch(v)) {
+                                  return 'Max 2 letters or "." only';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            AppTextField(
+                              label: 'Last Name',
+                              controller: _lastNameCtrl,
+                              maxLength: 100,
+                              validator: _requiredValidator('Last name'),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDropdownField(
+                              label: 'Gender',
+                              value: _gender,
+                              items: _genderOptions,
+                              validator: (v) =>
+                                  v == null ? 'Gender is required' : null,
+                              onChanged: (v) => setState(() => _gender = v),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDropdownField(
+                              label: 'Civil Status',
+                              value: _civilStatus,
+                              items: _civilOptions,
+                              validator: (v) =>
+                                  v == null ? 'Civil status is required' : null,
+                              onChanged: (v) =>
+                                  setState(() => _civilStatus = v),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDateField(),
+                            if (_dobError != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(top: 6, left: 12),
+                                child: Text(
+                                  _dobError!,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.error,
+                                  ),
+                                ),
+                              ),
                           ],
-                          validator: (v) {
-                            if (v == null || v.isEmpty) return null;
-                            if (!RegExp(r'^[a-zA-Z.]{1,2}$').hasMatch(v)) {
-                              return 'Max 2 letters or "." only';
-                            }
-                            return null;
-                          },
+                        ),
+                        // 00128: Financial Information no longer lives on the lender
+                        // profile — it is declared per loan at application time.
+                        const SizedBox(height: 16),
+                        _buildSectionCard(
+                          'Residence Address',
+                          Icons.location_on_outlined,
+                          [
+                            AppTextField(
+                              label: 'Street Address',
+                              controller: _streetCtrl,
+                              maxLength: 100,
+                            ),
+                            const SizedBox(height: 12),
+                            AppTextField(
+                              label: 'Barangay',
+                              controller: _barangayCtrl,
+                              maxLength: 100,
+                            ),
+                            const SizedBox(height: 12),
+                            AppTextField(
+                              label: 'City / Municipality',
+                              controller: _cityCtrl,
+                              maxLength: 100,
+                            ),
+                            const SizedBox(height: 12),
+                            AppTextField(
+                              label: 'Province',
+                              controller: _provinceCtrl,
+                              maxLength: 100,
+                            ),
+                            const SizedBox(height: 12),
+                            AppTextField(
+                              label: 'ZIP Code',
+                              controller: _zipCtrl,
+                              keyboardType: TextInputType.number,
+                              maxLength: 4,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(4),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        ModernPrimaryButton(
+                          label: 'Save Changes',
+                          color: AppColors.lenderBlue,
+                          loading: state.isSaving,
+                          onPressed: _submit,
                         ),
                         const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'Last Name',
-                          controller: _lastNameCtrl,
-                          maxLength: 100,
-                          validator: _requiredValidator('Last name'),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildDropdownField(
-                          label: 'Gender',
-                          value: _gender,
-                          items: _genderOptions,
-                          validator: (v) =>
-                              v == null ? 'Gender is required' : null,
-                          onChanged: (v) => setState(() => _gender = v),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildDropdownField(
-                          label: 'Civil Status',
-                          value: _civilStatus,
-                          items: _civilOptions,
-                          validator: (v) =>
-                              v == null ? 'Civil status is required' : null,
-                          onChanged: (v) => setState(() => _civilStatus = v),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildDateField(),
-                        if (_dobError != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6, left: 12),
-                            child: Text(
-                              _dobError!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.error,
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: () =>
+                                context.go(RouteConstants.lenderProfile),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.textSecondary,
+                              backgroundColor: Colors.white,
+                              side: const BorderSide(
+                                  color: ModernProfileStyles.cardBorder),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 40),
                       ],
                     ),
-                    // 00128: Financial Information no longer lives on the lender
-                    // profile — it is declared per loan at application time.
-                    const SizedBox(height: 16),
-                    _buildSectionCard(
-                      'Residence Address',
-                      Icons.location_on_outlined,
-                      [
-                        AppTextField(
-                          label: 'Street Address',
-                          controller: _streetCtrl,
-                          maxLength: 100,
-                        ),
-                        const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'Barangay',
-                          controller: _barangayCtrl,
-                          maxLength: 100,
-                        ),
-                        const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'City / Municipality',
-                          controller: _cityCtrl,
-                          maxLength: 100,
-                        ),
-                        const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'Province',
-                          controller: _provinceCtrl,
-                          maxLength: 100,
-                        ),
-                        const SizedBox(height: 12),
-                        AppTextField(
-                          label: 'ZIP Code',
-                          controller: _zipCtrl,
-                          keyboardType: TextInputType.number,
-                          maxLength: 4,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(4),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    ModernPrimaryButton(
-                      label: 'Save Changes',
-                      color: AppColors.lenderBlue,
-                      loading: state.isSaving,
-                      onPressed: _submit,
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            context.go(RouteConstants.lenderProfile),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(
-                              color: ModernProfileStyles.cardBorder),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -406,8 +416,8 @@ class _LenderEditProfileScreenState
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
-                child: Icon(icon,
-                    size: 16, color: ModernProfileStyles.iconColor),
+                child:
+                    Icon(icon, size: 16, color: ModernProfileStyles.iconColor),
               ),
               const SizedBox(width: 10),
               Text(

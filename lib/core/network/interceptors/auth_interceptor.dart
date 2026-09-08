@@ -124,6 +124,20 @@ class AuthInterceptor extends Interceptor {
     if (isRefreshPath) {
       options.headers['Authorization'] = 'Bearer ${EnvConfig.supabaseAnonKey}';
     }
+
+    // Single-active-session: attach the STABLE client session id so the
+    // server validates this device's session. The JWT session_id claim
+    // changes whenever GoTrue mints a new session (sign-in, refresh), so
+    // relying on it would falsely revoke a healthy session after a token
+    // rotation — locking BOTH devices out instead of just the superseded one.
+    if (token != null && token.isNotEmpty && !ownsNoSession) {
+      try {
+        final sid = await SecureStorage.getSessionId();
+        if (sid != null && sid.isNotEmpty) {
+          options.headers[AppConstants.sessionIdHeaderName] = sid;
+        }
+      } catch (_) {}
+    }
     handler.next(options);
   }
 
@@ -166,16 +180,40 @@ class AuthInterceptor extends Interceptor {
       return handler.next(err);
     }
 
+    // ── Single-active-session revocation → immediate hard logout ─────────
+    // The server revoked this session because the account signed in on
+    // another device. Refreshing can NOT repair it (the refresh endpoint
+    // returns the same code), so drop the dead session right away with the
+    // security message and skip the generic refresh path below.
+    if (err.response?.statusCode == 401 && serverCode == 'SESSION_REVOKED') {
+      var reason = kSessionRevokedMessage;
+      try {
+        final msg = (err.response?.data is Map)
+            ? (err.response!.data as Map)['message']?.toString()
+            : null;
+        if (msg != null && msg.trim().isNotEmpty) reason = msg;
+      } catch (_) {}
+      await _dropDeadSession(reason: reason);
+      return handler.next(err);
+    }
+
     if (err.response?.statusCode == 401) {
       // ── Stale 401 guard for multiple logins ───────────────────────────
       // If the 401 came from an OLD token (first login) but we've already
       // logged in again (second login) and current stored token is different,
       // don't clear the new session. This fixes "second login expired immediately".
       try {
-        final failedHeader = err.requestOptions.headers['Authorization']?.toString() ?? '';
-        final failedToken = failedHeader.startsWith('Bearer ') ? failedHeader.substring(7) : failedHeader;
+        final failedHeader =
+            err.requestOptions.headers['Authorization']?.toString() ?? '';
+        final failedToken = failedHeader.startsWith('Bearer ')
+            ? failedHeader.substring(7)
+            : failedHeader;
         final currentToken = await SecureStorage.getAccessToken();
-        if (currentToken != null && currentToken.isNotEmpty && failedToken.isNotEmpty && currentToken != failedToken && !JwtParser.isExpired(currentToken)) {
+        if (currentToken != null &&
+            currentToken.isNotEmpty &&
+            failedToken.isNotEmpty &&
+            currentToken != failedToken &&
+            !JwtParser.isExpired(currentToken)) {
           // Current session is fresh and valid, the 401 is stale from old session
           return handler.next(err);
         }
@@ -240,7 +278,15 @@ class AuthInterceptor extends Interceptor {
     handler.next(err);
   }
 
-  Future<void> _dropDeadSession() async {
+  Future<void> _dropDeadSession({String? reason}) async {
+    // A revocation (session superseded by another device) is NEVER stale: the
+    // stored tokens are permanently dead, so clear them even if the local
+    // idle/JWT guards below would otherwise keep the session around.
+    if (reason != null && reason.trim().isNotEmpty) {
+      await SecureStorage.clearAll();
+      SessionEvents.emitSessionExpired(reason);
+      return;
+    }
     // Stale guard: don't clear if a new second login has already created a fresh idle session.
     try {
       final remaining = await SecureStorage.getRemainingIdleTime();
@@ -256,7 +302,9 @@ class AuthInterceptor extends Interceptor {
       }
       if (remaining != null && remaining.inSeconds <= -10) {
         // Truly idle-expired → allow drop
-      } else if (remaining != null && remaining.inSeconds <= 10 && remaining.inSeconds > -10) {
+      } else if (remaining != null &&
+          remaining.inSeconds <= 10 &&
+          remaining.inSeconds > -10) {
         final token = await SecureStorage.getAccessToken();
         final secs = JwtParser.secondsUntilExpiry(token);
         if (secs != null && secs > 60) return;

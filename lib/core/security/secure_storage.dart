@@ -57,6 +57,7 @@ class SecureStorage {
     AppConstants.userRoleKey,
     AppConstants.sessionStartedAtKey,
     AppConstants.lastActivityKey,
+    AppConstants.sessionIdKey,
   ];
 
   static Future<void> saveTokens({
@@ -66,8 +67,10 @@ class SecureStorage {
       _withQueue(() async {
         try {
           await Future.wait([
-            _storage.write(key: AppConstants.accessTokenKey, value: accessToken),
-            _storage.write(key: AppConstants.refreshTokenKey, value: refreshToken),
+            _storage.write(
+                key: AppConstants.accessTokenKey, value: accessToken),
+            _storage.write(
+                key: AppConstants.refreshTokenKey, value: refreshToken),
           ]);
         } catch (_) {
           // On web, storage may throw if encryption key migration fails;
@@ -202,6 +205,23 @@ class SecureStorage {
     return remaining.inSeconds <= -10;
   }
 
+  // ── Single-active-session stable id ───────────────────────────────────────
+  static Future<void> saveSessionId(String id) => _withQueue(() async {
+        try {
+          await _storage.write(key: AppConstants.sessionIdKey, value: id);
+        } catch (_) {}
+      });
+
+  static Future<String?> getSessionId() async {
+    try {
+      final raw = await _storage.read(key: AppConstants.sessionIdKey);
+      if (raw == null || raw.trim().isEmpty) return null;
+      return raw.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Backwards-compat shims (old callers still invoke these) ───────────────
   static Future<Duration?> getRemainingSessionTime() => getRemainingIdleTime();
   static Future<bool> isAbsoluteSessionExpired() => isIdleExpired();
@@ -230,7 +250,8 @@ class SecureStorage {
       if (token == null || token.isEmpty) return false;
       // Idle 10-minute check: if last activity expired → no valid session
       final remaining = await getRemainingIdleTime();
-      if (remaining != null && (remaining.isNegative || remaining.inSeconds <= 0)) {
+      if (remaining != null &&
+          (remaining.isNegative || remaining.inSeconds <= 0)) {
         return false;
       }
       return true;

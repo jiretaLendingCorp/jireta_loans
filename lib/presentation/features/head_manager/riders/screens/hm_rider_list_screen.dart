@@ -63,7 +63,10 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
         children: [
           _buildFilters(state),
           Expanded(
-            child: state.isLoading
+            // Shimmer only replaces the body on the very first load. Search /
+            // filter / create keep the current table visible until the new
+            // result arrives so the screen never flashes "loading everything".
+            child: state.isLoading && state.riders.isEmpty
                 ? _shimmer()
                 : state.riders.isEmpty
                     ? _empty()
@@ -206,104 +209,104 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
     final isActive = user.accountStatus == 'active';
     return Container(
       key: ValueKey(user.id),
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: Row(
-                children: [
-                  ProfileAvatar(
-                    photoUrl: user.profilePhotoUrl,
-                    name: '${user.firstName} ${user.lastName}',
-                    color: AppColors.riderGreen,
-                    radius: 18,
+      color: isEven
+          ? Colors.white
+          : AppColors.surfaceVariant.withValues(alpha: 0.3),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                ProfileAvatar(
+                  photoUrl: user.profilePhotoUrl,
+                  name: '${user.firstName} ${user.lastName}',
+                  color: AppColors.riderGreen,
+                  radius: 18,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    '${user.firstName} ${user.lastName}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      '${user.firstName} ${user.lastName}',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.phoneNumber ?? '—',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
                 ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.phoneNumber ?? '—',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
               ),
             ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.vehicleType ?? '—',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.vehicleType ?? '—',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.plateNumber ?? '—',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Text(
+              isActive ? 'Active' : _statusLabel(user.accountStatus),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isActive ? AppColors.success : AppColors.error,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                _btn(
+                  Icons.visibility_outlined,
+                  'View',
+                  AppColors.textSecondary,
+                  () => showUserDetailsModal(context, user),
                 ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.plateNumber ?? '—',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
+                _btn(
+                  Icons.edit_outlined,
+                  'Edit',
+                  AppColors.primary,
+                  () => _openEdit(user),
                 ),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                isActive ? 'Active' : _statusLabel(user.accountStatus),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isActive ? AppColors.success : AppColors.error,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
+                if (user.accountStatus != 'archived')
                   _btn(
-                    Icons.visibility_outlined,
-                    'View',
-                    AppColors.textSecondary,
-                    () => showUserDetailsModal(context, user),
+                    Icons.archive_outlined,
+                    'Archive',
+                    AppColors.error,
+                    () => _confirmArchive(user),
                   ),
-                  _btn(
-                    Icons.edit_outlined,
-                    'Edit',
-                    AppColors.primary,
-                    () => _openEdit(user),
-                  ),
-                  if (user.accountStatus != 'archived')
-                    _btn(
-                      Icons.archive_outlined,
-                      'Archive',
-                      AppColors.error,
-                      () => _confirmArchive(user),
-                    ),
-                ],
-              ),
+              ],
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openEdit(UserModel user) async {
@@ -341,7 +344,8 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
                 await ref.read(hmRiderProvider.notifier).archive(user.id);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Rider archived successfully')),
+                    const SnackBar(
+                        content: Text('Rider archived successfully')),
                   );
                 }
               } catch (e) {
@@ -383,8 +387,8 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
             border: Border.all(
                 color: isView ? AppColors.border : Colors.transparent),
           ),
-          child: Icon(icon,
-              size: 16, color: isView ? AppColors.deepNavy : color),
+          child:
+              Icon(icon, size: 16, color: isView ? AppColors.deepNavy : color),
         ),
       ),
     );

@@ -22,12 +22,18 @@ class AuthState {
   final UserModel? user;
   final String? error;
 
+  /// One-shot reason for the forced logout (e.g. the single-active-session
+  /// "signed in on another device" notice). Login screens show it once and
+  /// call [AuthStateNotifier.clearSecurityMessage] to consume it.
+  final String? securityMessage;
+
   const AuthState({
     this.isAuthenticated = false,
     this.isLoading = false,
     this.isLoggingOut = false,
     this.user,
     this.error,
+    this.securityMessage,
   });
 
   String? get role => user?.role;
@@ -39,6 +45,7 @@ class AuthState {
     bool? isLoggingOut,
     UserModel? user,
     String? error,
+    String? securityMessage,
   }) =>
       AuthState(
         isAuthenticated: isAuthenticated ?? this.isAuthenticated,
@@ -46,13 +53,14 @@ class AuthState {
         isLoggingOut: isLoggingOut ?? this.isLoggingOut,
         user: user ?? this.user,
         error: error,
+        securityMessage: securityMessage ?? this.securityMessage,
       );
 }
 
 class AuthStateNotifier extends StateNotifier<AuthState> {
   AuthStateNotifier() : super(const AuthState()) {
-    _sessionExpiredSub = SessionEvents.onSessionExpired.listen((_) async {
-      await _onSessionExpired();
+    _sessionExpiredSub = SessionEvents.onSessionExpired.listen((reason) async {
+      await _onSessionExpired(reason);
     });
   }
 
@@ -105,8 +113,11 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           // 10s grace to avoid clock-skew false logout right after login.
           final remaining = await SecureStorage.getRemainingIdleTime();
           if (remaining != null && remaining.inSeconds <= -10) {
-            if (kDebugMode) debugPrint('[JWT] initialize: idle 10m expired → hard logout, require re-login');
-            AppLogger.debug('[JWT] initialize: idle 10m expired → clear for re-login');
+            if (kDebugMode)
+              debugPrint(
+                  '[JWT] initialize: idle 10m expired → hard logout, require re-login');
+            AppLogger.debug(
+                '[JWT] initialize: idle 10m expired → clear for re-login');
             await SecureStorage.clearAll();
             try {
               await Supabase.instance.client.auth.signOut();
@@ -127,15 +138,22 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
               if (now.isBefore(exp)) {
                 await SecureStorage.saveSessionStartedAt(inferredStart);
                 await SecureStorage.saveLastActivity(inferredStart);
-                if (kDebugMode) debugPrint('[JWT] initialize: migrated legacy session lastActivity=$inferredStart exp=$exp');
+                if (kDebugMode)
+                  debugPrint(
+                      '[JWT] initialize: migrated legacy session lastActivity=$inferredStart exp=$exp');
               } else {
-                if (kDebugMode) debugPrint('[JWT] initialize: legacy JWT expired, trying soft refresh');
-                AppLogger.debug('[JWT] initialize: legacy JWT expired, pre-refresh');
+                if (kDebugMode)
+                  debugPrint(
+                      '[JWT] initialize: legacy JWT expired, trying soft refresh');
+                AppLogger.debug(
+                    '[JWT] initialize: legacy JWT expired, pre-refresh');
                 final preResult = await _tryRefreshSession();
                 if (revision != _authRevision || !mounted) return;
                 if (preResult == SessionRefreshResult.authRejected) {
                   await SecureStorage.clearAll();
-                  try { await Supabase.instance.client.auth.signOut(); } catch (_) {}
+                  try {
+                    await Supabase.instance.client.auth.signOut();
+                  } catch (_) {}
                   if (revision != _authRevision || !mounted) return;
                   state = const AuthState(isAuthenticated: false);
                   return;
@@ -149,31 +167,47 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           } else {
             // Idle still valid but JWT may be soft-expired
             final accessToken = await SecureStorage.getAccessToken();
-            if (JwtParser.isExpired(accessToken) || JwtParser.isExpiringSoon(accessToken, within: const Duration(seconds: 60))) {
+            if (JwtParser.isExpired(accessToken) ||
+                JwtParser.isExpiringSoon(accessToken,
+                    within: const Duration(seconds: 60))) {
               if (remaining.inSeconds > 30) {
-                if (kDebugMode) debugPrint('[JWT] initialize: JWT soft-expired but idle valid (${remaining.inSeconds}s left) → soft refresh');
-                AppLogger.debug('[JWT] initialize: soft JWT expired, pre-refresh');
+                if (kDebugMode)
+                  debugPrint(
+                      '[JWT] initialize: JWT soft-expired but idle valid (${remaining.inSeconds}s left) → soft refresh');
+                AppLogger.debug(
+                    '[JWT] initialize: soft JWT expired, pre-refresh');
                 final preResult = await _tryRefreshSession();
                 if (revision != _authRevision || !mounted) return;
                 switch (preResult) {
                   case SessionRefreshResult.authRejected:
-                    if (kDebugMode) debugPrint('[JWT] initialize: soft refresh rejected → hard logout');
-                    AppLogger.debug('[JWT] initialize: soft refresh rejected → clear');
+                    if (kDebugMode)
+                      debugPrint(
+                          '[JWT] initialize: soft refresh rejected → hard logout');
+                    AppLogger.debug(
+                        '[JWT] initialize: soft refresh rejected → clear');
                     await SecureStorage.clearAll();
-                    try { await Supabase.instance.client.auth.signOut(); } catch (_) {}
+                    try {
+                      await Supabase.instance.client.auth.signOut();
+                    } catch (_) {}
                     if (revision != _authRevision || !mounted) return;
                     state = const AuthState(isAuthenticated: false);
                     return;
                   case SessionRefreshResult.offline:
-                    if (kDebugMode) debugPrint('[JWT] initialize: offline during soft refresh, keep session');
+                    if (kDebugMode)
+                      debugPrint(
+                          '[JWT] initialize: offline during soft refresh, keep session');
                     break;
                   case SessionRefreshResult.success:
-                    if (kDebugMode) debugPrint('[JWT] initialize: soft refresh success, continue');
+                    if (kDebugMode)
+                      debugPrint(
+                          '[JWT] initialize: soft refresh success, continue');
                     // Refresh does not extend idle; lastActivity stays as-is
                     break;
                 }
               } else {
-                if (kDebugMode) debugPrint('[JWT] initialize: JWT expired and idle almost done (${remaining.inSeconds}s) → will hard logout');
+                if (kDebugMode)
+                  debugPrint(
+                      '[JWT] initialize: JWT expired and idle almost done (${remaining.inSeconds}s) → will hard logout');
               }
             }
           }
@@ -219,10 +253,26 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   void setAuthenticated(UserModel user) {
     _authRevision++;
     _expiryTimer?.cancel();
+    // A fresh authenticated state drops any pending logout reason.
     state = AuthState(isAuthenticated: true, user: user);
     _scheduleExpiryCheck();
     // Register this device's FCM token for push delivery (fire-and-forget).
     unawaited(FcmService.instance.syncWithUser());
+  }
+
+  /// Clears the one-shot security/logout message after the UI showed it.
+  /// Built directly (not via copyWith) because copyWith null-coalesces and
+  /// cannot intentionally null a field.
+  void clearSecurityMessage() {
+    if (state.securityMessage == null) return;
+    final s = state;
+    state = AuthState(
+      isAuthenticated: s.isAuthenticated,
+      isLoading: s.isLoading,
+      isLoggingOut: s.isLoggingOut,
+      user: s.user,
+      error: s.error,
+    );
   }
 
   void setForcePasswordChangeDone() {
@@ -265,8 +315,10 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       } else {
         state = const AuthState(isAuthenticated: false, isLoggingOut: false);
       }
-      AppLogger.debug('[JWT] logout complete → will redirect to login (re-login enabled)');
-      if (kDebugMode) debugPrint('[AuthState] logout: session cleared, ready for re-login');
+      AppLogger.debug(
+          '[JWT] logout complete → will redirect to login (re-login enabled)');
+      if (kDebugMode)
+        debugPrint('[AuthState] logout: session cleared, ready for re-login');
     }
   }
 
@@ -288,15 +340,22 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       // ── Case 1: No idle timestamp (legacy) → fallback to JWT ────────────
       if (remaining == null) {
         if (jwtExp == null) {
-          if (kDebugMode) debugPrint('[JWT] no idle & no exp claim → skip timer (legacy, wait for user action)');
+          if (kDebugMode)
+            debugPrint(
+                '[JWT] no idle & no exp claim → skip timer (legacy, wait for user action)');
           return;
         }
         final delay = jwtExp.difference(now) - const Duration(seconds: 4);
-        if (kDebugMode) debugPrint('[JWT] legacy fallback: exp=$jwtExp now=$now delay=${delay.inSeconds}s → ${delay.isNegative ? "already expired" : "schedule soft timer"}');
-        AppLogger.debug('[JWT] legacy JWT exp=$jwtExp delay=${delay.inSeconds}s');
+        if (kDebugMode)
+          debugPrint(
+              '[JWT] legacy fallback: exp=$jwtExp now=$now delay=${delay.inSeconds}s → ${delay.isNegative ? "already expired" : "schedule soft timer"}');
+        AppLogger.debug(
+            '[JWT] legacy JWT exp=$jwtExp delay=${delay.inSeconds}s');
         if (!delay.isNegative) {
           _expiryTimer = Timer(delay, _onSoftTokenExpired);
-          if (kDebugMode) debugPrint('[JWT] legacy soft timer scheduled for ${delay.inSeconds}s');
+          if (kDebugMode)
+            debugPrint(
+                '[JWT] legacy soft timer scheduled for ${delay.inSeconds}s');
         } else {
           _onSoftTokenExpired();
         }
@@ -306,29 +365,38 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       // ── Case 2: Idle session already expired → hard logout ─────────────
       // 10s grace prevents immediate logout due to event-loop lag.
       if (remaining.inSeconds <= -10) {
-        if (kDebugMode) debugPrint('[JWT] idle 10m expired → hard logout immediately');
+        if (kDebugMode)
+          debugPrint('[JWT] idle 10m expired → hard logout immediately');
         AppLogger.debug('[JWT] idle 10m expired, hard logout');
         _onIdleExpired();
         return;
       }
 
       final idleExpiry = now.add(remaining);
-      if (kDebugMode) debugPrint('[JWT] idle remaining=${remaining.inSeconds}s expiry=$idleExpiry');
+      if (kDebugMode)
+        debugPrint(
+            '[JWT] idle remaining=${remaining.inSeconds}s expiry=$idleExpiry');
 
       // ── Case 3: Idle valid, check JWT soft expiry ──────────────────────
       if (jwtExp != null) {
         final jwtRemaining = jwtExp.difference(now);
         final jwtDelay = jwtRemaining - const Duration(seconds: 4);
-        if (kDebugMode) debugPrint('[JWT] jwtExp=$jwtExp jwtRemaining=${jwtRemaining.inSeconds}s jwtDelay=${jwtDelay.inSeconds}s idleRemaining=${remaining.inSeconds}s');
+        if (kDebugMode)
+          debugPrint(
+              '[JWT] jwtExp=$jwtExp jwtRemaining=${jwtRemaining.inSeconds}s jwtDelay=${jwtDelay.inSeconds}s idleRemaining=${remaining.inSeconds}s');
 
         // JWT soft-expired but idle still has time → soft refresh (no extension of idle)
         if (jwtDelay.isNegative) {
           if (remaining.inSeconds > 10) {
-            if (kDebugMode) debugPrint('[JWT] JWT soft-expired but idle valid (${remaining.inSeconds}s left) → soft refresh now');
+            if (kDebugMode)
+              debugPrint(
+                  '[JWT] JWT soft-expired but idle valid (${remaining.inSeconds}s left) → soft refresh now');
             _onSoftTokenExpired();
           } else {
             // Idle about to expire (<10s) → just wait for idle logout
-            if (kDebugMode) debugPrint('[JWT] JWT expired and idle almost done (${remaining.inSeconds}s) → schedule idle logout');
+            if (kDebugMode)
+              debugPrint(
+                  '[JWT] JWT expired and idle almost done (${remaining.inSeconds}s) → schedule idle logout');
             _expiryTimer = Timer(remaining, _onIdleExpired);
           }
           return;
@@ -352,8 +420,11 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           isJwtSooner = false;
         }
 
-        if (kDebugMode) debugPrint('[JWT] next timer in ${nextDelay.inSeconds}s → ${isJwtSooner ? "soft JWT refresh" : "idle 10m logout"}');
-        AppLogger.debug('[JWT] schedule next in ${nextDelay.inSeconds}s isJwtSooner=$isJwtSooner');
+        if (kDebugMode)
+          debugPrint(
+              '[JWT] next timer in ${nextDelay.inSeconds}s → ${isJwtSooner ? "soft JWT refresh" : "idle 10m logout"}');
+        AppLogger.debug(
+            '[JWT] schedule next in ${nextDelay.inSeconds}s isJwtSooner=$isJwtSooner');
 
         if (isJwtSooner) {
           _expiryTimer = Timer(nextDelay, _onSoftTokenExpired);
@@ -362,7 +433,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         }
       } else {
         // No JWT exp claim → just schedule idle expiry
-        if (kDebugMode) debugPrint('[JWT] no JWT exp, schedule idle in ${remaining.inSeconds}s');
+        if (kDebugMode)
+          debugPrint(
+              '[JWT] no JWT exp, schedule idle in ${remaining.inSeconds}s');
         _expiryTimer = Timer(remaining, _onIdleExpired);
       }
     } catch (e) {
@@ -372,7 +445,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
 
   /// Idle 10-minute expiry: session MUST end, require re-login.
   Future<void> _onIdleExpired() async {
-    if (kDebugMode) debugPrint('[JWT] idle 10m session expired → hard logout, require re-login');
+    if (kDebugMode)
+      debugPrint(
+          '[JWT] idle 10m session expired → hard logout, require re-login');
     AppLogger.debug('[JWT] idle 10m expired → hard logout');
     await _onSessionExpired();
   }
@@ -382,40 +457,53 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     // If idle already expired (with grace), hard logout instead of soft refresh
     final remaining = await SecureStorage.getRemainingIdleTime();
     if (remaining != null && remaining.inSeconds <= -10) {
-      if (kDebugMode) debugPrint('[JWT] _onSoftTokenExpired but idle already expired → hard logout');
+      if (kDebugMode)
+        debugPrint(
+            '[JWT] _onSoftTokenExpired but idle already expired → hard logout');
       await _onIdleExpired();
       return;
     }
 
     if (_isRefreshing) {
-      if (kDebugMode) debugPrint('[JWT] _onSoftTokenExpired skipped (already refreshing)');
+      if (kDebugMode)
+        debugPrint('[JWT] _onSoftTokenExpired skipped (already refreshing)');
       return;
     }
     _isRefreshing = true;
-    if (kDebugMode) debugPrint('[JWT] JWT soft expired → attempting soft refresh (idle ${remaining?.inSeconds}s left)...');
-    AppLogger.debug('[JWT] soft JWT expired, attempting refresh within 10m idle window');
+    if (kDebugMode)
+      debugPrint(
+          '[JWT] JWT soft expired → attempting soft refresh (idle ${remaining?.inSeconds}s left)...');
+    AppLogger.debug(
+        '[JWT] soft JWT expired, attempting refresh within 10m idle window');
     try {
       final result = await _tryRefreshSession();
       if (!mounted) return;
       switch (result) {
         case SessionRefreshResult.success:
-          if (kDebugMode) debugPrint('[JWT] soft refresh success → reschedule (absolute still governs)');
+          if (kDebugMode)
+            debugPrint(
+                '[JWT] soft refresh success → reschedule (absolute still governs)');
           AppLogger.debug('[JWT] soft refresh success, reschedule');
           // New JWT stored but absolute NOT extended → next timer still targets absolute expiry
           // Also need to ensure startedAt still preserved; saveTokens does not touch startedAt
           _scheduleExpiryCheck();
           break;
         case SessionRefreshResult.authRejected:
-          if (kDebugMode) debugPrint('[JWT] soft refresh rejected → hard logout');
+          if (kDebugMode)
+            debugPrint('[JWT] soft refresh rejected → hard logout');
           AppLogger.debug('[JWT] soft refresh rejected → hard logout');
           await _onSessionExpired();
           break;
         case SessionRefreshResult.offline:
-          if (kDebugMode) debugPrint('[JWT] offline during soft refresh → retry 30s, keep session until hard expiry');
-          AppLogger.debug('[JWT] offline soft refresh, keep session, retry 30s');
+          if (kDebugMode)
+            debugPrint(
+                '[JWT] offline during soft refresh → retry 30s, keep session until hard expiry');
+          AppLogger.debug(
+              '[JWT] offline soft refresh, keep session, retry 30s');
           if (mounted) {
             _expiryTimer?.cancel();
-            _expiryTimer = Timer(const Duration(seconds: 30), _onSoftTokenExpired);
+            _expiryTimer =
+                Timer(const Duration(seconds: 30), _onSoftTokenExpired);
           }
           break;
       }
@@ -427,11 +515,13 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// One-shot token refresh used by the expiry scheduler. Kept independent of
   /// [AuthInterceptor] so expired-token detection works even while the app is
   /// idle and no request is being made.
-  Future<SessionRefreshResult> _tryRefreshSession() => SessionRefresher.refresh();
+  Future<SessionRefreshResult> _tryRefreshSession() =>
+      SessionRefresher.refresh();
 
-  Future<void> _onSessionExpired() async {
+  Future<void> _onSessionExpired([String? reason]) async {
     if (!state.isAuthenticated) {
-      if (kDebugMode) debugPrint('[JWT] _onSessionExpired ignored (already logged out)');
+      if (kDebugMode)
+        debugPrint('[JWT] _onSessionExpired ignored (already logged out)');
       return;
     }
     // ── Stale event guard for multiple logins ───────────────────────────
@@ -441,8 +531,11 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     final remaining = await SecureStorage.getRemainingIdleTime();
     if (remaining != null && remaining.inSeconds > 10) {
       // New session still has >10s left → stale event, don't logout.
-      if (kDebugMode) debugPrint('[JWT] _onSessionExpired ignored stale event, remaining ${remaining.inSeconds}s (second login still valid)');
-      AppLogger.debug('[JWT] ignore stale sessionExpired, remaining ${remaining.inSeconds}s');
+      if (kDebugMode)
+        debugPrint(
+            '[JWT] _onSessionExpired ignored stale event, remaining ${remaining.inSeconds}s (second login still valid)');
+      AppLogger.debug(
+          '[JWT] ignore stale sessionExpired, remaining ${remaining.inSeconds}s');
       return;
     }
     // Also check hasValidSession for legacy (no startedAt) – don't ignore if truly expired
@@ -451,14 +544,26 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       // Legacy: no absolute timestamp, check JWT instead – if JWT still valid, stale
       final token = await SecureStorage.getAccessToken();
       if (token != null && !JwtParser.isExpired(token)) {
-        if (kDebugMode) debugPrint('[JWT] _onSessionExpired ignored stale legacy event, JWT still valid');
+        if (kDebugMode)
+          debugPrint(
+              '[JWT] _onSessionExpired ignored stale legacy event, JWT still valid');
         return;
       }
     }
-    if (kDebugMode) debugPrint('[JWT] session expired → auto-logout + clear storage → allow re-login');
+    if (kDebugMode)
+      debugPrint(
+          '[JWT] session expired → auto-logout + clear storage → allow re-login');
     AppLogger.debug('[JWT] session expired → auto-logout');
     _expiryTimer?.cancel();
     await logout();
+    // Keep the reason (single-active-session revocation message) around so
+    // the login screen can explain why the user was signed out. Regular idle
+    // or token expiries carry no reason and stay silent.
+    if (reason != null && reason.trim().isNotEmpty) {
+      if (mounted) {
+        state = state.copyWith(securityMessage: reason);
+      }
+    }
     // Emit is already done by the caller (AuthInterceptor); but if the timer
     // path triggered this, we need to ensure the stream fires for any other listeners.
     // (No double-emit harm – broadcast stream deduplicates via state check).

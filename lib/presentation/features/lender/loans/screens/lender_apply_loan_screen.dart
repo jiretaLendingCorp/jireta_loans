@@ -1,4 +1,4 @@
-﻿// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
+// lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,7 +57,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   String? _employmentType;
   String? _sourceOfFunds;
   String? _ecRelationship;
-  String? _employmentError;
+
+  /// Set the first time the user taps Next on the Financial step so inline
+  /// field errors become visible and stay until every field is fixed.
+  bool _financialAttempted = false;
+
+  /// True once the application was accepted — hides the skeleton/shimmer and
+  /// the loan-state views that would otherwise rebuild behind the success
+  /// modal while the list refreshes with the new application.
+  bool _justSubmitted = false;
 
   static const _employmentOptions = [
     ('employed', 'Employed'),
@@ -152,9 +160,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       _amount >= _minAmount &&
       _amount <= _maxAmount;
 
-  bool _isLoanDetailsValid() =>
-      _isAmountValid && _purposeCtrl.text.trim().isNotEmpty;
-
   // ── 00128: per-application financial + emergency declaration ──────────────
   double? _parseMonthlyIncome() {
     final raw =
@@ -180,8 +185,55 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     return true;
   }
 
-  String _formatAmountInput(int value) =>
-      NumberFormat('#,##0').format(value);
+  // ── Inline per-field errors (shown after the user tries to continue) ──────
+  String? get _employmentTypeError =>
+      _financialAttempted && _employmentType == null
+          ? 'Select your employment type'
+          : null;
+
+  String? get _employerNameError =>
+      _financialAttempted && _employerNameCtrl.text.trim().isEmpty
+          ? 'Employer / business name is required'
+          : null;
+
+  String? get _monthlyIncomeError {
+    if (!_financialAttempted) return null;
+    final raw =
+        _monthlyIncomeCtrl.text.replaceAll(RegExp(r'[₱,\s]'), '').trim();
+    if (raw.isEmpty) return 'Monthly income is required';
+    final value = double.tryParse(raw);
+    if (value == null || value <= 0) return 'Enter a valid monthly income';
+    return null;
+  }
+
+  String? get _sourceOfFundsError =>
+      _financialAttempted && _sourceOfFunds == null
+          ? 'Select your source of funds'
+          : null;
+
+  String? get _ecNameError =>
+      _financialAttempted && _ecNameCtrl.text.trim().isEmpty
+          ? 'Contact name is required'
+          : null;
+
+  String? get _ecRelationshipError =>
+      _financialAttempted && _ecRelationship == null
+          ? 'Select a relationship'
+          : null;
+
+  String? get _ecPhoneError {
+    if (!_financialAttempted) return null;
+    final p = _ecPhoneCtrl.text.trim();
+    if (p.isEmpty) return 'Contact phone number is required';
+    if (p.length != 11 ||
+        !p.startsWith('09') ||
+        !RegExp(r'^\d{11}$').hasMatch(p)) {
+      return 'Must be an 11-digit number starting with 09';
+    }
+    return null;
+  }
+
+  String _formatAmountInput(int value) => NumberFormat('#,##0').format(value);
 
   /// Called while the user types in the amount field. Filters/validates the
   /// input, keeps the slider in sync, and refreshes the preview (debounced).
@@ -191,8 +243,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       if (parsed == null || parsed == 0) {
         _amountError = 'Please enter a loan amount.';
       } else if (parsed < _minAmount || parsed > _maxAmount) {
-        _amountError =
-            'Amount must be between ₱3,000 and ₱500,000.';
+        _amountError = 'Amount must be between ₱3,000 and ₱500,000.';
         _amount = parsed.clamp(_minAmount, _maxAmount).toDouble();
       } else {
         _amountError = null;
@@ -207,41 +258,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     _previewDebounce = Timer(const Duration(milliseconds: 450), () {
       if (mounted) _refreshPreview();
     });
-  }
-
-  bool _isCoMakerValid() {
-    final m = _coMaker;
-    if (m == null) return false;
-    bool notEmpty(String k) => (m[k]?.toString().trim().isNotEmpty ?? false);
-    final phone = m['phone_number']?.toString().trim() ?? '';
-    final phoneOk = phone.length == 11 &&
-        phone.startsWith('09') &&
-        RegExp(r'^\d{11}$').hasMatch(phone);
-    final dob = m['date_of_birth']?.toString().trim() ?? '';
-    return notEmpty('first_name') &&
-        notEmpty('last_name') &&
-        phoneOk &&
-        notEmpty('relationship') &&
-        notEmpty('address') &&
-        dob.isNotEmpty;
-  }
-
-  bool _isSignatureValid() =>
-      _coMakerSignature != null && _coMakerSignature!.isNotEmpty;
-
-  bool get _canGoNext {
-    if (_step == 0) return _isLoanDetailsValid();
-    if (_step == 1) return _isFinancialValid;
-    if (_step == 2) return _isCoMakerValid();
-    if (_step == 3) return _isSignatureValid();
-    // Review step (4) – enable Submit only if all previous are valid
-    if (_step == 4) {
-      return _isLoanDetailsValid() &&
-          _isFinancialValid &&
-          _isCoMakerValid() &&
-          _isSignatureValid();
-    }
-    return true;
   }
 
   Future<void> _refreshPreview() async {
@@ -297,18 +313,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => const ConfirmationDialog(
-        title: 'Submit Loan Application',
-        message:
-            'Are you sure to apply this loan?',
-        confirmLabel: 'Submit',
-        confirmColor: AppColors.lenderBlue,
-      ),
-    );
-    if (confirmed != true) return;
-
     final coMaker = Map<String, dynamic>.from(_coMaker ?? {})
       ..['signature'] = _coMakerSignature;
     // 00128: per-loan declaration captured inside this wizard.
@@ -327,6 +331,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       },
     ];
 
+    // No blocking confirm modal: while the request runs the Submit button on
+    // the Review step shows its loading spinner (state.isSubmitting).
     final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
           amount: _amount,
           frequency: _frequency,
@@ -340,28 +346,19 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     if (!mounted) return;
     if (ok) {
-      // Success modal, then auto-direct straight to home.
-      // No toast, no splash, no application-status screen.
-      var navigated = false;
-      void goHome() {
-        if (navigated || !mounted) return;
-        navigated = true;
-        context.go(RouteConstants.lenderDashboard);
-      }
-
-      // ignore: unawaited_futures
-      SuccessDialog.show(
+      // Hide the step content so no shimmer / "view status" flash can appear
+      // behind the success modal while the loan list refreshes underneath.
+      setState(() => _justSubmitted = true);
+      // Success modal sits for ~2 seconds, then we go straight to Home — no
+      // toast, no splash, no intermediate application-status screen.
+      await SuccessDialog.showAutoDismiss(
         context,
         title: 'Successfully Submitted',
         message: 'Your loan application has been submitted successfully.',
         buttonText: 'Go to Home',
-      ).then((_) => goHome());
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-      if (Navigator.of(context, rootNavigator: true).canPop()) {
-        Navigator.of(context, rootNavigator: true).pop();
-      } else {
-        goHome();
+      );
+      if (mounted) {
+        context.go(RouteConstants.lenderDashboard);
       }
     } else {
       final err = ref.read(lenderLoanProvider).error ?? 'An error occurred.';
@@ -393,16 +390,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         return;
       }
     } else if (_step == 1) {
-      // Financial Details + Emergency Contact — Next is disabled until the
-      // step is valid, but guard anyway for stale taps.
+      // Financial Details + Emergency Contact — reveal inline field errors on
+      // the first attempt so the user sees exactly what is missing.
+      setState(() => _financialAttempted = true);
       if (!_isFinancialValid) {
-        setState(() {
-          _employmentError = _employmentType == null
-              ? 'Employment type is required'
-              : _employerNameCtrl.text.trim().isEmpty
-                  ? 'Employer / business name is required'
-                  : null;
-        });
         context.showSnackBarAsToast(
           const SnackBar(
             content: Text(
@@ -466,8 +457,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       'weekly': [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 26],
       'monthly': [1, 2, 3, 4, 5, 6],
     };
-    final opts =
-        (candidates[_frequency] ?? const <int>[]).where((v) => v <= max).toList();
+    final opts = (candidates[_frequency] ?? const <int>[])
+        .where((v) => v <= max)
+        .toList();
     if (!opts.contains(max)) opts.add(max);
     return opts;
   }
@@ -504,9 +496,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           runSpacing: 8,
           children: options.map((value) {
             final isMax = value == maxPeriods;
-            final selected = isMax
-                ? _termPeriods == null
-                : _termPeriods == value;
+            final selected =
+                isMax ? _termPeriods == null : _termPeriods == value;
             return InkWell(
               onTap: () {
                 setState(() => _termPeriods = isMax ? null : value);
@@ -602,9 +593,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide(
-                  color: _amountError != null
-                      ? AppColors.error
-                      : AppColors.border,
+                  color:
+                      _amountError != null ? AppColors.error : AppColors.border,
                 ),
               ),
             ),
@@ -684,8 +674,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             }).toList(),
           ),
           const SizedBox(height: 20),
-          _buildTermSelector(
-              (preview?['max_periods'] as num?)?.toInt() ?? 0),
+          _buildTermSelector((preview?['max_periods'] as num?)?.toInt() ?? 0),
           const SizedBox(height: 20),
           const _SectionTitle('Purpose'),
           const SizedBox(height: 8),
@@ -803,15 +792,20 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   'The co-maker signature above serves as consent for this loan.',
                   style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
                 ),
-                if (_coMakerSignature != null && _coMakerSignature!.isNotEmpty) ...[
+                if (_coMakerSignature != null &&
+                    _coMakerSignature!.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   const Row(
                     children: [
-                      Icon(Icons.check_circle, color: AppColors.success, size: 18),
+                      Icon(Icons.check_circle,
+                          color: AppColors.success, size: 18),
                       SizedBox(width: 6),
                       Text(
                         'Signature confirmed',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.success),
                       ),
                     ],
                   ),
@@ -872,14 +866,19 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   initialValue: _employmentType,
                   decoration: _finFieldDeco('Employment Type'),
                   items: _employmentOptions
-                      .map((e) => DropdownMenuItem(
-                          value: e.$1, child: Text(e.$2)))
+                      .map((e) =>
+                          DropdownMenuItem(value: e.$1, child: Text(e.$2)))
                       .toList(),
-                  onChanged: (v) => setState(() {
-                    _employmentType = v;
-                    _employmentError = null;
-                  }),
+                  onChanged: (v) => setState(() => _employmentType = v),
                 ),
+                if (_employmentTypeError != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _employmentTypeError!,
+                    style:
+                        const TextStyle(fontSize: 11.5, color: AppColors.error),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: _employerNameCtrl,
@@ -887,7 +886,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   onChanged: (_) => setState(() {}),
                   scrollPadding: EdgeInsets.only(
                       bottom: MediaQuery.of(context).viewInsets.bottom + 120),
-                  decoration: _finFieldDeco('Employer / Business Name'),
+                  decoration: _finFieldDeco('Employer / Business Name',
+                      errorText: _employerNameError),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -896,26 +896,29 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                       const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                    // Reasonable hard cap (₱999,999,999) + cents.
+                    LengthLimitingTextInputFormatter(12),
                   ],
                   onChanged: (_) => setState(() {}),
-                  decoration: _finFieldDeco('Monthly Income (₱)'),
+                  decoration: _finFieldDeco('Monthly Income (₱)',
+                      errorText: _monthlyIncomeError),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: _sourceOfFunds,
                   decoration: _finFieldDeco('Source of Funds'),
                   items: _sourceOfFundsOptions
-                      .map((e) => DropdownMenuItem(
-                          value: e.$1, child: Text(e.$2)))
+                      .map((e) =>
+                          DropdownMenuItem(value: e.$1, child: Text(e.$2)))
                       .toList(),
                   onChanged: (v) => setState(() => _sourceOfFunds = v),
                 ),
-                if (_employmentError != null) ...[
-                  const SizedBox(height: 8),
+                if (_sourceOfFundsError != null) ...[
+                  const SizedBox(height: 6),
                   Text(
-                    _employmentError!,
+                    _sourceOfFundsError!,
                     style:
-                        const TextStyle(fontSize: 12, color: AppColors.error),
+                        const TextStyle(fontSize: 11.5, color: AppColors.error),
                   ),
                 ],
               ],
@@ -946,7 +949,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   onChanged: (_) => setState(() {}),
                   scrollPadding: EdgeInsets.only(
                       bottom: MediaQuery.of(context).viewInsets.bottom + 120),
-                  decoration: _finFieldDeco('Contact Name'),
+                  decoration:
+                      _finFieldDeco('Contact Name', errorText: _ecNameError),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -957,6 +961,14 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                       .toList(),
                   onChanged: (v) => setState(() => _ecRelationship = v),
                 ),
+                if (_ecRelationshipError != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    _ecRelationshipError!,
+                    style:
+                        const TextStyle(fontSize: 11.5, color: AppColors.error),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: _ecPhoneCtrl,
@@ -967,7 +979,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                     LengthLimitingTextInputFormatter(11),
                   ],
                   onChanged: (_) => setState(() {}),
-                  decoration: _finFieldDeco('Contact Phone Number'),
+                  decoration: _finFieldDeco('Contact Phone Number',
+                      errorText: _ecPhoneError),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -987,13 +1000,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
   }
 
-  InputDecoration _finFieldDeco(String label) {
+  InputDecoration _finFieldDeco(String label, {String? errorText}) {
     return InputDecoration(
       labelText: label,
       counterText: '',
       isDense: true,
       filled: true,
       fillColor: Colors.white,
+      errorText: errorText,
+      errorStyle: const TextStyle(fontSize: 11.5, color: AppColors.error),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.border),
@@ -1001,6 +1016,12 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.lenderBlue),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: errorText != null ? AppColors.error : AppColors.border,
+        ),
       ),
     );
   }
@@ -1066,9 +1087,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     }
 
     final income = _parseMonthlyIncome();
-    final incomeLabel = income != null
-        ? '₱${NumberFormat('#,##0.00').format(income)}'
-        : '—';
+    final incomeLabel =
+        income != null ? '₱${NumberFormat('#,##0.00').format(income)}' : '—';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -1089,25 +1109,29 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          _declRow('Employment',
-              labelOf(_employmentOptions, _employmentType)),
-          _declRow('Employer', _employerNameCtrl.text.trim().isEmpty
-              ? '—'
-              : _employerNameCtrl.text.trim()),
+          _declRow('Employment', labelOf(_employmentOptions, _employmentType)),
+          _declRow(
+              'Employer',
+              _employerNameCtrl.text.trim().isEmpty
+                  ? '—'
+                  : _employerNameCtrl.text.trim()),
           _declRow('Monthly Income', incomeLabel),
           _declRow('Source of Funds',
               labelOf(_sourceOfFundsOptions, _sourceOfFunds)),
           const Divider(height: 20),
-          _declRow('Emergency Contact', _ecNameCtrl.text.trim().isEmpty
-              ? '—'
-              : _ecNameCtrl.text.trim()),
+          _declRow('Emergency Contact',
+              _ecNameCtrl.text.trim().isEmpty ? '—' : _ecNameCtrl.text.trim()),
           _declRow('Relationship', _ecRelationship ?? '—'),
-          _declRow('Contact Number', _ecPhoneCtrl.text.trim().isEmpty
-              ? '—'
-              : _ecPhoneCtrl.text.trim()),
-          _declRow('Address', _ecAddressCtrl.text.trim().isEmpty
-              ? '—'
-              : _ecAddressCtrl.text.trim()),
+          _declRow(
+              'Contact Number',
+              _ecPhoneCtrl.text.trim().isEmpty
+                  ? '—'
+                  : _ecPhoneCtrl.text.trim()),
+          _declRow(
+              'Address',
+              _ecAddressCtrl.text.trim().isEmpty
+                  ? '—'
+                  : _ecAddressCtrl.text.trim()),
         ],
       ),
     );
@@ -1145,34 +1169,36 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// preview card, scrolling with the content.
   Widget _buildStepNav(bool isSubmitting) {
     final isLast = _step == 4;
-    final canProceed = _canGoNext && !isSubmitting;
+    // Next/Submit stay tappable so the step validators can run and surface
+    // inline errors; the individual step handlers perform the real checks.
+    final canProceed = !isSubmitting;
     return Padding(
       padding: const EdgeInsets.only(top: 24),
       child: Row(
         children: [
-        if (_step > 0) ...[
-          _NavTextButton(
-            icon: Icons.arrow_back_rounded,
-            label: 'Back',
-            onTap: isSubmitting ? null : _goBack,
-          ),
-          const SizedBox(width: 12),
-        ],
-        const Spacer(),
-        if (isLast)
-          AppButton(
-            label: 'Submit Application',
-            icon: Icons.send,
-            color: AppColors.lenderBlue,
-            isLoading: isSubmitting,
-            onTap: canProceed ? _submit : null,
-          )
-        else
-          _NavTextButton(
-            icon: Icons.arrow_forward_rounded,
-            label: 'Next',
-            onTap: canProceed ? _goNext : null,
-          ),
+          if (_step > 0) ...[
+            _NavTextButton(
+              icon: Icons.arrow_back_rounded,
+              label: 'Back',
+              onTap: isSubmitting ? null : _goBack,
+            ),
+            const SizedBox(width: 12),
+          ],
+          const Spacer(),
+          if (isLast)
+            AppButton(
+              label: 'Submit Application',
+              icon: Icons.send,
+              color: AppColors.lenderBlue,
+              isLoading: isSubmitting,
+              onTap: canProceed ? _submit : null,
+            )
+          else
+            _NavTextButton(
+              icon: Icons.arrow_forward_rounded,
+              label: 'Next',
+              onTap: canProceed ? _goNext : null,
+            ),
         ],
       ),
     );
@@ -1200,9 +1226,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       navItems: _navItems,
       showBackButton: true,
       centerTitle: scaffoldTitle == 'Account Upgrade Status',
-      body: (loanState.isLoading || accountUpgradeState.isLoading)
-          ? const _LenderApplyLoanSkeleton()
-          : _buildFlow(loanState, accountUpgradeState, fmt),
+      body: _justSubmitted
+          // Submission accepted: keep the screen inert behind the success
+          // modal (no skeleton, no loan-state rebuild) until we go Home.
+          ? const SizedBox.shrink()
+          : (loanState.isLoading || accountUpgradeState.isLoading)
+              ? const _LenderApplyLoanSkeleton()
+              : _buildFlow(loanState, accountUpgradeState, fmt),
     );
   }
 
@@ -1667,9 +1697,8 @@ class _SchedulePreview extends StatelessWidget {
     final installment = (preview['installment_amount'] ?? 0).toDouble();
     final installments = preview['installments'] ?? 0;
     final freq = (preview['frequency'] ?? '').toString();
-    final termUnit = freq == 'weekly'
-        ? 'weeks'
-        : (freq == 'monthly' ? 'months' : 'days');
+    final termUnit =
+        freq == 'weekly' ? 'weeks' : (freq == 'monthly' ? 'months' : 'days');
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1716,10 +1745,9 @@ class _SchedulePreview extends StatelessWidget {
                     AppColors.success),
                 _PreviewRow('Number of Periods', '$installments',
                     AppColors.textSecondary),
-                _PreviewRow('Term', '$installments $termUnit',
-                    AppColors.textSecondary),
+                _PreviewRow(
+                    'Term', '$installments $termUnit', AppColors.textSecondary),
                 const Divider(height: 20),
-
               ],
             ),
           ),
@@ -1727,7 +1755,6 @@ class _SchedulePreview extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _PreviewRow extends StatelessWidget {
@@ -2178,7 +2205,8 @@ class _InlineSubmittedTimeline extends StatelessWidget {
       _InlineTimelineStep(
         status == 'rejected' ? 'Rejected' : 'Verified',
         status == 'rejected'
-            ? (accountUpgradeState.rejectionNotes ?? 'Documents were rejected. Please resubmit.')
+            ? (accountUpgradeState.rejectionNotes ??
+                'Documents were rejected. Please resubmit.')
             : 'Your identity has been verified. You may now apply for a loan.',
         ['verified', 'rejected'].contains(status),
         status == 'rejected' ? Icons.cancel : Icons.verified_user,
@@ -2191,9 +2219,13 @@ class _InlineSubmittedTimeline extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('Verification Timeline',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary)),
           const SizedBox(height: 12),
-          ...steps.asMap().entries.map((e) => _InlineTimelineTile(step: e.value, isLast: e.key == steps.length - 1)),
+          ...steps.asMap().entries.map((e) => _InlineTimelineTile(
+              step: e.value, isLast: e.key == steps.length - 1)),
         ],
       ),
     );
@@ -2206,7 +2238,9 @@ class _InlineTimelineStep {
   final bool completed;
   final IconData icon;
   final bool isError;
-  const _InlineTimelineStep(this.title, this.subtitle, this.completed, this.icon, {this.isError = false});
+  const _InlineTimelineStep(
+      this.title, this.subtitle, this.completed, this.icon,
+      {this.isError = false});
 }
 
 class _InlineTimelineTile extends StatelessWidget {
@@ -2230,14 +2264,24 @@ class _InlineTimelineTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: step.completed ? color.withValues(alpha: 0.12) : AppColors.surfaceVariant,
+                color: step.completed
+                    ? color.withValues(alpha: 0.12)
+                    : AppColors.surfaceVariant,
                 shape: BoxShape.circle,
-                border: Border.all(color: step.completed ? color : AppColors.border, width: 2),
+                border: Border.all(
+                    color: step.completed ? color : AppColors.border, width: 2),
               ),
-              child: Icon(step.icon, size: 18, color: step.completed ? color : AppColors.textTertiary),
+              child: Icon(step.icon,
+                  size: 18,
+                  color: step.completed ? color : AppColors.textTertiary),
             ),
             if (!isLast)
-              Container(width: 2, height: 40, color: step.completed ? color.withValues(alpha: 0.3) : AppColors.border),
+              Container(
+                  width: 2,
+                  height: 40,
+                  color: step.completed
+                      ? color.withValues(alpha: 0.3)
+                      : AppColors.border),
           ],
         ),
         const SizedBox(width: 12),
@@ -2249,9 +2293,15 @@ class _InlineTimelineTile extends StatelessWidget {
               children: [
                 Text(step.title,
                     style: TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14, color: step.completed ? AppColors.textPrimary : AppColors.textTertiary)),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: step.completed
+                            ? AppColors.textPrimary
+                            : AppColors.textTertiary)),
                 const SizedBox(height: 4),
-                Text(step.subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                Text(step.subtitle,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
               ],
             ),
           ),
@@ -2434,24 +2484,24 @@ class _AwaitingReleaseView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-          Text(
-            _statusText,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.5,
-              color: AppColors.textSecondary.withValues(alpha: 0.9),
+            Text(
+              _statusText,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: AppColors.textSecondary.withValues(alpha: 0.9),
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          AppButton(
-            label: 'View Application Status',
-            onPressed: () => context.push(
-              RouteConstants.lenderLoanApplicationStatus
-                  .replaceFirst(':id', loan.id),
+            const SizedBox(height: 24),
+            AppButton(
+              label: 'View Application Status',
+              onPressed: () => context.push(
+                RouteConstants.lenderLoanApplicationStatus
+                    .replaceFirst(':id', loan.id),
+              ),
+              color: AppColors.lenderBlue,
             ),
-            color: AppColors.lenderBlue,
-          ),
           ],
         ),
       ),
@@ -2637,7 +2687,9 @@ class _ChooseDisbursementViewState
     context.showSnackBarAsToast(
       SnackBar(
         content: Text(
-          ok ? 'Your disbursement method has been saved.' : err ?? 'Failed to save your disbursement method.',
+          ok
+              ? 'Your disbursement method has been saved.'
+              : err ?? 'Failed to save your disbursement method.',
         ),
         backgroundColor: ok ? AppColors.success : AppColors.error,
       ),
@@ -2685,7 +2737,8 @@ class _ChooseDisbursementViewState
           ),
           const SizedBox(height: 24),
           AppButton(
-            label: 'Confirm ${_method == 'rider_delivery' ? 'COD' : 'Office Pickup'}',
+            label:
+                'Confirm ${_method == 'rider_delivery' ? 'COD' : 'Office Pickup'}',
             onTap: _confirm,
             color: AppColors.lenderBlue,
             isLoading: _submitting,
@@ -2753,8 +2806,8 @@ class _ChooseDisbursementViewState
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppColors.textTertiary
-                                .withValues(alpha: 0.12),
+                            color:
+                                AppColors.textTertiary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -2789,9 +2842,7 @@ class _ChooseDisbursementViewState
                       : Icons.radio_button_unchecked)
                   : Icons.radio_button_unchecked,
               color: enabled
-                  ? (selected
-                      ? Colors.white
-                      : AppColors.textTertiary)
+                  ? (selected ? Colors.white : AppColors.textTertiary)
                   : AppColors.textTertiary,
               size: 20,
             ),
@@ -2818,47 +2869,127 @@ class _LenderApplyLoanSkeleton extends StatelessWidget {
           children: [
             // Step indicator skeleton (4 dots)
             Row(
-              children: List.generate(4, (i) => Expanded(
-                child: Column(
-                  children: [
-                    Container(width: 28, height: 28, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
-                    const SizedBox(height: 6),
-                    Container(width: 48, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
-                    if (i < 3) Container(margin: const EdgeInsets.only(top: 14), height: 2, color: Colors.white),
-                  ],
-                ),
-              )),
+              children: List.generate(
+                  4,
+                  (i) => Expanded(
+                        child: Column(
+                          children: [
+                            Container(
+                                width: 28,
+                                height: 28,
+                                decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle)),
+                            const SizedBox(height: 6),
+                            Container(
+                                width: 48,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(4))),
+                            if (i < 3)
+                              Container(
+                                  margin: const EdgeInsets.only(top: 14),
+                                  height: 2,
+                                  color: Colors.white),
+                          ],
+                        ),
+                      )),
             ),
             const SizedBox(height: 24),
             // Account upgrade gate skeleton (when direct to upgrade)
-            Container(width: 140, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            Container(
+                width: 140,
+                height: 14,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6))),
             const SizedBox(height: 12),
-            Container(width: double.infinity, height: 56, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+            Container(
+                width: double.infinity,
+                height: 56,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14))),
             const SizedBox(height: 12),
-            Container(width: double.infinity, height: 56, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+            Container(
+                width: double.infinity,
+                height: 56,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14))),
             const SizedBox(height: 20),
             // Loan amount skeleton
-            Container(width: 100, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            Container(
+                width: 100,
+                height: 14,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6))),
             const SizedBox(height: 12),
-            Container(width: 120, height: 28, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            Container(
+                width: 120,
+                height: 28,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6))),
             const SizedBox(height: 12),
-            Container(width: double.infinity, height: 8, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4))),
+            Container(
+                width: double.infinity,
+                height: 8,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4))),
             const SizedBox(height: 20),
             // Frequency selector skeleton
-            Container(width: 120, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            Container(
+                width: 120,
+                height: 14,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6))),
             const SizedBox(height: 10),
-            Row(children: List.generate(3, (_) => Expanded(child: Container(margin: const EdgeInsets.only(right: 8), height: 44, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)))))),
+            Row(
+                children: List.generate(
+                    3,
+                    (_) => Expanded(
+                        child: Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            height: 44,
+                            decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10)))))),
             const SizedBox(height: 20),
             // Purpose field skeleton
-            Container(width: 80, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            Container(
+                width: 80,
+                height: 14,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6))),
             const SizedBox(height: 10),
-            Container(width: double.infinity, height: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+            Container(
+                width: double.infinity,
+                height: 80,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10))),
             const SizedBox(height: 20),
             // Preview card skeleton
-            Container(width: double.infinity, height: 160, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
+            Container(
+                width: double.infinity,
+                height: 160,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12))),
             const SizedBox(height: 20),
             // Button skeleton
-            Container(width: double.infinity, height: 48, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
+            Container(
+                width: double.infinity,
+                height: 48,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12))),
           ],
         ),
       ),

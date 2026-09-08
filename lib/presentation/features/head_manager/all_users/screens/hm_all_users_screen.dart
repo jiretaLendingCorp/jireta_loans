@@ -47,7 +47,10 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         children: [
           _filters(state),
           Expanded(
-            child: state.isLoading
+            // Shimmer only replaces the body on the very first load. Search /
+            // filter / create keep the current table visible until the new
+            // result arrives so the screen never flashes "loading everything".
+            child: state.isLoading && state.users.isEmpty
                 ? _shimmer()
                 : state.users.isEmpty
                     ? _empty()
@@ -88,7 +91,8 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
               value: state.roleFilter,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All Roles')),
-                DropdownMenuItem(value: 'head_manager', child: Text('Head Manager')),
+                DropdownMenuItem(
+                    value: 'head_manager', child: Text('Head Manager')),
                 DropdownMenuItem(value: 'employee', child: Text('Employee')),
                 DropdownMenuItem(value: 'rider', child: Text('Rider')),
                 DropdownMenuItem(value: 'lender', child: Text('Lender')),
@@ -150,112 +154,112 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
     final isArchived = user.accountStatus == 'archived';
     return Container(
       key: ValueKey(user.id),
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 3,
-              child: Row(
-                children: [
-                  ProfileAvatar(
-                    photoUrl: user.profilePhotoUrl,
-                    name: '${user.firstName} ${user.lastName}',
-                    color: _roleColor(user.role),
-                    radius: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      '${user.firstName} ${user.lastName}',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                _roleLabel(user.role),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+      color: isEven
+          ? Colors.white
+          : AppColors.surfaceVariant.withValues(alpha: 0.3),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                ProfileAvatar(
+                  photoUrl: user.profilePhotoUrl,
+                  name: '${user.firstName} ${user.lastName}',
                   color: _roleColor(user.role),
+                  radius: 18,
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.phoneNumber ?? '—',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.email ?? '—',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                isActive ? 'Active' : _statusLabel(user.accountStatus),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isActive ? AppColors.success : AppColors.error,
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    '${user.firstName} ${user.lastName}',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ),
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  _btn(
-                    Icons.visibility_outlined,
-                    'View',
-                    AppColors.textSecondary,
-                    () => _goToDetails(user),
-                  ),
-                  _btn(
-                    Icons.edit_outlined,
-                    'Edit',
-                    AppColors.primary,
-                    () => _openEdit(user),
-                  ),
-                  // Reset Password is only for Head Manager and Employee accounts.
-                  if (!isArchived &&
-                      (user.role == 'head_manager' || user.role == 'employee'))
-                    _btn(
-                      Icons.password_rounded,
-                      'Reset Password',
-                      AppColors.deepNavy,
-                      () => _showResetPassword(user),
-                    ),
-                  if (!isArchived && user.role != 'head_manager')
-                    _btn(
-                      Icons.archive_outlined,
-                      'Archive',
-                      AppColors.error,
-                      () => _confirmArchive(user),
-                    ),
-                ],
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _roleLabel(user.role),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: _roleColor(user.role),
               ),
+              overflow: TextOverflow.ellipsis,
             ),
-          ],
-        ),
-      );
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.phoneNumber ?? '—',
+              style:
+                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              user.email ?? '—',
+              style:
+                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Text(
+              isActive ? 'Active' : _statusLabel(user.accountStatus),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isActive ? AppColors.success : AppColors.error,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                _btn(
+                  Icons.visibility_outlined,
+                  'View',
+                  AppColors.textSecondary,
+                  () => _goToDetails(user),
+                ),
+                _btn(
+                  Icons.edit_outlined,
+                  'Edit',
+                  AppColors.primary,
+                  () => _openEdit(user),
+                ),
+                // Reset Password is only for Head Manager and Employee accounts.
+                if (!isArchived &&
+                    (user.role == 'head_manager' || user.role == 'employee'))
+                  _btn(
+                    Icons.password_rounded,
+                    'Reset Password',
+                    AppColors.deepNavy,
+                    () => _showResetPassword(user),
+                  ),
+                if (!isArchived && user.role != 'head_manager')
+                  _btn(
+                    Icons.archive_outlined,
+                    'Archive',
+                    AppColors.error,
+                    () => _confirmArchive(user),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _goToDetails(UserModel user) {
@@ -285,7 +289,8 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                        content: Text('${_roleLabel(user.role)} archived successfully')),
+                        content: Text(
+                            '${_roleLabel(user.role)} archived successfully')),
                   );
                 }
               } catch (e) {
@@ -302,7 +307,6 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
       ),
     );
   }
-
 
   void _showResetPassword(UserModel user) {
     showDialog(
@@ -323,13 +327,15 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.deepNavy,
               foregroundColor: Colors.white,
-              shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero),
+              shape:
+                  const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                await ref.read(hmAllUsersProvider.notifier).resetPassword(user.id);
+                await ref
+                    .read(hmAllUsersProvider.notifier)
+                    .resetPassword(user.id);
                 if (mounted) {
                   context.showToast('Password reset to 12345678');
                 }
@@ -361,7 +367,8 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
     }
   }
 
-  Color _roleColor(String role) {      switch (role) {
+  Color _roleColor(String role) {
+    switch (role) {
       case 'employee':
         return AppColors.employeeOrange;
       case 'rider':
@@ -418,8 +425,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.group_outlined,
-                size: 64, color: AppColors.textTertiary),
+            Icon(Icons.group_outlined, size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
             Text('No people found',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),

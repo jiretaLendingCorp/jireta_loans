@@ -64,7 +64,10 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
         children: [
           _filters(state),
           Expanded(
-            child: state.isLoading
+            // Shimmer only replaces the body on the very first load. Search /
+            // filter / create keep the current table visible until the new
+            // result arrives so the screen never flashes "loading everything".
+            child: state.isLoading && state.users.isEmpty
                 ? _shimmer()
                 : state.users.isEmpty
                     ? _empty()
@@ -92,9 +95,8 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
-                onChanged: (v) => ref
-                    .read(hmHeadManagersProvider.notifier)
-                    .setSearch(v),
+                onChanged: (v) =>
+                    ref.read(hmHeadManagersProvider.notifier).setSearch(v),
               ),
             ),
             const SizedBox(width: 12),
@@ -184,8 +186,8 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
             flex: 3,
             child: Text(
               user.email ?? '—',
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -193,8 +195,8 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
             flex: 2,
             child: Text(
               user.phoneNumber ?? '—',
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.textSecondary),
+              style:
+                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ),
           Expanded(
@@ -258,8 +260,8 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.deepNavy,
               foregroundColor: Colors.white,
-              shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero),
+              shape:
+                  const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
             onPressed: () async {
               Navigator.of(ctx).pop();

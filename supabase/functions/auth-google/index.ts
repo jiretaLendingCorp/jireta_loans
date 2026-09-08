@@ -16,6 +16,11 @@ import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
+import {
+  claimActiveSession,
+  cleanSessionId,
+  sessionIdentifierFromToken,
+} from '../_shared/auth.ts';
 
 const DEFAULT_ACTION = 'exchange';
 
@@ -43,10 +48,12 @@ serve(async (req) => {
 async function handleExchange(req: Request) {
   let accessToken = '';
   let refreshToken = '';
+  let bodySessionId: unknown;
   try {
     const body = await req.json();
     accessToken = sanitizeString(String(body.access_token ?? ''));
     refreshToken = sanitizeString(String(body.refresh_token ?? ''));
+    bodySessionId = body.session_id;
   } catch {
     return errorResponse('Request body must be valid JSON', 400, 'VALIDATION_ERROR');
   }
@@ -176,13 +183,24 @@ async function handleExchange(req: Request) {
     console.error('[auth-google] auth_log insert failed', err);
   }
 
-  // Update 10m idle anchor so refresh checks use fresh server time.
-  // Without this, a lender who last logged in days ago would have an immediate
-  // SESSION_EXPIRED on the next refresh even though they just logged in.
+  // Update last successful login (Profile/Security screen value).
   try {
     await db.from('users').update({ last_login_at: new Date().toISOString() }).eq('id', user.id);
   } catch (e) {
     console.warn('[auth-google] last_login_at update failed', e);
+  }
+
+  // Single-active-session: the Google sign-in that just finished becomes the
+  // one active session for this lender; previous sessions are revoked.
+  try {
+    await claimActiveSession(
+      db,
+      user.id,
+      cleanSessionId(bodySessionId) ??
+        sessionIdentifierFromToken(accessTokenOut),
+    );
+  } catch (e) {
+    console.warn('[auth-google] claimActiveSession failed', e);
   }
 
   return jsonResponse({

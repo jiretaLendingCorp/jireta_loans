@@ -36,6 +36,15 @@ class AppConstants {
   static const String sessionStartedAtKey = 'session_started_at';
   static const String lastActivityKey = 'last_activity_at';
 
+  /// Stable, client-generated id for the single-active-session feature. It is
+  /// created once per login, survives token refreshes, and is sent with every
+  /// request (X-Session-Id header) so the server validates THIS device's
+  /// session instead of the JWT session_id claim (which changes whenever
+  /// GoTrue mints a new session on sign-in/refresh and would falsely revoke
+  /// a healthy session).
+  static const String sessionIdKey = 'session_id';
+  static const String sessionIdHeaderName = 'X-Session-Id';
+
   static const String authRefreshPath = 'auth-session?fn=refresh-session';
 
   /// Idle session timeout: 10 minutes of inactivity → auto logout.
@@ -58,6 +67,7 @@ class AppConstants {
   static const String roleEmployee = 'employee';
   static const String roleRider = 'rider';
   static const String roleLender = 'lender';
+
   /// Borrower alias for [roleLender] — semantically borrower/client (DB VIEW borrower_profiles).
   static const String roleBorrower = roleLender;
 
