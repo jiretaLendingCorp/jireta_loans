@@ -481,10 +481,15 @@ class _HmLoanApplicationDetailsScreenState
   }
 
   Widget _buildSchedulePreview(Map<String, dynamic> loan, NumberFormat fmt) {
-    final schedules = (loan['loan_schedules'] as List? ?? [])
-        .cast<Map<String, dynamic>>()
-        .take(5)
-        .toList();
+    final allSchedules = (loan['loan_schedules'] as List? ?? [])
+        .cast<Map<String, dynamic>>();
+    // Once the loan is approved (or beyond), the schedule is final — show the
+    // FULL list. Before approval it is a 5-row preview only.
+    final status = (loan['status'] as String? ?? '').toLowerCase();
+    final isFinal = ['approved', 'active', 'overdue', 'completed', 'rejected']
+        .contains(status);
+    final schedules =
+        (isFinal ? allSchedules : allSchedules.take(5)).toList();
     if (schedules.isEmpty) {
       return _PremiumCard(
         title: 'Payment Schedule',
@@ -501,14 +506,14 @@ class _HmLoanApplicationDetailsScreenState
 
     return _PremiumCard(
       title: 'Payment Schedule',
-      subtitle: 'First 5 periods • Preview',
+      subtitle: isFinal ? 'Full schedule' : 'First 5 periods • Preview',
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.16),
           borderRadius: BorderRadius.circular(20)),
         child: Text(
-          '${loan['term_periods'] ?? schedules.length} total',
+          '${loan['term_periods'] ?? allSchedules.length} total',
           style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -564,10 +569,12 @@ class _HmLoanApplicationDetailsScreenState
                     ]);
                 }),
               ])),
-          const SizedBox(height: 8),
-          const Text(
-            'Full schedule available after approval and disbursement.',
-            style: TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+          if (!isFinal) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Full schedule available after approval and disbursement.',
+              style: TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+          ],
         ]));
   }
 

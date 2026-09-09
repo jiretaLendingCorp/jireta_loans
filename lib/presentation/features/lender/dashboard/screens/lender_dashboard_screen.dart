@@ -899,7 +899,7 @@ class _PayWithSection extends StatelessWidget {
               child: _PayWithCard(
                 assetPath: 'assets/icons/paywithrider.jpg',
                 color: AppColors.riderGreen,
-                title: 'Cash on Delivery',
+                title: 'Pay with Rider',
                 onTap: () {
                   final current = loan;
                   if (current == null) {

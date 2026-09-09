@@ -203,6 +203,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (raw.isEmpty) return 'Monthly income is required';
     final value = double.tryParse(raw);
     if (value == null || value <= 0) return 'Enter a valid monthly income';
+    if (value > 10000000) {
+      return 'Monthly income cannot exceed ₱10,000,000';
+    }
     return null;
   }
 
@@ -895,13 +898,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                    // Reasonable hard cap (₱999,999,999) + cents.
-                    LengthLimitingTextInputFormatter(12),
+                    _PesoIncomeFormatter(),
                   ],
                   onChanged: (_) => setState(() {}),
-                  decoration: _finFieldDeco('Monthly Income (₱)',
-                      errorText: _monthlyIncomeError),
+                  decoration: _finFieldDeco('Monthly Income',
+                      errorText: _monthlyIncomeError, prefixText: '₱ '),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -1000,9 +1001,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
   }
 
-  InputDecoration _finFieldDeco(String label, {String? errorText}) {
+  InputDecoration _finFieldDeco(String label,
+      {String? errorText, String? prefixText}) {
     return InputDecoration(
       labelText: label,
+      prefixText: prefixText,
       counterText: '',
       isDense: true,
       filled: true,
@@ -1640,6 +1643,52 @@ class _PesoAmountFormatter extends TextInputFormatter {
     if (digits.isEmpty) return const TextEditingValue(text: '');
     final value = int.tryParse(digits) ?? 0;
     final formatted = NumberFormat('#,##0').format(value);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
+
+/// Monthly Income: auto-formats as peso (thousands separators, up to 2
+/// decimals) so the value reads as ₱1,500.00 while typing. Digits-only input
+/// is capped at 10M so `_monthlyIncomeError` can surface a clear message
+/// instead of silently swallowing keystrokes.
+class _PesoIncomeFormatter extends TextInputFormatter {
+  static const double _maxIncome = 10000000;
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final raw = newValue.text.replaceAll(RegExp(r'[₱, ]'), '');
+    // Only digits and one decimal point.
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9.]'), '');
+    // Enforce a single decimal separator.
+    var body = cleaned;
+    if (cleaned.split('.').length > 2) {
+      final first = cleaned.indexOf('.');
+      body = cleaned.substring(0, first + 1) +
+          cleaned.substring(first + 1).replaceAll('.', '');
+    }
+    // Cap decimals at 2 places.
+    var dot = body.indexOf('.');
+    if (dot != -1 && body.length - dot - 1 > 2) {
+      body = body.substring(0, dot + 3);
+    }
+    // Reject values above the cap (truncate until within range, so pasting a
+    // huge number can never exceed ₱10M).
+    while (body.isNotEmpty &&
+        (double.tryParse(body) ?? 0) > _maxIncome) {
+      body = body.substring(0, body.length - 1);
+    }
+    // Recompute after any truncation above so the split below stays valid.
+    dot = body.indexOf('.');
+
+    final intPart = dot == -1 ? body : body.substring(0, dot);
+    final decPart = dot == -1 ? '' : body.substring(dot);
+    final formatted = intPart.isEmpty
+        ? body
+        : '${NumberFormat('#,##0').format(int.tryParse(intPart) ?? 0)}$decPart';
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),

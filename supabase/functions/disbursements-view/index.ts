@@ -13,6 +13,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { searchLoanIds, NO_MATCH_ID } from '../_shared/search.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
@@ -102,13 +103,17 @@ async function handleGetList(req: Request) {
   if (status) query = query.eq('status', status);
   if (method) query = query.eq('method', method);
   if (search) {
-    // Strip postgREST filter metacharacters so user input can't break the `.or()`.
-    const term = String(search).replace(/[(),.%*[\].]/g, '');
-    query = query.or(
-      `loan.loan_number.ilike.%${term}%,` +
-      `loan.lender_profiles.users.first_name.ilike.%${term}%,` +
-      `loan.lender_profiles.users.last_name.ilike.%${term}%`,
-    );
+    // PostgREST's `.or()` cannot parse embedded paths like
+    // `loan.lender_profiles.users.first_name.ilike` (throws PGRST100, 500s
+    // the whole list). Resolve matches to loan IDs first (loan_number ilike
+    // OR lender name via a top-level `users` query), then filter by
+    // `loan_id` — a plain top-level column.
+    const loanIds = await searchLoanIds(db, search);
+    if (loanIds.length > 0) {
+      query = query.in('loan_id', loanIds);
+    } else {
+      query = query.eq('loan_id', NO_MATCH_ID);
+    }
   }
   if (dateFrom) query = query.gte('created_at', dateFrom);
   if (dateTo) query = query.lte('created_at', dateTo);

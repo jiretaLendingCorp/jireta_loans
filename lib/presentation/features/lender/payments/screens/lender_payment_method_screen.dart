@@ -168,7 +168,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Request Cash on Delivery'),
+        title: const Text('Request Pay with Rider'),
         content: Text(
           'A rider will visit your home to collect $displayAmt. Continue?',
         ),
@@ -275,7 +275,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
           _MethodCard(
             icon: Icons.delivery_dining_outlined,
             color: AppColors.riderGreen,
-            title: 'Cash on Delivery',
+            title: 'Pay with Rider',
             subtitle:
                 'A rider will visit your home to collect the payment. Our office assigns the rider and notifies you.',
             badge: null,

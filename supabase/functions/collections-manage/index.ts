@@ -206,6 +206,15 @@ async function handleCollectionRequest(req: Request) {
     collection_type: type,
     requested_amount: requestedAmount,
     status: 'requested',
+    // Explicit NULL: the column default for status_id is the ASSIGNED status
+    // UUID, and trg_sync_collection_assignments_lookup_ids overwrites
+    // `status` from `status_id` on INSERT. Without this the row would be
+    // silently flipped to 'assigned' with no rider, violating
+    // collection_assignments_rider_required_unless_unassigned_request
+    // (23514) and failing the lender's request with "Request Not Sent".
+    // Passing NULL makes the trigger resolve status_id from `status`
+    // ('requested') instead of applying the column default.
+    status_id: null,
   }).select('id').single();
   if (insErr) {
     // Lost a race against a concurrent identical request (unique partial index

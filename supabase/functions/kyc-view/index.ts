@@ -20,6 +20,7 @@ import { validatePagination } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddressBatch, getLenderAddress } from '../_shared/loan_financials.ts';
+import { NO_MATCH_ID } from '../_shared/search.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule } from '../_shared/schedule.ts';
 
@@ -329,7 +330,22 @@ async function handleGetList(req: Request) {
       .neq('account_upgrade_status', 'not_submitted');
 
     if (status) query = query.eq('account_upgrade_status', status);
-    if (search) query = query.or(`users.first_name.ilike.%${search}%,users.last_name.ilike.%${search}%,users.middle_name.ilike.%${search}%`);
+    if (search) {
+      // PostgREST's `.or()` cannot parse embedded paths like
+      // `users.first_name.ilike` (throws PGRST100, 500s the whole list).
+      // Resolve name matches to user IDs via a top-level `users` query,
+      // then filter lender_profiles by id (lender_profiles.id = users.id).
+      const { data: nameHits } = await db
+        .from('users')
+        .select('id')
+        .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,middle_name.ilike.%${search}%`);
+      const ids = (nameHits ?? []).map((u) => u.id);
+      if (ids.length > 0) {
+        query = query.in('id', ids);
+      } else {
+        query = query.eq('id', NO_MATCH_ID);
+      }
+    }
     if (dateFrom) query = query.gte('updated_at', dateFrom);
     if (dateTo) query = query.lte('updated_at', dateTo);
 

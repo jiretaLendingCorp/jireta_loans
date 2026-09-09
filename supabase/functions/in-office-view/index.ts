@@ -365,9 +365,8 @@ async function handleSubmit(req: Request) {
       return errorResponse('Application already submitted', 422, 'ALREADY_CONVERTED');
     }
 
-    const canAccess =
-      authResult.role === 'head_manager' || app.created_by === authResult.id;
-    if (!canAccess) return errorResponse('Access denied', 403, 'FORBIDDEN');
+    // Head managers AND employees may submit/convert any walk-in application
+    // (same capability — matches the list/details endpoints).
 
     // Guard against duplicate conversion: a loan linked to this application
     // means the final submit already ran (or a retry after a timeout). Never
@@ -787,9 +786,8 @@ async function handleSubmitAccount(req: Request) {
     if (app.status === 'converted') {
       return errorResponse('Application already submitted', 422, 'ALREADY_CONVERTED');
     }
-    const canAccess =
-      authResult.role === 'head_manager' || app.created_by === authResult.id;
-    if (!canAccess) return errorResponse('Access denied', 403, 'FORBIDDEN');
+    // Head managers AND employees may submit any walk-in application (same
+    // capability — matches the list/details endpoints).
 
     const [personal, addresses, documents] = await Promise.all([
       db.from('application_personal_info').select('*').eq('application_id', application_id).maybeSingle(),
@@ -964,9 +962,9 @@ async function handleGetList(req: Request) {
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  if (authResult.role === ROLES.EMPLOYEE) {
-    query = query.eq('created_by', authResult.id);
-  }
+  // Both head managers and employees see the full walk-in pipeline — an
+  // employee must be able to continue/view applications started by another
+  // staff member (same capability as head manager).
   if (status) query = query.eq('status', status);
   if (dateFrom) query = query.gte('created_at', dateFrom);
   if (dateTo) query = query.lte('created_at', dateTo);
@@ -1032,9 +1030,8 @@ async function handleGetDetails(req: Request) {
     .single();
 
   if (appErr || !app) return errorResponse('Application not found', 404, 'NOT_FOUND');
-  if (authResult.role === ROLES.EMPLOYEE && app.created_by !== authResult.id) {
-    return errorResponse('Access denied', 403, 'FORBIDDEN');
-  }
+  // Head managers AND employees may view/continue any walk-in application
+  // (same capability, matching the list endpoint above).
 
   const [
     personal,

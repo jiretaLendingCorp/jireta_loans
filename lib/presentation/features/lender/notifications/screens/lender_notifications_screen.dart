@@ -1,6 +1,7 @@
 // lib/presentation/features/lender/notifications/screens/lender_notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/constants/route_constants.dart';
@@ -97,10 +98,41 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
                                 .read(lenderNotificationProvider.notifier)
                                 .markRead(state.notifications[i].id);
                           }
+                          _navigateTo(context, state.notifications[i]);
                         }),
                   ),
                 ),
     );
+  }
+}
+
+/// Routes a tapped notification to the screen that matches its type, using the
+/// same mapping as the FCM deep-link handler so taps behave consistently with
+/// push notifications.
+void _navigateTo(BuildContext context, dynamic notification) {
+  final type = notification.type as String? ?? '';
+  final referenceId =
+      notification.referenceId?.toString() ?? notification.reference_id?.toString() ?? '';
+
+  String? detail(String base) {
+    if (referenceId.isEmpty || referenceId == 'null') return null;
+    return base.replaceFirst(':id', referenceId);
+  }
+
+  String? path;
+  if (type.startsWith('loan') ||
+      type == 'penalty_applied' ||
+      type == 'disbursement') {
+    path = detail(RouteConstants.lenderLoanDetails);
+  } else if (type.startsWith('payment')) {
+    path = RouteConstants.lenderPaymentHistory;
+  } else if (type.startsWith('account_upgrade')) {
+    path = RouteConstants.lenderAccountUpgradeStatus;
+  } else if (type.startsWith('collection')) {
+    path = RouteConstants.lenderCollections;
+  }
+  if (path != null && path.isNotEmpty) {
+    context.push(path);
   }
 }
 

@@ -56,6 +56,9 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   final List<XFile> _pickedImages = [];
   bool _didPrefillReport = false;
   bool _isInitialLoading = true;
+  // True once the rider tries to continue with a too-short report, so Step 2
+  // can show a persistent inline error instead of only a snackbar.
+  bool _reportAttempted = false;
 
   @override
   void initState() {
@@ -190,6 +193,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
         msg = 'Upload at least 1 evidence photo in Step 2 before submitting.';
       } else if (_reportLen < 10) {
         msg = 'Write at least 10 characters in the investigation report.';
+        setState(() => _reportAttempted = true);
       } else if (_isAssigned) {
         msg = 'You must accept the assignment first.';
       }
@@ -270,6 +274,13 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
         if (_effectiveDocsCount == 0) {
           context.showSnackBarAsToast(const SnackBar(
               content: Text('Upload at least 1 photo is required')));
+          return;
+        }
+        if (_reportLen < 10) {
+          setState(() => _reportAttempted = true);
+          context.showSnackBarAsToast(const SnackBar(
+              content: Text(
+                  'Write at least 10 characters in the investigation report')));
           return;
         }
       }
@@ -439,6 +450,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           ci: ci,
           pickedImages: _pickedImages,
           controller: _reportCtrl,
+          reportAttempted: _reportAttempted,
           onPickMulti: _pickImages,
           onPickCamera: _pickFromCamera,
           onRemovePicked: (i) => setState(() => _pickedImages.removeAt(i)),
@@ -1004,6 +1016,7 @@ class _UploadReportStep extends StatelessWidget {
   final CreditInvestigationModel ci;
   final List<XFile> pickedImages;
   final TextEditingController controller;
+  final bool reportAttempted;
   final VoidCallback onPickMulti;
   final VoidCallback onPickCamera;
   final void Function(int) onRemovePicked;
@@ -1014,6 +1027,7 @@ class _UploadReportStep extends StatelessWidget {
     required this.ci,
     required this.pickedImages,
     required this.controller,
+    required this.reportAttempted,
     required this.onPickMulti,
     required this.onPickCamera,
     required this.onRemovePicked,
@@ -1025,6 +1039,10 @@ class _UploadReportStep extends StatelessWidget {
     final uploaded = ci.documents ?? [];
     final hasPending = pickedImages.isNotEmpty;
     final isCompleted = ci.status == 'completed';
+    final reportLen = controller.text.trim().length;
+    final reportError = reportAttempted && reportLen < 10
+        ? 'Investigation report must be at least 10 characters.'
+        : null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -1199,6 +1217,25 @@ class _UploadReportStep extends StatelessWidget {
                   null,
             ),
           ),
+          if (reportError != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.error_outline,
+                    size: 15, color: AppColors.error),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    reportError,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 80),
         ],
       ),

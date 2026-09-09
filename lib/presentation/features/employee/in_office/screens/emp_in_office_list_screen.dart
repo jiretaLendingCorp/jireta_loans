@@ -144,50 +144,57 @@ class _ApplicationList extends StatelessWidget {
           elevation: 1,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.deepNavy.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: () => onContinue(app['id']?.toString() ?? ''),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.deepNavy.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.assignment_outlined,
+                        color: AppColors.deepNavy, size: 22),
                   ),
-                  child: const Icon(Icons.assignment_outlined,
-                      color: AppColors.deepNavy, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(lenderName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 14)),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          StatusBadge(status: status),
-                          const SizedBox(width: 8),
-                          Text(
-                            _loanLabel(app),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(lenderName,
                             style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textTertiary,
-                                fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      if (createdAt != null)
-                        Text('Created: $createdAt',
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textTertiary)),
-                    ],
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            StatusBadge(status: status),
+                            const SizedBox(width: 8),
+                            Text(
+                              _loanLabel(app),
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textTertiary,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        if (createdAt != null)
+                          Text('Created: $createdAt',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textTertiary)),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const Icon(Icons.chevron_right_rounded,
+                      color: AppColors.textTertiary),
+                ],
+              ),
             ),
           ),
         );

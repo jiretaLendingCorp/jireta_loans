@@ -144,9 +144,9 @@ async function handleSaveStep(req: Request) {
     .single();
 
   if (fetchErr || !app) return errorResponse('Application not found', 404, 'NOT_FOUND');
-  if (authResult.role === ROLES.EMPLOYEE && app.created_by !== authResult.id) {
-    return errorResponse('Access denied', 403, 'FORBIDDEN');
-  }
+  // Head managers AND employees may continue any walk-in application (same
+  // capability — matches in-office-view list/details which no longer scope
+  // employees to their own records).
   if (app.status === 'converted') {
     return errorResponse('Cannot edit a converted application', 422, 'ALREADY_CONVERTED');
   }

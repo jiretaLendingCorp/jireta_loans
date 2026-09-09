@@ -17,6 +17,7 @@ import { validatePagination } from '../_shared/validators.ts';
 import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
+import { searchScheduleIds, NO_MATCH_ID } from '../_shared/search.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -135,13 +136,17 @@ async function handleCollectionGetList(req: Request) {
   query = scopeQueryToUser(query, user, riderId);
   if (status) query = query.eq('status', status);
   if (search) {
-    // Strip postgREST filter metacharacters so user input can't break the `.or()`.
-    const term = String(search).replace(/[(),.%*[\].]/g, '');
-    query = query.or(
-      `loan_schedule.loan.loan_number.ilike.%${term}%,` +
-      `loan_schedule.loan.lender_profiles.users.first_name.ilike.%${term}%,` +
-      `loan_schedule.loan.lender_profiles.users.last_name.ilike.%${term}%`,
-    );
+    // PostgREST's `.or()` cannot parse embedded paths like
+    // `loan_schedule.loan.lender_profiles.users.first_name.ilike` (throws
+    // PGRST100, 500s the whole list). Resolve matches to loan_schedule IDs
+    // first (loan_number ilike OR lender name via top-level `users` query),
+    // then filter by `loan_schedule_id` — a plain top-level column.
+    const scheduleIds = await searchScheduleIds(db, search);
+    if (scheduleIds.length > 0) {
+      query = query.in('loan_schedule_id', scheduleIds);
+    } else {
+      query = query.eq('loan_schedule_id', NO_MATCH_ID);
+    }
   }
   if (dateFrom) query = query.gte('created_at', dateFrom);
   if (dateTo) query = query.lte('created_at', dateTo);

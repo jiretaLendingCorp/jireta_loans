@@ -14,6 +14,7 @@ import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { getLenderAddressBatch } from '../_shared/loan_financials.ts';
+import { searchLoanIds, NO_MATCH_ID } from '../_shared/search.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
 
@@ -87,13 +88,17 @@ async function handleCiGetList(req: Request) {
     }
   }
   if (search) {
-    // Strip postgREST filter metacharacters so user input can't break the `.or()`.
-    const term = String(search).replace(/[(),.%*[\].]/g, '');
-    query = query.or(
-      `loans.loan_number.ilike.%${term}%,` +
-      `loans.lender_profiles.users.first_name.ilike.%${term}%,` +
-      `loans.lender_profiles.users.last_name.ilike.%${term}%`,
-    );
+    // PostgREST's `.or()` cannot parse embedded paths like
+    // `loans.lender_profiles.users.first_name.ilike` (throws PGRST100, 500s
+    // the whole list). Resolve matches to loan IDs first (loan_number ilike
+    // OR lender name via a top-level `users` query), then filter by
+    // `loan_id` — a plain top-level column PostgREST parses fine.
+    const loanIds = await searchLoanIds(db, search);
+    if (loanIds.length > 0) {
+      query = query.in('loan_id', loanIds);
+    } else {
+      query = query.eq('loan_id', NO_MATCH_ID);
+    }
   }
   if (dateFrom) query = query.gte('created_at', dateFrom);
   if (dateTo) query = query.lte('created_at', dateTo);

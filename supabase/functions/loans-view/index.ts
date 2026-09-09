@@ -19,6 +19,7 @@ import { validatePagination, validateLoanAmount, validateFrequency } from '../_s
 import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
+import { searchUserIdsByName } from '../_shared/search.ts';
 
 // ── [moved from loans-get-schedule-preview] ─────────────────────────────────
 const INTEREST_RATE = 0.20;
@@ -113,15 +114,21 @@ async function handleGetList(req: Request) {
       query = query.in('status', statuses);
     }
     if (search) {
-      // Strip postgREST filter metacharacters so user input can't break the
-      // `.or()` filter (comma, period, parens, wildcard, quotes are all
-      // interpreted by the postgREST operator parser).
-      const term = String(search).replace(/[(),.%*[\].]/g, '');
-      query = query.or(
-        `loan_number.ilike.%${term}%,` +
-        `lender_profiles.users.first_name.ilike.%${term}%,` +
-        `lender_profiles.users.last_name.ilike.%${term}%`,
-      );
+      // PostgREST's `.or()` cannot parse embedded paths like
+      // `lender_profiles.users.first_name.ilike` (throws PGRST100, 500s the
+      // whole list). Resolve lender-name matches to IDs first via a top-level
+      // `users` query, then OR loan_number with lender_id IN — both are
+      // top-level columns of `loans`, which PostgREST parses fine.
+      const lenderIds = await searchUserIdsByName(db, search);
+      if (lenderIds.length > 0) {
+        const term = String(search).replace(/[(),.%*[\].]/g, '');
+        query = query.or(
+          `loan_number.ilike.%${term}%,lender_id.in.(${lenderIds.join(',')})`,
+        );
+      } else {
+        const term = String(search).replace(/[(),.%*[\].]/g, '');
+        query = query.ilike('loan_number', `%${term}%`);
+      }
     }
     if (dateFrom) query = query.gte('created_at', dateFrom);
     if (dateTo) query = query.lte('created_at', dateTo);

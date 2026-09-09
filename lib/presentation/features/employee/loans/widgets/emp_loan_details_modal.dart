@@ -658,10 +658,15 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
   }
 
   Widget _buildSchedulePreview(Map<String, dynamic> loan, NumberFormat fmt) {
-    final schedules = (loan['loan_schedules'] as List? ?? [])
-        .cast<Map<String, dynamic>>()
-        .take(5)
-        .toList();
+    final allSchedules = (loan['loan_schedules'] as List? ?? [])
+        .cast<Map<String, dynamic>>();
+    // Once the loan is approved (or beyond), the schedule is final — show the
+    // FULL list. Before approval it is a 5-row preview only.
+    final status = (loan['status'] as String? ?? '').toLowerCase();
+    final isFinal = ['approved', 'active', 'overdue', 'completed', 'rejected']
+        .contains(status);
+    final schedules =
+        (isFinal ? allSchedules : allSchedules.take(5)).toList();
     if (schedules.isEmpty) {
       return const _PremiumCard(
         title: 'Payment Schedule',
@@ -680,8 +685,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     }
     return _PremiumCard(
       title: 'Payment Schedule',
-      subtitle: 'First 5 periods • Preview',
-      trailing: Text('${loan['term_periods'] ?? schedules.length} payments',
+      subtitle: isFinal ? 'Full schedule' : 'First 5 periods • Preview',
+      trailing: Text('${loan['term_periods'] ?? allSchedules.length} payments',
           style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
@@ -728,9 +733,12 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
               }),
             ],
           ),
-          const SizedBox(height: 6),
-          const Text('Full schedule available after approval.',
-              style: TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+          if (!isFinal) ...[
+            const SizedBox(height: 6),
+            const Text('Full schedule available after approval.',
+                style:
+                    TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+          ],
         ]));
   }
 

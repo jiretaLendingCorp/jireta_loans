@@ -176,8 +176,10 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     required String reportSummary,
   }) async {
     state = state.copyWith(isSubmitting: true);
-    // Instant UI: review step flips to completed right away.
-    _applyStatusLocally(ciId, 'completed');
+    // NO optimistic 'completed' here: the confirm dialog's Yes button shows a
+    // spinner while the upload + submit run, and the wizard must NOT flip to
+    // the completed view until that loading finishes and the server confirms.
+    // The completed state appears via the loadDetails() reload after success.
     try {
       await _ds.submitCiReport(ciId: ciId, reportSummary: reportSummary);
       _ref.read(riderLocationProvider.notifier).stopTracking();
