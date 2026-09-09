@@ -463,7 +463,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                       Expanded(flex: 2, child: _HLabel('Amount', Icons.payments_outlined)),
                       Expanded(flex: 2, child: _HLabel('Rider', Icons.delivery_dining_outlined)),
                       Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-                      SizedBox(width: 96, child: _HLabel('Action', Icons.bolt_outlined)),
+                      SizedBox(width: 120, child: _HLabel('Action', Icons.bolt_outlined)),
                     ],
                   ),
                 ),
@@ -508,7 +508,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             ]),
           ),
           SizedBox(
-            width: 96,
+            width: 120,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (canAssign)
                 InkWell(

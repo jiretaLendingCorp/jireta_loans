@@ -10,7 +10,6 @@ import '../../../../../data/datasources/remote/collection_remote_datasource.dart
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/details/collection_proof_viewer.dart';
-import '../../../../shared/widgets/status_badge.dart';
 
 final _empCollectionDetailProvider =
     FutureProvider.family<CollectionAssignmentModel?, String>((ref, id) async {
@@ -57,292 +56,252 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
       BuildContext context, WidgetRef ref, CollectionAssignmentModel col, NumberFormat fmt, DateFormat dateFmt) {
     final schedule = col.loanSchedule ?? {};
     final isOffice = col.collectionType == 'office';
+    final hasProof = col.proofPhoto != null || col.borrowerSignature != null || col.collectionPhoto != null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildPremiumHeader(col, fmt, isOffice),
-          const SizedBox(height: 16),
-          _buildTimeline(col),
-          const SizedBox(height: 16),
           LayoutBuilder(builder: (context, c) {
             final isNarrow = c.maxWidth < 860;
-            if (isNarrow) {
-              return Column(children: [
-                _buildAssignmentCard(col, dateFmt, isOffice),
+            final leftColumn = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _PremiumSectionCard(
+                title: 'Collection Overview',
+                subtitle: isOffice ? 'Office walk-in payment' : 'Rider field collection',
+                icon: Icons.request_page_rounded,
+                accent: AppColors.riderGreen,
+                child: Column(children: [
+                  _InfoRow('Lender', col.lenderName.isNotEmpty ? col.lenderName : 'N/A'),
+                  _InfoRow('Loan Number', col.loanNumber.isNotEmpty ? col.loanNumber : '—'),
+                  _InfoRow('Request Type', isOffice ? 'Pay at the Office' : 'Rider Collection'),
+                  _InfoRow('Status', col.status),
+                  const Divider(height: 20),
+                  _InfoRow('Amount Due', schedule['amount_due'] != null ? '₱${fmt.format((schedule['amount_due'] as num).toDouble())}' : 'N/A'),
+                  _InfoRow('Amount Collected', col.amountCollected != null ? '₱${fmt.format(col.amountCollected!)}' : 'Not yet collected'),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              _PremiumSectionCard(
+                title: 'Assignment Info',
+                subtitle: isOffice ? 'Office walk-in payment' : 'Rider field collection',
+                icon: Icons.assignment_rounded,
+                accent: AppColors.lenderBlue,
+                child: Column(children: [
+                  if (col.lenderPhone.isNotEmpty) _InfoRow('Lender Phone', col.lenderPhone),
+                  _InfoRow(isOffice ? 'Payment Location' : 'Assigned Rider', isOffice ? 'Office' : col.riderName.isNotEmpty ? col.riderName : 'Unassigned'),
+                  _InfoRow('Assigned By', col.assignedByName.isNotEmpty ? col.assignedByName : 'N/A'),
+                  _InfoRow('Schedule', col.collectionSchedule != null ? dateFmt.format(col.collectionSchedule!) : 'N/A'),
+                  _InfoRow('Response At', col.responseAt != null ? dateFmt.format(col.responseAt!) : 'Pending'),
+                  _InfoRow('Completed At', col.completedAt != null ? dateFmt.format(col.completedAt!) : '—'),
+                  const Divider(height: 20),
+                  _InfoRow('Notes', col.notes ?? 'None'),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              _PremiumSectionCard(
+                title: 'Payment Info',
+                subtitle: 'Reconciliation & proof',
+                icon: Icons.payments_rounded,
+                accent: AppColors.deepNavy,
+                child: Column(children: [
+                  _InfoRow('Due Date', schedule['due_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(schedule['due_date'])) : 'N/A'),
+                  _InfoRow('Period', '${schedule['period_number'] ?? schedule['installment_number'] ?? 'N/A'}'),
+                  _InfoRow('Idempotency Key', col.idempotencyKey ?? 'N/A'),
+                  if (hasProof) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 3))]),
+                      child: ElevatedButton.icon(
+                        onPressed: () => showCollectionProofDialog(context, [
+                          if (col.proofPhoto != null) CollectionProofItem(label: 'Payment Proof', url: col.proofPhoto!),
+                          if (col.borrowerSignature != null) CollectionProofItem(label: 'Lender Signature', url: col.borrowerSignature!),
+                          if (col.collectionPhoto != null) CollectionProofItem(label: 'Scene Photo', url: col.collectionPhoto!),
+                        ]),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        icon: const Icon(Icons.visibility_rounded, size: 18, color: Colors.white),
+                        label: const Text('View Collection Proof', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                  ],
+                ]),
+              ),
+              if (col.locationLat != null) ...[
                 const SizedBox(height: 16),
-                _buildPaymentCard(col, schedule, fmt, context),
-              ]);
-            }
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: _buildAssignmentCard(col, dateFmt, isOffice)),
-              const SizedBox(width: 16),
-              Expanded(child: _buildPaymentCard(col, schedule, fmt, context)),
+                _PremiumSectionCard(
+                  title: 'Collection Location',
+                  subtitle: 'GPS captured on completion',
+                  icon: Icons.location_on_rounded,
+                  accent: AppColors.riderGreen,
+                  child: Column(children: [
+                    _InfoRow('Latitude', col.locationLat?.toStringAsFixed(6) ?? '—'),
+                    _InfoRow('Longitude', col.locationLng?.toStringAsFixed(6) ?? '—'),
+                  ]),
+                ),
+              ],
             ]);
+
+            final rightRail = SizedBox(
+              width: isNarrow ? double.infinity : 340,
+              child: Column(children: [
+                Container(
+                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
+                      child: const Row(children: [
+                        SizedBox(width: 8),
+                        Text('Collection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                      ]),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: _buildStatusCard(col),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
+                      child: const Row(children: [
+                        SizedBox(width: 8),
+                        Text('Progress', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                      ]),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: _buildTimeline(col),
+                    ),
+                  ]),
+                ),
+              ]),
+            );
+
+            if (isNarrow) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [leftColumn, const SizedBox(height: 16), rightRail]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 5, child: leftColumn), const SizedBox(width: 16), rightRail]);
           }),
-          if (col.locationLat != null) ...[
-            const SizedBox(height: 16),
-            _buildLocationCard(col),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildPremiumHeader(CollectionAssignmentModel col, NumberFormat fmt, bool isOffice) {
-    final accent = _accentForStatus(col.status);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-            colors: isOffice
-                ? [const Color(0xFF0D1B2A), const Color(0xFF004D40)]
-                : [const Color(0xFF0D1B2A), const Color(0xFF143D2B), const Color(0xFF1B5E20)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 8))],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-              boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))],
-            ),
-            child: Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, color: Colors.white, size: 30),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(
-                    child: Text(col.lenderName.isNotEmpty ? col.lenderName : isOffice ? 'Office Payment Request' : 'Collection Assignment',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white))),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)),
-                  child: Text(isOffice ? 'OFFICE' : 'RIDER',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
-                ),
-              ]),
-              const SizedBox(height: 4),
-              Row(children: [
-                Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
-                    child: Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—',
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
-                const SizedBox(width: 8),
-                Text(col.amountCollected != null ? '₱${fmt.format(col.amountCollected!)} collected' : 'Pending collection',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              ]),
-            ]),
-          ),
-          const SizedBox(width: 12),
-          StatusBadge(status: col.status),
-        ],
-      ),
-    );
+  Widget _buildStatusCard(CollectionAssignmentModel col) {
+    final s = col.status.toLowerCase();
+    final color = _accentForStatus(col.status);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(width: 36, height: 36, decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)), child: Icon(_iconForStatus(s), size: 18, color: color)),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(_statusLabel(col.status), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          Text(_statusHint(s), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ])),
+      ]),
+      const SizedBox(height: 14),
+      const Divider(height: 1, color: AppColors.border),
+      const SizedBox(height: 12),
+      _StatusRow('Requested', col.collectionSchedule != null),
+      _StatusRow('Assigned', col.assignedByName.isNotEmpty),
+      _StatusRow('Accepted', col.responseAt != null),
+      _StatusRow('Completed', col.completedAt != null),
+    ]);
   }
 
   Widget _buildTimeline(CollectionAssignmentModel col) {
     final steps = [
-      ('Requested', col.collectionSchedule != null, Icons.request_page_rounded),
-      ('Assigned', col.assignedByName.isNotEmpty, Icons.assignment_ind_rounded),
-      ('Accepted', col.responseAt != null, Icons.handshake_rounded),
-      ('Completed', col.completedAt != null, Icons.verified_rounded),
+      ('Requested', col.collectionSchedule != null),
+      ('Assigned', col.assignedByName.isNotEmpty),
+      ('Accepted', col.responseAt != null),
+      ('Completed', col.completedAt != null),
     ];
-    int activeIdx = 0;
-    if (col.completedAt != null) {
-      activeIdx = 3;
-    } else if (col.responseAt != null) {
-      activeIdx = 2;
-    } else if (col.assignedByName.isNotEmpty) {
-      activeIdx = 1;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Row(
-        children: steps.asMap().entries.map((e) {
-          final idx = e.key;
-          final isDone = e.value.$2;
-          final isActive = idx == activeIdx;
-          final isLast = idx == steps.length - 1;
-          return Expanded(
-            child: Row(children: [
-              Column(children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isDone ? AppColors.riderGreen : isActive ? AppColors.lenderBlue : AppColors.surfaceVariant,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: isDone ? AppColors.riderGreen : isActive ? AppColors.lenderBlue : AppColors.border),
-                  ),
-                  child: Icon(e.value.$3, size: 16, color: isDone || isActive ? Colors.white : AppColors.textTertiary),
-                ),
-                const SizedBox(height: 6),
-                Text(e.value.$1,
-                    style:
-                        TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.w800 : FontWeight.w600, color: isActive ? AppColors.deepNavy : AppColors.textSecondary)),
-              ]),
-              if (!isLast)
-                Expanded(
-                    child: Container(
-                        height: 2,
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                            color: isDone ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border,
-                            borderRadius: BorderRadius.circular(2)))),
-            ]),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildAssignmentCard(CollectionAssignmentModel col, DateFormat dateFmt, bool isOffice) {
-    return _PremiumInfoCard(
-      title: 'Assignment Info',
-      subtitle: isOffice ? 'Office walk-in payment' : 'Rider field collection',
-      icon: Icons.assignment_rounded,
-      accent: AppColors.riderGreen,
-      rows: [
-        _Row('Status', col.status, icon: Icons.flag_rounded),
-        _Row('Request Type', isOffice ? 'Pay at the Office' : 'Rider Collection',
-            icon: isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded),
-        _Row('Lender', col.lenderName.isNotEmpty ? col.lenderName : 'N/A', icon: Icons.person_rounded),
-        if (col.lenderPhone.isNotEmpty) _Row('Lender Phone', col.lenderPhone, icon: Icons.phone_rounded),
-        _Row(isOffice ? 'Payment Location' : 'Assigned Rider', isOffice ? 'Office' : col.riderName.isNotEmpty ? col.riderName : 'Unassigned',
-            icon: Icons.delivery_dining_rounded, highlight: !isOffice && col.riderName.isNotEmpty),
-        _Row('Assigned By', col.assignedByName.isNotEmpty ? col.assignedByName : 'N/A', icon: Icons.admin_panel_settings_rounded),
-        _Row('Schedule', col.collectionSchedule != null ? dateFmt.format(col.collectionSchedule!) : 'N/A', icon: Icons.event_rounded),
-        _Row('Response At', col.responseAt != null ? dateFmt.format(col.responseAt!) : 'Pending', icon: Icons.schedule_rounded),
-        _Row('Completed At', col.completedAt != null ? dateFmt.format(col.completedAt!) : '—', icon: Icons.verified_rounded),
-        _Row('Notes', col.notes ?? 'None', icon: Icons.sticky_note_2_rounded),
-      ],
-    );
-  }
-
-  Widget _buildPaymentCard(CollectionAssignmentModel col, Map<String, dynamic> schedule, NumberFormat fmt, BuildContext context) {
-    final hasProof = col.proofPhoto != null || col.borrowerSignature != null || col.collectionPhoto != null;
-    return _PremiumInfoCard(
-      title: 'Payment Info',
-      subtitle: 'Reconciliation & proof',
-      icon: Icons.payments_rounded,
-      accent: AppColors.deepNavy,
-      rows: [
-        _Row('Amount Due', schedule['amount_due'] != null ? '₱${fmt.format((schedule['amount_due'] as num).toDouble())}' : 'N/A',
-            icon: Icons.request_quote_rounded, highlight: true),
-        _Row('Amount Collected', col.amountCollected != null ? '₱${fmt.format(col.amountCollected!)}' : 'Not yet collected',
-            icon: Icons.savings_rounded, highlight: col.amountCollected != null),
-        _Row('Due Date', schedule['due_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(schedule['due_date'])) : 'N/A',
-            icon: Icons.calendar_today_rounded),
-        _Row('Period', '${schedule['period_number'] ?? schedule['installment_number'] ?? 'N/A'}', icon: Icons.tag_rounded),
-        _Row('Idempotency Key', col.idempotencyKey ?? 'N/A', icon: Icons.fingerprint_rounded),
-        if (hasProof) ...[
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 3))]),
-            child: ElevatedButton.icon(
-              onPressed: () => showCollectionProofDialog(context, [
-                if (col.proofPhoto != null) CollectionProofItem(label: 'Payment Proof', url: col.proofPhoto!),
-                if (col.borrowerSignature != null) CollectionProofItem(label: 'Lender Signature', url: col.borrowerSignature!),
-                if (col.collectionPhoto != null) CollectionProofItem(label: 'Scene Photo', url: col.collectionPhoto!),
-              ]),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              icon: const Icon(Icons.visibility_rounded, size: 18, color: Colors.white),
-              label: const Text('View Collection Proof', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildLocationCard(CollectionAssignmentModel col) {
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-              color: AppColors.deepNavy.withValues(alpha: 0.04),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              border: const Border(bottom: BorderSide(color: AppColors.divider))),
-          child: Row(children: [
+    return Column(children: [
+      for (int i = 0; i < steps.length; i++) ...[
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(children: [
             Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]),
-                    borderRadius: BorderRadius.circular(9)),
-                child: const Icon(Icons.location_on_rounded, color: Colors.white, size: 18)),
-            const SizedBox(width: 10),
-            const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Collection Location', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-              Text('GPS captured on completion', style: TextStyle(fontSize: 11, color: AppColors.textSecondary))
-            ]),
-            const Spacer(),
-            Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.riderGreen.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
-                child: const Text('GEOTAGGED',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.riderGreen))),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(children: [
-            Container(
-              padding: const EdgeInsets.all(12),
+              width: 26,
+              height: 26,
               decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-              child: Row(children: [
-                Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                        color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
-                    child: const Icon(Icons.my_location_rounded, size: 18, color: AppColors.deepNavy)),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Lat: ${col.locationLat?.toStringAsFixed(6)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                  Text('Lng: ${col.locationLng?.toStringAsFixed(6)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                ])),
-                Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                        color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.map_rounded, size: 14, color: AppColors.deepNavy),
-                      SizedBox(width: 6),
-                      Text('Open Map', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))
-                    ])),
-              ]),
+                color: steps[i].$2 ? AppColors.riderGreen : AppColors.surfaceVariant,
+                shape: BoxShape.circle,
+                border: Border.all(color: steps[i].$2 ? AppColors.riderGreen : AppColors.border),
+              ),
+              child: Icon(steps[i].$2 ? Icons.check_rounded : Icons.circle_outlined, size: 14, color: steps[i].$2 ? Colors.white : AppColors.textTertiary),
             ),
+            if (i < steps.length - 1) Container(width: 2, height: 26, color: steps[i].$2 ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border),
           ]),
-        ),
-      ]),
-    );
+          const SizedBox(width: 10),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(steps[i].$1, style: TextStyle(fontSize: 12, fontWeight: steps[i].$2 ? FontWeight.w700 : FontWeight.w600, color: steps[i].$2 ? AppColors.textPrimary : AppColors.textSecondary)),
+          ),
+        ]),
+      ],
+    ]);
+  }
+
+  IconData _iconForStatus(String s) {
+    switch (s) {
+      case 'requested':
+        return Icons.request_page_rounded;
+      case 'assigned':
+        return Icons.assignment_ind_rounded;
+      case 'accepted':
+        return Icons.handshake_rounded;
+      case 'in_progress':
+        return Icons.directions_bike_rounded;
+      case 'completed':
+        return Icons.verified_rounded;
+      case 'failed':
+      case 'declined':
+        return Icons.cancel_rounded;
+      default:
+        return Icons.flag_rounded;
+    }
+  }
+
+  String _statusLabel(String s) {
+    switch (s.toLowerCase()) {
+      case 'in_progress':
+        return 'In Progress';
+      default:
+        return s.isEmpty ? 'Unknown' : s[0].toUpperCase() + s.substring(1);
+    }
+  }
+
+  String _statusHint(String s) {
+    switch (s) {
+      case 'requested':
+        return 'Lender request awaiting a rider';
+      case 'assigned':
+        return 'Rider assigned, awaiting acceptance';
+      case 'accepted':
+        return 'Rider accepted the collection';
+      case 'in_progress':
+        return 'Rider is on the way';
+      case 'completed':
+        return 'Payment collected and verified';
+      case 'failed':
+      case 'declined':
+        return 'Collection was not completed';
+      default:
+        return '';
+    }
   }
 
   Color _accentForStatus(String s) {
@@ -366,73 +325,68 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
   }
 }
 
-class _PremiumInfoCard extends StatelessWidget {
+class _PremiumSectionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
   final Color accent;
-  final List<Widget> rows;
-  const _PremiumInfoCard(
-      {required this.title, required this.subtitle, required this.icon, required this.accent, required this.rows});
+  final Widget child;
+
+  const _PremiumSectionCard({required this.title, required this.subtitle, required this.icon, required this.accent, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.border),
-          boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.06),
-              border: const Border(bottom: BorderSide(color: AppColors.divider)),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
           child: Row(children: [
-            Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
-                    borderRadius: BorderRadius.circular(9)),
-                child: Icon(icon, color: Colors.white, size: 18)),
-            const SizedBox(width: 10),
+            Container(width: 24, height: 24, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(6)), child: Icon(icon, size: 14, color: Colors.white)),
+            const SizedBox(width: 8),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-              Text(subtitle, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))
+              Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+              if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.white70)),
             ]),
           ]),
         ),
-        Padding(padding: const EdgeInsets.all(16), child: Column(children: rows)),
+        Padding(padding: const EdgeInsets.all(16), child: child),
       ]),
     );
   }
 }
 
-class _Row extends StatelessWidget {
+class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final IconData icon;
-  final bool highlight;
-  const _Row(this.label, this.value, {required this.icon, this.highlight = false});
+  const _InfoRow(this.label, this.value);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(7)),
-            child: Icon(icon, size: 14, color: AppColors.textSecondary)),
-        const SizedBox(width: 10),
         SizedBox(width: 130, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
-        Expanded(
-            child: Text(value,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: highlight ? AppColors.deepNavy : AppColors.textPrimary))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+      ]),
+    );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  final String label;
+  final bool done;
+  const _StatusRow(this.label, this.done);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(children: [
+        Icon(done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 16, color: done ? AppColors.riderGreen : AppColors.textTertiary),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: done ? FontWeight.w700 : FontWeight.w600, color: done ? AppColors.textPrimary : AppColors.textSecondary)),
       ]),
     );
   }
