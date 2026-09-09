@@ -20,6 +20,15 @@ class AppConstants {
 
   static const String termsAcceptedKey = 'terms_accepted';
 
+  /// Full legal name captured right after the lender accepts Terms &
+  /// Conditions. Stored per-account (key + '_' + userId) so the Account
+  /// Upgrade "Personal Info" step can auto-fill them.
+  static const String lenderFirstNameKey = 'lender_first_name';
+  static const String lenderMiddleNameKey = 'lender_middle_name';
+  static const String lenderLastNameKey = 'lender_last_name';
+  static const String lenderSuffixKey = 'lender_suffix';
+  static const String lenderEmailKey = 'lender_email';
+
   /// In-memory flag (NOT persisted): set to true right before a mobile logout
   /// so the login page can show a one-shot "Successfully Logged Out" modal on
   /// arrival. Static — survives the router redirect that follows logout.

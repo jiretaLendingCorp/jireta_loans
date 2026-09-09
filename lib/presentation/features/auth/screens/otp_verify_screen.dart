@@ -9,7 +9,6 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
-import '../../../shared/widgets/app_toast.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class OtpVerifyScreen extends ConsumerStatefulWidget {
@@ -34,6 +33,10 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   bool _loading = false;
   String _otp = '';
   String? _error;
+  // Wrong-OTP attempts for this verification session (reset when a new code
+  // is requested). The server additionally locks the phone after 3 failures.
+  int _attemptsUsed = 0;
+  static const int _maxOtpAttempts = 3;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -87,15 +90,8 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         if (mounted) setState(() => _lockSecondsLeft--);
       }
     });
-    AppToast.showWidget(
-      context,
-      LockoutCountdownToast(
-        seconds: seconds,
-        onExpired: () {
-          if (mounted) setState(() => _lockSecondsLeft = 0);
-        },
-      ),
-    );
+    // No toast on mobile — the inline lock countdown below the OTP boxes
+    // already shows "Too many attempts / Try again in …".
   }
 
   @override
@@ -206,14 +202,16 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         return;
       }
       if (!mounted) return;
-      context.showSnackBarAsToast(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      setState(() => _error = message);
+      // No toast — the inline error text below the OTP boxes is enough.
+      // Show a proper validation message with the remaining attempts.
+      _attemptsUsed++;
+      final attemptsLeft = _maxOtpAttempts - _attemptsUsed;
+      final attemptSuffix = attemptsLeft > 0
+          ? ' Attempt $_attemptsUsed of $_maxOtpAttempts — '
+              '$attemptsLeft attempt${attemptsLeft == 1 ? '' : 's'} left.'
+          : ' Attempt $_attemptsUsed of $_maxOtpAttempts — '
+              'no attempts left. Please request a new code.';
+      setState(() => _error = '$message$attemptSuffix');
     }
   }
 
@@ -230,6 +228,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
       setState(() {
         _error = null;
         _otp = '';
+        _attemptsUsed = 0;
       });
       _focusNodes[0].requestFocus();
       context.showSnackBarAsToast(

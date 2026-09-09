@@ -366,7 +366,7 @@ class _EmpAccountUpgradeDetailsScreenState
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
-                                        child: Text(d['document_type'] ?? 'Document',
+                                        child: Text(_docLabel(d['document_type']?.toString() ?? 'Document'),
                                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
                                     if (docStatus.toLowerCase() != 'submitted')
                                       Text(docStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: docStatus.toLowerCase() == 'verified' ? AppColors.success : AppColors.error)),
@@ -523,6 +523,7 @@ class _EmpAccountUpgradeDetailsScreenState
       case 'selfie': return 'Selfie with ID';
       case 'mayors_permit': return "Mayor's Permit";
       case 'birth_certificate': return 'Birth Certificate';
+      case 'lender_signature': return 'Lender Signature';
       default: return docType.replaceAll('_', ' ').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : w).join(' ');
     }
   }

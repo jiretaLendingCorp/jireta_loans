@@ -1,9 +1,14 @@
 // lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
@@ -47,6 +52,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   final _coMakerFormKey = GlobalKey<_CoMakerFormState>();
   String? _coMakerSignature;
   String? _signatureError;
+  // 00147: co-maker Valid ID captured with the signature (uploaded to
+  // co_maker_documents so HM/employee reviewers can view it).
+  PlatformFile? _coMakerValidId;
+  String? _validIdError;
 
   // 00128: financial + emergency are declared PER APPLICATION (this loan).
   final _employerNameCtrl = TextEditingController();
@@ -315,9 +324,37 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       );
       return;
     }
+    // 00147: co-maker Valid ID is required alongside the signature.
+    if (_coMakerValidId == null) {
+      setState(() => _validIdError = 'Co-maker Valid ID is required');
+      context.showSnackBarAsToast(
+        const SnackBar(
+          content: Text('Please upload the co-maker valid ID.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
+    Uint8List? validIdBytes = _coMakerValidId!.bytes;
+    if (validIdBytes == null) {
+      final path = _coMakerValidId!.path;
+      if (path != null) validIdBytes = await File(path).readAsBytes();
+    }
+    final validIdExt = (_coMakerValidId!.name.split('.').lastOrNull ?? '')
+        .toLowerCase();
+    final validIdMime = validIdExt == 'png'
+        ? 'image/png'
+        : validIdExt == 'jpg' || validIdExt == 'jpeg'
+            ? 'image/jpeg'
+            : 'application/octet-stream';
     final coMaker = Map<String, dynamic>.from(_coMaker ?? {})
-      ..['signature'] = _coMakerSignature;
+      ..['signature'] = _coMakerSignature
+      ..['valid_id_document'] = {
+        if (validIdBytes != null) 'content_base64': base64Encode(validIdBytes),
+        'file_name': _coMakerValidId!.name,
+        'mime_type': validIdMime,
+      };
     // 00128: per-loan declaration captured inside this wizard.
     final employment = {
       'type': _employmentType,
@@ -424,6 +461,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         context.showSnackBarAsToast(
           const SnackBar(
             content: Text('Please provide the co-maker signature to continue.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      // 00147: co-maker Valid ID is required before moving on.
+      if (_coMakerValidId == null) {
+        setState(() => _validIdError = 'Co-maker Valid ID is required');
+        context.showSnackBarAsToast(
+          const SnackBar(
+            content: Text('Please upload the co-maker valid ID to continue.'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -824,10 +872,154 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 14),
+          // 00147: co-maker Valid ID — required alongside the signature and
+          // visible to head manager / employee reviewers after submission.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _validIdError != null
+                    ? AppColors.error
+                    : AppColors.border,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Co-Maker Valid ID *',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  "A clear photo of the co-maker's government-issued ID.",
+                  style: TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                if (_coMakerValidId != null) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle,
+                          color: AppColors.success, size: 18),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _coMakerValidId!.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textPrimary),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                OutlinedButton.icon(
+                  onPressed: isSubmitting ? null : _pickCoMakerValidId,
+                  icon: const Icon(Icons.upload_file_outlined, size: 18),
+                  label: Text(_coMakerValidId != null
+                      ? 'Change Valid ID'
+                      : 'Upload Valid ID'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.lenderBlue,
+                    side: const BorderSide(color: AppColors.lenderBlue),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                if (_validIdError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _validIdError!,
+                    style:
+                        const TextStyle(fontSize: 12, color: AppColors.error),
+                  ),
+                ],
+              ],
+            ),
+          ),
           _buildStepNav(isSubmitting),
         ],
       ),
     );
+  }
+
+  /// 00147: capture the co-maker's Valid ID (camera or gallery).
+  Future<void> _pickCoMakerValidId() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(14),
+              child: Text(
+                'Co-Maker Valid ID',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined,
+                  color: AppColors.lenderBlue),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.of(context).pop('camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: AppColors.lenderBlue),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.of(context).pop('gallery'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'camera') {
+      final img = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        imageQuality: 85,
+      );
+      if (img == null || !mounted) return;
+      final bytes = await img.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _coMakerValidId = PlatformFile(
+          name: img.name,
+          size: bytes.length,
+          bytes: bytes,
+        );
+        _validIdError = null;
+      });
+    } else if (action == 'gallery') {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty || !mounted) return;
+      setState(() {
+        _coMakerValidId = result.files.first;
+        _validIdError = null;
+      });
+    }
   }
 
   /// 00128: borrower declares employment/income/source of funds + emergency

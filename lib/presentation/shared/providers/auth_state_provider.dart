@@ -313,6 +313,14 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Flips the logout loading flag on immediately so logout buttons show
+  /// their spinner the moment they are tapped — the network-heavy teardown
+  /// that follows (server logout, FCM unregister, realtime disconnect) can
+  /// take seconds, and [logout] only sets the flag once it actually starts.
+  void setLoggingOut() {
+    state = state.copyWith(isLoggingOut: true);
+  }
+
   Future<void> logout() async {
     _authRevision++;
     _expiryTimer?.cancel();

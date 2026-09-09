@@ -11,7 +11,6 @@ import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
-import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../shared/widgets/legal_links.dart';
 import '../../../shared/widgets/offline_toast.dart';
@@ -89,15 +88,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         setState(() => _lockSecondsLeft--);
       }
     });
-    AppToast.showWidget(
-      context,
-      LockoutCountdownToast(
-        seconds: seconds,
-        onExpired: () {
-          if (mounted) setState(() => _lockSecondsLeft = 0);
-        },
-      ),
-    );
+    // No toast on mobile — the inline lock countdown in the form already
+    // shows "Too many attempts / Try again in …".
   }
 
   Future<void> _sendOtp() async {

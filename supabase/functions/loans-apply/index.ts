@@ -35,6 +35,33 @@ function cleanPhone(value: string | undefined | null): string | null {
   return digits;
 }
 
+// 00147: co-maker Valid ID images ride along with the loan application. They
+// are uploaded to the private co-maker-documents bucket and linked through
+// co_maker_documents so staff reviewers can view them after submission.
+function mimeFromExt(ext: string): string {
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'pdf':
+      return 'application/pdf';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+// Decode base64 into bytes (whitespace-tolerant, like kyc-submit).
+function base64ToBytes(base64: string): Uint8Array {
+  const bin = atob(base64.replace(/\s+/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
 function cleanRelationship(value: string | undefined | null): string {
   if (!value) return 'Other';
   const v = sanitizeString(value).trim();
@@ -297,6 +324,50 @@ serve(async (req) => {
       if (coMakerLinkErr) {
         console.error('loan_co_makers insert error:', coMakerLinkErr);
         return errorResponse('Failed to save co-maker relationship', 500, 'SERVER_ERROR');
+      }
+
+      // 00147: co-maker Valid ID — upload to storage, link via co_maker_documents.
+      const validIdDoc = (co_maker as any).valid_id_document;
+      if (validIdDoc && validIdDoc.content_base64) {
+        const vExt =
+          (validIdDoc.file_name ?? 'valid_id.jpg').split('.').pop()?.toLowerCase() ?? 'jpg';
+        const vSafeExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(vExt)
+          ? vExt
+          : 'jpg';
+        const vObjectPath =
+          `co-maker/${coMakerRow.id}/${crypto.randomUUID()}.${vSafeExt}`;
+        const vMime = validIdDoc.mime_type ?? mimeFromExt(vSafeExt);
+
+        const { error: vUpErr } = await db.storage
+          .from('co-maker-documents')
+          .upload(vObjectPath, base64ToBytes(String(validIdDoc.content_base64)), {
+            contentType: vMime,
+            upsert: false,
+          });
+        if (vUpErr) {
+          console.error('co_maker valid ID upload error:', vUpErr.message);
+          return errorResponse(
+            `Failed to upload co-maker valid ID: ${vUpErr.message}`,
+            500,
+            'STORAGE_ERROR',
+          );
+        }
+
+        const { error: vDocErr } = await db.from('co_maker_documents').insert({
+          co_maker_id: coMakerRow.id,
+          document_type: 'valid_id',
+          file_path: vObjectPath,
+          file_name: validIdDoc.file_name ?? 'valid_id.jpg',
+          mime_type: vMime,
+        });
+        if (vDocErr) {
+          console.error('co_maker_documents insert error:', vDocErr.message);
+          return errorResponse(
+            'Failed to save co-maker valid ID document',
+            500,
+            'SERVER_ERROR',
+          );
+        }
       }
     }
 

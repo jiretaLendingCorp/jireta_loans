@@ -18,6 +18,7 @@ import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
@@ -220,7 +221,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         if (inReviewLoan != null)
                           _PendingLoanCard(loan: inReviewLoan)
                         else if (approvedLoan == null)
-                          _QuickActions(context: context),
+                          const _QuickActions(),
                         const SizedBox(height: 16),
                         // Promo carousel — nasa baba ng Apply Now button.
                         LenderPromoCarousel(
@@ -558,18 +559,27 @@ class _ApprovedLoanBanner extends StatelessWidget {
   }
 }
 
-class _QuickActions extends StatelessWidget {
-  final BuildContext context;
-  const _QuickActions({required this.context});
+class _QuickActions extends ConsumerWidget {
+  const _QuickActions();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final upgradeStatus = ref.watch(lenderAccountUpgradeProvider).status;
+    final isVerified =
+        upgradeStatus == 'verified' || upgradeStatus == 'approved';
+    // Account must be upgraded before a loan can be applied: show
+    // "Upgrade Account" until verification, then "Apply Loan".
+    final label = isVerified ? 'Apply Loan' : 'Upgrade Account';
+    final route = isVerified
+        ? RouteConstants.lenderLoans
+        : RouteConstants.lenderAccountUpgrade;
+
     return SizedBox(
       width: double.infinity,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => context.push(RouteConstants.lenderLoans),
+          onTap: () => context.push(route),
           borderRadius: BorderRadius.circular(14),
           child: Ink(
             decoration: BoxDecoration(
@@ -587,16 +597,21 @@ class _QuickActions extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 18),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 18),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.arrow_forward, color: Colors.white, size: 22),
-                  SizedBox(width: 8),
+                  // Only the "Apply Loan" variant keeps its arrow icon — the
+                  // "Upgrade Account" button is icon-free.
+                  if (isVerified) ...[
+                    const Icon(Icons.arrow_forward,
+                        color: Colors.white, size: 22),
+                    const SizedBox(width: 8),
+                  ],
                   Text(
-                    'Apply Now',
-                    style: TextStyle(
+                    label,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -877,7 +892,7 @@ class _PayWithSection extends StatelessWidget {
               Navigator.pop(context);
               context.push(RouteConstants.lenderLoans);
             },
-            child: const Text('Apply Now'),
+            child: const Text('Apply Loan'),
           ),
         ],
       ),

@@ -287,13 +287,36 @@ async function handleGetDetails(req: Request) {
     const { data: penalties } = await db.from('penalty_logs').select('*').eq('loan_id', loanId).order('applied_at', { ascending: false });
     const { data: coMakerLinks } = await db
       .from('loan_co_makers')
-      .select('relationship, co_maker:co_makers(*)')
+      // 00147: co-maker documents (valid ID) ride along so staff reviewers
+      // can open them from the loan details screen.
+      .select('relationship, co_maker:co_makers(*, co_maker_documents(*))')
       .eq('loan_id', loanId)
       .order('created_at');
 
-    const coMakers = (coMakerLinks ?? []).map((link) => ({
-      ...(link.co_maker ?? {}),
-      relationship: link.relationship,
+    // Resolve signed URLs for each co-maker document (service role can sign
+    // any bucket regardless of RLS).
+    const coMakers = await Promise.all((coMakerLinks ?? []).map(async (link) => {
+      const cm = (link.co_maker ?? {}) as unknown as Record<string, unknown>;
+      const docs = (cm.co_maker_documents as any[]) ?? [];
+      const docsWithUrl = await Promise.all(docs.map(async (d) => {
+        let signedUrl: string | null = null;
+        if (d?.file_path) {
+          try {
+            const { data } = await db.storage
+              .from('co-maker-documents')
+              .createSignedUrl(String(d.file_path), 3600);
+            signedUrl = data?.signedUrl ?? null;
+          } catch (e) {
+            console.error('co_maker doc sign error:', e);
+          }
+        }
+        return { ...d, signed_url: signedUrl };
+      }));
+      return {
+        ...cm,
+        relationship: link.relationship,
+        co_maker_documents: docsWithUrl,
+      };
     }));
 
     const [financials, disbursement, penaltyApplied, disbPref] = await Promise.all([

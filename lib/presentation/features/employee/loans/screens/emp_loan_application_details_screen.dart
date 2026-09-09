@@ -505,7 +505,53 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
               clipBehavior: Clip.antiAlias,
               child: _buildSignatureImage(signature)),
           ],
+          if (_coMakerValidIdImages(cm).isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text('Co-Maker Valid ID',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.5)),
+            const SizedBox(height: 8),
+            ..._coMakerValidIdImages(cm),
+          ],
         ]));
+  }
+
+  /// 00147: renders the co-maker's uploaded valid ID image(s) — sent with the
+  /// loan application and visible to reviewers.
+  List<Widget> _coMakerValidIdImages(Map<String, dynamic> cm) {
+    final docs = (cm['co_maker_documents'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .where((d) => d['document_type'] == 'valid_id')
+        .toList();
+    if (docs.isEmpty) return const [];
+    return docs.map((d) {
+      final url =
+          (d['signed_url'] as String?) ?? (d['file_path'] as String?);
+      const placeholder = Center(
+          child: Icon(Icons.badge_outlined,
+              size: 40, color: AppColors.textTertiary));
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Container(
+          width: double.infinity,
+          height: 160,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: url != null && url.isNotEmpty
+              ? Image.network(url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => placeholder)
+              : placeholder,
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildSignatureImage(String signature) {

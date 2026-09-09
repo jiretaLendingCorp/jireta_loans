@@ -499,7 +499,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     if (ref.read(authStateProvider).isLoggingOut) return;
     // No confirmation modal. Flow: button loading → logout → success modal
     // steady for 2s → login page. The redirect is held while the modal is up
-    // so it can't yank the stack mid-modal.
+    // so it can't yank the stack mid-modal. The button's "Logging out…"
+    // spinner shows the moment it's tapped (setLoggingOut is flipped at the
+    // start of authProvider.logout).
     AppConstants.suppressLogoutRedirect = true;
     try {
       await ref.read(authProvider.notifier).logout();

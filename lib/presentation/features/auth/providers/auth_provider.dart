@@ -514,6 +514,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     // authProvider.isLoading. The pressed logout button itself shows the
     // spinner — no full-screen "Logging out" modal is used.
     state = const AsyncLoading();
+    // Show "Logging out…" on the pressed button immediately — the teardown
+    // below (server logout, supabase signOut, realtime disconnect) can take
+    // seconds, and AuthState.isLoggingOut is only set once it starts.
+    _authState.setLoggingOut();
     try {
       try {
         await _ds.logout();

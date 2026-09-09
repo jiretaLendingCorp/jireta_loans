@@ -18,8 +18,12 @@ import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
+import '../../../../shared/widgets/signature_pad.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../../core/constants/app_constants.dart';
+import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../providers/lender_account_upgrade_provider.dart';
 import 'valid_id_scanner_screen.dart';
@@ -130,9 +134,22 @@ class _LenderAccountUpgradeSubmitScreenState
   DateTime? _dob;
   String? _dobError;
   bool _showDocsError = false;
+  // 00147: lender signature captured on the Residence Address step and
+  // submitted as a lender_signature document (visible to HM/employee).
+  String? _lenderSignature;
+  String? _signatureError;
 
   int _step = 0;
   bool _isSubmitting = false;
+  // Fields auto-filled from the "Fill In Information" modal (Terms &
+  // Conditions flow) are locked per-field: only fields that actually have a
+  // captured value become read-only, so empty ones (e.g. optional middle
+  // name / suffix) stay editable in this form.
+  bool _firstNameLocked = false;
+  bool _middleNameLocked = false;
+  bool _lastNameLocked = false;
+  bool _suffixLocked = false;
+  bool _emailLocked = false;
   // True once a submit succeeded and the success dialog is opening/opened.
   // While set, the wizard stays on screen beneath the modal instead of
   // swapping to the shimmer skeleton or the submitted/under-review page.
@@ -165,6 +182,43 @@ class _LenderAccountUpgradeSubmitScreenState
     _cityFocusNode.addListener(_onBottomFieldFocus);
     _provinceFocusNode.addListener(_onBottomFieldFocus);
     _zipFocusNode.addListener(_onBottomFieldFocus);
+    // Auto-fill the name fields with what the lender provided right after
+    // accepting Terms & Conditions (stored per-account in SharedPreferences).
+    _prefillNamesFromTerms();
+  }
+
+  /// Reads the name captured after the one-time Terms & Conditions acceptance
+  /// (keys are suffixed with the user id, same as the per-account terms flag)
+  /// and pre-fills the Personal Info step so the lender doesn't retype it.
+  Future<void> _prefillNamesFromTerms() async {
+    final userId = ref.read(authStateProvider).user?.id ?? '';
+    final suffix = userId.isEmpty ? '' : '_$userId';
+    final prefs = await SharedPreferences.getInstance();
+    final firstName =
+        prefs.getString('${AppConstants.lenderFirstNameKey}$suffix') ?? '';
+    final middleName =
+        prefs.getString('${AppConstants.lenderMiddleNameKey}$suffix') ?? '';
+    final lastName =
+        prefs.getString('${AppConstants.lenderLastNameKey}$suffix') ?? '';
+    final suffixName =
+        prefs.getString('${AppConstants.lenderSuffixKey}$suffix') ?? '';
+    final email =
+        prefs.getString('${AppConstants.lenderEmailKey}$suffix') ?? '';
+    if (!mounted) return;
+    setState(() {
+      _firstNameCtrl.text = firstName;
+      _middleNameCtrl.text = middleName;
+      _lastNameCtrl.text = lastName;
+      _suffixCtrl.text = suffixName;
+      _emailCtrl.text = email;
+      // Lock only the fields that have a captured value — an empty middle
+      // name or suffix stays editable in this form.
+      _firstNameLocked = firstName.isNotEmpty;
+      _middleNameLocked = middleName.isNotEmpty;
+      _lastNameLocked = lastName.isNotEmpty;
+      _suffixLocked = suffixName.isNotEmpty;
+      _emailLocked = email.isNotEmpty;
+    });
   }
 
   void _onBottomFieldFocus() {
@@ -430,6 +484,14 @@ class _LenderAccountUpgradeSubmitScreenState
         return;
       }
     }
+    if (_step == 1) {
+      // 00147: lender signature is required before leaving the Residence step.
+      if (_lenderSignature == null || _lenderSignature!.isEmpty) {
+        setState(() => _signatureError =
+            'Please sign the pad before continuing');
+        return;
+      }
+    }
     setState(() => _step = _step + 1);
     // Always start the next step at the top.
     _scrollToTop();
@@ -506,6 +568,15 @@ class _LenderAccountUpgradeSubmitScreenState
       _showInlineErrorsOnCurrentStep();
       return;
     }
+    // 00147: lender signature required before submit.
+    if (_lenderSignature == null || _lenderSignature!.isEmpty) {
+      setState(() {
+        _step = 1;
+        _signatureError = 'Please sign the pad before continuing';
+      });
+      _scrollToTop();
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     if (_dob == null) {
       setState(() {
@@ -545,6 +616,18 @@ class _LenderAccountUpgradeSubmitScreenState
           'file_name': f.name,
           'file_size': f.size,
           if (fileBytes != null) 'content_base64': base64Encode(fileBytes),
+        });
+      }
+      // 00147: lender signature (PNG from the signature pad) is submitted as
+      // a document so HM/employee reviewers can view it after submission.
+      if (_lenderSignature != null && _lenderSignature!.isNotEmpty) {
+        final sigBytes = base64Decode(_lenderSignature!);
+        docs.add({
+          'document_type': 'lender_signature',
+          'file_name': 'lender_signature.png',
+          'file_size': sigBytes.length,
+          'content_base64': _lenderSignature,
+          'mime_type': 'image/png',
         });
       }
       // Back side of the Valid ID rides along with the single Valid ID card.
@@ -791,7 +874,65 @@ class _LenderAccountUpgradeSubmitScreenState
   Widget _buildResidenceStep() {
     return Form(
       key: _formKey,
-      child: _buildResidenceAddress(wrapForm: false),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildResidenceAddress(wrapForm: false),
+          const SizedBox(height: 14),
+          _buildLenderSignatureCard(),
+        ],
+      ),
+    );
+  }
+
+  /// 00147: the lender signs here (Residence Address step). The signature is
+  /// submitted as a `lender_signature` document so head manager / employee
+  /// reviewers can view it after submission.
+  Widget _buildLenderSignatureCard() {
+    return _buildSectionCard(
+      'Lender Signature',
+      Icons.draw_rounded,
+      [
+        const Text(
+          'Sign below to confirm the details you provided are true and correct.',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        SignaturePad(
+          onSignatureChanged: (sig) {
+            setState(() {
+              _lenderSignature = sig;
+              _signatureError = (sig != null && sig.isNotEmpty)
+                  ? null
+                  : 'Please sign the pad before continuing';
+            });
+          },
+          height: 180,
+        ),
+        const SizedBox(height: 4),
+        if (_lenderSignature != null && _lenderSignature!.isNotEmpty) ...[
+          const Row(
+            children: [
+              Icon(Icons.check_circle, color: AppColors.success, size: 18),
+              SizedBox(width: 6),
+              Text(
+                'Signature confirmed',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.success),
+              ),
+            ],
+          ),
+        ],
+        if (_signatureError != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _signatureError!,
+            style: const TextStyle(fontSize: 12, color: AppColors.error),
+          ),
+        ],
+      ],
     );
   }
 
@@ -849,6 +990,7 @@ class _LenderAccountUpgradeSubmitScreenState
           AppTextField(
             label: 'First Name *',
             controller: _firstNameCtrl,
+            readOnly: _firstNameLocked,
             maxLength: 100,
             validator: _required('First name'),
           ),
@@ -856,6 +998,7 @@ class _LenderAccountUpgradeSubmitScreenState
           AppTextField(
             label: 'Middle Name (Optional)',
             controller: _middleNameCtrl,
+            readOnly: _middleNameLocked,
             maxLength: 2,
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z.]')),
@@ -873,6 +1016,7 @@ class _LenderAccountUpgradeSubmitScreenState
           AppTextField(
             label: 'Last Name *',
             controller: _lastNameCtrl,
+            readOnly: _lastNameLocked,
             maxLength: 100,
             validator: _required('Last name'),
           ),
@@ -881,12 +1025,14 @@ class _LenderAccountUpgradeSubmitScreenState
             label: 'Suffix (Optional)',
             hint: 'e.g. Jr., Sr., III',
             controller: _suffixCtrl,
+            readOnly: _suffixLocked,
             maxLength: 20,
           ),
           const SizedBox(height: 12),
           AppTextField(
             label: 'Email Address *',
             controller: _emailCtrl,
+            readOnly: _emailLocked,
             keyboardType: TextInputType.emailAddress,
             maxLength: 255,
             validator: (v) {

@@ -27,6 +27,8 @@ const ALLOWED_TYPES = [
   "mayors_permit",
   "birth_certificate",
   "co_maker",
+  // 00147: lender's signature captured on the Account Upgrade Residence step.
+  "lender_signature",
   "other",
 ];
 

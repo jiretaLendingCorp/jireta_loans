@@ -36,7 +36,7 @@ const defaultLenderPromos = <LenderPromoItem>[
     badge: 'Best Offer',
     title: 'Get up to ₱500,000',
     subtitle: 'Fast · Secure · Flexible',
-    ctaLabel: 'Apply Now',
+    ctaLabel: 'Apply Loan',
     gradient: [Color(0xFF0D1B2A), Color(0xFF1A3658)],
     icon: Icons.account_balance_wallet_rounded,
   ),
