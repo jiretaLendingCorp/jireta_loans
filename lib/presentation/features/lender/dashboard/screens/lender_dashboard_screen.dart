@@ -602,13 +602,9 @@ class _QuickActions extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Only the "Apply Loan" variant keeps its arrow icon — the
-                  // "Upgrade Account" button is icon-free.
-                  if (isVerified) ...[
-                    const Icon(Icons.arrow_forward,
-                        color: Colors.white, size: 22),
-                    const SizedBox(width: 8),
-                  ],
+                  const Icon(Icons.arrow_forward,
+                      color: Colors.white, size: 22),
+                  const SizedBox(width: 8),
                   Text(
                     label,
                     style: const TextStyle(

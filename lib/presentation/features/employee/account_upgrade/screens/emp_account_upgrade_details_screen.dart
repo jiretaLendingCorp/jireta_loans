@@ -515,6 +515,7 @@ class _EmpAccountUpgradeDetailsScreenState
     'selfie': 'assets/icons/selfie with id.png',
     'mayors_permit': 'assets/icons/PERMIT.png',
     'birth_certificate': 'assets/icons/birth certificate.jpg',
+    'face_recognition': 'assets/icons/FACE RECOGNITION.jpg',
   };
 
   String _docLabel(String docType) {

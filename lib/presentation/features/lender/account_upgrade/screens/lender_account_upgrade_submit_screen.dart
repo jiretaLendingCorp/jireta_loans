@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+import 'package:philippines_rpcmb/philippines_rpcmb.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -26,6 +27,7 @@ import '../../../../../core/constants/app_constants.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../providers/lender_account_upgrade_provider.dart';
+import 'face_verification_screen.dart';
 import 'valid_id_scanner_screen.dart';
 
 class LenderAccountUpgradeSubmitScreen extends ConsumerStatefulWidget {
@@ -79,6 +81,9 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': null,
     'mayors_permit': null,
     'birth_certificate': null,
+    // 00149: face recognition / frontal face capture — required for identity
+    // verification, shown below the Birth Certificate.
+    'face_recognition': null,
   };
 
   // Back side of the Valid ID, captured together with the front by the
@@ -94,6 +99,7 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': 'Selfie with ID *',
     'mayors_permit': "Mayor's Permit *",
     'birth_certificate': 'Birth Certificate *',
+    'face_recognition': 'Face Recognition *',
   };
 
   final Map<String, String> _docHints = {
@@ -101,6 +107,7 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': 'A clear selfie holding your Valid ID',
     'mayors_permit': "Valid Mayor's Permit / Business Permit",
     'birth_certificate': 'PSA/NSO Birth Certificate',
+    'face_recognition': 'Tap to start the live Face Verification flow (camera scan + liveness check)',
   };
 
   final Map<String, IconData> _docIcons = {
@@ -108,6 +115,7 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': Icons.face_retouching_natural_rounded,
     'mayors_permit': Icons.business_rounded,
     'birth_certificate': Icons.child_care_rounded,
+    'face_recognition': Icons.face_retouching_natural_rounded,
   };
 
   // Asset icons for verification docs — rendered without background per design
@@ -115,6 +123,7 @@ class _LenderAccountUpgradeSubmitScreenState
     'valid_id': 'assets/icons/id_card.png',
     'selfie': 'assets/icons/selfie with id.png',
     'mayors_permit': 'assets/icons/PERMIT.png',
+    'face_recognition': 'assets/icons/FACE RECOGNITION.jpg',
     'birth_certificate': 'assets/icons/birth certificate.jpg',
   };
 
@@ -125,10 +134,13 @@ class _LenderAccountUpgradeSubmitScreenState
   final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _streetCtrl = TextEditingController();
-  final _barangayCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController();
-  final _provinceCtrl = TextEditingController();
   final _zipCtrl = TextEditingController();
+  // Cascading location selection: Region → Province → City/Municipality →
+  // Barangay (official PSA data via philippines_rpcmb).
+  Region? _region;
+  Province? _province;
+  Municipality? _municipality;
+  String? _barangay;
   String? _gender;
   String? _civilStatus;
   DateTime? _dob;
@@ -156,9 +168,6 @@ class _LenderAccountUpgradeSubmitScreenState
   bool _successSubmitted = false;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _streetFocusNode = FocusNode();
-  final FocusNode _barangayFocusNode = FocusNode();
-  final FocusNode _cityFocusNode = FocusNode();
-  final FocusNode _provinceFocusNode = FocusNode();
   final FocusNode _zipFocusNode = FocusNode();
 
   static const _genderOptions = ['Male', 'Female', 'Prefer not to say'];
@@ -173,14 +182,8 @@ class _LenderAccountUpgradeSubmitScreenState
     _suffixCtrl.addListener(_onFieldChanged);
     _emailCtrl.addListener(_onFieldChanged);
     _streetCtrl.addListener(_onFieldChanged);
-    _barangayCtrl.addListener(_onFieldChanged);
-    _cityCtrl.addListener(_onFieldChanged);
-    _provinceCtrl.addListener(_onFieldChanged);
     _zipCtrl.addListener(_onFieldChanged);
     _streetFocusNode.addListener(_onBottomFieldFocus);
-    _barangayFocusNode.addListener(_onBottomFieldFocus);
-    _cityFocusNode.addListener(_onBottomFieldFocus);
-    _provinceFocusNode.addListener(_onBottomFieldFocus);
     _zipFocusNode.addListener(_onBottomFieldFocus);
     // Auto-fill the name fields with what the lender provided right after
     // accepting Terms & Conditions (stored per-account in SharedPreferences).
@@ -224,9 +227,6 @@ class _LenderAccountUpgradeSubmitScreenState
   void _onBottomFieldFocus() {
     FocusNode? focused;
     if (_streetFocusNode.hasFocus) focused = _streetFocusNode;
-    else if (_barangayFocusNode.hasFocus) focused = _barangayFocusNode;
-    else if (_cityFocusNode.hasFocus) focused = _cityFocusNode;
-    else if (_provinceFocusNode.hasFocus) focused = _provinceFocusNode;
     else if (_zipFocusNode.hasFocus) focused = _zipFocusNode;
     if (focused == null) return;
     final ctx = focused.context;
@@ -262,14 +262,8 @@ class _LenderAccountUpgradeSubmitScreenState
     _suffixCtrl.removeListener(_onFieldChanged);
     _emailCtrl.removeListener(_onFieldChanged);
     _streetCtrl.removeListener(_onFieldChanged);
-    _barangayCtrl.removeListener(_onFieldChanged);
-    _cityCtrl.removeListener(_onFieldChanged);
-    _provinceCtrl.removeListener(_onFieldChanged);
     _zipCtrl.removeListener(_onFieldChanged);
     _streetFocusNode.removeListener(_onBottomFieldFocus);
-    _barangayFocusNode.removeListener(_onBottomFieldFocus);
-    _cityFocusNode.removeListener(_onBottomFieldFocus);
-    _provinceFocusNode.removeListener(_onBottomFieldFocus);
     _zipFocusNode.removeListener(_onBottomFieldFocus);
     _firstNameCtrl.dispose();
     _middleNameCtrl.dispose();
@@ -277,15 +271,9 @@ class _LenderAccountUpgradeSubmitScreenState
     _suffixCtrl.dispose();
     _emailCtrl.dispose();
     _streetCtrl.dispose();
-    _barangayCtrl.dispose();
-    _cityCtrl.dispose();
-    _provinceCtrl.dispose();
     _zipCtrl.dispose();
     _scrollController.dispose();
     _streetFocusNode.dispose();
-    _barangayFocusNode.dispose();
-    _cityFocusNode.dispose();
-    _provinceFocusNode.dispose();
     _zipFocusNode.dispose();
     super.dispose();
   }
@@ -299,6 +287,23 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Future<void> _pickFile(String docType) async {
+    // 00149: Face Recognition uses the live Face Verification flow (camera
+    // preview + liveness/compare animation), not a photo/gallery card.
+    if (docType == 'face_recognition') {
+      final result = await Navigator.of(context).push<FaceVerifyResult>(
+        MaterialPageRoute(builder: (_) => const FaceVerificationScreen()),
+      );
+      if (result != null && mounted) {
+        setState(() {
+          _selectedFiles['face_recognition'] = PlatformFile(
+            name: 'face_recognition_${DateTime.now().millisecondsSinceEpoch}.jpg',
+            size: result.imageBytes.length,
+            bytes: result.imageBytes,
+          );
+        });
+      }
+      return;
+    }
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.white,
@@ -445,9 +450,10 @@ class _LenderAccountUpgradeSubmitScreenState
 
   bool _isResidenceValid() {
     if (_streetCtrl.text.trim().isEmpty) return false;
-    if (_barangayCtrl.text.trim().isEmpty) return false;
-    if (_cityCtrl.text.trim().isEmpty) return false;
-    if (_provinceCtrl.text.trim().isEmpty) return false;
+    if (_region == null) return false;
+    if (_province == null) return false;
+    if (_municipality == null) return false;
+    if (_barangay == null || _barangay!.trim().isEmpty) return false;
     final zip = _zipCtrl.text.trim();
     if (zip.length != 4 || int.tryParse(zip) == null) return false;
     return true;
@@ -665,9 +671,10 @@ class _LenderAccountUpgradeSubmitScreenState
         },
         'address_info': {
           'street_address': _streetCtrl.text.trim(),
-          'barangay': _barangayCtrl.text.trim(),
-          'city': _cityCtrl.text.trim(),
-          'province': _provinceCtrl.text.trim(),
+          'barangay': _barangay ?? '',
+          'city': _municipality?.name ?? '',
+          'province': _province?.name ?? '',
+          'region': _region?.regionName ?? '',
           'zip_code': _zipCtrl.text.trim(),
         },
       };
@@ -1077,73 +1084,202 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Widget _buildResidenceAddress({bool wrapForm = true}) {
-    final card = _buildSectionCard(
-      'Residence Address',
-      Icons.location_on_outlined,
-      [
-        AppTextField(
-          label: 'Street Address *',
-          controller: _streetCtrl,
-          focusNode: _streetFocusNode,
-          maxLength: 100,
-          validator: _required('Street address'),
-        ),
-        const SizedBox(height: 12),
-        AppTextField(
-          label: 'Barangay *',
-          controller: _barangayCtrl,
-          focusNode: _barangayFocusNode,
-          maxLength: 100,
-          validator: _required('Barangay'),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
+    // Cascading location dropdowns: Region → Province → City/Municipality →
+    // Barangay (official PSA data). Street + ZIP remain free-text. On wide
+    // screens the location pairs share a row (capped at 640px so the form
+    // never stretches awkwardly); on narrow screens they stack full-width so
+    // nothing overflows. Dropdowns use isExpanded so long values ellipsize.
+    final content = LayoutBuilder(builder: (context, constraints) {
+      final pairUp = constraints.maxWidth >= 520;
+      const regions = philippineRegions;
+      final provinces = _region?.provinces ?? const <Province>[];
+      final municipalities =
+          _province?.municipalities ?? const <Municipality>[];
+      final barangays = _municipality?.barangays ?? const <String>[];
+
+      final regionDropdown = _buildLocationDropdown(
+        label: 'Region *',
+        value: _region?.regionName,
+        items: regions
+            .map((r) =>
+                DropdownMenuItem(value: r.regionName, child: Text(r.regionName)))
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            _region = regions.where((r) => r.regionName == v).firstOrNull;
+            _province = null;
+            _municipality = null;
+            _barangay = null;
+          });
+        },
+      );
+      final provinceDropdown = _buildLocationDropdown(
+        // Recreate the field when the region changes so a stale selection
+        // is cleared instead of lingering in the closed dropdown.
+        key: ValueKey('prov-${_region?.regionName ?? ''}'),
+        label: 'Province *',
+        value: _province?.name,
+        items: provinces
+            .map(
+                (p) => DropdownMenuItem(value: p.name, child: Text(p.name)))
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            _province = provinces.where((p) => p.name == v).firstOrNull;
+            _municipality = null;
+            _barangay = null;
+          });
+        },
+      );
+      final cityDropdown = _buildLocationDropdown(
+        key: ValueKey('city-${_province?.name ?? ''}'),
+        label: 'City / Municipality *',
+        value: _municipality?.name,
+        items: municipalities
+            .map((m) =>
+                DropdownMenuItem(value: m.name, child: Text(m.name)))
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            _municipality =
+                municipalities.where((m) => m.name == v).firstOrNull;
+            _barangay = null;
+          });
+        },
+      );
+      final barangayDropdown = _buildLocationDropdown(
+        key: ValueKey('brgy-${_municipality?.name ?? ''}'),
+        label: 'Barangay *',
+        value: _barangay,
+        items: barangays
+            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+            .toList(),
+        onChanged: (v) => setState(() => _barangay = v),
+      );
+
+      final card = _buildSectionCard(
+        'Residence Address',
+        Icons.location_on_outlined,
+        [
+          if (pairUp)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: regionDropdown),
+                const SizedBox(width: 10),
+                Expanded(child: provinceDropdown),
+              ],
+            )
+          else ...[
+            regionDropdown,
+            const SizedBox(height: 12),
+            provinceDropdown,
+          ],
+          const SizedBox(height: 12),
+          if (pairUp)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: cityDropdown),
+                const SizedBox(width: 10),
+                Expanded(child: barangayDropdown),
+              ],
+            )
+          else ...[
+            cityDropdown,
+            const SizedBox(height: 12),
+            barangayDropdown,
+          ],
+          const SizedBox(height: 12),
+          AppTextField(
+            label: 'Street Address *',
+            controller: _streetCtrl,
+            focusNode: _streetFocusNode,
+            maxLength: 100,
+            validator: _required('Street address'),
+          ),
+          const SizedBox(height: 12),
+          // ZIP is short — give it half the width instead of a stretched row.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: 160,
               child: AppTextField(
-                label: 'City / Municipality *',
-                controller: _cityCtrl,
-                focusNode: _cityFocusNode,
-                maxLength: 100,
-                validator: _required('City / municipality'),
+                label: 'ZIP Code *',
+                controller: _zipCtrl,
+                focusNode: _zipFocusNode,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'ZIP code is required';
+                  }
+                  if (v.trim().length != 4) {
+                    return 'ZIP code must be 4 digits';
+                  }
+                  return null;
+                },
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: AppTextField(
-                label: 'Province *',
-                controller: _provinceCtrl,
-                focusNode: _provinceFocusNode,
-                maxLength: 100,
-                validator: _required('Province'),
-              ),
-            ),
-          ],
+          ),
+        ],
+      );
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: card,
         ),
-        const SizedBox(height: 12),
-        AppTextField(
-          label: 'ZIP Code *',
-          controller: _zipCtrl,
-          focusNode: _zipFocusNode,
-          keyboardType: TextInputType.number,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(4),
-          ],
-          validator: (v) {
-            if (v == null || v.trim().isEmpty) {
-              return 'ZIP code is required';
-            }
-            if (v.trim().length != 4) {
-              return 'ZIP code must be 4 digits';
-            }
-            return null;
-          },
+      );
+    });
+    if (!wrapForm) return content;
+    return Form(key: _formKey, child: content);
+  }
+
+  /// Dropdown that renders disabled (greyed) until its parent level is chosen.
+  Widget _buildLocationDropdown({
+    Key? key,
+    required String label,
+    required String? value,
+    required List<DropdownMenuItem<String>> items,
+    required void Function(String?) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      key: key,
+      initialValue: value,
+      // Expand + ellipsize long values instead of overflowing the field.
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle:
+            const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
-      ],
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide:
+              const BorderSide(color: AppColors.lenderBlue, width: 1.5),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      items: items,
+      // Disabled (greyed) until the parent level is selected.
+      onChanged: items.isEmpty ? null : onChanged,
     );
-    if (!wrapForm) return card;
-    return Form(key: _formKey, child: card);
   }
 
   Widget _buildWizardBar(LenderAccountUpgradeState state) {

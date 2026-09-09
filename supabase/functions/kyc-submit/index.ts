@@ -29,6 +29,8 @@ const ALLOWED_TYPES = [
   "co_maker",
   // 00147: lender's signature captured on the Account Upgrade Residence step.
   "lender_signature",
+  // 00149: frontal face capture for identity verification.
+  "face_recognition",
   "other",
 ];
 
@@ -326,6 +328,7 @@ serve(async (req) => {
           barangay: ai.barangay ? sanitizeString(ai.barangay) : undefined,
           city: ai.city ? sanitizeString(ai.city) : undefined,
           province: ai.province ? sanitizeString(ai.province) : undefined,
+          region: ai.region ? sanitizeString(ai.region) : undefined,
           zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : undefined,
         }).eq("id", existingAddr.id);
       } else {
@@ -336,6 +339,7 @@ serve(async (req) => {
           barangay: sanitizeString(ai.barangay),
           city: sanitizeString(ai.city),
           province: sanitizeString(ai.province),
+          region: ai.region ? sanitizeString(ai.region) : null,
           zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : null,
           is_primary: true,
         });
