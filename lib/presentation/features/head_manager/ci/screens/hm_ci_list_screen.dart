@@ -131,10 +131,14 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
           ),
           const SizedBox(width: 8),
           ..._pillTabs.map((t) {
-            final isActive = t.key == active;
+            // The Failed pill also surfaces rider-declined investigations so
+            // staff see every CI that needs reassignment in one place.
+            final isActive =
+                t.key == active || (t.key == 'failed' && active == 'failed,declined');
+            final statusToSend = t.key == 'failed' ? 'failed,declined' : t.key;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: _PillTab(def: t, active: isActive, onTap: () => ref.read(hmCiProvider.notifier).setStatus(t.key)),
+              child: _PillTab(def: t, active: isActive, onTap: () => ref.read(hmCiProvider.notifier).setStatus(statusToSend)),
             );
           }),
         ],

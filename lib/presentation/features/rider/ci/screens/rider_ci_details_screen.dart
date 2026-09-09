@@ -54,7 +54,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   final _reportCtrl = TextEditingController();
   final _imagePicker = ImagePicker();
   final List<XFile> _pickedImages = [];
-  bool _isSubmitting = false;
   bool _didPrefillReport = false;
   bool _isInitialLoading = true;
 
@@ -96,9 +95,14 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   bool get _hasReport => true;
   // DEBUG FIX: upload must NOT succeed before Review Submit, so pending staged docs count toward canSubmit
   // Actual server upload happens atomically inside _submitFinal()
-  // Report: min 10, max 600 chars (user req)
+  // Report: min 10, max 600 chars (user req) — the backend rejects empty
+  // report_summary, so the Submit button must be locked until a report is
+  // actually written (this was the "Failed to submit report" bug).
   bool get _canSubmit =>
-      _isAccepted && _effectiveDocsCount > 0 && !_isCompleted;
+      _isAccepted &&
+      _effectiveDocsCount > 0 &&
+      _reportLen >= 10 &&
+      !_isCompleted;
 
   // Step gating — must accept before proceeding past step 0
   bool _canGoToStep(int idx) {
@@ -184,6 +188,8 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       String msg = 'Complete all steps first.';
       if (_effectiveDocsCount == 0) {
         msg = 'Upload at least 1 evidence photo in Step 2 before submitting.';
+      } else if (_reportLen < 10) {
+        msg = 'Write at least 10 characters in the investigation report.';
       } else if (_isAssigned) {
         msg = 'You must accept the assignment first.';
       }
@@ -191,74 +197,66 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       context.showSnackBarAsToast(SnackBar(
           content: Text(msg), backgroundColor: AppColors.error));
       // jump to the failing step (Step 2 is combined Upload & Report for 3-step wizard)
-      if (_effectiveDocsCount == 0) {
+      if (_effectiveDocsCount == 0 || _reportLen < 10) {
         setState(() => _currentStep = 1);
       }
       return;
     }
 
-    final confirmed = await showConfirmationDialog(
+    // The confirm dialog's Yes/Submit button shows a spinner while the upload
+    // + submit run; Head Manager / Employee only see the report once this
+    // completes successfully (status flips to completed).
+    final confirmed = await showAsyncConfirmationDialog(
       context,
       title: 'Submit Report',
-      message:
-          'Are you sure to submit this ci?',
+      message: 'Are you sure to submit this ci?',
       confirmLabel: 'Submit',
       confirmColor: AppColors.riderGreen,
+      onConfirm: () => _performSubmit(),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
+    await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      builder: (_) => const SuccessDialog(
+        title: 'Report Submitted!',
+        message: 'Your report and evidence have been submitted.',
+      ),
+    );
+    if (!mounted) return;
+    // stay on review step showing completed state
+    setState(() => _currentStep = 2);
+  }
+
+  /// Runs inside the async confirmation dialog while the Yes button spins.
+  /// Returns null on success, or an error message to show in the dialog.
+  Future<String?> _performSubmit() async {
     // If there are pending local images not yet uploaded, upload first
     if (_pickedImages.isNotEmpty) {
-      setState(() => _isSubmitting = true);
       final okUp = await ref.read(riderCiProvider.notifier).uploadDocuments(
             ciId: widget.ciId,
             images: List.from(_pickedImages),
           );
       if (!okUp) {
-        if (mounted) {
-          setState(() => _isSubmitting = false);
-          showDialog(
-              context: context,
-              builder: (_) => const ErrorDialog(
-                  message: 'Failed to upload pending photos. Please try again.'));
-        }
-        return;
+        return 'Failed to upload pending photos. Please try again.';
       }
       if (mounted) setState(() => _pickedImages.clear());
       await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
     }
 
-    setState(() => _isSubmitting = true);
-    try {
-      final ok = await ref.read(riderCiProvider.notifier).submitReport(
-            ciId: widget.ciId,
-            reportSummary: _reportCtrl.text.trim(),
-          );
-      if (!mounted) return;
-      if (ok) {
-        await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
-        if (!mounted) return;
-        await showDialog(
-          context: context,
-          builder: (_) => const SuccessDialog(
-            title: 'Report Submitted!',
-            message: 'Your report and evidence have been submitted.',
-          ),
+    final ok = await ref.read(riderCiProvider.notifier).submitReport(
+          ciId: widget.ciId,
+          reportSummary: _reportCtrl.text.trim(),
         );
-        if (!mounted) return;
-        // stay on review step showing completed state
-        setState(() => _currentStep = 2);
-      } else {
-        if (!mounted) return;
-        showDialog(
-            context: context,
-            builder: (_) => const ErrorDialog(
-                message:
-                    'Failed to submit report. Ensure at least 1 photo is uploaded.'));
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+    if (!ok) {
+      final err = ref.read(riderCiProvider).error;
+      return (err == null || err.isEmpty)
+          ? 'Failed to submit report. Please try again.'
+          : 'Failed to submit report: $err';
     }
+    return null;
   }
 
   void _next() {
@@ -412,7 +410,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                       isCompleted: _isCompleted,
                       isDeclined: _isDeclined,
                       canSubmit: _canSubmit,
-                      isSubmitting: _isSubmitting,
+                      isSubmitting: false,
                       uploadedCount: _uploadedDocsCount,
                       pendingCount: _pendingCount,
                       hasReport: _hasReport,
@@ -1034,61 +1032,67 @@ class _UploadReportStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Upload section ──
+          // Uploaded evidence photos sit on TOP; a small text-only "Upload"
+          // button sits below them, and newly picked (pending) photos appear
+          // at the very bottom.
           const Text('Upload Evidence *',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary)),
           const SizedBox(height: 12),
-          GestureDetector(
-            onTap: onPickMulti,
-            child: Container(
-              width: double.infinity,
-              constraints: BoxConstraints(minHeight: uploaded.isNotEmpty ? 200 : 160),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border, width: 2, strokeAlign: BorderSide.strokeAlignInside),
+          if (uploaded.isNotEmpty) ...[
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
+              itemCount: uploaded.length,
+              itemBuilder: (ctx, i) {
+                final doc = uploaded[i];
+                final url = (doc['file_url'] as String?) ?? '';
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: url.isNotEmpty
+                      ? Image.network(url,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                              color: AppColors.border,
+                              child: const Icon(Icons.broken_image_outlined,
+                                  color: AppColors.textTertiary)))
+                      : Container(
+                          color: AppColors.border,
+                          child: const Icon(Icons.photo_outlined,
+                              color: AppColors.textTertiary)),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+          // Small text-only Upload button (no big tap-to-upload box).
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: isCompleted ? null : onPickMulti,
+              icon: const Icon(Icons.upload_rounded, size: 16),
+              label: const Text('Upload'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.riderGreen,
+                side: const BorderSide(color: AppColors.riderGreen),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: const Size(0, 36),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
-              child: uploaded.isNotEmpty
-                  ? GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(8),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3, crossAxisSpacing: 6, mainAxisSpacing: 6),
-                      itemCount: uploaded.length,
-                      itemBuilder: (ctx, i) {
-                        final doc = uploaded[i];
-                        final url = (doc['file_url'] as String?) ?? '';
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: url.isNotEmpty
-                              ? Image.network(url,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                      color: AppColors.border,
-                                      child: const Icon(Icons.broken_image_outlined,
-                                          color: AppColors.textTertiary)))
-                              : Container(
-                                  color: AppColors.border,
-                                  child: const Icon(Icons.photo_outlined,
-                                      color: AppColors.textTertiary)),
-                        );
-                      },
-                    )
-                  : const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.cloud_upload_outlined, size: 40, color: AppColors.riderGreen),
-                        SizedBox(height: 8),
-                        Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                        SizedBox(height: 4),
-                        Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
             ),
           ),
+          if (uploaded.isEmpty && !hasPending) ...[
+            const SizedBox(height: 8),
+            const Text('Tap Upload to add evidence photos.',
+                style: TextStyle(
+                    fontSize: 12, color: AppColors.textTertiary)),
+          ],
           if (hasPending) ...[
             const SizedBox(height: 14),
             Row(
@@ -1746,34 +1750,68 @@ class _WizardBottomBar extends StatelessWidget {
                         elevation: 0,
                       ),
                     )
-                  : ElevatedButton(
-                      onPressed: (() {
-                        if (isAssigned && current == 0) return null;
-                        if (current == 1 && ((uploadedCount + pendingCount) == 0 || !hasReport)) return null;
-                        return onNext;
-                      })(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.riderGreen,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                        disabledBackgroundColor:
-                            AppColors.riderGreen.withValues(alpha: 0.4),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                              current == 0 ? 'Continue' : 'Next',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w700)),
-                          const SizedBox(width: 6),
-                          const Icon(Icons.arrow_forward_rounded, size: 16),
-                        ],
-                      ),
-                    ),
+                  : isAssigned && current == 0
+                      // The Continue button is only shown once the rider has
+                      // ACCEPTED the CI investigation. Before that, a locked
+                      // hint tells them to accept first.
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceVariant,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.lock_rounded,
+                                  size: 14, color: AppColors.textTertiary),
+                              SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  'Accept the assignment to continue',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textSecondary),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ElevatedButton(
+                          onPressed: (() {
+                            if (current == 1 &&
+                                ((uploadedCount + pendingCount) == 0 ||
+                                    !hasReport)) {
+                              return null;
+                            }
+                            return onNext;
+                          })(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.riderGreen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                            disabledBackgroundColor:
+                                AppColors.riderGreen.withValues(alpha: 0.4),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                  current == 0 ? 'Continue' : 'Next',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              const SizedBox(width: 6),
+                              const Icon(Icons.arrow_forward_rounded,
+                                  size: 16),
+                            ],
+                          ),
+                        ),
             ),
           ],
         ),

@@ -50,6 +50,53 @@ class CreditInvestigationModel {
     this.isLatest = true,
   });
 
+  CreditInvestigationModel copyWith({
+    String? id,
+    String? loanId,
+    String? riderId,
+    String? assignedBy,
+    String? status,
+    String? investigationNotes,
+    String? reportSummary,
+    DateTime? deadline,
+    DateTime? responseAt,
+    DateTime? completedAt,
+    DateTime? reviewedAt,
+    String? reviewedBy,
+    String? reviewNotes,
+    String? reviewDecision,
+    Map<String, dynamic>? reviewer,
+    DateTime? createdAt,
+    Map<String, dynamic>? loan,
+    Map<String, dynamic>? rider,
+    Map<String, dynamic>? assignedByUser,
+    List<Map<String, dynamic>>? documents,
+    bool? isLatest,
+  }) =>
+      CreditInvestigationModel(
+        id: id ?? this.id,
+        loanId: loanId ?? this.loanId,
+        riderId: riderId ?? this.riderId,
+        assignedBy: assignedBy ?? this.assignedBy,
+        status: status ?? this.status,
+        investigationNotes: investigationNotes ?? this.investigationNotes,
+        reportSummary: reportSummary ?? this.reportSummary,
+        deadline: deadline ?? this.deadline,
+        responseAt: responseAt ?? this.responseAt,
+        completedAt: completedAt ?? this.completedAt,
+        reviewedAt: reviewedAt ?? this.reviewedAt,
+        reviewedBy: reviewedBy ?? this.reviewedBy,
+        reviewNotes: reviewNotes ?? this.reviewNotes,
+        reviewDecision: reviewDecision ?? this.reviewDecision,
+        reviewer: reviewer ?? this.reviewer,
+        createdAt: createdAt ?? this.createdAt,
+        loan: loan ?? this.loan,
+        rider: rider ?? this.rider,
+        assignedByUser: assignedByUser ?? this.assignedByUser,
+        documents: documents ?? this.documents,
+        isLatest: isLatest ?? this.isLatest,
+      );
+
   factory CreditInvestigationModel.fromJson(Map<String, dynamic> json) =>
       CreditInvestigationModel(
         id: json['id'] ?? '',

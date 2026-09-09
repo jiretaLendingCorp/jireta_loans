@@ -97,8 +97,46 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     }
   }
 
+  /// Applies a status change locally (optimistic) so the UI updates the
+  /// instant the rider taps Accept / Decline / Submit instead of waiting for
+  /// the follow-up list fetch. The server call + reload still run after.
+  ///
+  /// Items whose new status no longer belongs to the active tab are dropped
+  /// from the list right away — that is what makes a declined/assigned card
+  /// disappear without waiting for the network round trip.
+  void _applyStatusLocally(String ciId, String status) {
+    bool matchesActiveTab(String s) {
+      switch (state.activeTab) {
+        case 'assigned':
+          return s == 'assigned' || s == 'accepted';
+        case 'in_progress':
+          return s == 'in_progress' || s == 'accepted';
+        case 'completed':
+          return s == 'completed';
+        default:
+          return true; // 'all' tab keeps everything
+      }
+    }
+
+    final updatedList = state.ciList
+        .where((ci) =>
+            matchesActiveTab(ci.id == ciId ? status : ci.status))
+        .map((ci) =>
+            ci.id == ciId ? ci.copyWith(status: status) : ci)
+        .toList();
+    final selected = state.selectedCi;
+    state = state.copyWith(
+      ciList: updatedList,
+      selectedCi: selected != null && selected.id == ciId
+          ? selected.copyWith(status: status)
+          : selected,
+    );
+  }
+
   Future<bool> accept(String ciId) async {
     state = state.copyWith(isSubmitting: true);
+    // Instant UI: the card / wizard unlocks right away (accepted → in_progress).
+    _applyStatusLocally(ciId, 'in_progress');
     try {
       await _ds.acceptCi(ciId: ciId);
       _ref.read(riderLocationProvider.notifier).startTracking();
@@ -108,12 +146,17 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     } catch (e) {
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
+      // The optimistic update may have removed the item from the current tab;
+      // reload from the server so the true state is restored.
+      await _restoreAfterFailure(ciId);
       return false;
     }
   }
 
   Future<bool> decline(String ciId) async {
     state = state.copyWith(isSubmitting: true);
+    // Instant UI: the assignment card/design disappears right away.
+    _applyStatusLocally(ciId, 'declined');
     try {
       await _ds.declineCi(ciId: ciId);
       _ref.read(riderLocationProvider.notifier).stopTracking();
@@ -123,6 +166,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     } catch (e) {
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
+      await _restoreAfterFailure(ciId);
       return false;
     }
   }
@@ -132,6 +176,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     required String reportSummary,
   }) async {
     state = state.copyWith(isSubmitting: true);
+    // Instant UI: review step flips to completed right away.
+    _applyStatusLocally(ciId, 'completed');
     try {
       await _ds.submitCiReport(ciId: ciId, reportSummary: reportSummary);
       _ref.read(riderLocationProvider.notifier).stopTracking();
@@ -141,7 +187,19 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     } catch (e) {
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
+      await _restoreAfterFailure(ciId);
       return false;
+    }
+  }
+
+  /// Restores the server truth after a failed action: reloads the selected
+  /// CI details when this provider is showing a detail screen, otherwise
+  /// silently refreshes the list.
+  Future<void> _restoreAfterFailure(String ciId) async {
+    if (state.selectedCi?.id == ciId) {
+      await loadDetails(ciId);
+    } else {
+      await load(silent: true);
     }
   }
 

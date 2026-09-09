@@ -72,7 +72,20 @@ async function handleCiGetList(req: Request) {
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
   else if (riderId) query = query.eq('rider_id', riderId);
   if (ciId) query = query.eq('id', ciId);
-  if (status) query = query.eq('status', status);
+  if (status) {
+    // Comma-separated statuses (e.g. 'failed,declined' for the Failed tab)
+    // are expanded into an IN filter so staff can see failed + declined rows
+    // together.
+    const statuses = status
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (statuses.length === 1) {
+      query = query.eq('status', statuses[0]);
+    } else {
+      query = query.in('status', statuses);
+    }
+  }
   if (search) {
     // Strip postgREST filter metacharacters so user input can't break the `.or()`.
     const term = String(search).replace(/[(),.%*[\].]/g, '');

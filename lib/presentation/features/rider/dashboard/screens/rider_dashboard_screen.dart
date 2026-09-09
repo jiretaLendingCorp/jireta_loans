@@ -15,8 +15,10 @@ import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../dashboard/providers/rider_dashboard_provider.dart';
+import '../../notifications/providers/rider_notification_provider.dart';
 import '../../profile/providers/rider_profile_provider.dart';
 import 'widgets/rider_live_tracking_card.dart';
+import '../../../../../data/models/notification_model.dart';
 
 class RiderDashboardScreen extends ConsumerStatefulWidget {
   const RiderDashboardScreen({super.key});
@@ -31,6 +33,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(riderDashboardProvider);
     final profileState = ref.watch(riderProfileProvider);
+    final notifState = ref.watch(riderNotificationProvider);
     final riderName = _resolveRiderName(profileState);
 
     return MobileScaffold(
@@ -145,6 +148,23 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                     ),
                     const SizedBox(height: 10),
                     _Entrance(delay: 460, child: _buildCiTasks(context, state)),
+                    const SizedBox(height: 20),
+                    _Entrance(
+                      delay: 520,
+                      child: _buildSectionLabel(
+                        context,
+                        label: 'Recent Activity',
+                        count: notifState.notifications.length,
+                        icon: Icons.notifications_active_outlined,
+                        onMore: () =>
+                            context.push(RouteConstants.riderNotifications),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _Entrance(
+                      delay: 560,
+                      child: _buildRecentActivity(context, notifState),
+                    ),
                     if (state.error != null) ...[
                       const SizedBox(height: 16),
                       _ErrorBanner(state.error!),
@@ -458,6 +478,152 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildRecentActivity(
+      BuildContext context, RiderNotificationState notifState) {
+    final notifications = notifState.notifications;
+    if (notifications.isEmpty) {
+      return _buildEmptyCard('No recent activity yet', Icons.notifications_none);
+    }
+    return Column(
+      children: notifications.take(5).map<Widget>((n) {
+        return _buildActivityTile(context, n);
+      }).toList(),
+    );
+  }
+
+  Widget _buildActivityTile(BuildContext context, NotificationModel n) {
+    final (icon, color) = _activityStyle(n.type);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: () => context.push(RouteConstants.riderNotifications),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(13),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 19),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              n.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: n.isRead
+                                    ? FontWeight.w600
+                                    : FontWeight.w800,
+                                fontSize: 13.5,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (!n.isRead) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppColors.riderGreen,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        n.body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _timeAgo(n.createdAt),
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right,
+                    color: AppColors.textTertiary, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  (IconData, Color) _activityStyle(String type) {
+    final t = type.toLowerCase();
+    if (t.startsWith('ci_') || t == 'ci_required' || t == 'ci_overdue') {
+      return (Icons.manage_search_rounded, AppColors.info);
+    }
+    if (t.startsWith('collection') || t == 'assignment_expired') {
+      return (Icons.local_shipping_outlined, AppColors.riderGreen);
+    }
+    if (t.startsWith('disbursement')) {
+      return (Icons.delivery_dining_outlined, AppColors.goldDark);
+    }
+    if (t.startsWith('payment')) {
+      return (Icons.payments_outlined, AppColors.success);
+    }
+    if (t.startsWith('loan')) {
+      return (Icons.request_quote_outlined, AppColors.lenderBlue);
+    }
+    if (t.startsWith('account_upgrade')) {
+      return (Icons.verified_user_outlined, AppColors.statusCompleted);
+    }
+    return (Icons.notifications_outlined, AppColors.textSecondary);
+  }
+
+  String _timeAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${time.month}/${time.day}/${time.year}';
   }
 
   Widget _buildEmptyCard(String message, IconData icon) {

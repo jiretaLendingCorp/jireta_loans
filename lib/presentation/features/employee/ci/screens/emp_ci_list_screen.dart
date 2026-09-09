@@ -113,8 +113,12 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
         ),
         const SizedBox(width: 8),
         ..._pillTabs.map((t) {
-          final isActive = t.key == active;
-          return Padding(padding: const EdgeInsets.only(right: 8), child: _PillTab(def: t, active: isActive, onTap: () => ref.read(empCiProvider.notifier).setStatus(t.key)));
+          // The Failed pill also surfaces rider-declined investigations so
+          // staff see every CI that needs reassignment in one place.
+          final isActive =
+              t.key == active || (t.key == 'failed' && active == 'failed,declined');
+          final statusToSend = t.key == 'failed' ? 'failed,declined' : t.key;
+          return Padding(padding: const EdgeInsets.only(right: 8), child: _PillTab(def: t, active: isActive, onTap: () => ref.read(empCiProvider.notifier).setStatus(statusToSend)));
         }),
       ]),
     );
