@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import 'forms/app_date_range_picker.dart';
 
 /// Compact date filter button that sits beside the search field and results
 /// chip. Height (48px) matches the search TextField.
@@ -46,21 +47,11 @@ class _SearchDateFilterState extends State<SearchDateFilter> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
 
   Future<void> _pickRange() async {
-    final result = await showDateRangePicker(
+    final result = await showAppDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       initialDateRange: widget.value,
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: AppColors.deepNavy,
-            onPrimary: Colors.white,
-            secondary: AppColors.gold,
-          ),
-        ),
-        child: child!,
-      ),
     );
     widget.onChanged(result);
   }

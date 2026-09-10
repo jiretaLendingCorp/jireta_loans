@@ -146,9 +146,8 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
     );
   }
 
-  Widget _buildToolbar(HmCiState state) => Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
+  Widget _buildToolbar(HmCiState state) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             Expanded(
@@ -292,9 +291,8 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
   }
 
   Widget _buildPagination(HmCiState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(children: [
         Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),

@@ -32,7 +32,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
 
   final _dropdownTabs = const [
     _TabDef('all', 'All', Icons.layers_outlined),
-    _TabDef('pending', 'Pending', Icons.hourglass_top_rounded),
+    _TabDef('pending', 'Pending CI', Icons.hourglass_top_rounded),
     _TabDef('under_review', 'Under Review', Icons.rate_review_outlined),
     _TabDef('ci_required', 'CI Required', Icons.search_outlined),
     _TabDef('ci_assigned', 'CI Assigned', Icons.assignment_ind_outlined),
@@ -87,6 +87,11 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
                   _buildEmpty()
                 else
                   _buildTable(loanState.loans),
+              ],
+              // Pagination bar — palaging nakikita kahit isang page lang.
+              if (!isInOffice) ...[
+                const SizedBox(height: 16),
+                _buildPagination(loanState),
               ],
             ],
           ),
@@ -904,6 +909,50 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
     );
   }
 
+  Widget _buildPagination(EmpLoanState state) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            'Page ${state.page} of ${state.totalPages}',
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary),
+          ),
+          const Spacer(),
+          _EmpPageBtn(
+            icon: Icons.chevron_left_rounded,
+            enabled: state.page > 1,
+            onTap: () => ref.read(empLoanProvider.notifier).setPage(state.page - 1),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${state.page} / ${state.totalPages}',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _EmpPageBtn(
+            icon: Icons.chevron_right_rounded,
+            enabled: state.page < state.totalPages,
+            onTap: () => ref.read(empLoanProvider.notifier).setPage(state.page + 1),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEmpty() {
     // Use a full-width card matching the HM style so the empty state is
     // visible inside the SingleChildScrollView (Center alone collapses and
@@ -1232,7 +1281,7 @@ class _EmpStatusInline extends StatelessWidget {
     switch (s) {
       case 'pending':
         c = AppColors.warning;
-        label = 'Pending';
+        label = 'Pending CI';
         break;
       case 'under_review':
         c = AppColors.info;
@@ -1253,6 +1302,10 @@ class _EmpStatusInline extends StatelessWidget {
       case 'approved':
         c = AppColors.success;
         label = 'Approved';
+        break;
+      case 'rider_delivery_assigned':
+        c = AppColors.goldDark;
+        label = 'Pending Delivery';
         break;
       case 'rejected':
         c = AppColors.error;
@@ -1289,4 +1342,32 @@ class _EmpStatusInline extends StatelessWidget {
   }
 }
 
+class _EmpPageBtn extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _EmpPageBtn(
+      {required this.icon, required this.enabled, required this.onTap});
 
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+              color: enabled ? AppColors.borderDark : AppColors.border),
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? AppColors.textPrimary : AppColors.textTertiary,
+        ),
+      ),
+    );
+  }
+}

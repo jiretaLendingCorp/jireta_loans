@@ -73,6 +73,7 @@ class HmAccountUpgradeNotifier extends StateNotifier<HmAccountUpgradeState>
       final res = await _ds.accountUpgradeGetList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         page: page,
+        limit: 10,
         lenderName: state.search.isEmpty ? null : state.search,
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,

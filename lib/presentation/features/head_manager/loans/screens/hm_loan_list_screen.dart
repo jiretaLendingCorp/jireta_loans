@@ -76,10 +76,9 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
                 _buildEmpty(state)
               else
                 _Entrance(child: _buildTable(state.loans)),
-              if (state.totalPages > 1) ...[
-                const SizedBox(height: 16),
-                _buildPagination(state),
-              ],
+              // Pagination bar — palaging nakikita kahit isang page lang.
+              const SizedBox(height: 16),
+              _buildPagination(state),
             ],
           ),
         ),
@@ -149,9 +148,8 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
   }
 
   // ───────────────────────── Toolbar ─────────────────────────
-  Widget _buildToolbar(HmLoanState state) => Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
+  Widget _buildToolbar(HmLoanState state) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             Expanded(
@@ -563,13 +561,8 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
   }
 
   Widget _buildPagination(HmLoanState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(
         children: [
           Text(

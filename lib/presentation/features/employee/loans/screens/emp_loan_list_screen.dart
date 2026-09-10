@@ -76,7 +76,8 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
                     ? _buildEmpty()
                     : _buildTable(state.loans),
           ),
-          if (state.totalPages > 1) _buildPagination(state),
+          // Pagination bar — palaging nakikita kahit isang page lang.
+          _buildPagination(state),
         ],
       ),
     );
@@ -261,9 +262,8 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
         ),
       );
 
-  Widget _buildPagination(HmLoanState state) => Container(
-        padding: const EdgeInsets.all(16),
-        color: Colors.white,
+  Widget _buildPagination(HmLoanState state) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

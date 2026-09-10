@@ -10,6 +10,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
 import '../../../../shared/utils/file_downloader.dart';
 import '../../../../shared/utils/report_exporter.dart';
+import '../../../../shared/widgets/forms/app_date_range_picker.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
@@ -103,9 +104,6 @@ class HmReportLibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
-  String _search = '';
-  String _selectedCategory = 'all';
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(_reportProvider);
@@ -137,8 +135,6 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSearchAndFilters(state),
-                    const SizedBox(height: 20),
                     _buildSectionTitle(
                       title: 'Report Templates',
                     ),
@@ -165,112 +161,6 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     );
   }
 
-  Widget _buildSearchAndFilters(_ReportState state) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  onChanged: (v) => setState(() => _search = v),
-                  decoration: InputDecoration(
-                    hintText: 'Search',
-                    hintStyle: const TextStyle(
-                        color: AppColors.textTertiary, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded,
-                        size: 20, color: AppColors.textTertiary),
-                    filled: true,
-                    fillColor: AppColors.surfaceVariant,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  gradient: const LinearGradient(
-                      colors: [AppColors.gold, AppColors.goldDark]),
-                ),
-                child: ElevatedButton.icon(
-                  onPressed: state.isGenerating ? null : () {},
-                  icon: const Icon(Icons.auto_awesome,
-                      size: 16, color: Colors.white),
-                  label: const Text('New Export',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _FilterPill(
-                  label: 'All',
-                  selected: _selectedCategory == 'all',
-                  onTap: () => setState(() => _selectedCategory = 'all'),
-                ),
-                _FilterPill(
-                    label: 'Loans',
-                    selected: _selectedCategory == 'loan',
-                    onTap: () => setState(() => _selectedCategory = 'loan')),
-                _FilterPill(
-                    label: 'Payments',
-                    selected: _selectedCategory == 'payment',
-                    onTap: () => setState(() => _selectedCategory = 'payment')),
-                _FilterPill(
-                    label: 'Collections',
-                    selected: _selectedCategory == 'collection',
-                    onTap: () =>
-                        setState(() => _selectedCategory = 'collection')),
-                _FilterPill(
-                    label: 'Financial',
-                    selected: _selectedCategory == 'financial',
-                    onTap: () =>
-                        setState(() => _selectedCategory = 'financial')),
-                _FilterPill(
-                    label: 'Operations',
-                    selected: _selectedCategory == 'ops',
-                    onTap: () => setState(() => _selectedCategory = 'ops')),
-              ]
-                  .map((w) => Padding(
-                      padding: const EdgeInsets.only(right: 8), child: w))
-                  .toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSectionTitle({required String title, Widget? trailing}) => Row(
         children: [
           Expanded(
@@ -287,25 +177,8 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
       );
 
   Widget _buildTemplateGrid(BuildContext context, _ReportState state) {
-    var templates =
+    final templates =
         state.templates.isNotEmpty ? state.templates : _defaultTemplates();
-    if (_search.isNotEmpty) {
-      final q = _search.toLowerCase();
-      templates = templates
-          .where((t) =>
-              (t['name'] as String? ?? '').toLowerCase().contains(q) ||
-              (t['description'] as String? ?? '').toLowerCase().contains(q))
-          .toList();
-    }
-    if (_selectedCategory != 'all') {
-      templates = templates
-          .where((t) =>
-              (t['key'] as String? ?? '').contains(_selectedCategory) ||
-              (t['name'] as String? ?? '')
-                  .toLowerCase()
-                  .contains(_selectedCategory))
-          .toList();
-    }
     if (templates.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(32),
@@ -314,7 +187,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.border)),
         child: const Center(
-            child: Text('No templates match your search',
+            child: Text('No report templates available',
                 style: TextStyle(color: AppColors.textSecondary))),
       );
     }
@@ -559,64 +432,125 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Generate: ${template['name']}',
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        builder: (ctx, setS) {
+          return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(),
+          titlePadding: EdgeInsets.zero,
+          contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+          title: Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF5C6370),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.zero,
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.28)),
+                  ),
+                  child: Icon(
+                      template['icon'] as IconData? ??
+                          Icons.description_rounded,
+                      size: 20,
+                      color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    template['name'] as String? ?? 'Report',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.close_rounded,
+                      size: 18, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
           content: SizedBox(
             width: 420,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                      color: AppColors.surfaceVariant,
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Text(template['description'] as String? ?? '',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 13)),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 const Text('Date Range',
                     style:
                         TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(height: 8),
                 InkWell(
                   onTap: () async {
-                    final picked = await showDateRangePicker(
+                    final picked = await showAppDateRangePicker(
                         context: ctx,
                         firstDate: DateTime(2020),
                         lastDate: DateTime.now());
                     if (picked != null) setS(() => range = picked);
                   },
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.zero,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 14),
+                        horizontal: 14, vertical: 13),
                     decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.border),
-                        borderRadius: BorderRadius.circular(10)),
+                      color: range == null
+                          ? Colors.white
+                          : const Color(0xFFF3F4F6),
+                      border: Border.all(
+                        color: range == null
+                            ? AppColors.border
+                            : AppColors.borderDark,
+                        width: range == null ? 1 : 1.4,
+                      ),
+                      borderRadius: BorderRadius.zero,
+                    ),
                     child: Row(
                       children: [
                         const Icon(Icons.date_range_rounded,
                             size: 18, color: AppColors.textSecondary),
                         const SizedBox(width: 10),
-                        Text(
-                            range == null
-                                ? 'Select Date Range'
-                                : '${DateFormat('MMM dd').format(range!.start)} – ${DateFormat('MMM dd, yyyy').format(range!.end)}',
-                            style: TextStyle(
-                                color: range == null
-                                    ? AppColors.textTertiary
-                                    : AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: range == null
-                                    ? FontWeight.w400
-                                    : FontWeight.w600)),
+                        Expanded(
+                          child: Text(
+                              range == null
+                                  ? 'Select Date Range'
+                                  : '${DateFormat('MMM dd').format(range!.start)} – ${DateFormat('MMM dd, yyyy').format(range!.end)}',
+                              style: TextStyle(
+                                  color: range == null
+                                      ? AppColors.textTertiary
+                                      : AppColors.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: range == null
+                                      ? FontWeight.w400
+                                      : FontWeight.w700)),
+                        ),
+                        if (range != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: const BoxDecoration(
+                              color: AppColors.surfaceVariant,
+                              borderRadius: BorderRadius.zero,
+                            ),
+                            child: Text(
+                                '${range!.end.difference(range!.start).inDays + 1} days',
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textSecondary)),
+                          ),
                       ],
                     ),
                   ),
@@ -627,7 +561,12 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+                child: const Text('Cancel',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary))),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: range == null
                   ? null
@@ -677,13 +616,17 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
               icon: const Icon(Icons.arrow_forward_rounded, size: 16),
               label: const Text('Proceed'),
               style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.deepNavy,
+                  backgroundColor: const Color(0xFF5C6370),
+                  disabledBackgroundColor:
+                      const Color(0xFF5C6370).withValues(alpha: 0.35),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10))),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 18, vertical: 12),
+                  shape: const RoundedRectangleBorder()),
             ),
           ],
-        ),
+        );
+        },
       ),
     );
   }
@@ -700,12 +643,11 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
       barrierDismissible: true,
       builder: (ctx) => Dialog(
         insetPadding: const EdgeInsets.all(24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: const RoundedRectangleBorder(),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 920, maxHeight: 680),
           child: Container(
-            decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(16)),
+            decoration: const BoxDecoration(color: Colors.white),
             child: Column(
               children: [
                 // Header
@@ -717,15 +659,6 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.description_rounded,
-                            color: AppColors.success, size: 18),
-                      ),
-                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -735,8 +668,8 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                                     fontSize: 15, fontWeight: FontWeight.w800)),
                             Text(
                               dateRange == null
-                                  ? '${rows.length} record${rows.length == 1 ? '' : 's'} • Template preview'
-                                  : '${DateFormat('MMM dd, yyyy').format(dateRange.start)} – ${DateFormat('MMM dd, yyyy').format(dateRange.end)} • Template preview',
+                                  ? '${rows.length} record${rows.length == 1 ? '' : 's'}'
+                                  : '${DateFormat('MMM dd, yyyy').format(dateRange.start)} – ${DateFormat('MMM dd, yyyy').format(dateRange.end)}',
                               style: const TextStyle(
                                   fontSize: 11, color: AppColors.textSecondary),
                             ),
@@ -758,17 +691,10 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         children: [
-                          // Template header inside preview
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
-                            decoration: BoxDecoration(
-                                color: AppColors.surfaceVariant,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: AppColors.border)),
-                            child: Column(
-                              children: [
+                          // Template header inside preview — walang box,
+                          // text lang na naka-center.
+                          Column(
+                            children: [
                                 const Text('Jireta Loans & Credit Corp',
                                     style: TextStyle(
                                         fontSize: 10,
@@ -791,7 +717,6 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                                 ],
                               ],
                             ),
-                          ),
                           const SizedBox(height: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -846,7 +771,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                                   columns: [
                                     for (final c in columns)
                                       DataColumn(
-                                          label: Text(c,
+                                          label: Text(_prettyHeader(c),
                                               style: const TextStyle(
                                                   fontSize: 11)))
                                   ],
@@ -969,6 +894,47 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     );
   }
 
+  /// Consistent, human-readable column labels para sa preview table
+  /// (hindi raw keys tulad ng `riderName`).
+  static String _prettyHeader(String key) {
+    const overrides = <String, String>{
+      'riderName': 'Rider Name',
+      'rider_name': 'Rider Name',
+      'phoneNumber': 'Phone Number',
+      'phone_number': 'Phone Number',
+      'plateNumber': 'Plate Number',
+      'plate_number': 'Plate Number',
+      'accountStatus': 'Account Status',
+      'account_status': 'Account Status',
+      'ciAssignments': 'CI Assigned',
+      'ci_assigned': 'CI Assigned',
+      'ciCompleted': 'CI Completed',
+      'ci_completed': 'CI Completed',
+      'collectionsCompleted': 'Collections Completed',
+      'collections_completed': 'Collections Completed',
+      'lenderName': 'Lender Name',
+      'lender_name': 'Lender Name',
+      'employeeName': 'Employee Name',
+      'employee_name': 'Employee Name',
+      'templateKey': 'Report',
+      'template_key': 'Report',
+      'createdAt': 'Date',
+      'created_at': 'Date',
+    };
+    final o = overrides[key];
+    if (o != null) return o;
+    // camelCase / snake_case → "Title Case With Spaces"
+    final spaced = key
+        .replaceAllMapped(
+            RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]}')
+        .replaceAll('_', ' ');
+    return spaced
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
   List<String> _columnsOf(List<Map<String, dynamic>> rows) {
     final cols = <String>[];
     for (final r in rows) {
@@ -1088,35 +1054,6 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
           ],
         ),
       );
-}
-
-class _FilterPill extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _FilterPill(
-      {required this.label, required this.selected, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.deepNavy : AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: selected ? AppColors.deepNavy : AppColors.border),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? Colors.white : AppColors.textSecondary)),
-      ),
-    );
-  }
 }
 
 class _PremiumTemplateCard extends StatefulWidget {

@@ -99,7 +99,8 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': 'Selfie with ID *',
     'mayors_permit': "Mayor's Permit *",
     'birth_certificate': 'Birth Certificate *',
-    'face_recognition': 'Face Recognition *',
+    // 00149: face recognition — optional muna, hindi required.
+    'face_recognition': 'Face Recognition',
   };
 
   final Map<String, String> _docHints = {
@@ -525,13 +526,19 @@ class _LenderAccountUpgradeSubmitScreenState
 
   String? _docError(String key) {
     if (!_showDocsError) return null;
+    // Face recognition is optional muna — hindi hinihingi sa submit.
+    if (key == 'face_recognition') return null;
     if (_selectedFiles[key] != null) return null;
     final label = (_docLabels[key] ?? 'Document').replaceAll(' *', '');
     return '$label is required';
   }
 
   bool get _hasMissingDocs {
-    if (_selectedFiles.values.any((f) => f == null)) return true;
+    // Face recognition is optional — hindi kasama sa required docs check.
+    if (_selectedFiles.entries
+        .any((e) => e.key != 'face_recognition' && e.value == null)) {
+      return true;
+    }
     if (!_hasValidIdComplete) return true;
     return false;
   }

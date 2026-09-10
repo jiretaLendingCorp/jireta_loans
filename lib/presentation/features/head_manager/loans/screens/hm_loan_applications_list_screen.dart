@@ -39,7 +39,7 @@ class _HmLoanApplicationsListScreenState
   // Pipeline tabs become dropdown; Active & In-Office remain as pills per request
   final _dropdownTabs = const [
     _TabDef('all', 'All', Icons.layers_outlined),
-    _TabDef('pending', 'Pending', Icons.hourglass_top_rounded),
+    _TabDef('pending', 'Pending CI', Icons.hourglass_top_rounded),
     _TabDef('under_review', 'Under Review', Icons.rate_review_outlined),
     _TabDef('ci_required', 'CI Required', Icons.search_outlined),
     _TabDef('ci_assigned', 'CI Assigned', Icons.assignment_ind_outlined),
@@ -100,10 +100,9 @@ class _HmLoanApplicationsListScreenState
                   _Entrance(
                     child: _buildPremiumTable(loanState.loans),
                   ),
-                if (loanState.totalPages > 1) ...[
-                  const SizedBox(height: 16),
-                  _buildPagination(loanState),
-                ],
+                // Pagination bar — palaging nakikita kahit isang page lang.
+                const SizedBox(height: 16),
+                _buildPagination(loanState),
               ],
               const SizedBox(height: 8),
             ],
@@ -229,9 +228,8 @@ class _HmLoanApplicationsListScreenState
   // ─────────────────────────────── Toolbar ───────────────────────────────
   // No inner box — single outer container with flat Search field (hint "Search").
   Widget _buildToolbar(
-      HmLoanState loanState, HmInOfficeState inOfficeState, bool isInOffice) => Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
+      HmLoanState loanState, HmInOfficeState inOfficeState, bool isInOffice) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             Expanded(
@@ -886,13 +884,8 @@ class _HmLoanApplicationsListScreenState
   }
 
   Widget _buildPagination(HmLoanState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(
         children: [
           Text(
@@ -1177,7 +1170,7 @@ class _StatusInline extends StatelessWidget {
     switch (s) {
       case 'pending':
         c = AppColors.warning;
-        label = 'Pending';
+        label = 'Pending CI';
         break;
       case 'under_review':
         c = AppColors.info;
@@ -1201,7 +1194,7 @@ class _StatusInline extends StatelessWidget {
         break;
       case 'rider_delivery_assigned':
         c = AppColors.goldDark;
-        label = 'Assigned';
+        label = 'Pending Delivery';
         break;
       case 'rejected':
         c = AppColors.error;

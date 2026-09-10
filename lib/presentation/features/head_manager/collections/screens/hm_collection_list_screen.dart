@@ -365,9 +365,8 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   }
 
   // ── Toolbar: single outer box with Search (hint "Search"), refresh, results badge ──
-  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState, bool isPayments) => Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
+  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState, bool isPayments) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             Expanded(

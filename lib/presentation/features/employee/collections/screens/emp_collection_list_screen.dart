@@ -367,14 +367,8 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
   Widget _buildToolbar(EmpCollectionState cState, _EmpPaymentsState pState, bool isPayments) {
     final hasSearch = _searchCtrl.text.isNotEmpty;
     final resultsCount = isPayments ? pState.totalCount : cState.totalCount;
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2))],
-      ),
       child: Row(
         children: [
           Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),

@@ -280,8 +280,7 @@ class HmActivityFeed extends ConsumerWidget {
               ],
             ),
           ),
-          Expanded(
-            child: isLoading
+          isLoading
                 ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                 : events.isEmpty
                     ? const Center(
@@ -290,8 +289,12 @@ class HmActivityFeed extends ConsumerWidget {
                                 color: AppColors.textTertiary, fontSize: 12)),
                       )
                     : ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
                         padding: const EdgeInsets.symmetric(vertical: 4),
-                        itemCount: events.length > 10 ? 10 : events.length,
+                        // Keep the card short so it matches the donut card;
+                        // the rest is available via View All.
+                        itemCount: events.length > 4 ? 4 : events.length,
                         separatorBuilder: (_, __) =>
                             const Divider(height: 1, color: Color(0xFFF0F0F0)),
                         itemBuilder: (_, i) {
@@ -339,8 +342,7 @@ class HmActivityFeed extends ConsumerWidget {
                             ),
                           );
                         },
-                      ),
-          ),
+                    ),
         ],
       ),
     );

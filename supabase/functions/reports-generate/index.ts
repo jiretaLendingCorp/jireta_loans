@@ -256,8 +256,9 @@ async function buildLenderReport(
 
   let query = db.from('users').select(
     `first_name, last_name, phone_number, account_status, created_at,
+     roles!users_role_id_fkey!inner(name),
      lender_profiles!lender_profiles_id_fkey(account_upgrade_status)`,
-  );
+  ).eq('roles.name', 'lender');
   if (upgradeOnly) {
     query = query.not('lender_profiles.account_upgrade_status', 'eq', 'not_submitted');
   }
@@ -288,8 +289,9 @@ async function buildRiderReport(
   const [ridersRes, ciRes, collRes] = await Promise.all([
     db.from('users').select(
       `id, first_name, last_name, phone_number, account_status,
+       roles!users_role_id_fkey!inner(name),
        rider_profiles!rider_profiles_id_fkey(is_available, plate_number, vehicle_type)`,
-    ),
+    ).eq('roles.name', 'rider'),
     db.from('credit_investigations')
       .select('rider_id, status')
       .gte('created_at', from)
@@ -347,8 +349,9 @@ async function buildEmployeeReport(
 
   const { data: employees, error } = await db.from('users').select(
     `id, first_name, last_name, account_status,
+     roles!users_role_id_fkey!inner(name),
      employee_profiles!employee_profiles_id_fkey(position)`,
-  );
+  ).eq('roles.name', 'employee');
   if (error) throw new Error('employee_report query failed');
   const empRows = (employees ?? []) as unknown as Array<Record<string, any>>;
   const empIds = empRows.map((r) => String(r.id)).filter(Boolean);

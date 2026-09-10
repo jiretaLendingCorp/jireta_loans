@@ -11,6 +11,8 @@ class EmpLoanState {
   final bool isLoading;
   final String? error;
   final int page;
+  final int totalPages;
+  final int total;
   final String search;
   final String? statusFilter;
   final String? dateFrom;
@@ -21,6 +23,8 @@ class EmpLoanState {
     this.isLoading = false,
     this.error,
     this.page = 1,
+    this.totalPages = 1,
+    this.total = 0,
     this.search = '',
     this.statusFilter,
     this.dateFrom,
@@ -34,6 +38,8 @@ class EmpLoanState {
     bool? isLoading,
     String? error,
     int? page,
+    int? totalPages,
+    int? total,
     String? search,
     Object? statusFilter = _unset,
     String? dateFrom,
@@ -44,6 +50,8 @@ class EmpLoanState {
         isLoading: isLoading ?? this.isLoading,
         error: error,
         page: page ?? this.page,
+        totalPages: totalPages ?? this.totalPages,
+        total: total ?? this.total,
         search: search ?? this.search,
         statusFilter: statusFilter == _unset
             ? this.statusFilter
@@ -61,22 +69,39 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
     load();
   }
 
-  Future<void> load({bool silent = false}) async {
+  Future<void> load({bool silent = false, int? page}) async {
+    final targetPage = page ?? state.page;
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      final list = await _ds.getLoanList(
+      final res = await _ds.getList(
         status: state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
-        page: state.page,
+        page: targetPage,
+        limit: 10,
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
-      state = state.copyWith(loans: list, isLoading: false);
+      final loans = (res['data'] as List? ?? [])
+          .map((e) => LoanModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final meta = res['meta'] as Map<String, dynamic>? ?? {};
+      state = state.copyWith(
+        loans: loans,
+        isLoading: false,
+        page: meta['page'] as int? ?? targetPage,
+        totalPages: meta['total_pages'] as int? ?? 1,
+        total: meta['total'] as int? ?? loans.length,
+      );
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
+  }
+
+  void setPage(int page) {
+    state = state.copyWith(page: page);
+    load();
   }
 
   void setSearch(String v) {

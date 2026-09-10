@@ -469,9 +469,8 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
         ),
       );
 
-  Widget _buildPagination(_AuditState state) => Container(
-        padding: const EdgeInsets.all(16),
-        color: Colors.white,
+  Widget _buildPagination(_AuditState state) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

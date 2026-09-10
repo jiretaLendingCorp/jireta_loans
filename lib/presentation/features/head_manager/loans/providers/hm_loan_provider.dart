@@ -85,6 +85,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
     try {
       final res = await _ds.getList(
         page: page,
+        limit: 10,
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
         dateFrom: state.dateFrom,

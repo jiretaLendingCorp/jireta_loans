@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../shared/widgets/forms/app_date_range_picker.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
@@ -172,12 +173,13 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
 
   Future<void> _pickDateRange() async {
     final now = nowManila();
-    final range = await showDateRangePicker(
+    final range = await showAppDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: now,
-      initialDateRange: _dateRange ?? DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now),
-      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: AppColors.deepNavy)), child: child!),
+      initialDateRange: _dateRange ??
+          DateTimeRange(
+              start: now.subtract(const Duration(days: 30)), end: now),
     );
     if (range != null) setState(() => _dateRange = range);
   }

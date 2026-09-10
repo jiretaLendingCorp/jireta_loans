@@ -127,9 +127,8 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
   Widget _buildToolbar(EmpCiState state) {
     final hasSearch = _searchCtrl.text.isNotEmpty;
     final resultsCount = state.totalCount;
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 10, offset: Offset(0, 2))]),
       child: Row(children: [
         Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
         const SizedBox(width: 10),
@@ -241,9 +240,8 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
   }
 
   Widget _buildPagination(EmpCiState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(children: [
         Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),

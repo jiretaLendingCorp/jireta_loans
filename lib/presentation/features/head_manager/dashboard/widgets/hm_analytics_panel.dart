@@ -174,6 +174,12 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
   Widget build(BuildContext context) {
     final segs = _segments(widget.kpi);
     final total = segs.fold<int>(0, (s, e) => s + e.count);
+    // Visual total after zero-count slices are bumped to a visible minimum.
+    final visualTotal = segs.fold<double>(
+      0,
+      (sum, e) =>
+          sum + e.count.toDouble().clamp(0.5, double.infinity).toDouble(),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -197,18 +203,29 @@ class _LoanStatusDonutState extends State<_LoanStatusDonut> {
                           final s = segs[i];
                           final pct =
                               total == 0 ? 0 : s.count / total * 100;
+                          final clamped = s.count
+                              .toDouble()
+                              .clamp(0.5, double.infinity);
+                          final isZero = s.count == 0;
+                          // Angular sweep of this slice; a "0%" tag only fits
+                          // inside when the sliver is wide enough.
+                          final canFitTag =
+                              360 * (clamped / visualTotal) >= 16;
                           return PieChartSectionData(
                             color: s.color,
-                            value: s.count
-                                .toDouble()
-                                .clamp(0.5, double.infinity),
-                            title:
-                                pct < 6 ? '' : '${pct.toStringAsFixed(0)}%',
-                            titleStyle: const TextStyle(
-                              fontSize: 10,
+                            value: clamped,
+                            // Zero-count statuses still get a "0%" tag inside
+                            // their slice so every status is presented.
+                            title: isZero
+                                ? (canFitTag ? '0%' : '')
+                                : pct < 6
+                                    ? ''
+                                    : '${pct.toStringAsFixed(0)}%',
+                            titleStyle: TextStyle(
+                              fontSize: isZero ? 8.5 : 10,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
-                              shadows: [
+                              shadows: const [
                                 Shadow(
                                     color: Color(0x47000000),
                                     blurRadius: 4),
