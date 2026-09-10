@@ -6,6 +6,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -80,29 +81,24 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search employees...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onChanged: (v) =>
-                  ref.read(hmEmployeeProvider.notifier).setSearch(v),
+      child: ResponsiveSearchToolbar(
+        searchField: TextField(
+          controller: _searchCtrl,
+          decoration: InputDecoration(
+            hintText: 'Search employees...',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
-          const SizedBox(width: 12),
+          onChanged: (v) =>
+              ref.read(hmEmployeeProvider.notifier).setSearch(v),
+        ),
+        trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          const SizedBox(width: 12),
           SearchResultsChip(count: state.employees.length),
-          const SizedBox(width: 12),
           DropdownButton<String>(
             value: state.statusFilter,
             items: const [
@@ -120,147 +116,94 @@ class _HmEmployeeListScreenState extends ConsumerState<HmEmployeeListScreen> {
   Widget _buildTable(List<UserModel> employees) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Card(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final tableWidth =
-                constraints.maxWidth < 760 ? 760.0 : constraints.maxWidth;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tableWidth,
-                child: Column(
-                  children: [
-                    _buildTableHeader(),
-                    const Divider(height: 1),
-                    ...employees.asMap().entries.map(
-                          (e) => _buildTableRow(e.value, e.key.isEven),
-                        ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTableHeader() {
-    const headerStyle = TextStyle(
-      fontWeight: FontWeight.w600,
-      fontSize: 13,
-      color: AppColors.textSecondary,
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.surfaceVariant,
-      child: const Row(
-        children: [
-          Expanded(flex: 3, child: Text('Name', style: headerStyle)),
-          Expanded(flex: 2, child: Text('Email', style: headerStyle)),
-          Expanded(flex: 2, child: Text('Position', style: headerStyle)),
-          Expanded(flex: 1, child: Text('Status', style: headerStyle)),
-          Expanded(flex: 2, child: Text('Actions', style: headerStyle)),
+      child: ResponsiveListCard(
+        minTableWidth: 760,
+        variant: ResponsiveListVariant.card,
+        columns: const [
+          ResponsiveCol('Name', flex: 3),
+          ResponsiveCol('Email', flex: 2),
+          ResponsiveCol('Position', flex: 2),
+          ResponsiveCol('Status', flex: 1),
         ],
+        actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
+        rows: employees.map((e) => _buildTableRow(e)).toList(),
       ),
     );
   }
 
-  Widget _buildTableRow(UserModel user, bool isEven) {
+  ResponsiveRow _buildTableRow(UserModel user) {
     final isActive = user.accountStatus == 'active';
-    return Container(
-      key: ValueKey(user.id),
-      color: isEven
-          ? Colors.white
-          : AppColors.surfaceVariant.withValues(alpha: 0.3),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
+    return ResponsiveRow(
+      cells: [
+        Row(
+          children: [
+            ProfileAvatar(
+              photoUrl: user.profilePhotoUrl,
+              name: '${user.firstName} ${user.lastName}',
+              color: AppColors.employeeOrange,
+              radius: 18,
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                '${user.firstName} ${user.lastName}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          user.email ?? '—',
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          user.position ?? '—',
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          isActive ? 'Active' : _statusLabel(user.accountStatus),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: isActive ? AppColors.success : AppColors.error,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+      actions: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                ProfileAvatar(
-                  photoUrl: user.profilePhotoUrl,
-                  name: '${user.firstName} ${user.lastName}',
-                  color: AppColors.employeeOrange,
-                  radius: 18,
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    '${user.firstName} ${user.lastName}',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+          _ActionBtn(
+            icon: Icons.visibility_outlined,
+            tooltip: 'View',
+            onTap: () => showUserDetailsModal(context, user),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              user.email ?? '—',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
+          _ActionBtn(
+            icon: Icons.edit_outlined,
+            tooltip: 'Edit',
+            color: AppColors.primary,
+            onTap: () => _openEdit(user),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              user.position ?? '—',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
+          _ActionBtn(
+            icon: Icons.password_rounded,
+            tooltip: 'Reset Password',
+            color: AppColors.deepNavy,
+            onTap: () => _confirmResetPassword(user),
           ),
-          Expanded(
-            flex: 1,
-            child: Text(
-              isActive ? 'Active' : _statusLabel(user.accountStatus),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isActive ? AppColors.success : AppColors.error,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Row(
-              children: [
-                _ActionBtn(
-                  icon: Icons.visibility_outlined,
-                  tooltip: 'View',
-                  onTap: () => showUserDetailsModal(context, user),
-                ),
-                _ActionBtn(
-                  icon: Icons.edit_outlined,
-                  tooltip: 'Edit',
-                  color: AppColors.primary,
-                  onTap: () => _openEdit(user),
-                ),
-                _ActionBtn(
-                  icon: Icons.password_rounded,
-                  tooltip: 'Reset Password',
-                  color: AppColors.deepNavy,
-                  onTap: () => _confirmResetPassword(user),
-                ),
-                _ActionBtn(
-                  icon: Icons.archive_outlined,
-                  tooltip: 'Archive',
-                  color: AppColors.error,
-                  onTap: () => _confirmArchive(user),
-                ),
-              ],
-            ),
+          _ActionBtn(
+            icon: Icons.archive_outlined,
+            tooltip: 'Archive',
+            color: AppColors.error,
+            onTap: () => _confirmArchive(user),
           ),
         ],
       ),

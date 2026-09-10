@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
@@ -129,85 +130,68 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
     final resultsCount = state.totalCount;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(children: [
-        Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-        const SizedBox(width: 10),
-        Expanded(child: TextField(controller: _searchCtrl, onChanged: (v) => ref.read(empCiProvider.notifier).setSearch(v), style: const TextStyle(fontSize: 13), decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)))),
-        if (hasSearch) InkWell(onTap: () { _searchCtrl.clear(); ref.read(empCiProvider.notifier).setSearch(''); }, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary))),
-        if (hasSearch) const SizedBox(width: 10),
-        _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empCiProvider.notifier).fetch()),
-        const SizedBox(width: 8),
-        SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-        const SizedBox(width: 8),
-        SearchResultsChip(count: resultsCount),
-      ]),
+      child: ResponsiveSearchToolbar(
+        searchField: Row(children: [
+          Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(controller: _searchCtrl, onChanged: (v) => ref.read(empCiProvider.notifier).setSearch(v), style: const TextStyle(fontSize: 13), decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)))),
+          if (hasSearch) InkWell(onTap: () { _searchCtrl.clear(); ref.read(empCiProvider.notifier).setSearch(''); }, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary))),
+          if (hasSearch) const SizedBox(width: 10),
+          _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empCiProvider.notifier).fetch()),
+        ]),
+        trailing: [
+          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+          SearchResultsChip(count: resultsCount),
+        ],
+      ),
     );
   }
 
   Widget _buildPremiumTable(List<dynamic> items) {
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(bottom: BorderSide(color: AppColors.border))),
-          child: const Row(children: [
-            Expanded(flex: 3, child: _HLabel('Lender & Loan', Icons.person_outline)),
-            Expanded(flex: 2, child: _HLabel('Rider', Icons.delivery_dining_outlined)),
-            Expanded(flex: 2, child: _HLabel('Deadline', Icons.event_outlined)),
-            Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: _HLabel('Status', Icons.flag_outlined))),
-            Expanded(flex: 2, child: Align(alignment: Alignment.centerLeft, child: _HLabel('Action', Icons.bolt_outlined))),
-          ]),
-        ),
-        ...items.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final ci = entry.value;
-          final isEven = idx.isEven;
-          final status = (ci.status ?? 'pending').toString().toLowerCase();
-          // A failed/declined CI that was superseded by a newer assignment for
-          // the same loan is audit history — show it as "Reassigned", never
-          // actionable (no Reassign button, no overdue highlight).
-          final isLatest = (ci.isLatest ?? true) as bool;
-          final isSuperseded = !isLatest &&
-              (status == 'failed' ||
-                  status == 'expired' ||
-                  status == 'declined');
-          final displayStatus = isSuperseded ? 'reassigned' : status;
-          final isPendingApproval = displayStatus == 'completed';
-          final isOverdue = ci.deadline != null &&
-              (ci.deadline as DateTime).isOverdue &&
-              !isSuperseded &&
-              displayStatus != 'completed' &&
-              displayStatus != 'reassigned';
-          return Column(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
-              child: Row(children: [
-                Expanded(
-                  flex: 3,
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(ci.loanNumber ?? 'CI Assignment', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 2),
-                    Text(ci.borrowerName ?? '—', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
-                  ]),
-                ),
-                Expanded(flex: 2, child: Text(ci.riderName?.toString().isNotEmpty == true ? ci.riderName : 'Unassigned', style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                Expanded(
-                  flex: 2,
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(ci.deadline != null ? DateFormat('MMM dd, yyyy').format(ci.deadline!) : '—', style: TextStyle(fontSize: 13, color: isOverdue ? AppColors.error : AppColors.textPrimary, fontWeight: FontWeight.w600)),
-                    if (isOverdue) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)), child: const Text('OVERDUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.error, letterSpacing: 0.4))),
-                  ]),
-                ),
-                Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: _StatusInline(status: displayStatus))),
-                Expanded(flex: 2, child: _EmpActionCell(ci: ci, isPending: isPendingApproval, isLatest: isLatest)),
-              ]),
-            ),
-          ]);
-        }),
-      ]),
+    return ResponsiveListCard(
+      minTableWidth: 760,
+      columns: const [
+        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
+        ResponsiveCol('Deadline', icon: Icons.event_outlined, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
+      ],
+      actionsCol: const ResponsiveActionsCol(flex: 2),
+      rows: items.asMap().entries.map((entry) {
+        final ci = entry.value;
+        final status = (ci.status ?? 'pending').toString().toLowerCase();
+        // A failed/declined CI that was superseded by a newer assignment for
+        // the same loan is audit history — show it as "Reassigned", never
+        // actionable (no Reassign button, no overdue highlight).
+        final isLatest = (ci.isLatest ?? true) as bool;
+        final isSuperseded = !isLatest &&
+            (status == 'failed' ||
+                status == 'expired' ||
+                status == 'declined');
+        final displayStatus = isSuperseded ? 'reassigned' : status;
+        final isPendingApproval = displayStatus == 'completed';
+        final isOverdue = ci.deadline != null &&
+            (ci.deadline as DateTime).isOverdue &&
+            !isSuperseded &&
+            displayStatus != 'completed' &&
+            displayStatus != 'reassigned';
+        return ResponsiveRow(
+          cells: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(ci.loanNumber ?? 'CI Assignment', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(ci.borrowerName ?? '—', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
+            ]),
+            Text(ci.riderName?.toString().isNotEmpty == true ? ci.riderName : 'Unassigned', style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(ci.deadline != null ? DateFormat('MMM dd, yyyy').format(ci.deadline!) : '—', style: TextStyle(fontSize: 13, color: isOverdue ? AppColors.error : AppColors.textPrimary, fontWeight: FontWeight.w600)),
+              if (isOverdue) Container(margin: const EdgeInsets.only(top: 2), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)), child: const Text('OVERDUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.error, letterSpacing: 0.4))),
+            ]),
+            Align(alignment: Alignment.centerLeft, child: _StatusInline(status: displayStatus)),
+          ],
+          actions: _EmpActionCell(ci: ci, isPending: isPendingApproval, isLatest: isLatest),
+        );
+      }).toList(),
     );
   }
 
@@ -277,15 +261,6 @@ class _PillTab extends StatelessWidget {
   }
 }
 
-class _HLabel extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  const _HLabel(this.text, this.icon);
-  @override
-  Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 12, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(text.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5), overflow: TextOverflow.ellipsis))]);
-  }
-}
 
 class _StatusInline extends StatelessWidget {
   final String status;

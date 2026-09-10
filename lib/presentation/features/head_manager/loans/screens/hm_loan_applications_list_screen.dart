@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
@@ -230,32 +231,28 @@ class _HmLoanApplicationsListScreenState
   Widget _buildToolbar(
       HmLoanState loanState, HmInOfficeState inOfficeState, bool isInOffice) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search loan applications...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                onChanged: (v) {
-                  if (isInOffice) {
-                    setState(() => _inOfficeSearch = v);
-                  } else {
-                    ref.read(hmLoanProvider.notifier).setSearch(v);
-                  }
-                },
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search loan applications...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border),
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            const SizedBox(width: 12),
+            onChanged: (v) {
+              if (isInOffice) {
+                setState(() => _inOfficeSearch = v);
+              } else {
+                ref.read(hmLoanProvider.notifier).setSearch(v);
+              }
+            },
+          ),
+          trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            const SizedBox(width: 12),
             SearchResultsChip(
               count: isInOffice
                   ? _filteredInOffice(inOfficeState.applications).length
@@ -285,133 +282,75 @@ class _HmLoanApplicationsListScreenState
   }
 
   Widget _buildInOfficeList(List<Map<String, dynamic>> apps) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4)),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8F9FB),
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                    flex: 3,
-                    child: _HLabel('Lender', Icons.person_outline)),
-                const Expanded(
-                    flex: 2, child: _HLabel('Loan', Icons.request_quote_outlined)),
-                const Expanded(
-                    flex: 2, child: _HLabel('Created', Icons.event_outlined)),
-                const Expanded(
-                    flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-                SizedBox(
-                  width: 140,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: () => showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (_) => InOfficeWizard(
-                          applicationId: null,
-                          onComplete: () =>
-                              ref.read(hmInOfficeProvider.notifier).load(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.add, size: 14),
-                      label: const Text('New Walk-in',
-                          style: TextStyle(fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.deepNavy,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        minimumSize: const Size(0, 32),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+    return ResponsiveListCard(
+      minTableWidth: 860,
+      columns: const [
+        ResponsiveCol('Lender', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Loan', icon: Icons.request_quote_outlined, flex: 2),
+        ResponsiveCol('Created', icon: Icons.event_outlined, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+      ],
+      actionsCol: ResponsiveActionsCol(
+        label: '',
+        width: 140,
+        alignment: Alignment.centerRight,
+        headerWidget: ElevatedButton.icon(
+          onPressed: () => showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => InOfficeWizard(
+              applicationId: null,
+              onComplete: () =>
+                  ref.read(hmInOfficeProvider.notifier).load(),
             ),
           ),
-          ...apps.asMap().entries.map((e) {
-            final idx = e.key;
-            final app = e.value;
-            final isEven = idx.isEven;
-            final createdAt = parseManila(app['created_at']);
-            final dateStr = createdAt != null
-                ? DateFormat('MMM dd, yyyy h:mm a').format(createdAt)
-                : '—';
-            return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: isEven ? Colors.white : const Color(0xFFFDFDFD),
-                border:
-                    const Border(bottom: BorderSide(color: Color(0xFFF0F0F0))),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      (app['lender_name'] ?? 'Walk-in Lender').toString(),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: AppColors.textPrimary),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      _inOfficeLoanLabel(app),
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      dateStr,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: _StatusInline(
-                        status: (app['status'] ?? 'submitted').toString()),
-                  ),
-                  SizedBox(
-                    width: 140,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _InOfficeActions(app: app),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('New Walk-in',
+              style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.deepNavy,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 6),
+            minimumSize: const Size(0, 32),
+          ),
+        ),
       ),
+      rows: apps.map((app) {
+        final createdAt = parseManila(app['created_at']);
+        final dateStr = createdAt != null
+            ? DateFormat('MMM dd, yyyy h:mm a').format(createdAt)
+            : '—';
+        return ResponsiveRow(
+          cells: [
+            Text(
+              (app['lender_name'] ?? 'Walk-in Lender').toString(),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              _inOfficeLoanLabel(app),
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600),
+            ),
+            Text(
+              dateStr,
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600),
+            ),
+            _StatusInline(
+                status: (app['status'] ?? 'submitted').toString()),
+          ],
+          actions: _InOfficeActions(app: app),
+        );
+      }).toList(),
     );
   }
 
@@ -514,271 +453,197 @@ class _HmLoanApplicationsListScreenState
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final dateFmt = DateFormat('MMM dd, yyyy h:mm a');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4)),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // Table header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8F9FB),
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: const Row(
+    return ResponsiveListCard(
+      minTableWidth: 920,
+      columns: const [
+        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
+        ResponsiveCol('Frequency', icon: Icons.repeat_rounded, flex: 2),
+        ResponsiveCol('Applied', icon: Icons.event_outlined, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
+      ],
+      actionsCol: const ResponsiveActionsCol(width: 96, alignment: Alignment.topLeft),
+      // Fixed row height so every row stays pantay-pantay even when the
+      // Status cell stacks an extra "Rider: …" line under the status.
+      rowHeight: 64,
+      rowPadding: const EdgeInsets.symmetric(horizontal: 16),
+      rowCrossAxisAlignment: CrossAxisAlignment.start,
+      rows: loans.map((loan) {
+        final status = loan.displayStatus;
+        final lenderName =
+            '${loan.lenderFirstName} ${loan.lenderLastName}'.trim().isEmpty
+                ? (loan.lenderName ?? '—')
+                : '${loan.lenderFirstName} ${loan.lenderLastName}'.trim();
+        return ResponsiveRow(
+          cells: [
+            // Lender & Loan — LN as plain text (no pill), lender name below
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                    flex: 3,
-                    child: _HLabel('Lender & Loan', Icons.person_outline)),
-                Expanded(
-                    flex: 2,
-                    child: _HLabel('Amount', Icons.payments_outlined)),
-                Expanded(
-                    flex: 2,
-                    child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _HLabel('Frequency', Icons.repeat_rounded))),
-                Expanded(
-                    flex: 2,
-                    child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _HLabel('Applied', Icons.event_outlined))),
-                Expanded(
-                    flex: 3,
-                    child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: _HLabel('Status', Icons.flag_outlined))),
-                SizedBox(width: 96, child: _HLabel('Action', Icons.bolt_outlined)),
+                Text(
+                  loan.loanNumber,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  lenderName.isEmpty ? '—' : lenderName,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
-          ),
-          // Rows
-          ...loans.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final loan = entry.value;
-            final isEven = idx.isEven;
-            final status = loan.displayStatus;
-            final lenderName =
-                '${loan.lenderFirstName} ${loan.lenderLastName}'.trim().isEmpty
-                    ? (loan.lenderName ?? '—')
-                    : '${loan.lenderFirstName} ${loan.lenderLastName}'.trim();
-
-            // Fixed row height so every row stays pantay-pantay even when the
-            // Status cell stacks an extra "Rider: …" line under the status.
-            return Container(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: isEven ? Colors.white : const Color(0xFFFDFDFD),
-                border: const Border(
-                    bottom: BorderSide(color: Color(0xFFF0F0F0))),
-              ),
-              child: Row(
-                // Top-align every cell so the first line (loan number, amount,
-                // frequency, applied date, status) lines up across all rows.
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                    // Lender & Loan — LN as plain text (no pill), lender name below
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            loan.loanNumber,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: AppColors.textPrimary),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            lenderName.isEmpty ? '—' : lenderName,
-                            style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textTertiary),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Amount — plain text only, no term label
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        '₱${fmt.format(loan.principalAmount)}',
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    // Frequency — flat inline, top-aligned like the other cells
-                    Expanded(
-                      flex: 2,
-                      child: Align(
-                        alignment: Alignment.topLeft,
-                        child: _FrequencyInline(frequency: loan.paymentFrequency),
-                      ),
-                    ),
-                    // Applied date — start-aligned pantay sa header
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            dateFmt.format(loan.createdAt),
-                            textAlign: TextAlign.start,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            _timeAgo(loan.createdAt),
-                            textAlign: TextAlign.start,
-                            style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textTertiary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Status — flat inline dot + text, start-aligned pantay sa header
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _StatusInline(status: status),
-                          // Delivery rider assigned → show the rider's name
-                          // right below the status so staff see who is
-                          // delivering the cash.
-                          if (loan.riderDeliveryAssigned &&
-                              loan.status == 'approved') ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.goldDark,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    loan.deliveryRiderName != null
-                                        ? 'Rider: ${loan.deliveryRiderName}'
-                                        : 'Delivery rider assigned',
-                                    style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.goldDark),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                          if (loan.ciStatus != null &&
-                              (loan.ciStatus == 'assigned' ||
-                                  loan.ciStatus == 'accepted' ||
-                                  loan.ciStatus == 'in_progress') &&
-                              loan.status == 'ci_assigned') ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.riderGreen,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    loan.assignedRiderName != null
-                                        ? 'Rider: ${loan.assignedRiderName}'
-                                          : 'Rider assigned',
-                                      style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.riderGreen),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                          // Overdue CI: failed task needs a new rider.
-                          if (loan.ciStatus != null &&
-                              (loan.ciStatus == 'failed' ||
-                                  loan.ciStatus == 'expired') &&
-                              loan.status == 'ci_assigned') ...[
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.error,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                const Flexible(
-                                  child: Text(
-                                    'CI overdue — reassignment needed',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.error),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    // Action — left-aligned pantay sa header
-                    SizedBox(
-                      width: 96,
-                      child: Align(
-                        alignment: Alignment.topLeft,
-                        child: _RowActions(loan: loan, onRefresh: _onActionDone),
-                      ),
-                    ),
-                  ],
+            // Amount — plain text only, no term label
+            Text(
+              '₱${fmt.format(loan.principalAmount)}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
+            // Frequency — flat inline, top-aligned like the other cells
+            Align(
+              alignment: Alignment.topLeft,
+              child: _FrequencyInline(frequency: loan.paymentFrequency),
+            ),
+            // Applied date — start-aligned pantay sa header
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dateFmt.format(loan.createdAt),
+                  textAlign: TextAlign.start,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600),
                 ),
-              );
-          }),
-        ],
-      ),
+                Text(
+                  _timeAgo(loan.createdAt),
+                  textAlign: TextAlign.start,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary),
+                ),
+              ],
+            ),
+            // Status — flat inline dot + text, start-aligned pantay sa header
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StatusInline(status: status),
+                // Delivery rider assigned → show the rider's name
+                // right below the status so staff see who is
+                // delivering the cash.
+                if (loan.riderDeliveryAssigned &&
+                    loan.status == 'approved') ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.goldDark,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          loan.deliveryRiderName != null
+                              ? 'Rider: ${loan.deliveryRiderName}'
+                              : 'Delivery rider assigned',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.goldDark),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (loan.ciStatus != null &&
+                    (loan.ciStatus == 'assigned' ||
+                        loan.ciStatus == 'accepted' ||
+                        loan.ciStatus == 'in_progress') &&
+                    loan.status == 'ci_assigned') ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.riderGreen,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          loan.assignedRiderName != null
+                              ? 'Rider: ${loan.assignedRiderName}'
+                              : 'Rider assigned',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.riderGreen),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                // Overdue CI: failed task needs a new rider.
+                if (loan.ciStatus != null &&
+                    (loan.ciStatus == 'failed' ||
+                        loan.ciStatus == 'expired') &&
+                    loan.status == 'ci_assigned') ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.error,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Flexible(
+                        child: Text(
+                          'CI overdue — reassignment needed',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.error),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ],
+          // Action — left-aligned pantay sa header
+          actions: _RowActions(loan: loan, onRefresh: _onActionDone),
+        );
+      }).toList(),
     );
   }
 
@@ -1091,34 +956,6 @@ class _PillTab extends StatelessWidget {
 
 
 
-
-class _HLabel extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  const _HLabel(this.text, this.icon);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: AppColors.textTertiary),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            text.toUpperCase(),
-            style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
-                letterSpacing: 0.5),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _FrequencyInline extends StatelessWidget {
   final String frequency;

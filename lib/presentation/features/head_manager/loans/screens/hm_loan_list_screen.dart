@@ -8,6 +8,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
@@ -150,27 +151,23 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
   // ───────────────────────── Toolbar ─────────────────────────
   Widget _buildToolbar(HmLoanState state) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search loans...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                onChanged: (v) =>
-                    ref.read(hmActiveLoanProvider.notifier).setSearch(v),
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search loans...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border),
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            const SizedBox(width: 12),
+            onChanged: (v) =>
+                ref.read(hmActiveLoanProvider.notifier).setSearch(v),
+          ),
+          trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            const SizedBox(width: 12),
             SearchResultsChip(count: state.loans.length),
           ],
         ),
@@ -181,252 +178,179 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final dateFmt = DateFormat('MMM dd, yyyy');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-        boxShadow: const [
-          BoxShadow(
-              color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4)),
-        ],
+    return ResponsiveListCard(
+      minTableWidth: 900,
+      columns: const [
+        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Principal', icon: Icons.payments_outlined, flex: 2),
+        ResponsiveCol('Outstanding & Progress', icon: Icons.trending_up_rounded, flex: 3),
+        ResponsiveCol('Due Date', icon: Icons.event_outlined, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+      ],
+      actionsCol: const ResponsiveActionsCol(
+        label: 'Actions',
+        icon: Icons.visibility_outlined,
+        width: 80,
+        alignment: Alignment.centerRight,
+        alignEnd: true,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8F9FB),
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: const Row(
+      rows: loans.map((loan) {
+        final lenderName = (loan.lenderName ?? '').trim().isEmpty
+            ? '${loan.lenderFirstName} ${loan.lenderLastName}'.trim()
+            : (loan.lenderName ?? '').trim();
+        final displayName = lenderName.isEmpty ? '—' : lenderName;
+        final outstanding = loan.outstandingBalance;
+        final totalPayable =
+            loan.totalPayable > 0 ? loan.totalPayable : loan.principalAmount * 1.2;
+        final progress = totalPayable > 0
+            ? ((totalPayable - outstanding) / totalPayable).clamp(0.0, 1.0)
+            : 0.0;
+        final due = loan.dueDate;
+        final daysLeft = due?.difference(nowManila()).inDays;
+
+        return ResponsiveRow(
+          cells: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                    flex: 3,
-                    child: _HLabel('Lender & Loan', Icons.person_outline)),
-                Expanded(
-                    flex: 2,
-                    child: _HLabel('Principal', Icons.payments_outlined)),
-                Expanded(
-                    flex: 3,
-                    child: _HLabel('Outstanding & Progress',
-                        Icons.trending_up_rounded)),
-                Expanded(
-                    flex: 2, child: _HLabel('Due Date', Icons.event_outlined)),
-                Expanded(
-                    flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-                SizedBox(
-                    width: 80,
-                    child: _HLabel('Actions', Icons.visibility_outlined,
-                        alignEnd: true)),
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepNavy.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    loan.loanNumber,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepNavy),
+                  ),
+                ),
               ],
             ),
-          ),
-          ...loans.asMap().entries.map((e) {
-            final idx = e.key;
-            final loan = e.value;
-            final isEven = idx.isEven;
-            final lenderName = (loan.lenderName ?? '').trim().isEmpty
-                ? '${loan.lenderFirstName} ${loan.lenderLastName}'.trim()
-                : (loan.lenderName ?? '').trim();
-            final displayName =
-                lenderName.isEmpty ? '—' : lenderName;
-            final outstanding = loan.outstandingBalance;
-            final totalPayable =
-                loan.totalPayable > 0 ? loan.totalPayable : loan.principalAmount * 1.2;
-            final progress = totalPayable > 0
-                ? ((totalPayable - outstanding) / totalPayable)
-                    .clamp(0.0, 1.0)
-                : 0.0;
-            final due = loan.dueDate;
-            final daysLeft = due?.difference(nowManila()).inDays;
-
-            return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: isEven ? Colors.white : const Color(0xFFFDFDFD),
-                border: const Border(
-                    bottom: BorderSide(color: Color(0xFFF0F0F0))),
-              ),
-              child: Row(
-                children: [
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            displayName,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: AppColors.textPrimary),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.deepNavy
-                                  .withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              loan.loanNumber,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.deepNavy),
-                            ),
-                          ),
-                        ],
-                      ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '₱${fmt.format(loan.principalAmount)}',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary),
+                ),
+                Text(
+                  'Payable ₱${fmt.format(totalPayable)}',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textTertiary),
+                ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '₱${fmt.format(outstanding)}',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: loan.displayStatus == 'overdue'
+                              ? AppColors.error
+                              : AppColors.textPrimary),
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '₱${fmt.format(loan.principalAmount)}',
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.textPrimary),
-                          ),
-                          Text(
-                            'Payable ₱${fmt.format(totalPayable)}',
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textTertiary),
-                          ),
-                        ],
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: (progress >= 1 ? AppColors.success : AppColors.deepNavy)
+                            .withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                '₱${fmt.format(outstanding)}',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: loan.displayStatus == 'overdue'
-                                        ? AppColors.error
-                                        : AppColors.textPrimary),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: (progress >= 1
-                                          ? AppColors.success
-                                          : AppColors.deepNavy)
-                                      .withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  '${(progress * 100).toStringAsFixed(0)}%',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: progress >= 1
-                                          ? AppColors.success
-                                          : AppColors.deepNavy),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              minHeight: 6,
-                              backgroundColor:
-                                  AppColors.border.withValues(alpha: 0.7),
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                loan.displayStatus == 'overdue'
-                                    ? AppColors.error
-                                    : progress >= 1
-                                        ? AppColors.success
-                                        : AppColors.deepNavy,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            progress >= 1
-                                ? 'Fully paid'
-                                : '${fmt.format(totalPayable - outstanding)} collected',
-                            style: const TextStyle(
-                                fontSize: 11, color: AppColors.textTertiary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            due != null ? dateFmt.format(due) : '—',
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary),
-                          ),
-                          if (due != null)
-                            Container(
-                              margin: const EdgeInsets.only(top: 4),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _dueBg(daysLeft),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                _dueLabel(daysLeft),
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: _dueColor(daysLeft)),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      flex: 2,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: StatusBadge(status: loan.displayStatus),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 80,
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: _ViewButton(
-                          onTap: () => showLoanDetailsModal(context, loan.id),
-                          needsRider: _needsRiderAssignment(loan),
-                        ),
+                      child: Text(
+                        '${(progress * 100).toStringAsFixed(0)}%',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: progress >= 1 ? AppColors.success : AppColors.deepNavy),
                       ),
                     ),
                   ],
                 ),
-              );
-          }),
-        ],
-      ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: AppColors.border.withValues(alpha: 0.7),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      loan.displayStatus == 'overdue'
+                          ? AppColors.error
+                          : progress >= 1
+                              ? AppColors.success
+                              : AppColors.deepNavy,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  progress >= 1
+                      ? 'Fully paid'
+                      : '${fmt.format(totalPayable - outstanding)} collected',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  due != null ? dateFmt.format(due) : '—',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary),
+                ),
+                if (due != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _dueBg(daysLeft),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      _dueLabel(daysLeft),
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _dueColor(daysLeft)),
+                    ),
+                  ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: StatusBadge(status: loan.displayStatus),
+            ),
+          ],
+          actions: _ViewButton(
+            onTap: () => showLoanDetailsModal(context, loan.id),
+            needsRider: _needsRiderAssignment(loan),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -625,37 +549,6 @@ class _ActiveTab {
 
 
 
-
-class _HLabel extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  final bool alignEnd;
-  const _HLabel(this.text, this.icon, {this.alignEnd = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final row = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: AppColors.textTertiary),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            text.toUpperCase(),
-            style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
-                letterSpacing: 0.5),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-    if (alignEnd) return Align(alignment: Alignment.centerRight, child: row);
-    return row;
-  }
-}
 
 class _ViewButton extends StatelessWidget {
   final VoidCallback onTap;

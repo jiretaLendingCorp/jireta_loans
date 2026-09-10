@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -74,29 +75,24 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search lenders by name or phone...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onChanged: (v) =>
-                  ref.read(empLenderProvider.notifier).setSearch(v),
+      child: ResponsiveSearchToolbar(
+        searchField: TextField(
+          controller: _searchCtrl,
+          decoration: InputDecoration(
+            hintText: 'Search lenders by name or phone...',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
-          const SizedBox(width: 12),
+          onChanged: (v) =>
+              ref.read(empLenderProvider.notifier).setSearch(v),
+        ),
+        trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          const SizedBox(width: 12),
           SearchResultsChip(count: state.lenders.length),
-          const SizedBox(width: 12),
           DropdownButton<String>(
             value: state.statusFilter,
             items: const [
@@ -115,130 +111,85 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
   Widget _buildTable(List<UserModel> lenders) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Card(
-        child: Column(
-          children: [
-            _buildTableHeader(),
-            const Divider(height: 1),
-            ...lenders.asMap().entries.map(
-                  (e) => _buildTableRow(e.value, e.key.isEven),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Widget _buildTableHeader() {
-    const style = TextStyle(
-      fontWeight: FontWeight.w600,
-      fontSize: 13,
-      color: AppColors.textSecondary,
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.surfaceVariant,
-      child: const Row(
-        children: [
-          Expanded(flex: 3, child: Text('Name', style: style)),
-          Expanded(flex: 2, child: Text('Phone', style: style)),
-          Expanded(
-              flex: 2, child: Text('Account Upgrade Status', style: style)),
-          Expanded(flex: 1, child: Text('Status', style: style)),
-          Expanded(flex: 2, child: Text('Actions', style: style)),
+      child: ResponsiveListCard(
+        minTableWidth: 820,
+        variant: ResponsiveListVariant.card,
+        columns: const [
+          ResponsiveCol('Name', flex: 3),
+          ResponsiveCol('Phone', flex: 2),
+          ResponsiveCol('Account Upgrade Status', flex: 2),
+          ResponsiveCol('Status', flex: 1),
         ],
+        actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
+        rows: lenders.map((e) => _buildTableRow(e)).toList(),
       ),
     );
   }
 
-  Widget _buildTableRow(UserModel user, bool isEven) {
+  ResponsiveRow _buildTableRow(UserModel user) {
     final isActive = user.accountStatus == 'active';
-    return InkWell(
-      key: ValueKey(user.id),
+    return ResponsiveRow(
       onTap: () => showUserDetailsModal(context, user),
-      child: Container(
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
+      cells: [
+        Row(
           children: [
-            Expanded(
-              flex: 3,
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: const BoxDecoration(color: AppColors.lenderBlue, shape: BoxShape.circle),
-                    child: const Icon(Icons.person_rounded, size: 18, color: Colors.white),
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      '${user.firstName} ${user.lastName}'.trim().isEmpty ? 'N/A' : '${user.firstName} ${user.lastName}',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(color: AppColors.lenderBlue, shape: BoxShape.circle),
+              child: const Icon(Icons.person_rounded, size: 18, color: Colors.white),
             ),
-            Expanded(
-              flex: 2,
+            const SizedBox(width: 10),
+            Flexible(
               child: Text(
-                user.phoneNumber ?? 'N/A',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-
-            Expanded(
-              flex: 2,
-              child: Text(
-                user.accountUpgradeStatus == null ||
-                        user.accountUpgradeStatus!.isEmpty
-                    ? 'N/A'
-                    : _accountUpgradeLabel(user.accountUpgradeStatus!),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: user.accountUpgradeStatus == null ||
-                          user.accountUpgradeStatus!.isEmpty
-                      ? AppColors.textSecondary
-                      : _accountUpgradeColor(user.accountUpgradeStatus!),
-                ),
+                '${user.firstName} ${user.lastName}'.trim().isEmpty ? 'N/A' : '${user.firstName} ${user.lastName}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
                 overflow: TextOverflow.ellipsis,
               ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                isActive ? 'Active' : _statusLabel(user.accountStatus),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isActive ? AppColors.success : AppColors.error,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  _ActionBtn(
-                    icon: Icons.visibility_outlined,
-                    tooltip: 'View Details',
-                    onTap: () => showUserDetailsModal(context, user),
-                  ),
-                 ],
-               ),
             ),
           ],
         ),
+        Text(
+          user.phoneNumber ?? 'N/A',
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        Text(
+          user.accountUpgradeStatus == null ||
+                  user.accountUpgradeStatus!.isEmpty
+              ? 'N/A'
+              : _accountUpgradeLabel(user.accountUpgradeStatus!),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: user.accountUpgradeStatus == null ||
+                    user.accountUpgradeStatus!.isEmpty
+                ? AppColors.textSecondary
+                : _accountUpgradeColor(user.accountUpgradeStatus!),
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          isActive ? 'Active' : _statusLabel(user.accountStatus),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: isActive ? AppColors.success : AppColors.error,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+      actions: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ActionBtn(
+            icon: Icons.visibility_outlined,
+            tooltip: 'View Details',
+            onTap: () => showUserDetailsModal(context, user),
+          ),
+        ],
       ),
     );
   }

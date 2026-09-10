@@ -6,6 +6,7 @@ import '../../../../../core/constants/route_constants.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -88,41 +89,28 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen>
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.border)),
-        child: Column(
-          children: [
-            _buildHeader(),
-            const Divider(height: 1),
-            ...state.payments.asMap().entries.map((e) => _buildRow(e.value, e.key.isEven, fmt)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    const s = TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.surfaceVariant,
-      child: const Row(
-        children: [
-          Expanded(flex: 3, child: Text('LENDER', style: s)),
-          Expanded(flex: 2, child: Text('LOAN #', style: s)),
-          Expanded(flex: 2, child: Text('AMOUNT', style: s)),
-          Expanded(flex: 2, child: Text('METHOD', style: s)),
-          Expanded(flex: 2, child: Text('DATE', style: s)),
-          Expanded(flex: 2, child: Text('STATUS', style: s)),
-          Expanded(flex: 1, child: Text('', style: s)),
+      child: ResponsiveListCard(
+        minTableWidth: 860,
+        variant: ResponsiveListVariant.card,
+        headerTextStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: AppColors.textSecondary),
+        columns: const [
+          ResponsiveCol('LENDER', flex: 3),
+          ResponsiveCol('LOAN #', flex: 2),
+          ResponsiveCol('AMOUNT', flex: 2),
+          ResponsiveCol('METHOD', flex: 2),
+          ResponsiveCol('DATE', flex: 2),
+          ResponsiveCol('STATUS', flex: 2),
         ],
+        actionsCol: const ResponsiveActionsCol(label: '', flex: 1),
+        rows: state.payments.map((p) => _buildRow(p, fmt)).toList(),
       ),
     );
   }
 
-  Widget _buildRow(Map<String, dynamic> p, bool isEven, NumberFormat fmt) {
+  ResponsiveRow _buildRow(Map<String, dynamic> p, NumberFormat fmt) {
     final lender = p['lender'] as Map<String, dynamic>? ?? {};
     final loan = p['loan'] as Map<String, dynamic>? ?? {};
     final loanNumberFlat = p['loan_number'] as String? ?? p['loan']?['loan_number'] as String?;
@@ -141,58 +129,37 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen>
         : status == 'pending'
             ? AppColors.warning
             : AppColors.error;
-    return InkWell(
+    return ResponsiveRow(
       onTap: () {
         final id = p['id'] as String? ?? '';
         if (id.isNotEmpty) context.go(RouteConstants.empPaymentDetails.replaceFirst(':id', id));
       },
-      child: Container(
-        key: ValueKey(p['id']),
-        color: isEven ? Colors.white : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-                flex: 3,
-                child: Text(resolvedLender.isEmpty ? '-' : resolvedLender,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-            Expanded(
-                flex: 2,
-                child: Text(displayLoan.isEmpty ? '-' : displayLoan, style: const TextStyle(fontSize: 13))),
-            Expanded(
-                flex: 2,
-                child: Text('₱${fmt.format(p['amount'] ?? 0)}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-            Expanded(flex: 2, child: _buildMethodBadge(method)),
-            Expanded(
-                flex: 2,
-                child: Text(_formatDate(p['created_at']),
-                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
-            Expanded(
-              flex: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration:
-                    BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
-                child: Text(_capitalize(status),
-                    style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w500)),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: status == 'verified'
-                  ? Tooltip(
-                      message: 'Reverse Payment',
-                      child: IconButton(
-                        onPressed: () => _confirmReverse(p['id'] as String? ?? ''),
-                        icon: const Icon(Icons.undo, size: 18, color: AppColors.error),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
+      cells: [
+        Text(resolvedLender.isEmpty ? '-' : resolvedLender,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(displayLoan.isEmpty ? '-' : displayLoan, style: const TextStyle(fontSize: 13)),
+        Text('₱${fmt.format(p['amount'] ?? 0)}',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        _buildMethodBadge(method),
+        Text(_formatDate(p['created_at']),
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration:
+              BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
+          child: Text(_capitalize(status),
+              style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w500)),
         ),
-      ),
+      ],
+      actions: status == 'verified'
+          ? Tooltip(
+              message: 'Reverse Payment',
+              child: IconButton(
+                onPressed: () => _confirmReverse(p['id'] as String? ?? ''),
+                icon: const Icon(Icons.undo, size: 18, color: AppColors.error),
+              ),
+            )
+          : null,
     );
   }
 

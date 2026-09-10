@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
@@ -141,92 +142,77 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
     final resultsCount = state.totalCount;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(children: [
-        Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-        const SizedBox(width: 10),
-        Expanded(
-          child: TextField(
-            controller: _searchCtrl,
-            onChanged: (v) => ref.read(empAccountUpgradeProvider.notifier).setSearch(v),
-            style: const TextStyle(fontSize: 13),
-            decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)),
+      child: ResponsiveSearchToolbar(
+        searchField: Row(children: [
+          Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => ref.read(empAccountUpgradeProvider.notifier).setSearch(v),
+              style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)),
+            ),
           ),
-        ),
-        if (hasSearch)
-          InkWell(
-            onTap: () {
-              _searchCtrl.clear();
-              ref.read(empAccountUpgradeProvider.notifier).setSearch('');
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary)),
-          ),
-        if (hasSearch) const SizedBox(width: 10),
-        _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch()),
-        const SizedBox(width: 8),
-        SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-        const SizedBox(width: 8),
-        SearchResultsChip(count: resultsCount),
-      ]),
+          if (hasSearch)
+            InkWell(
+              onTap: () {
+                _searchCtrl.clear();
+                ref.read(empAccountUpgradeProvider.notifier).setSearch('');
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary)),
+            ),
+          if (hasSearch) const SizedBox(width: 10),
+          _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch()),
+        ]),
+        trailing: [
+          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+          SearchResultsChip(count: resultsCount),
+        ],
+      ),
     );
   }
 
   Widget _buildPremiumTable(List<dynamic> docs) {
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(bottom: BorderSide(color: AppColors.border))),
-          child: const Row(children: [
-            Expanded(flex: 3, child: _HLabel('Lender', Icons.person_outline)),
-            Expanded(flex: 2, child: _HLabel('Documents', Icons.description_outlined)),
-            Expanded(flex: 2, child: _HLabel('Submitted', Icons.event_outlined)),
-            Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-            SizedBox(width: 260, child: _HLabel('Action', Icons.bolt_outlined)),
-          ]),
-        ),
-        ...docs.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final doc = entry.value;
-          final isEven = idx.isEven;
-          final status = (doc.status ?? 'pending').toString().toLowerCase();
-          final date = DateFormat('MMM dd, yyyy h:mm a').format(doc.submittedAt ?? doc.createdAt);
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
-            child: Row(children: [
-              Expanded(
-                flex: 3,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(doc.lenderName ?? 'Unknown Lender', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  Text(doc.lender?['email'] ?? '', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
-                ]),
-              ),
-              Expanded(flex: 2, child: Text(doc.documentCountLabel ?? 'Account Upgrade Submission', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis)),
-              Expanded(flex: 2, child: Text(date, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600))),
-              Expanded(flex: 2, child: _StatusInline(status: status)),
-              SizedBox(
-                width: 260,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: () => context.go(RouteConstants.empAccountUpgradeDetails.replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)), primary: false),
-                  // Only actionable statuses show Verify/Reject.
-                  // Verified and rejected submissions show View only —
-                  // Verify must not appear once rejected.
-                  if (status == 'submitted' || status == 'pending' || status == 'under_review') ...[
-                    const SizedBox(width: 6),
-                    _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: () => _verifyAll(doc, 'verified'), primary: true),
-                    const SizedBox(width: 6),
-                    _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: () => _promptReject(doc), primary: false),
-                  ],
-                ]),
-              ),
+    return ResponsiveListCard(
+      minTableWidth: 900,
+      columns: const [
+        ResponsiveCol('Lender', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Documents', icon: Icons.description_outlined, flex: 2),
+        ResponsiveCol('Submitted', icon: Icons.event_outlined, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+      ],
+      actionsCol: const ResponsiveActionsCol(width: 260),
+      rows: docs.asMap().entries.map((entry) {
+        final doc = entry.value;
+        final status = (doc.status ?? 'pending').toString().toLowerCase();
+        final date = DateFormat('MMM dd, yyyy h:mm a').format(doc.submittedAt ?? doc.createdAt);
+        return ResponsiveRow(
+          cells: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(doc.lenderName ?? 'Unknown Lender', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(doc.lender?['email'] ?? '', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
             ]),
-          );
-        }),
-      ]),
+            Text(doc.documentCountLabel ?? 'Account Upgrade Submission', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+            Text(date, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+            _StatusInline(status: status),
+          ],
+          actions: Row(mainAxisSize: MainAxisSize.min, children: [
+            _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: () => context.go(RouteConstants.empAccountUpgradeDetails.replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)), primary: false),
+            // Only actionable statuses show Verify/Reject.
+            // Verified and rejected submissions show View only —
+            // Verify must not appear once rejected.
+            if (status == 'submitted' || status == 'pending' || status == 'under_review') ...[
+              const SizedBox(width: 6),
+              _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: () => _verifyAll(doc, 'verified'), primary: true),
+              const SizedBox(width: 6),
+              _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: () => _promptReject(doc), primary: false),
+            ],
+          ]),
+        );
+      }).toList(),
     );
   }
 
@@ -346,15 +332,6 @@ class _PillTab extends StatelessWidget {
   }
 }
 
-class _HLabel extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  const _HLabel(this.text, this.icon);
-  @override
-  Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 12, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(text.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5), overflow: TextOverflow.ellipsis))]);
-  }
-}
 
 class _StatusInline extends StatelessWidget {
   final String status;

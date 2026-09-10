@@ -8,6 +8,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -176,41 +177,36 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   Widget _buildFilters(_AuditState state) => Container(
         padding: const EdgeInsets.all(16),
         color: Colors.white,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search by user name...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.border)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                onChanged: (v) {
-                  _searchDebounce?.cancel();
-                  _searchDebounce = Timer(const Duration(milliseconds: 400),
-                      () {
-                    ref
-                        .read(_auditProvider.notifier)
-                        .fetch(performedBy: v.trim().isEmpty ? null : v.trim(),
-                            startDate: _dateRange == null
-                                ? null
-                                : SearchDateFilter.fromParam(_dateRange!.start),
-                            endDate: _dateRange == null
-                                ? null
-                                : SearchDateFilter.toParam(_dateRange!.end));
-                  });
-                },
-              ),
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search by user name...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border)),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            const SizedBox(width: 12),
+            onChanged: (v) {
+              _searchDebounce?.cancel();
+              _searchDebounce = Timer(const Duration(milliseconds: 400),
+                  () {
+                ref
+                    .read(_auditProvider.notifier)
+                    .fetch(performedBy: v.trim().isEmpty ? null : v.trim(),
+                        startDate: _dateRange == null
+                            ? null
+                            : SearchDateFilter.fromParam(_dateRange!.start),
+                        endDate: _dateRange == null
+                            ? null
+                            : SearchDateFilter.toParam(_dateRange!.end));
+              });
+            },
+          ),
+          trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            const SizedBox(width: 12),
             SearchResultsChip(count: state.logs.length),
-            const SizedBox(width: 12),
             DropdownButtonHideUnderline(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -245,25 +241,199 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
         ),
       );
 
-  Widget _buildTable(_AuditState state) => SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: AppColors.border)),
+  Widget _buildTable(_AuditState state) => LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 820) {
+            // Mobile: stacked tappable cards — every field visible without
+            // horizontal scrolling.
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: _buildMobileLogs(state),
+            );
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: ResponsiveTableScroll(
+              minWidth: 820,
+              child: Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: AppColors.border)),
+                child: Column(
+                  children: [
+                    _buildHeader(),
+                    const Divider(height: 1),
+                    ...state.logs
+                        .asMap()
+                        .entries
+                        .map((e) => _buildRow(e.value, e.key.isEven)),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+  Widget _buildMobileLogs(_AuditState state) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [for (final log in state.logs) _buildMobileLogCard(log)],
+    );
+  }
+
+  Widget _buildMobileLogCard(Map<String, dynamic> log) {
+    final action = log['action'] as String? ?? '-';
+    final rawUser = log['performed_by_user'];
+    final user = rawUser is Map<String, dynamic> ? rawUser : null;
+    final performerName =
+        _resolvePerformerName(user, log['performed_by'] as String?);
+    final isExpanded = _expandedLog?['id'] == log['id'];
+    final actionColor = _actionColor(action);
+    const fieldLabel = TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textSecondary,
+        letterSpacing: 0.5);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () => setState(() => _expandedLog = isExpanded ? null : log),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border),
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
-              const Divider(height: 1),
-              ...state.logs
-                  .asMap()
-                  .entries
-                  .map((e) => _buildRow(e.value, e.key.isEven)),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: actionColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Text(AuditActionCatalog.label(action),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: actionColor,
+                            fontWeight: FontWeight.w500)),
+                  ),
+                  const Spacer(),
+                  Icon(isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: AppColors.textSecondary,
+                      size: 20),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor:
+                        AppColors.deepNavy.withValues(alpha: 0.1),
+                    child: Text(_initials(user),
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.deepNavy)),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(performerName,
+                        style: const TextStyle(fontSize: 13),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text('TABLE', style: fieldLabel),
+              const SizedBox(height: 4),
+              Text(log['table_name'] as String? ?? '-',
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              const Text('TIMESTAMP', style: fieldLabel),
+              const SizedBox(height: 4),
+              Text(_formatDateTime(log['created_at']),
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+              if (isExpanded) ...[const Divider(height: 24), _buildDetails(log)],
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  /// BEFORE / AFTER diff section shared by the desktop expandable row and the
+  /// mobile card layout.
+  Widget _buildDetails(Map<String, dynamic> log) {
+    return Container(
+      color: AppColors.surfaceVariant,
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (log['old_values'] != null)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('BEFORE',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: AppColors.error)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: AppColors.errorLight,
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Text(log['old_values'].toString(),
+                        style: const TextStyle(
+                            fontSize: 12, fontFamily: 'monospace')),
+                  ),
+                ],
+              ),
+            ),
+          if (log['old_values'] != null && log['new_values'] != null)
+            const SizedBox(width: 16),
+          if (log['new_values'] != null)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('AFTER',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: AppColors.success)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: AppColors.successLight,
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Text(log['new_values'].toString(),
+                        style: const TextStyle(
+                            fontSize: 12, fontFamily: 'monospace')),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildHeader() {
     const s = TextStyle(
@@ -365,64 +535,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
             ),
           ),
         ),
-        if (isExpanded)
-          Container(
-            color: AppColors.surfaceVariant,
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (log['old_values'] != null)
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('BEFORE',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: AppColors.error)),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                              color: AppColors.errorLight,
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Text(log['old_values'].toString(),
-                              style: const TextStyle(
-                                  fontSize: 12, fontFamily: 'monospace')),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (log['old_values'] != null && log['new_values'] != null)
-                  const SizedBox(width: 16),
-                if (log['new_values'] != null)
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('AFTER',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: AppColors.success)),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                              color: AppColors.successLight,
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Text(log['new_values'].toString(),
-                              style: const TextStyle(
-                                  fontSize: 12, fontFamily: 'monospace')),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        if (isExpanded) _buildDetails(log),
       ],
     );
   }

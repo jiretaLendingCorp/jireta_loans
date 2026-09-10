@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/disbursement_model.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -69,28 +70,23 @@ class _HmDisbursementListScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search loan number or lender...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border)),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onChanged: (v) =>
-                  ref.read(hmDisbursementProvider.notifier).setSearch(v),
-            ),
+      child: ResponsiveSearchToolbar(
+        searchField: TextField(
+          controller: _searchCtrl,
+          decoration: InputDecoration(
+            hintText: 'Search loan number or lender...',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border)),
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
-          const SizedBox(width: 12),
+          onChanged: (v) =>
+              ref.read(hmDisbursementProvider.notifier).setSearch(v),
+        ),
+        trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          const SizedBox(width: 12),
           SearchResultsChip(count: state.disbursements.length),
-          const SizedBox(width: 12),
           DropdownButton<String>(
             value: state.methodFilter,
             items: const [
@@ -104,7 +100,6 @@ class _HmDisbursementListScreenState
             onChanged: (v) =>
                 ref.read(hmDisbursementProvider.notifier).setMethod(v!),
           ),
-          const SizedBox(width: 12),
           DropdownButton<String>(
             value: state.statusFilter,
             items: const [
@@ -124,117 +119,71 @@ class _HmDisbursementListScreenState
   Widget _buildTable(BuildContext context, List<DisbursementModel> items) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
-        ),
-        child: Column(
-          children: [
-            _buildHeader(),
-            ...items.map((d) => _buildRow(context, d)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    const style = TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textSecondary);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      child: const Row(
-        children: [
-          Expanded(flex: 2, child: Text('Loan #', style: style)),
-          Expanded(flex: 3, child: Text('Lender', style: style)),
-          Expanded(flex: 2, child: Text('Method', style: style)),
-          Expanded(flex: 2, child: Text('Amount', style: style)),
-          Expanded(flex: 2, child: Text('Status', style: style)),
-          Expanded(flex: 2, child: Text('Date', style: style)),
-          SizedBox(width: 80, child: Text('Actions', style: style, textAlign: TextAlign.end)),
+      child: ResponsiveListCard(
+        minTableWidth: 880,
+        variant: ResponsiveListVariant.card,
+        headerTextStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary),
+        columns: const [
+          ResponsiveCol('Loan #', flex: 2),
+          ResponsiveCol('Lender', flex: 3),
+          ResponsiveCol('Method', flex: 2),
+          ResponsiveCol('Amount', flex: 2),
+          ResponsiveCol('Status', flex: 2),
+          ResponsiveCol('Date', flex: 2),
         ],
+        actionsCol: const ResponsiveActionsCol(
+            label: 'Actions', width: 80, alignment: Alignment.centerRight, alignEnd: true),
+        rowBorder: const Border(bottom: BorderSide(color: AppColors.divider)),
+        rows: items.map((d) => _buildRow(context, d)).toList(),
       ),
     );
   }
 
-  Widget _buildRow(BuildContext context, DisbursementModel d) {
-    return Container(
-      key: ValueKey(d.id),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-              flex: 2,
-              child: Text(d.loanNumber,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: AppColors.deepNavy))),
-          Expanded(
-              flex: 3,
-              child: Text(d.lenderName, style: const TextStyle(fontSize: 13))),
-          Expanded(flex: 2, child: _methodChip(d.disbursementMethod)),
-          Expanded(
-              flex: 2,
-              child: Text('₱${d.amount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 13))),
-          Expanded(flex: 2, child: StatusBadge(status: d.status)),
-          Expanded(
-              flex: 2,
-              child: Text(DateFormat('MMM d, y h:mm a').format(d.createdAt),
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary))),
-          SizedBox(
-            width: 80,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Tooltip(
-                message: 'View',
-                child: InkWell(
-                  onTap: () => context.go('/hm/disbursements/${d.id}'),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.deepNavy.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
-                        SizedBox(width: 4),
-                        Text('View',
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.deepNavy)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+  ResponsiveRow _buildRow(BuildContext context, DisbursementModel d) {
+    return ResponsiveRow(
+      cells: [
+        Text(d.loanNumber,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.deepNavy)),
+        Text(d.lenderName, style: const TextStyle(fontSize: 13)),
+        _methodChip(d.disbursementMethod),
+        Text('₱${d.amount.toStringAsFixed(2)}',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        StatusBadge(status: d.status),
+        Text(DateFormat('MMM d, y h:mm a').format(d.createdAt),
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+      ],
+      actions: Tooltip(
+        message: 'View',
+        child: InkWell(
+          onTap: () => context.go('/hm/disbursements/${d.id}'),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy),
+                SizedBox(width: 4),
+                Text('View',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepNavy)),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

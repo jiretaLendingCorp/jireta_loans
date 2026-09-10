@@ -6,6 +6,7 @@ import '../../../../../data/models/user_model.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -81,29 +82,24 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
   Widget _filters(HmHeadManagersState state) => Container(
         color: Colors.white,
         padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search head managers...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                onChanged: (v) =>
-                    ref.read(hmHeadManagersProvider.notifier).setSearch(v),
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search head managers...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border),
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            const SizedBox(width: 12),
+            onChanged: (v) =>
+                ref.read(hmHeadManagersProvider.notifier).setSearch(v),
+          ),
+          trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            const SizedBox(width: 12),
             SearchResultsChip(count: state.users.length),
-            const SizedBox(width: 12),
             DropdownButton<String>(
               value: state.statusFilter,
               items: const [
@@ -120,121 +116,83 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
 
   Widget _table(List<UserModel> users) => SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Card(
-          child: Column(
-            children: [
-              _header(),
-              const Divider(height: 1),
-              ...users.asMap().entries.map((e) => _row(e.value, e.key.isEven)),
-            ],
-          ),
+        child: ResponsiveListCard(
+          minTableWidth: 760,
+          variant: ResponsiveListVariant.card,
+          columns: const [
+            ResponsiveCol('Name', flex: 3),
+            ResponsiveCol('Email', flex: 3),
+            ResponsiveCol('Phone', flex: 2),
+            ResponsiveCol('Status', flex: 1),
+          ],
+          actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
+          rows: users.map((e) => _row(e)).toList(),
         ),
       );
 
-  Widget _header() => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: AppColors.surfaceVariant,
-        child: const Row(
+  ResponsiveRow _row(UserModel user) {
+    final isActive = user.accountStatus == 'active';
+    return ResponsiveRow(
+      cells: [
+        Row(
           children: [
-            Expanded(flex: 3, child: Text('Name', style: _hdrStyle)),
-            Expanded(flex: 3, child: Text('Email', style: _hdrStyle)),
-            Expanded(flex: 2, child: Text('Phone', style: _hdrStyle)),
-            Expanded(flex: 1, child: Text('Status', style: _hdrStyle)),
-            Expanded(flex: 2, child: Text('Actions', style: _hdrStyle)),
+            ProfileAvatar(
+              photoUrl: user.profilePhotoUrl,
+              name: '${user.firstName} ${user.lastName}',
+              color: AppColors.gold,
+              radius: 18,
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                '${user.firstName} ${user.lastName}',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
-      );
-
-  static const _hdrStyle = TextStyle(
-    fontWeight: FontWeight.w600,
-    fontSize: 13,
-    color: AppColors.textSecondary,
-  );
-
-  Widget _row(UserModel user, bool isEven) {
-    final isActive = user.accountStatus == 'active';
-    return Container(
-      key: ValueKey(user.id),
-      color: isEven
-          ? Colors.white
-          : AppColors.surfaceVariant.withValues(alpha: 0.3),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
+        Text(
+          user.email ?? '—',
+          style:
+              const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          user.phoneNumber ?? '—',
+          style:
+              const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        Text(
+          isActive ? 'Active' : _statusLabel(user.accountStatus),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: isActive ? AppColors.success : AppColors.error,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+      actions: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                ProfileAvatar(
-                  photoUrl: user.profilePhotoUrl,
-                  name: '${user.firstName} ${user.lastName}',
-                  color: AppColors.gold,
-                  radius: 18,
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    '${user.firstName} ${user.lastName}',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+          _btn(
+            Icons.visibility_outlined,
+            'View',
+            AppColors.textSecondary,
+            () => showUserDetailsModal(context, user),
           ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              user.email ?? '—',
-              style:
-                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              overflow: TextOverflow.ellipsis,
-            ),
+          _btn(
+            Icons.edit_outlined,
+            'Edit',
+            AppColors.primary,
+            () => _openEdit(user),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              user.phoneNumber ?? '—',
-              style:
-                  const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Text(
-              isActive ? 'Active' : _statusLabel(user.accountStatus),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: isActive ? AppColors.success : AppColors.error,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Row(
-              children: [
-                _btn(
-                  Icons.visibility_outlined,
-                  'View',
-                  AppColors.textSecondary,
-                  () => showUserDetailsModal(context, user),
-                ),
-                _btn(
-                  Icons.edit_outlined,
-                  'Edit',
-                  AppColors.primary,
-                  () => _openEdit(user),
-                ),
-                _btn(
-                  Icons.password_rounded,
-                  'Reset Password',
-                  AppColors.deepNavy,
-                  () => _showResetPassword(user),
-                ),
-              ],
-            ),
+          _btn(
+            Icons.password_rounded,
+            'Reset Password',
+            AppColors.deepNavy,
+            () => _showResetPassword(user),
           ),
         ],
       ),

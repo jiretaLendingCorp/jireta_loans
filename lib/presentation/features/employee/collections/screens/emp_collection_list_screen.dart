@@ -10,6 +10,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
@@ -369,51 +370,53 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     final resultsCount = isPayments ? pState.totalCount : cState.totalCount;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Row(
-        children: [
-          Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => isPayments
-                  ? ref.read(_empPaymentsInCollectionProvider.notifier).setSearch(v)
-                  : ref.read(empCollectionProvider.notifier).setSearch(v),
-              style: const TextStyle(fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: 'Search',
-                hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
+      child: ResponsiveSearchToolbar(
+        searchField: Row(
+          children: [
+            Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => isPayments
+                    ? ref.read(_empPaymentsInCollectionProvider.notifier).setSearch(v)
+                    : ref.read(empCollectionProvider.notifier).setSearch(v),
+                style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(
+                  hintText: 'Search',
+                  hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 10),
+                ),
               ),
             ),
-          ),
-          if (hasSearch)
-            InkWell(
-              onTap: () {
-                _searchCtrl.clear();
-                ref.read(empCollectionProvider.notifier).setSearch('');
-                ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle),
-                child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary),
+            if (hasSearch)
+              InkWell(
+                onTap: () {
+                  _searchCtrl.clear();
+                  ref.read(empCollectionProvider.notifier).setSearch('');
+                  ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle),
+                  child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary),
+                ),
               ),
+            if (hasSearch) const SizedBox(width: 10),
+            _ToolbarIcon(
+              icon: Icons.refresh_rounded,
+              tooltip: 'Refresh',
+              onTap: () => isPayments
+                  ? ref.read(_empPaymentsInCollectionProvider.notifier).fetch()
+                  : ref.read(empCollectionProvider.notifier).fetch(),
             ),
-          if (hasSearch) const SizedBox(width: 10),
-          _ToolbarIcon(
-            icon: Icons.refresh_rounded,
-            tooltip: 'Refresh',
-            onTap: () => isPayments
-                ? ref.read(_empPaymentsInCollectionProvider.notifier).fetch()
-                : ref.read(empCollectionProvider.notifier).fetch(),
-          ),
-          const SizedBox(width: 8),
+          ],
+        ),
+        trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          const SizedBox(width: 8),
           SearchResultsChip(count: resultsCount),
         ],
       ),
@@ -443,34 +446,23 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     return _Entrance(
       child: Column(
         children: [
-          Container(
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(bottom: BorderSide(color: AppColors.border))),
-                  child: const Row(
-                    children: [
-                      Expanded(flex: 3, child: _HLabel('Lender & Loan', Icons.person_outline)),
-                      Expanded(flex: 2, child: _HLabel('Amount', Icons.payments_outlined)),
-                      Expanded(flex: 2, child: _HLabel('Rider', Icons.delivery_dining_outlined)),
-                      Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-                      SizedBox(width: 120, child: _HLabel('Action', Icons.bolt_outlined)),
-                    ],
-                  ),
-                ),
-                ...items.asMap().entries.map((e) => _buildCollectionRow(e.value, e.key.isEven)),
-              ],
-            ),
+          ResponsiveListCard(
+            minTableWidth: 820,
+            columns: const [
+              ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+              ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
+              ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
+              ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+            ],
+            actionsCol: const ResponsiveActionsCol(width: 120),
+            rows: items.map((e) => _buildCollectionRow(e)).toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCollectionRow(dynamic col, bool isEven) {
+  ResponsiveRow _buildCollectionRow(dynamic col) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final schedule = col.loanSchedule as Map<String, dynamic>? ?? {};
     final isOffice = col.collectionType == 'office';
@@ -478,145 +470,103 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     final status = (col.status?.toString() ?? '').toLowerCase();
     final accent = _accentForStatus(status);
     final canAssign = col.status == 'requested' && !isOffice;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
-            ]),
+    return ResponsiveRow(
+      cells: [
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 2),
+          Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
+        ]),
+        Text('₱${fmt.format(amount)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
+        Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : '—'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 7, height: 7, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+          Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent), overflow: TextOverflow.ellipsis)),
+        ]),
+      ],
+      actions: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (canAssign)
+          InkWell(
+            onTap: () async {
+              final loanScheduleId = col.loanScheduleId as String? ?? '';
+              final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
+              final result = await showDialog<bool>(context: context, builder: (_) => EmpAssignRiderModal(loanScheduleId: loanScheduleId, loanId: loanId, assignmentId: col.id as String? ?? ''));
+              if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
+            },
+            borderRadius: BorderRadius.circular(9),
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white)),
           ),
-          Expanded(flex: 2, child: Text('₱${fmt.format(amount)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary))),
-          Expanded(flex: 2, child: Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : '—'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))])),
-          Expanded(
-            flex: 2,
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 7, height: 7, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent), overflow: TextOverflow.ellipsis)),
-            ]),
-          ),
-          SizedBox(
-            width: 120,
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (canAssign)
-                InkWell(
-                  onTap: () async {
-                    final loanScheduleId = col.loanScheduleId as String? ?? '';
-                    final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
-                    final result = await showDialog<bool>(context: context, builder: (_) => EmpAssignRiderModal(loanScheduleId: loanScheduleId, loanId: loanId, assignmentId: col.id as String? ?? ''));
-                    if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
-                  },
-                  borderRadius: BorderRadius.circular(9),
-                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white)),
-                ),
-              if (canAssign) const SizedBox(width: 6),
-              InkWell(
-                onTap: () => context.go(RouteConstants.empCollectionDetails.replaceFirst(':id', col.id)),
-                child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
-              ),
-            ]),
-          ),
-        ],
-      ),
+        if (canAssign) const SizedBox(width: 6),
+        InkWell(
+          onTap: () => context.go(RouteConstants.empCollectionDetails.replaceFirst(':id', col.id)),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+        ),
+      ]),
     );
   }
 
   Widget _buildPaymentsTable(List<Map<String, dynamic>> payments) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final dateFmt = DateFormat('MMM dd, yyyy h:mm a');
-    return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4))]),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(color: Color(0xFFF8F9FB), border: Border(bottom: BorderSide(color: AppColors.border))),
-            child: const Row(
-              children: [
-                Expanded(flex: 3, child: _HLabel('Lender & Loan', Icons.person_outline)),
-                Expanded(flex: 2, child: _HLabel('Amount', Icons.payments_outlined)),
-                Expanded(flex: 2, child: _HLabel('Method', Icons.account_balance_wallet_outlined)),
-                Expanded(flex: 2, child: _HLabel('Date', Icons.event_outlined)),
-                Expanded(flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-                SizedBox(width: 96, child: _HLabel('Action', Icons.bolt_outlined)),
-              ],
-            ),
-          ),
-          ...payments.asMap().entries.map((e) {
-            final p = e.value;
-            final isEven = e.key.isEven;
-            final lender = p['lender'] as Map<String, dynamic>? ?? {};
-            final loan = p['loan'] as Map<String, dynamic>? ?? {};
-            final status = (p['status'] as String? ?? '-').toLowerCase();
-            final method = (p['payment_method'] as String? ?? p['method'] as String? ?? '-').toLowerCase();
-            final amt = (p['amount'] as num?)?.toDouble() ?? 0;
-            final statusColor = status == 'verified' ? AppColors.success : status == 'pending' ? AppColors.warning : AppColors.error;
-            final dateStr = () {
-              final d = p['created_at'];
-              if (d == null) return '-';
-              try { return dateFmt.format(toManila(DateTime.parse(d.toString()))); } catch (_) { return d.toString(); }
-            }();
-            final flatLenderName = p['lender_name'] != null ? p['lender_name'] as String : null;
-            final resolvedLender = flatLenderName != null && flatLenderName.isNotEmpty
-                ? flatLenderName
-                : ('${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim().isEmpty ? '—' : '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim());
-            final loanNumberFlat = p['loan_number'] as String? ?? loan['loan_number'] as String? ?? '—';
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(color: isEven ? Colors.white : const Color(0xFFFDFDFD), border: const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(resolvedLender, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 2),
-                      Text(loanNumberFlat, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-                    ]),
-                  ),
-                  Expanded(flex: 2, child: Text('₱${fmt.format(amt)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary))),
-                  Expanded(flex: 2, child: _PaymentMethodInline(method: method)),
-                  Expanded(flex: 2, child: Text(dateStr, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary))),
-                  Expanded(
-                    flex: 2,
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 7, height: 7, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-                      const SizedBox(width: 6),
-                      Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor), overflow: TextOverflow.ellipsis)),
-                    ]),
-                  ),
-                  SizedBox(
-                    width: 96,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: status == 'verified'
-                          ? InkWell(
-                              onTap: () => _confirmReverse(p['id'] as String? ?? ''),
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.error.withValues(alpha: 0.5))), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.undo_rounded, size: 14, color: AppColors.error), SizedBox(width: 4), Text('Reverse', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.error))])),
-                            )
-                          : InkWell(
-                              onTap: () {
-                                final id = p['id'] as String? ?? '';
-                                if (id.isNotEmpty) context.go(RouteConstants.empPaymentDetails.replaceFirst(':id', id));
-                              },
-                              child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
+    return ResponsiveListCard(
+      minTableWidth: 900,
+      columns: const [
+        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
+        ResponsiveCol('Method', icon: Icons.account_balance_wallet_outlined, flex: 2),
+        ResponsiveCol('Date', icon: Icons.event_outlined, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+      ],
+      actionsCol: const ResponsiveActionsCol(width: 96),
+      rows: payments.map((p) {
+        final lender = p['lender'] as Map<String, dynamic>? ?? {};
+        final loan = p['loan'] as Map<String, dynamic>? ?? {};
+        final status = (p['status'] as String? ?? '-').toLowerCase();
+        final method = (p['payment_method'] as String? ?? p['method'] as String? ?? '-').toLowerCase();
+        final amt = (p['amount'] as num?)?.toDouble() ?? 0;
+        final statusColor = status == 'verified' ? AppColors.success : status == 'pending' ? AppColors.warning : AppColors.error;
+        final dateStr = () {
+          final d = p['created_at'];
+          if (d == null) return '-';
+          try { return dateFmt.format(toManila(DateTime.parse(d.toString()))); } catch (_) { return d.toString(); }
+        }();
+        final flatLenderName = p['lender_name'] != null ? p['lender_name'] as String : null;
+        final resolvedLender = flatLenderName != null && flatLenderName.isNotEmpty
+            ? flatLenderName
+            : ('${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim().isEmpty ? '—' : '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim());
+        final loanNumberFlat = p['loan_number'] as String? ?? loan['loan_number'] as String? ?? '—';
+        return ResponsiveRow(
+          cells: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(resolvedLender, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(loanNumberFlat, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+            ]),
+            Text('₱${fmt.format(amt)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            _PaymentMethodInline(method: method),
+            Text(dateStr, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 7, height: 7, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor), overflow: TextOverflow.ellipsis)),
+            ]),
+          ],
+          actions: status == 'verified'
+              ? InkWell(
+                  onTap: () => _confirmReverse(p['id'] as String? ?? ''),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.error.withValues(alpha: 0.5))), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.undo_rounded, size: 14, color: AppColors.error), SizedBox(width: 4), Text('Reverse', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.error))])),
+                )
+              : InkWell(
+                  onTap: () {
+                    final id = p['id'] as String? ?? '';
+                    if (id.isNotEmpty) context.go(RouteConstants.empPaymentDetails.replaceFirst(':id', id));
+                  },
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+                ),
+        );
+      }).toList(),
     );
   }
 
@@ -824,19 +774,6 @@ class _PillTab extends StatelessWidget {
   }
 }
 
-class _HLabel extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  const _HLabel(this.text, this.icon);
-  @override
-  Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: AppColors.textTertiary),
-      const SizedBox(width: 6),
-      Flexible(child: Text(text.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5), overflow: TextOverflow.ellipsis)),
-    ]);
-  }
-}
 
 class _PaymentMethodInline extends StatelessWidget {
   final String method;

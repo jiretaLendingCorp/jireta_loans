@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -74,28 +75,23 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search riders...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border)),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onChanged: (v) =>
-                  ref.read(empRiderProvider.notifier).setSearch(v),
-            ),
+      child: ResponsiveSearchToolbar(
+        searchField: TextField(
+          controller: _searchCtrl,
+          decoration: InputDecoration(
+            hintText: 'Search riders...',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border)),
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
-          const SizedBox(width: 12),
+          onChanged: (v) =>
+              ref.read(empRiderProvider.notifier).setSearch(v),
+        ),
+        trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          const SizedBox(width: 12),
           SearchResultsChip(count: state.riders.length),
-          const SizedBox(width: 12),
           DropdownButton<String>(
             value: state.statusFilter,
             items: const [
@@ -113,119 +109,82 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
   Widget _buildTable(List<UserModel> riders) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Card(
-        child: Column(
-          children: [
-            _buildHeader(),
-            const Divider(height: 1),
-            ...riders
-                .asMap()
-                .entries
-                .map((e) => _buildRow(e.value, e.key.isEven)),
-          ],
-        ),
+      child: ResponsiveListCard(
+        minTableWidth: 820,
+        variant: ResponsiveListVariant.card,
+        columns: const [
+          ResponsiveCol('Name', flex: 3),
+          ResponsiveCol('Phone', flex: 2),
+          ResponsiveCol('Vehicle', flex: 2),
+          ResponsiveCol('Plate', flex: 2),
+          ResponsiveCol('Status', flex: 2),
+        ],
+        actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
+        rows: riders.map((e) => _buildRow(e)).toList(),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    const style = TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 13,
-        color: AppColors.textSecondary);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.surfaceVariant,
-      child: const Row(children: [
-        Expanded(flex: 3, child: Text('Name', style: style)),
-        Expanded(flex: 2, child: Text('Phone', style: style)),
-        Expanded(flex: 2, child: Text('Vehicle', style: style)),
-        Expanded(flex: 2, child: Text('Plate', style: style)),
-        Expanded(flex: 2, child: Text('Status', style: style)),
-        Expanded(flex: 2, child: Text('Actions', style: style)),
-      ]),
-    );
-  }
-
-  Widget _buildRow(UserModel rider, bool isEven) {
-    return InkWell(
-      key: ValueKey(rider.id),
+  ResponsiveRow _buildRow(UserModel rider) {
+    return ResponsiveRow(
       onTap: () => showUserDetailsModal(context, rider),
-      child: Container(
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-                flex: 3,
-                child: Row(children: [
-                  ProfileAvatar(
-                    photoUrl: rider.profilePhotoUrl,
-                    name: '${rider.firstName} ${rider.lastName}',
-                    color: AppColors.riderGreen,
-                    radius: 18,
-                  ),
-                  const SizedBox(width: 10),
-                  Text(rider.fullName,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 13)),
-                ])),
-            Expanded(
-                flex: 2,
-                child: Text(rider.phoneNumber ?? '—',
-                    style: const TextStyle(fontSize: 13))),
-            Expanded(
-                flex: 2,
-                child: Text(rider.vehicleType ?? '—',
-                    style: const TextStyle(fontSize: 13))),
-            Expanded(
-                flex: 2,
-                child: Text(rider.plateNumber ?? '—',
-                    style: const TextStyle(fontSize: 13))),
-            Expanded(
-              flex: 2,
-              child: Text(
-                rider.accountStatus == 'active'
-                    ? 'Active'
-                    : rider.accountStatus == 'archived'
-                        ? 'Archived'
-                        : 'Inactive',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: rider.accountStatus == 'active'
-                      ? AppColors.success
-                      : AppColors.error,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  Tooltip(
-                    message: 'View',
-                    child: InkWell(
-                      onTap: () => showUserDetailsModal(context, rider),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: const Icon(Icons.visibility_outlined,
-                            size: 16, color: AppColors.deepNavy),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+      cells: [
+        Row(children: [
+          ProfileAvatar(
+            photoUrl: rider.profilePhotoUrl,
+            name: '${rider.firstName} ${rider.lastName}',
+            color: AppColors.riderGreen,
+            radius: 18,
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(rider.fullName,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, fontSize: 13),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+        Text(rider.phoneNumber ?? '—',
+            style: const TextStyle(fontSize: 13)),
+        Text(rider.vehicleType ?? '—',
+            style: const TextStyle(fontSize: 13)),
+        Text(rider.plateNumber ?? '—',
+            style: const TextStyle(fontSize: 13)),
+        Text(
+          rider.accountStatus == 'active'
+              ? 'Active'
+              : rider.accountStatus == 'archived'
+                  ? 'Archived'
+                  : 'Inactive',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: rider.accountStatus == 'active'
+                ? AppColors.success
+                : AppColors.error,
+          ),
+          overflow: TextOverflow.ellipsis,
         ),
+      ],
+      actions: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: 'View',
+            child: InkWell(
+              onTap: () => showUserDetailsModal(context, rider),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: const Icon(Icons.visibility_outlined,
+                    size: 16, color: AppColors.deepNavy),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

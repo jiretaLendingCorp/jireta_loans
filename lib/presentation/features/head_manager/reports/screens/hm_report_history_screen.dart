@@ -5,6 +5,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../shared/widgets/forms/app_date_range_picker.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
@@ -79,23 +80,20 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  onChanged: (v) => setState(() => _search = v),
-                  decoration: InputDecoration(
-                    hintText: 'Search',
-                    hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textTertiary),
-                    filled: true,
-                    fillColor: AppColors.surfaceVariant,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                ),
+          ResponsiveSearchToolbar(
+            searchField: TextField(
+              onChanged: (v) => setState(() => _search = v),
+              decoration: InputDecoration(
+                hintText: 'Search',
+                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+                prefixIcon: const Icon(Icons.search_rounded, size: 19, color: AppColors.textTertiary),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
-              const SizedBox(width: 10),
+            ),
+            trailing: [
               OutlinedButton.icon(
                 onPressed: _pickDateRange,
                 icon: Icon(_dateRange == null ? Icons.date_range_rounded : Icons.event_available_rounded, size: 16, color: _dateRange == null ? AppColors.textSecondary : AppColors.deepNavy),
@@ -110,8 +108,7 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              if (_dateRange != null) ...[
-                const SizedBox(width: 8),
+              if (_dateRange != null)
                 InkWell(
                   onTap: () => setState(() => _dateRange = null),
                   borderRadius: BorderRadius.circular(8),
@@ -121,7 +118,6 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
                     child: const Icon(Icons.close_rounded, size: 16, color: AppColors.error),
                   ),
                 ),
-              ],
             ],
           ),
           const SizedBox(height: 12),

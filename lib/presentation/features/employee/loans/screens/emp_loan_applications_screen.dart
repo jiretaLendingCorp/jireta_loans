@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
@@ -221,32 +222,28 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
         ),
       ),
       padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search loan applications...',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onChanged: (v) {
-                if (isInOffice) {
-                  setState(() => _inOfficeSearch = v);
-                } else {
-                  ref.read(empLoanProvider.notifier).setSearch(v);
-                }
-              },
+      child: ResponsiveSearchToolbar(
+        searchField: TextField(
+          controller: _searchCtrl,
+          decoration: InputDecoration(
+            hintText: 'Search loan applications...',
+            prefixIcon: const Icon(Icons.search, size: 20),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
-          const SizedBox(width: 12),
+          onChanged: (v) {
+            if (isInOffice) {
+              setState(() => _inOfficeSearch = v);
+            } else {
+              ref.read(empLoanProvider.notifier).setSearch(v);
+            }
+          },
+        ),
+        trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          const SizedBox(width: 12),
           SearchResultsChip(
             count: isInOffice
                 ? _filteredEmpInOffice(
@@ -281,129 +278,77 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   }
 
   Widget _buildInOfficeList(List items) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.zero,
-        border: Border.all(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFFF8F9FB),
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: Row(
-              children: [
-                const Expanded(
-                    flex: 3,
-                    child: _HLabel('Lender', Icons.person_outline)),
-                const Expanded(
-                    flex: 2, child: _HLabel('Loan', Icons.request_quote_outlined)),
-                const Expanded(
-                    flex: 2, child: _HLabel('Created', Icons.event_outlined)),
-                const Expanded(
-                    flex: 2, child: _HLabel('Status', Icons.flag_outlined)),
-                SizedBox(
-                  width: 140,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: () => showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (_) => InOfficeWizard(
-                          applicationId: null,
-                          onComplete: () =>
-                              ref.read(empInOfficeProvider.notifier).loadList(),
-                        ),
-                      ),
-                      icon: const Icon(Icons.add, size: 14),
-                      label: const Text('New Walk-in',
-                          style: TextStyle(fontSize: 11)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.deepNavy,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        minimumSize: const Size(0, 32),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+    return ResponsiveListCard(
+      minTableWidth: 860,
+      radius: 0,
+      columns: const [
+        ResponsiveCol('Lender', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Loan', icon: Icons.request_quote_outlined, flex: 2),
+        ResponsiveCol('Created', icon: Icons.event_outlined, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+      ],
+      actionsCol: ResponsiveActionsCol(
+        label: '',
+        width: 140,
+        alignment: Alignment.centerRight,
+        headerWidget: ElevatedButton.icon(
+          onPressed: () => showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => InOfficeWizard(
+              applicationId: null,
+              onComplete: () =>
+                  ref.read(empInOfficeProvider.notifier).loadList(),
             ),
           ),
-          ...items.asMap().entries.map((e) {
-            final idx = e.key;
-            final m = e.value as Map<String, dynamic>;
-            final isEven = idx.isEven;
-            return Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: isEven ? Colors.white : const Color(0xFFFDFDFD),
-                border:
-                    const Border(bottom: BorderSide(color: Color(0xFFF0F0F0))),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Text(
-                      (m['lender_name'] ?? 'Walk-in Lender').toString(),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: AppColors.textPrimary),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      _empInOfficeLoanLabel(m),
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(
-                      (() {
-                        final raw = (m['created_at'] ?? '').toString();
-                        return raw.length >= 10 ? raw.substring(0, 10) : raw;
-                      })(),
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: _EmpStatusInline(
-                        status: (m['status'] ?? 'submitted').toString()),
-                  ),
-                  SizedBox(
-                    width: 140,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _EmpInOfficeActions(
-                          appId: (m['id'] ?? '').toString()),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('New Walk-in',
+              style: TextStyle(fontSize: 11)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.deepNavy,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 6),
+            minimumSize: const Size(0, 32),
+          ),
+        ),
       ),
+      rows: items.map((e) {
+        final m = e as Map<String, dynamic>;
+        return ResponsiveRow(
+          cells: [
+            Text(
+              (m['lender_name'] ?? 'Walk-in Lender').toString(),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              _empInOfficeLoanLabel(m),
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600),
+            ),
+            Text(
+              (() {
+                final raw = (m['created_at'] ?? '').toString();
+                return raw.length >= 10 ? raw.substring(0, 10) : raw;
+              })(),
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600),
+            ),
+            _EmpStatusInline(
+                status: (m['status'] ?? 'submitted').toString()),
+          ],
+          actions: _EmpInOfficeActions(
+              appId: (m['id'] ?? '').toString()),
+        );
+      }).toList(),
     );
   }
 
@@ -498,187 +443,109 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   }
 
   Widget _buildTable(List<LoanModel> loans) {
-    // No inner SingleChildScrollView — outer SingleChildScrollView already
-    // scrolls. Nesting scrollables same axis gives unbounded height errors.
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.zero,
-        border: Border.all(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          _buildTableHeader(),
-          const Divider(height: 1),
-          ...loans.asMap().entries.map(
-                (e) => _buildTableRow(e.value, e.key.isEven),
-              ),
-        ],
-      ),
+    return ResponsiveListCard(
+      minTableWidth: 920,
+      radius: 0,
+      variant: ResponsiveListVariant.card,
+      columns: const [
+        ResponsiveCol('Loan #', flex: 3),
+        ResponsiveCol('Lender', flex: 3),
+        ResponsiveCol('Amount', flex: 2),
+        ResponsiveCol('Frequency', flex: 2),
+        ResponsiveCol('Status', flex: 2),
+        ResponsiveCol('Applied', flex: 2),
+      ],
+      actionsCol: const ResponsiveActionsCol(label: 'Actions', width: 96),
+      rows: loans.map((loan) => _buildTableRow(loan)).toList(),
     );
   }
 
-  Widget _buildTableHeader() {
-    const style = TextStyle(
-      fontWeight: FontWeight.w600,
-      fontSize: 13,
-      color: AppColors.textSecondary,
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.surfaceVariant,
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(flex: 3, child: Text('Loan #', style: style)),
-          Expanded(flex: 3, child: Text('Lender', style: style)),
-          Expanded(flex: 2, child: Text('Amount', style: style)),
-          Expanded(
-              flex: 2,
-              child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Frequency', style: style))),
-          Expanded(
-              flex: 2,
-              child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Status', style: style))),
-          Expanded(
-              flex: 2,
-              child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Applied', style: style))),
-          SizedBox(
-              width: 96,
-              child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Actions', style: style))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTableRow(LoanModel loan, bool isEven) {
-    return InkWell(
-      key: ValueKey(loan.id),
+  ResponsiveRow _buildTableRow(LoanModel loan) {
+    return ResponsiveRow(
       onTap: () => showEmpLoanDetailsModal(context, loan.id),
-      child: Container(
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+      cells: [
+        Text(
+          loan.loanNumber,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+            color: AppColors.deepNavy,
+          ),
+        ),
+        Text(
+          loan.lenderName ?? '—',
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        Text(
+          '₱${loan.principalAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: _EmpFrequencyInline(frequency: loan.frequency),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              flex: 3,
-              child: Text(
-                loan.loanNumber,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: AppColors.deepNavy,
-                ),
-              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _EmpStatusInline(status: loan.displayStatus),
             ),
-            Expanded(
-              flex: 3,
-              child: Text(
-                loan.lenderName ?? '—',
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                '₱${loan.principalAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _EmpFrequencyInline(frequency: loan.frequency),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _EmpStatusInline(status: loan.displayStatus),
-                  ),
-                  if (loan.ciStatus != null &&
-                      (loan.ciStatus == 'assigned' ||
-                          loan.ciStatus == 'accepted' ||
-                          loan.ciStatus == 'in_progress') &&
-                      loan.status == 'ci_assigned') ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      loan.assignedRiderName != null
-                          ? 'Rider: ${loan.assignedRiderName}'
-                          : 'Rider Assigned',
-                      textAlign: TextAlign.start,
-                      style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.riderGreen,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  // Overdue CI: failed task needs a new rider.
-                  if (loan.ciStatus != null &&
-                      (loan.ciStatus == 'failed' ||
-                          loan.ciStatus == 'expired') &&
-                      loan.status == 'ci_assigned') ...[
-                    const SizedBox(height: 4),
-                    const Text(
-                      'CI overdue — reassignment needed',
-                      textAlign: TextAlign.start,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${loan.createdAt.year}-${loan.createdAt.month.toString().padLeft(2, '0')}-${loan.createdAt.day.toString().padLeft(2, '0')}',
-                  textAlign: TextAlign.start,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              width: 96,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _buildActions(loan),
-              ),
+          if (loan.ciStatus != null &&
+              (loan.ciStatus == 'assigned' ||
+                  loan.ciStatus == 'accepted' ||
+                  loan.ciStatus == 'in_progress') &&
+              loan.status == 'ci_assigned') ...[
+            const SizedBox(height: 4),
+            Text(
+              loan.assignedRiderName != null
+                  ? 'Rider: ${loan.assignedRiderName}'
+                  : 'Rider Assigned',
+              textAlign: TextAlign.start,
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.riderGreen,
+                  fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
+          // Overdue CI: failed task needs a new rider.
+          if (loan.ciStatus != null &&
+              (loan.ciStatus == 'failed' ||
+                  loan.ciStatus == 'expired') &&
+              loan.status == 'ci_assigned') ...[
+            const SizedBox(height: 4),
+            const Text(
+              'CI overdue — reassignment needed',
+              textAlign: TextAlign.start,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
         ),
-      ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '${loan.createdAt.year}-${loan.createdAt.month.toString().padLeft(2, '0')}-${loan.createdAt.day.toString().padLeft(2, '0')}',
+            textAlign: TextAlign.start,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ],
+      actions: _buildActions(loan),
     );
   }
 
@@ -1126,34 +993,6 @@ class _PillTab extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _HLabel extends StatelessWidget {
-  final String text;
-  final IconData icon;
-  const _HLabel(this.text, this.icon);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: AppColors.textTertiary),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            text.toUpperCase(),
-            style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
-                letterSpacing: 0.5),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
     );
   }
 }

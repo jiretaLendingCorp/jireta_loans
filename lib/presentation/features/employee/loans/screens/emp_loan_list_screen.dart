@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -98,27 +99,23 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
   Widget _buildFilters(HmLoanState state) => Container(
         padding: const EdgeInsets.all(16),
         color: Colors.white,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search by loan # or lender name...',
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                onChanged: (v) =>
-                    ref.read(empActiveLoanProvider.notifier).setSearch(v),
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search by loan # or lender name...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border),
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            const SizedBox(width: 12),
+            onChanged: (v) =>
+                ref.read(empActiveLoanProvider.notifier).setSearch(v),
+          ),
+          trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            const SizedBox(width: 12),
             SearchResultsChip(count: state.loans.length),
           ],
         ),
@@ -128,124 +125,77 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.border),
-        ),
-        child: Column(
-          children: [
-            _buildHeader(),
-            const Divider(height: 1),
-            ...loans
-                .asMap()
-                .entries
-                .map((e) => _buildRow(e.value, e.key.isEven, fmt)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    const s = TextStyle(
-        fontWeight: FontWeight.w600,
-        fontSize: 12,
-        color: AppColors.textSecondary);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: AppColors.surfaceVariant,
-      child: const Row(
-        children: [
-          Expanded(flex: 2, child: Text('LOAN #', style: s)),
-          Expanded(flex: 3, child: Text('LENDER', style: s)),
-          Expanded(flex: 2, child: Text('PRINCIPAL', style: s)),
-          Expanded(flex: 2, child: Text('OUTSTANDING', style: s)),
-          Expanded(flex: 2, child: Text('DUE DATE', style: s)),
-          Expanded(flex: 2, child: Text('STATUS', style: s)),
-          Expanded(flex: 1, child: Text('', style: s)),
+      child: ResponsiveListCard(
+        minTableWidth: 860,
+        variant: ResponsiveListVariant.card,
+        headerTextStyle: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            color: AppColors.textSecondary),
+        columns: const [
+          ResponsiveCol('LOAN #', flex: 2),
+          ResponsiveCol('LENDER', flex: 3),
+          ResponsiveCol('PRINCIPAL', flex: 2),
+          ResponsiveCol('OUTSTANDING', flex: 2),
+          ResponsiveCol('DUE DATE', flex: 2),
+          ResponsiveCol('STATUS', flex: 2),
         ],
+        actionsCol: const ResponsiveActionsCol(label: '', flex: 1),
+        rows: loans.map((loan) => _buildRow(loan, fmt)).toList(),
       ),
     );
   }
 
-  Widget _buildRow(LoanModel loan, bool isEven, NumberFormat fmt) {
+  ResponsiveRow _buildRow(LoanModel loan, NumberFormat fmt) {
     final color = _statusColor(loan.displayStatus);
-    return InkWell(
-      key: ValueKey(loan.id),
+    return ResponsiveRow(
       onTap: () => showEmpLoanDetailsModal(context, loan.id),
-      child: Container(
-        color: isEven
-            ? Colors.white
-            : AppColors.surfaceVariant.withValues(alpha: 0.3),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-                flex: 2,
-                child: Text(loan.loanNumber,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13))),
-            Expanded(
-                flex: 3,
-                child: Text(loan.lenderName ?? '-',
-                    style: const TextStyle(fontSize: 13))),
-            Expanded(
-                flex: 2,
-                child: Text('₱${fmt.format(loan.principalAmount)}',
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w500))),
-            Expanded(
-              flex: 2,
-              child: Text(
-                '₱${fmt.format(loan.outstandingBalance)}',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: loan.status == 'overdue'
-                        ? AppColors.error
-                        : AppColors.textPrimary),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                loan.dueDate != null
-                    ? DateFormat('MMM dd, yyyy').format(loan.dueDate!)
-                    : '-',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(4)),
-                child: Text(
-                  loan.displayStatus
-                      .replaceAll('_', ' ')
-                      .split(' ')
-                      .map((w) => w.isEmpty
-                          ? w
-                          : '${w[0].toUpperCase()}${w.substring(1)}')
-                      .join(' '),
-                  style: TextStyle(
-                      fontSize: 12, color: color, fontWeight: FontWeight.w500),
-                ),
-              ),
-            ),
-            Expanded(
-                flex: 1,
-                child: _ActionCell(
-                    loan: loan,
-                    onTap: () => showEmpLoanDetailsModal(context, loan.id))),
-          ],
+      cells: [
+        Text(loan.loanNumber,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600, fontSize: 13)),
+        Text(loan.lenderName ?? '-',
+            style: const TextStyle(fontSize: 13)),
+        Text('₱${fmt.format(loan.principalAmount)}',
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w500)),
+        Text(
+          '₱${fmt.format(loan.outstandingBalance)}',
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: loan.status == 'overdue'
+                  ? AppColors.error
+                  : AppColors.textPrimary),
         ),
-      ),
+        Text(
+          loan.dueDate != null
+              ? DateFormat('MMM dd, yyyy').format(loan.dueDate!)
+              : '-',
+          style: const TextStyle(
+              fontSize: 13, color: AppColors.textSecondary),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(4)),
+          child: Text(
+            loan.displayStatus
+                .replaceAll('_', ' ')
+                .split(' ')
+                .map((w) => w.isEmpty
+                    ? w
+                    : '${w[0].toUpperCase()}${w.substring(1)}')
+                .join(' '),
+            style: TextStyle(
+                fontSize: 12, color: color, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
+      actions: _ActionCell(
+          loan: loan,
+          onTap: () => showEmpLoanDetailsModal(context, loan.id)),
     );
   }
 
