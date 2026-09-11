@@ -26,10 +26,7 @@ class AuthRemoteDataSource {
     required String firstName,
     required String lastName,
     required String email,
-    required String phoneNumber,
     required String password,
-    String? gender,
-    String? civilStatus,
     required String otp,
   }) async {
     final res = await _client.post(
@@ -38,11 +35,8 @@ class AuthRemoteDataSource {
         'first_name': firstName,
         'last_name': lastName,
         'email': email,
-        'phone_number': phoneNumber,
         'password': password,
         'otp': otp,
-        if (gender != null) 'gender': gender,
-        if (civilStatus != null) 'civil_status': civilStatus,
       },
     );
     return res.data as Map<String, dynamic>;

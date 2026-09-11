@@ -387,39 +387,6 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Eyebrow pill ──
-            Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFBF6EA),
-                  borderRadius: BorderRadius.circular(20),
-                  border:
-                      Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                            color: AppColors.gold, shape: BoxShape.circle)),
-                    const SizedBox(width: 7),
-                    const Text(
-                      'STAFF PORTAL',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.5,
-                          color: AppColors.deepNavy),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             const Center(
               child: Text(
                 'Login',

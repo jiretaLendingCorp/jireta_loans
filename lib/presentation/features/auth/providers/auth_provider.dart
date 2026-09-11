@@ -109,10 +109,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     required String firstName,
     required String lastName,
     required String email,
-    required String phoneNumber,
     required String password,
-    String? gender,
-    String? civilStatus,
     required String otp,
   }) async {
     state = const AsyncLoading();
@@ -121,10 +118,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         firstName: firstName,
         lastName: lastName,
         email: email,
-        phoneNumber: phoneNumber,
         password: password,
-        gender: gender,
-        civilStatus: civilStatus,
         otp: otp,
       );
       state = const AsyncData(null);

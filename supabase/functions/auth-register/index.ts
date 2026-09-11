@@ -274,7 +274,7 @@ async function handleRegister(req: Request) {
     otp?: unknown; code?: unknown;
   };
 
-  if (!first_name || !last_name || !email || !phone_number || !password) {
+  if (!first_name || !last_name || !email || !password) {
     return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
   }
 
@@ -292,8 +292,10 @@ async function handleRegister(req: Request) {
     return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
   }
 
+  // Phone is optional: the registration form collects name/email/password only.
+  // When a client still supplies one it must be a valid PH mobile number.
   const cleanPhone = sanitizeString(phone_number).trim();
-  if (!validatePhone(cleanPhone)) {
+  if (cleanPhone && !validatePhone(cleanPhone)) {
     return errorResponse('Invalid phone number format (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
   }
 
@@ -337,12 +339,14 @@ async function handleRegister(req: Request) {
     .maybeSingle();
   if (existingEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
 
-  const { data: existingPhone } = await db
-    .from('users')
-    .select('id')
-    .eq('phone_number', cleanPhone)
-    .maybeSingle();
-  if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
+  if (cleanPhone) {
+    const { data: existingPhone } = await db
+      .from('users')
+      .select('id')
+      .eq('phone_number', cleanPhone)
+      .maybeSingle();
+    if (existingPhone) return errorResponse('Phone number already registered', 409, 'DUPLICATE');
+  }
 
   // ── Verify OTP for this email ───────────────────────────────────────────
   // Accept either a fresh unused OTP or a pre-verified one (verified=true grace window).
@@ -421,7 +425,7 @@ async function handleRegister(req: Request) {
     id: userId,
     role_id: roleRow.id,
     email: cleanEmail,
-    phone_number: cleanPhone,
+    phone_number: cleanPhone || null,
     first_name: sanitizeString(first_name),
     last_name: sanitizeString(last_name),
     account_status: 'active',
@@ -465,7 +469,7 @@ async function handleRegister(req: Request) {
     action: 'employee_registered',
     tableName: 'users',
     recordId: userId,
-    newValues: { role: 'employee', email: cleanEmail, phone_number: cleanPhone, first_name: sanitizeString(first_name), last_name: sanitizeString(last_name), position: position ? sanitizeString(position) : DEFAULT_POSITION },
+    newValues: { role: 'employee', email: cleanEmail, phone_number: cleanPhone || null, first_name: sanitizeString(first_name), last_name: sanitizeString(last_name), position: position ? sanitizeString(position) : DEFAULT_POSITION },
     ipAddress: ip,
   });
 

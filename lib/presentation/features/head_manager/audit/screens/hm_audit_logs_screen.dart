@@ -1,5 +1,6 @@
 // lib/presentation/features/head_manager/audit/screens/hm_audit_logs_screen.dart
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -168,7 +169,6 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                         ? _buildEmpty()
                         : _buildTable(state),
           ),
-          if (state.totalPages > 1) _buildPagination(state),
         ],
       ),
     );
@@ -243,38 +243,51 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
 
   Widget _buildTable(_AuditState state) => LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth < 820) {
-            // Mobile: stacked tappable cards — every field visible without
-            // horizontal scrolling.
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: _buildMobileLogs(state),
-            );
-          }
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: ResponsiveTableScroll(
-              minWidth: 820,
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: AppColors.border)),
-                child: Column(
-                  children: [
-                    _buildHeader(),
-                    const Divider(height: 1),
-                    ...state.logs
-                        .asMap()
-                        .entries
-                        .map((e) => _buildRow(e.value, e.key.isEven)),
-                  ],
-                ),
-              ),
-            ),
-          );
+          // Mobile: stacked tappable cards — every field visible without
+          // horizontal scrolling.
+          final content = constraints.maxWidth < 820
+              ? _buildMobileLogs(state)
+              : ResponsiveTableScroll(
+                  minWidth: 820,
+                  child: Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: AppColors.border)),
+                    child: Column(
+                      children: [
+                        _buildHeader(),
+                        const Divider(height: 1),
+                        ...state.logs
+                            .asMap()
+                            .entries
+                            .map((e) => _buildRow(e.value, e.key.isEven)),
+                      ],
+                    ),
+                  ),
+                );
+          return _withPagination(content, state);
         },
       );
+
+  /// Scrolls the table/cards together with the pagination bar — the bar sits at
+  /// the end of the content instead of being pinned to the bottom edge like a
+  /// footer.
+  Widget _withPagination(Widget content, _AuditState state) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          content,
+          if (state.totalPages > 1) ...[
+            const SizedBox(height: 14),
+            _buildPagination(state),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _buildMobileLogs(_AuditState state) {
     return Column(
@@ -291,11 +304,6 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
         _resolvePerformerName(user, log['performed_by'] as String?);
     final isExpanded = _expandedLog?['id'] == log['id'];
     final actionColor = _actionColor(action);
-    const fieldLabel = TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textSecondary,
-        letterSpacing: 0.5);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -314,19 +322,16 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: actionColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4)),
-                    child: Text(AuditActionCatalog.label(action),
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: actionColor,
-                            fontWeight: FontWeight.w500)),
+                  Expanded(
+                    child: Text(
+                      AuditActionCatalog.label(action),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: actionColor),
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Icon(isExpanded ? Icons.expand_less : Icons.expand_more,
                       color: AppColors.textSecondary,
                       size: 20),
@@ -354,17 +359,9 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              const Text('TABLE', style: fieldLabel),
-              const SizedBox(height: 4),
-              Text(log['table_name'] as String? ?? '-',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
-              const SizedBox(height: 12),
-              const Text('TIMESTAMP', style: fieldLabel),
-              const SizedBox(height: 4),
-              Text(_formatDateTime(log['created_at']),
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary)),
+              _labeledRow('TABLE', log['table_name'] as String? ?? '-'),
+              const SizedBox(height: 8),
+              _labeledRow('TIMESTAMP', _formatDateTime(log['created_at'])),
               if (isExpanded) ...[const Divider(height: 24), _buildDetails(log)],
             ],
           ),
@@ -376,63 +373,166 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   /// BEFORE / AFTER diff section shared by the desktop expandable row and the
   /// mobile card layout.
   Widget _buildDetails(Map<String, dynamic> log) {
+    final oldValues = log['old_values'];
+    final newValues = log['new_values'];
     return Container(
       color: AppColors.surfaceVariant,
       padding: const EdgeInsets.all(16),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final before = oldValues == null
+              ? null
+              : _buildDiffColumn(
+                  title: 'BEFORE', values: oldValues, isBefore: true);
+          final after = newValues == null
+              ? null
+              : _buildDiffColumn(
+                  title: 'AFTER', values: newValues, isBefore: false);
+          if (before == null && after == null) return const SizedBox.shrink();
+          if (before == null) return after!;
+          if (after == null) return before;
+          // On narrow (mobile card) widths the two columns are stacked so each
+          // side keeps the loan-record label/value row layout.
+          if (c.maxWidth < 560) {
+            return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [before, const SizedBox(height: 14), after]);
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: before),
+              const SizedBox(width: 16),
+              Expanded(child: after),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// One side of the diff — a small header plus the changed fields rendered as
+  /// readable label/value rows instead of a raw `{key: value}` map dump.
+  Widget _buildDiffColumn({
+    required String title,
+    required dynamic values,
+    required bool isBefore,
+  }) {
+    final entries = _valueEntries(values);
+    final accent = isBefore ? AppColors.error : AppColors.success;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 12, color: accent)),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+              color: isBefore ? AppColors.errorLight : AppColors.successLight,
+              borderRadius: BorderRadius.circular(8)),
+          child: entries.isEmpty
+              ? Text(_formatValue(values),
+                  style: const TextStyle(
+                      fontSize: 12, fontFamily: 'monospace'))
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < entries.length; i++)
+                      _buildKvRow(
+                        '${_humanizeKey(entries[i].key)}:',
+                        _formatValue(entries[i].value),
+                        showDivider: i > 0,
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Label on the left (fixed width) and the value on the right — the same
+  /// row presentation used by the loan record's detail cards.
+  Widget _buildKvRow(String label, String value, {bool showDivider = false}) {
+    return Container(
+      decoration: showDivider
+          ? const BoxDecoration(
+              border: Border(top: BorderSide(color: Color(0x14000000))))
+          : null,
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (log['old_values'] != null)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('BEFORE',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: AppColors.error)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: AppColors.errorLight,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Text(log['old_values'].toString(),
-                        style: const TextStyle(
-                            fontSize: 12, fontFamily: 'monospace')),
-                  ),
-                ],
-              ),
-            ),
-          if (log['old_values'] != null && log['new_values'] != null)
-            const SizedBox(width: 16),
-          if (log['new_values'] != null)
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('AFTER',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: AppColors.success)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: AppColors.successLight,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Text(log['new_values'].toString(),
-                        style: const TextStyle(
-                            fontSize: 12, fontFamily: 'monospace')),
-                  ),
-                ],
-              ),
-            ),
+          SizedBox(
+            width: 130,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary)),
+          ),
         ],
       ),
     );
+  }
+
+  /// Decodes `old_values` / `new_values` into key/value pairs. PostgREST
+  /// normally hands back a JSON object, but a jsonb column may also arrive as
+  /// a string depending on the endpoint — both shapes are handled.
+  List<MapEntry<String, dynamic>> _valueEntries(dynamic raw) {
+    dynamic decoded = raw;
+    if (decoded is String) {
+      final trimmed = decoded.trim();
+      if (trimmed.startsWith('{')) {
+        try {
+          decoded = jsonDecode(trimmed);
+        } catch (_) {
+          // Not valid JSON — fall through and render it verbatim.
+        }
+      }
+    }
+    if (decoded is Map) {
+      return decoded.entries
+          .map((e) => MapEntry<String, dynamic>(e.key.toString(), e.value))
+          .toList();
+    }
+    return const [];
+  }
+
+  String _humanizeKey(String key) {
+    if (key.isEmpty) return key;
+    if (key.toLowerCase() == 'id') return 'ID';
+    return key
+        .split(RegExp(r'[_\-\s]+'))
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
+  String _formatValue(dynamic value) {
+    if (value == null) return '—';
+    if (value is bool) return value ? 'Yes' : 'No';
+    if (value is List) {
+      if (value.isEmpty) return '—';
+      return value.map(_formatValue).join(', ');
+    }
+    if (value is Map) {
+      return value.entries
+          .map((e) =>
+              '${_humanizeKey(e.key.toString())}: ${_formatValue(e.value)}')
+          .join(', ');
+    }
+    final text = value.toString().trim();
+    return text.isEmpty ? '—' : text;
   }
 
   Widget _buildHeader() {
@@ -480,17 +580,12 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
               children: [
                 Expanded(
                   flex: 2,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: _actionColor(action).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4)),
-                    child: Text(AuditActionCatalog.label(action),
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: _actionColor(action),
-                            fontWeight: FontWeight.w500)),
+                  child: Text(
+                    AuditActionCatalog.label(action),
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _actionColor(action)),
                   ),
                 ),
                 Expanded(
@@ -582,43 +677,85 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
         ),
       );
 
-  Widget _buildPagination(_AuditState state) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-                onPressed: state.currentPage > 1
-                    ? () => ref
-                        .read(_auditProvider.notifier)
-                        .fetch(
-                          page: state.currentPage - 1,
-                          startDate: _dateRange == null
-                              ? null
-                              : SearchDateFilter.fromParam(_dateRange!.start),
-                          endDate: _dateRange == null
-                              ? null
-                              : SearchDateFilter.toParam(_dateRange!.end))
-                    : null,
-                icon: const Icon(Icons.chevron_left)),
-            Text('Page ${state.currentPage} of ${state.totalPages}'),
-            IconButton(
-                onPressed: state.currentPage < state.totalPages
-                    ? () => ref
-                        .read(_auditProvider.notifier)
-                        .fetch(
-                            page: state.currentPage + 1,
-                            startDate: _dateRange == null
-                                ? null
-                                : SearchDateFilter.fromParam(_dateRange!.start),
-                            endDate: _dateRange == null
-                                ? null
-                                : SearchDateFilter.toParam(_dateRange!.end))
-                    : null,
-                icon: const Icon(Icons.chevron_right)),
-          ],
+  /// Same pagination bar as the loan records screens (blue page pill between
+  /// the chevrons).
+  Widget _buildPagination(_AuditState state) {
+    void goTo(int page) => ref.read(_auditProvider.notifier).fetch(
+          page: page,
+          startDate: _dateRange == null
+              ? null
+              : SearchDateFilter.fromParam(_dateRange!.start),
+          endDate: _dateRange == null
+              ? null
+              : SearchDateFilter.toParam(_dateRange!.end),
+        );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            'Page ${state.currentPage} of ${state.totalPages}',
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary),
+          ),
+          const Spacer(),
+          _PageBtn(
+            icon: Icons.chevron_left_rounded,
+            enabled: state.currentPage > 1,
+            onTap: () => goTo(state.currentPage - 1),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${state.currentPage} / ${state.totalPages}',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _PageBtn(
+            icon: Icons.chevron_right_rounded,
+            enabled: state.currentPage < state.totalPages,
+            onTap: () => goTo(state.currentPage + 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Single-line `LABEL: value` row — label first, then a colon, then the data
+  /// beside it. The label sits in a fixed-width column so every value in the
+  /// card starts at the same x position.
+  Widget _labeledRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 100,
+          child: Text('$label:',
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.5)),
         ),
-      );
+        Expanded(
+          child: Text(value,
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textPrimary)),
+        ),
+      ],
+    );
+  }
 
   Color _actionColor(String action) {
     if (action.contains('create') || action.contains('login')) {
@@ -727,5 +864,36 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
       return 'User ${performedById.substring(0, 8)}';
     }
     return 'Unknown';
+  }
+}
+
+/// Square chevron button used by the pagination bar — mirrors the loan
+/// records screens.
+class _PageBtn extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  const _PageBtn(
+      {required this.icon, required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: enabled ? Colors.white : AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+              color: enabled ? AppColors.border : AppColors.divider),
+        ),
+        child: Icon(icon,
+            size: 18,
+            color: enabled ? AppColors.textPrimary : AppColors.textTertiary),
+      ),
+    );
   }
 }

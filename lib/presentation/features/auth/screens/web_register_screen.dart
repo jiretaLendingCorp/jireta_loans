@@ -25,11 +25,8 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmPasswordCtrl = TextEditingController();
-  String _gender = 'male';
-  String _civilStatus = 'single';
   bool _obscure = true;
   bool _obscureConfirm = true;
   bool _submitted = false;
@@ -50,22 +47,12 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
 
   // Field-level duplication errors from 409
   String? _emailDuplicationError;
-  String? _phoneDuplicationError;
-
-  static const List<String> _genders = ['male', 'female', 'other'];
-  static const List<String> _civilStatuses = [
-    'single',
-    'married',
-    'widowed',
-    'separated',
-  ];
 
   @override
   void dispose() {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _emailCtrl.dispose();
-    _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmPasswordCtrl.dispose();
     for (final c in _otpControllers) {
@@ -146,7 +133,6 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
   Future<void> _sendOtp() async {
     setState(() {
       _emailDuplicationError = null;
-      _phoneDuplicationError = null;
       _otpError = null;
     });
     if (!_formKey.currentState!.validate()) return;
@@ -194,28 +180,26 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
       );
     } else {
       final isEmailDup = AppValidators.isEmailDuplicateError(repoError);
-      final isPhoneDup = repoError.toLowerCase().contains('phone') &&
-          (repoError.toLowerCase().contains('already') || repoError.toLowerCase().contains('duplicate'));
       if (isEmailDup) {
         setState(() => _emailDuplicationError = AppValidators.duplicateEmailMessage);
-        _formKey.currentState!.validate();
-      }
-      if (isPhoneDup) {
-        setState(() => _phoneDuplicationError = 'Phone number already registered. Please use a different number.');
         _formKey.currentState!.validate();
       }
       // Rate limit / OTP lockout hint
       final lockSecs = ref.read(authProvider.notifier).extractOtpLockoutSeconds(repoError);
       if (lockSecs != null && lockSecs > 0) _startLockCountdown(lockSecs);
 
-      context.showSnackBarAsToast(
-        SnackBar(
-          content: Text(repoError),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+      // Duplicate email is already shown inline under the field — no toast.
+      if (!isEmailDup) {
+        context.showSnackBarAsToast(
+          SnackBar(
+            content: Text(repoError),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
     }
   }
 
@@ -293,10 +277,7 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
           firstName: _firstNameCtrl.text.trim(),
           lastName: _lastNameCtrl.text.trim(),
           email: AppValidators.normalizeEmail(_emailCtrl.text),
-          phoneNumber: _phoneCtrl.text.trim(),
           password: _passwordCtrl.text,
-          gender: _gender,
-          civilStatus: _civilStatus,
           otp: otp,
         );
 
@@ -312,15 +293,8 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
       });
     } else {
       final isEmailDup = AppValidators.isEmailDuplicateError(repoError);
-      final isPhoneDup = repoError.toLowerCase().contains('phone') &&
-          (repoError.toLowerCase().contains('already') || repoError.toLowerCase().contains('duplicate'));
       if (isEmailDup) {
         setState(() => _emailDuplicationError = AppValidators.duplicateEmailMessage);
-        setState(() => _otpStep = false);
-        _formKey.currentState!.validate();
-      }
-      if (isPhoneDup) {
-        setState(() => _phoneDuplicationError = 'Phone number already registered. Please use a different number.');
         setState(() => _otpStep = false);
         _formKey.currentState!.validate();
       }
@@ -344,312 +318,430 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
           _resendTimer?.cancel();
         }
       }
-      context.showSnackBarAsToast(
-        SnackBar(
-          content: Text(repoError),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+      // Duplicate email is already shown inline under the field — no toast.
+      if (!isEmailDup) {
+        context.showSnackBarAsToast(
+          SnackBar(
+            content: Text(repoError),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }
     }
   }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Shared input styling — mirrors the web login card
+  // ───────────────────────────────────────────────────────────────────────────
+
+  InputDecoration _input({String? hint, IconData? icon, Widget? suffix}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(
+          fontSize: 13.5, color: AppColors.textTertiary.withValues(alpha: 0.75)),
+      prefixIcon: icon == null
+          ? null
+          : Icon(icon, size: 18, color: AppColors.textTertiary),
+      suffixIcon: suffix,
+      counterText: '',
+      // Server-side messages (e.g. duplicate email) are long — let them wrap
+      // instead of being clipped to a single ellipsised line.
+      errorMaxLines: 3,
+      errorStyle: const TextStyle(
+          fontSize: 12, height: 1.35, color: AppColors.error),
+      filled: true,
+      fillColor: const Color(0xFFF8F9FC),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE4E7EE)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.4),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+      ),
+    );
+  }
+
+  static const _inputStyle = TextStyle(
+      fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surfaceWhite,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () {
-            if (_otpStep) {
-              _resendTimer?.cancel();
-              setState(() {
-                _otpStep = false;
-                _otpError = null;
-              });
-            } else {
-              context.go(RouteConstants.webLogin);
-            }
-          },
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(28),
-            child: _submitted ? _buildSuccess() : (_otpStep ? _buildOtpStep() : _buildForm()),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildForm() {
-    final isLoading = _sendingOtp;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _firstNameCtrl,
-                      maxLength: 50,
-                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
-                        LengthLimitingTextInputFormatter(50),
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'First Name',
-                        prefixIcon: Icon(Icons.person_outlined),
-                        counterText: '',
-                      ),
-                      validator: (v) => AppValidators.required(v, 'First name'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _lastNameCtrl,
-                      maxLength: 50,
-                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
-                        LengthLimitingTextInputFormatter(50),
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'Last Name',
-                        counterText: '',
-                      ),
-                      validator: (v) => AppValidators.required(v, 'Last name'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _emailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                maxLength: 254,
-                maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                inputFormatters: [LengthLimitingTextInputFormatter(254)],
-                onChanged: (_) {
-                  if (_emailDuplicationError != null) setState(() => _emailDuplicationError = null);
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Email Address',
-                  prefixIcon: Icon(Icons.email_outlined),
-                  counterText: '',
-                ),
-                validator: (v) {
-                  if (_emailDuplicationError != null) return _emailDuplicationError;
-                  if (v == null || v.isEmpty) return 'Email is required';
-                  if (!AppValidators.isValidEmail(v)) return 'Enter a valid email address';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                maxLength: 11,
-                maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(11),
-                ],
-                onChanged: (_) {
-                  if (_phoneDuplicationError != null) setState(() => _phoneDuplicationError = null);
-                },
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone_outlined),
-                  counterText: '',
-                  hintText: '09xxxxxxxxx',
-                ),
-                validator: (v) {
-                  if (_phoneDuplicationError != null) return _phoneDuplicationError;
-                  if (v == null || v.isEmpty) return 'Phone number is required';
-                  if (!AppValidators.isValidPhone(v)) return 'Enter a valid PH phone number (e.g. 09xxxxxxxxx)';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _gender,
-                      decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                      items: _genders.map((g) => DropdownMenuItem(value: g, child: Text(_capitalize(g)))).toList(),
-                      onChanged: (v) => setState(() => _gender = v ?? _gender),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _civilStatus,
-                      decoration: const InputDecoration(labelText: 'Civil Status', border: OutlineInputBorder()),
-                      items: _civilStatuses.map((s) => DropdownMenuItem(value: s, child: Text(_capitalize(s)))).toList(),
-                      onChanged: (v) => setState(() => _civilStatus = v ?? _civilStatus),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _passwordCtrl,
-                obscureText: _obscure,
-                maxLength: 64,
-                maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                inputFormatters: [LengthLimitingTextInputFormatter(64)],
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: const Icon(Icons.lock_outlined),
-                  counterText: '',
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                    onPressed: () => setState(() => _obscure = !_obscure),
-                  ),
-                ),
-                validator: AppValidators.password,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _confirmPasswordCtrl,
-                obscureText: _obscureConfirm,
-                maxLength: 64,
-                maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                inputFormatters: [LengthLimitingTextInputFormatter(64)],
-                decoration: InputDecoration(
-                  labelText: 'Confirm Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  counterText: '',
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                  ),
-                ),
-                validator: (v) => AppValidators.confirmPassword(v, _passwordCtrl.text),
-                onFieldSubmitted: (_) => _sendOtp(),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isLoading || _resending || _verifying ? null : _sendOtp,
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: isLoading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Register', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Already have an account? ', style: TextStyle(fontSize: 13)),
-                    TextButton(onPressed: () => context.go(RouteConstants.webLogin), child: const Text('Login', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOtpStep() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        const Text('Verify Your Email', style: TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-        const SizedBox(height: 8),
-        Text('We sent a 6-digit code to ${AppValidators.normalizeEmail(_emailCtrl.text)}', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-        const SizedBox(height: 4),
-        const Text('Enter the code below to create your account. Code expires in 1 minute.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary), textAlign: TextAlign.center),
-        const SizedBox(height: 24),
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.black, width: 1.4), boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 20, offset: Offset(0, 8)), BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 2))]),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.black, width: 1.2)),
-                child: Row(
-                  children: [
-                    const Icon(Icons.email_outlined, size: 18, color: Colors.black),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text('Code sent to ${AppValidators.normalizeEmail(_emailCtrl.text)}', style: const TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis)),
-                    if (_secondsLeft > 0) Text(' ${_secondsLeft}s', style: const TextStyle(fontSize: 12, color: AppColors.error, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: List.generate(6, (i) => _buildOtpBox(i))),
-              if (_otpError != null) ...[
-                const SizedBox(height: 8),
-                Text(_otpError!, style: const TextStyle(fontSize: 12, color: AppColors.error), textAlign: TextAlign.center),
-              ],
-              if (_lockSecondsLeft > 0) ...[
-                const SizedBox(height: 8),
-                Text('Locked for $_lockSecondsLeft seconds', style: const TextStyle(fontSize: 12, color: Colors.orange)),
-              ],
-              if (_secondsLeft > 0 && _lockSecondsLeft == 0 && !_otpExpired)
-                Padding(padding: const EdgeInsets.only(top: 8), child: Text('Code expires in $_secondsLeft seconds', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: (_lockSecondsLeft == 0 && !_resending && _secondsLeft == 0 ? _resendOtp : _lockSecondsLeft == 0 && !_resending ? _resendOtp : null),
-                    style: TextButton.styleFrom(backgroundColor: _resending ? Colors.white : null, side: _resending ? const BorderSide(color: Colors.black, width: 1.2) : null, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                    child: _resending
-                        ? const Row(mainAxisSize: MainAxisSize.min, children: [SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black)), SizedBox(width: 6), Text('Sending...', style: TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.w600))])
-                        : Text(_lockSecondsLeft > 0 ? 'Locked' : (_secondsLeft > 0 ? 'Resend Code' : 'Resend Code'), style: TextStyle(fontSize: 12, color: _lockSecondsLeft == 0 ? Colors.black : AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                  ),
-                  ElevatedButton(
-                    onPressed: (_verifying || _lockSecondsLeft > 0 || _otp.length != 6 || _otpExpired || _secondsLeft == 0) ? null : _verifyAndRegister,
-                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                    child: _verifying ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(_otpExpired ? 'Expired' : 'Verify & Register', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Text('Enter the 6-digit code to complete registration.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextButton(
-          onPressed: () {
+      backgroundColor: const Color(0xFFF6F7FB),
+      body: _RegisterPanel(
+        onBack: () {
+          if (_otpStep) {
             _resendTimer?.cancel();
             setState(() {
               _otpStep = false;
               _otpError = null;
-              _otpExpired = false;
-              _secondsLeft = 0;
             });
-            for (final c in _otpControllers) {
-              c.clear();
-            }
-          },
-          child: const Text('← Edit details', style: TextStyle(fontSize: 12)),
+          } else {
+            context.go(RouteConstants.webLogin);
+          }
+        },
+        child: _submitted
+            ? _buildSuccess()
+            : (_otpStep ? _buildOtpStep() : _buildForm()),
+      ),
+    );
+  }
+
+  // ── Step 1: details ──
+
+  Widget _buildForm() {
+    final isLoading = _sendingOtp;
+    return _AuthCard(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Center(
+              child: Text(
+                'Create your account',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'PlayfairDisplay',
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.deepNavy,
+                  height: 1.1,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Fill in your details, then verify your email to get started.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.6,
+                    color: AppColors.textSecondary.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w400),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _FieldLabel('First Name'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _firstNameCtrl,
+                        maxLength: 50,
+                        maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                        textInputAction: TextInputAction.next,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                          LengthLimitingTextInputFormatter(50),
+                        ],
+                        style: _inputStyle,
+                        decoration:
+                            _input(hint: 'Juan', icon: Icons.person_outlined),
+                        validator: (v) => AppValidators.required(v, 'First name'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _FieldLabel('Last Name'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _lastNameCtrl,
+                        maxLength: 50,
+                        maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                        textInputAction: TextInputAction.next,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r"[a-zA-Z\s\-']")),
+                          LengthLimitingTextInputFormatter(50),
+                        ],
+                        style: _inputStyle,
+                        decoration: _input(hint: 'Dela Cruz'),
+                        validator: (v) => AppValidators.required(v, 'Last name'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            const _FieldLabel('Email Address'),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              maxLength: 254,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              inputFormatters: [LengthLimitingTextInputFormatter(254)],
+              style: _inputStyle,
+              onChanged: (_) {
+                if (_emailDuplicationError != null) setState(() => _emailDuplicationError = null);
+              },
+              decoration: _input(
+                  hint: 'you@example.com', icon: Icons.mail_outlined),
+              validator: (v) {
+                if (_emailDuplicationError != null) return _emailDuplicationError;
+                if (v == null || v.isEmpty) return 'Email is required';
+                if (!AppValidators.isValidEmail(v)) return 'Enter a valid email address';
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+            const _FieldLabel('Password'),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _passwordCtrl,
+              obscureText: _obscure,
+              maxLength: 64,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              textInputAction: TextInputAction.next,
+              inputFormatters: [LengthLimitingTextInputFormatter(64)],
+              style: _inputStyle,
+              decoration: _input(
+                hint: '••••••••',
+                icon: Icons.lock_outline_rounded,
+                suffix: IconButton(
+                  icon: Icon(
+                      _obscure
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 18,
+                      color: AppColors.textSecondary),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                  tooltip: _obscure ? 'Show password' : 'Hide password',
+                ),
+              ),
+              validator: AppValidators.password,
+            ),
+            const SizedBox(height: 18),
+            const _FieldLabel('Confirm Password'),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _confirmPasswordCtrl,
+              obscureText: _obscureConfirm,
+              maxLength: 64,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              textInputAction: TextInputAction.done,
+              inputFormatters: [LengthLimitingTextInputFormatter(64)],
+              style: _inputStyle,
+              decoration: _input(
+                hint: '••••••••',
+                icon: Icons.lock_outline_rounded,
+                suffix: IconButton(
+                  icon: Icon(
+                      _obscureConfirm
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 18,
+                      color: AppColors.textSecondary),
+                  onPressed: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
+                  tooltip: _obscureConfirm ? 'Show password' : 'Hide password',
+                ),
+              ),
+              validator: (v) =>
+                  AppValidators.confirmPassword(v, _passwordCtrl.text),
+              onFieldSubmitted: (_) => _sendOtp(),
+            ),
+            if (_lockSecondsLeft > 0) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.errorLight,
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: AppColors.error.withValues(alpha: 0.18)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: const BoxDecoration(
+                          color: AppColors.error, shape: BoxShape.circle),
+                      child: const Icon(Icons.timer_rounded,
+                          size: 14, color: Colors.white),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text('Too many attempts',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.error)),
+                    ),
+                    Text('$_lockSecondsLeft s',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.error)),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 26),
+            _PrimaryButton(
+              label: 'Register',
+              loading: isLoading,
+              onPressed: isLoading || _resending || _verifying ? null : _sendOtp,
+            ),
+            const SizedBox(height: 14),
+            _LinkRow(
+              prompt: 'Already have an account?',
+              action: 'Login',
+              onPressed: () => context.go(RouteConstants.webLogin),
+            ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+
+  // ── Step 2: OTP verification ──
+
+  Widget _buildOtpStep() {
+    final expired = _otpExpired || _secondsLeft == 0;
+    return _AuthCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Verify your email',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'PlayfairDisplay',
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: AppColors.deepNavy,
+              height: 1.15,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Enter the 6-digit code we sent to ${AppValidators.normalizeEmail(_emailCtrl.text)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 13, height: 1.5, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 22),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(6, (i) => _buildOtpBox(i)),
+          ),
+          const SizedBox(height: 14),
+          if (_otpError != null)
+            Text(_otpError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.error, height: 1.4))
+          else
+            Text(
+              _lockSecondsLeft > 0
+                  ? 'Locked for $_lockSecondsLeft seconds'
+                  : expired
+                      ? 'Code expired — resend to continue.'
+                      : 'Code expires in $_secondsLeft seconds',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: _lockSecondsLeft > 0
+                      ? AppColors.error
+                      : AppColors.textSecondary),
+            ),
+          const SizedBox(height: 22),
+          _PrimaryButton(
+            label: 'Verify & Register',
+            loading: _verifying,
+            onPressed: (_verifying ||
+                    _lockSecondsLeft > 0 ||
+                    _otp.length != 6 ||
+                    _otpExpired ||
+                    _secondsLeft == 0)
+                ? null
+                : _verifyAndRegister,
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: (_lockSecondsLeft == 0 && !_resending) ? _resendOtp : null,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              foregroundColor: AppColors.deepNavy,
+              shape: const RoundedRectangleBorder(),
+            ),
+            child: _resending
+                ? const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                          height: 14,
+                          width: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.deepNavy)),
+                      SizedBox(width: 8),
+                      Text('Sending...',
+                          style: TextStyle(
+                              fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    ],
+                  )
+                : Text(
+                    _lockSecondsLeft > 0 ? 'Resend locked' : 'Resend code',
+                    style: const TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w700)),
+          ),
+          const Divider(height: 28, color: Color(0xFFECEEF3)),
+          TextButton(
+            onPressed: () {
+              _resendTimer?.cancel();
+              setState(() {
+                _otpStep = false;
+                _otpError = null;
+                _otpExpired = false;
+                _secondsLeft = 0;
+              });
+              for (final c in _otpControllers) {
+                c.clear();
+              }
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              foregroundColor: AppColors.textSecondary,
+              shape: const RoundedRectangleBorder(),
+            ),
+            child: const Text('← Edit details',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -657,6 +749,7 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
     final hasError = _otpError != null;
     final locked = _lockSecondsLeft > 0;
     final expired = _otpExpired || (_secondsLeft == 0 && _otpStep);
+    final invalid = hasError || expired;
     return SizedBox(
       width: 44,
       height: 52,
@@ -679,14 +772,29 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
           textAlign: TextAlign.center,
           maxLength: 1,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: hasError || expired ? AppColors.error : Colors.black),
+          style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: invalid ? AppColors.error : AppColors.deepNavy),
           decoration: InputDecoration(
             counterText: '',
             contentPadding: EdgeInsets.zero,
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: hasError || expired ? AppColors.error : Colors.black, width: 1.6)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: hasError || expired ? AppColors.error : Colors.black, width: 2.2)),
             filled: true,
-            fillColor: hasError || expired ? AppColors.errorLight : Colors.white,
+            fillColor: invalid
+                ? AppColors.errorLight
+                : const Color(0xFFF8F9FC),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: invalid ? AppColors.error : const Color(0xFFE4E7EE),
+                  width: invalid ? 1.4 : 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: invalid ? AppColors.error : AppColors.deepNavy,
+                  width: 1.6),
+            ),
           ),
           onChanged: (v) => _onOtpChanged(index, v),
           onTap: () {
@@ -697,27 +805,293 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
     );
   }
 
+  // ── Step 3: success ──
+
   Widget _buildSuccess() {
-    return Column(
-      children: [
-        const Text('Registration Successful!', style: TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-        const SizedBox(height: 8),
-        const Text('Your account has been created successfully. You can now sign in.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.6), textAlign: TextAlign.center),
-        const SizedBox(height: 28),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => context.go(RouteConstants.webLogin),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.deepNavy, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: const Text('Back to Login', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+    return _AuthCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFFBF6EA),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+            ),
+            child: const Icon(Icons.check_rounded,
+                size: 28, color: AppColors.deepNavy),
           ),
-        ),
-      ],
+          const SizedBox(height: 18),
+          const Text(
+            'Registration successful',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'PlayfairDisplay',
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: AppColors.deepNavy,
+              height: 1.15,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Your account has been created. You can now sign in to your workspace.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 13.5,
+                height: 1.6,
+                color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 26),
+          _PrimaryButton(
+            label: 'Back to Login',
+            onPressed: () => context.go(RouteConstants.webLogin),
+          ),
+        ],
+      ),
     );
   }
 
-  String _capitalize(String s) {
-    if (s.isEmpty) return s;
-    return s[0].toUpperCase() + s.substring(1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Panel — light gradient surface hosting the centered card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RegisterPanel extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onBack;
+  const _RegisterPanel({required this.child, required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFCFCFE), Color(0xFFF6F7FB)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          // faint gold glow echoing the login panel
+          Positioned(
+            top: -120,
+            right: -100,
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [
+                  AppColors.gold.withValues(alpha: 0.06),
+                  AppColors.gold.withValues(alpha: 0.0),
+                ]),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Material(
+                  color: Colors.white,
+                  shape: const CircleBorder(
+                      side: BorderSide(color: Color(0xFFE4E7EE))),
+                  child: IconButton(
+                    onPressed: onBack,
+                    tooltip: 'Back',
+                    icon: const Icon(Icons.arrow_back,
+                        size: 20, color: AppColors.textPrimary),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Center(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 72),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: child,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Card + small shared pieces
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AuthCard extends StatelessWidget {
+  final Widget child;
+  const _AuthCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(36, 36, 36, 30),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFECEEF3)),
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.deepNavy.withValues(alpha: 0.08),
+              blurRadius: 36,
+              offset: const Offset(0, 18)),
+          BoxShadow(
+              color: AppColors.gold.withValues(alpha: 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary),
+    );
+  }
+}
+
+class _PrimaryButton extends StatefulWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool loading;
+  const _PrimaryButton({
+    required this.label,
+    required this.onPressed,
+    this.loading = false,
+  });
+
+  @override
+  State<_PrimaryButton> createState() => _PrimaryButtonState();
+}
+
+class _PrimaryButtonState extends State<_PrimaryButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = widget.onPressed == null || widget.loading;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedScale(
+        scale: _hovered && !isDisabled ? 1.01 : 1.0,
+        duration: const Duration(milliseconds: 140),
+        child: Container(
+          width: double.infinity,
+          height: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            gradient: isDisabled
+                ? null
+                : const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF0D1B2A),
+                      Color(0xFF1E3A5F),
+                      Color(0xFF0D1B2A),
+                    ],
+                  ),
+            color: isDisabled
+                ? AppColors.deepNavy.withValues(alpha: 0.42)
+                : null,
+            boxShadow: isDisabled
+                ? []
+                : [
+                    BoxShadow(
+                        color: AppColors.deepNavy.withValues(alpha: 0.16),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6))
+                  ],
+          ),
+          child: ElevatedButton(
+            onPressed: isDisabled ? null : widget.onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.transparent,
+              disabledForegroundColor: Colors.white.withValues(alpha: 0.9),
+              shadowColor: Colors.transparent,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              textStyle: const TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+            ),
+            child: widget.loading
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : Text(widget.label),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LinkRow extends StatelessWidget {
+  final String prompt;
+  final String action;
+  final VoidCallback onPressed;
+  const _LinkRow({
+    required this.prompt,
+    required this.action,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(prompt,
+            style: const TextStyle(
+                fontSize: 12.5, color: AppColors.textSecondary)),
+        const SizedBox(width: 4),
+        TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            foregroundColor: AppColors.deepNavy,
+            shape: const RoundedRectangleBorder(),
+          ),
+          child: Text(action,
+              style: const TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
   }
 }
