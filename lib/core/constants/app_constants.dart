@@ -6,6 +6,11 @@ class AppConstants {
   static const String companyShortName = 'Jireta Loans';
   static const String appVersion = '1.0.0';
 
+  /// Office support contact — parehong numero na nasa "Contact Us" sheet
+  /// (`mobile_scaffold.dart`) at ipinapakita na rin sa "Account Paused"
+  /// modal, kaya iisang lugar lang ang babaguhin kapag nagpalit ng number.
+  static const String supportPhone = '09755849954';
+
   static const int connectTimeoutMs = 30000;
   static const int receiveTimeoutMs = 30000;
   static const int sendTimeoutMs = 30000;

@@ -1,9 +1,13 @@
 // lib/presentation/features/head_manager/lenders/screens/hm_lender_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -193,6 +197,16 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             AppColors.primary,
             () => _openEdit(user),
           ),
+          // Escalation pause (00152) — pangalawa nang natapos ang loan term
+          // ng lender na may utang. Nandito na rin ang reactivate, para hindi
+          // na kailangang buksan pa ang Lender Details.
+          if (user.accountStatus == 'paused')
+            _btn(
+              Icons.lock_open_rounded,
+              'Unpause',
+              AppColors.success,
+              () => _confirmUnpause(user),
+            ),
           if (user.accountStatus != 'archived')
             _btn(
               Icons.archive_outlined,
@@ -216,6 +230,32 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
     );
     if (updated == true) {
       ref.read(hmLenderProvider.notifier).load();
+    }
+  }
+
+  /// Inaalis ang escalation pause (00152) — pangalawa nang natapos ang loan
+  /// term ng lender na may utang kaya na-pause ang account niya.
+  Future<void> _confirmUnpause(UserModel user) async {
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Unpause Account',
+      message:
+          'Reactivate ${user.firstName} ${user.lastName}\u2019s account? They will be '
+          'able to use the app and apply for a new loan again. Their outstanding '
+          'balances are not cleared.',
+      confirmLabel: 'Unpause',
+      confirmColor: AppColors.success,
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await sl<UserRemoteDataSource>().unpauseLender(user.id);
+      ref.read(hmLenderProvider.notifier).load();
+      if (mounted) context.showToast('Account reactivated');
+    } catch (e) {
+      if (mounted) {
+        context.showErrorToast(
+            'Failed to unpause: ${e.toString().replaceAll('Exception: ', '')}');
+      }
     }
   }
 
