@@ -732,6 +732,58 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                 ),
               ),
             ),
+            const SizedBox(height: 14),
+            // ── Divider ──
+            const Row(
+              children: [
+                Expanded(
+                    child: Divider(color: Color(0xFFE8E8EE), thickness: 1)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'or',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textTertiary,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                Expanded(
+                    child: Divider(color: Color(0xFFE8E8EE), thickness: 1)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // ── Mobile Login — directs to OTP-based mobile login ──
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: () => context.go(RouteConstants.mobileLogin),
+                icon: const Icon(Icons.smartphone_rounded,
+                    size: 19, color: AppColors.deepNavy),
+                label: const Text(
+                  'Mobile Login',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.deepNavy,
+                  side: const BorderSide(
+                      color: Color(0xFFE4E7EE), width: 1.2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
             // ── Register row ──
             Row(

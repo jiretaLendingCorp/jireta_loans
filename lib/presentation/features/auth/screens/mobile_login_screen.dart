@@ -926,18 +926,22 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                                   .deepNavy,
                                                             ),
                                                           )
-                                                        : Image.network(
-                                                            'https://www.google.com/favicon.ico',
+                                                        : Image.asset(
+                                                            'assets/images/continue_with_google.jpg',
                                                             width: 22,
                                                             height: 22,
-                                                            errorBuilder: (_,
-                                                                    __, ___) =>
+                                                            fit: BoxFit.contain,
+                                                            // Never render the raw "Unable to
+                                                            // load asset" error box in the
+                                                            // button if the asset is missing.
+                                                            errorBuilder: (_, __, ___) =>
                                                                 const Icon(
-                                                                    Icons
-                                                                        .g_mobiledata_rounded,
-                                                                    size: 20,
-                                                                    color: AppColors
-                                                                        .deepNavy),
+                                                              Icons
+                                                                  .g_mobiledata_rounded,
+                                                              size: 22,
+                                                              color: AppColors
+                                                                  .deepNavy,
+                                                            ),
                                                           ),
                                                     label: const Text(
                                                       'Continue with Google',

@@ -222,15 +222,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return loginRoute;
       }
 
-      // Prevent web users from reaching /mobile-login and mobile from /login
-      if (!isAuthenticated) {
-        if (kIsWeb && path == RouteConstants.mobileLogin) {
-          return RouteConstants.webLogin;
-        }
-        if (!kIsWeb && path == RouteConstants.webLogin) {
-          return RouteConstants.mobileLogin;
-        }
-      }
+      // Both /login (email) and /mobile-login (OTP) are public on all
+      // platforms so users can switch via the "Mobile Login" button on the
+      // web login page (and vice versa).
 
       if (isAuthenticated) {
         if (authState.forcePasswordChange &&
