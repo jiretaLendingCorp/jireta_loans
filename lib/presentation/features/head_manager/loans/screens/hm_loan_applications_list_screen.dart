@@ -1,8 +1,10 @@
 // lib/presentation/features/head_manager/loans/screens/hm_loan_applications_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/loan_model.dart';
@@ -15,7 +17,6 @@ import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
-import '../widgets/loan_application_details_modal.dart';
 import '../../in_office/providers/hm_in_office_provider.dart';
 import '../../in_office/widgets/in_office_wizard.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -402,6 +403,7 @@ class _HmLoanApplicationsListScreenState
                 ? (loan.lenderName ?? '—')
                 : '${loan.lenderFirstName} ${loan.lenderLastName}'.trim();
         return ResponsiveRow(
+          onTap: () => _openDetails(context, loan.id),
           cells: [
             // Lender & Loan — LN as plain text (no pill), lender name below
             Column(
@@ -571,6 +573,14 @@ class _HmLoanApplicationsListScreenState
           actions: _RowActions(loan: loan, onRefresh: _onActionDone),
         );
       }).toList(),
+    );
+  }
+
+  void _openDetails(BuildContext context, String loanId) {
+    // Full-page navigation — hindi na modal, para buong screen ang details
+    // at may sariling URL (/hm/loan-applications/:id) na pwedeng i-refresh/share.
+    context.push(
+      RouteConstants.hmLoanApplicationDetails.replaceFirst(':id', loanId),
     );
   }
 
@@ -992,7 +1002,7 @@ class _RowActions extends StatelessWidget {
           icon: Icons.visibility_outlined,
           color: AppColors.deepNavy,
           tooltip: 'View details',
-          onTap: () => showLoanApplicationDetailsModal(context, loan.id),
+          onTap: () => parent?._openDetails(context, loan.id),
         ),
         const SizedBox(width: 6),
         // 3-dot menu with notification dot when rider needs assignment
@@ -1065,7 +1075,7 @@ class _RowActions extends StatelessWidget {
                     parent?._showAssignDisbursementRider(loan);
                     break;
                   case 'view':
-                    showLoanApplicationDetailsModal(context, loan.id);
+                    parent?._openDetails(context, loan.id);
                     break;
                 }
               },

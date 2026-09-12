@@ -18,97 +18,74 @@ class StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final cfg = _config(status);
     final fs = large ? 13.0 : (small ? 10.0 : 11.0);
-    final px = large ? 12.0 : (small ? 8.0 : 10.0);
-    final py = large ? 6.0 : (small ? 3.0 : 4.0);
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: px, vertical: py),
-      decoration: BoxDecoration(
-        color: cfg.$2,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cfg.$1.withValues(alpha: 0.3)),
-      ),
-      child: Text(
-        cfg.$3,
-        style: TextStyle(
-          fontSize: fs,
-          fontWeight: FontWeight.w600,
-          color: cfg.$1,
-          letterSpacing: 0.2,
-        ),
+    // Plain text lang — hindi button, kaya walang background/border/pill.
+    return Text(
+      cfg.$2,
+      style: TextStyle(
+        fontSize: fs,
+        fontWeight: FontWeight.w600,
+        color: cfg.$1,
+        letterSpacing: 0.2,
       ),
     );
   }
 
-  static (Color, Color, String) _config(String status) {
+  static (Color, String) _config(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
-        return (AppColors.statusPending, AppColors.statusPendingBg, 'Pending');
+        return (AppColors.statusPending, 'Pending');
       case 'under_review':
-        return (AppColors.info, AppColors.infoLight, 'Under Review');
+        return (AppColors.info, 'Under Review');
       case 'ci_required':
-        return (AppColors.warning, AppColors.warningLight, 'CI Required');
+        return (AppColors.warning, 'CI Required');
       case 'ci_assigned':
-        return (AppColors.lenderBlue, const Color(0xFFF3E5F5), 'CI Assigned');
+        return (AppColors.lenderBlue, 'CI Assigned');
       case 'ci_completed':
-        return (AppColors.warning, AppColors.warningLight, 'CI Pending Approval');
+        return (AppColors.warning, 'CI Pending Approval');
       case 'ci_approved':
-        return (AppColors.riderGreen, AppColors.successLight, 'CI Approved');
+        return (AppColors.riderGreen, 'CI Approved');
       case 'rider_delivery_assigned':
-        return (AppColors.lenderBlue, const Color(0xFFE3F2FD),
-            'Rider Delivery Assigned');
+        return (AppColors.lenderBlue, 'Rider Delivery Assigned');
       case 'approved':
-        return (AppColors.riderGreen, AppColors.successLight, 'Approved');
+        return (AppColors.riderGreen, 'Approved');
       case 'active':
-        return (AppColors.statusActive, AppColors.statusActiveBg, 'Active');
+        return (AppColors.statusActive, 'Active');
       case 'completed':
-        return (
-          AppColors.statusCompleted,
-          AppColors.statusCompletedBg,
-          'Completed'
-        );
+        return (AppColors.statusCompleted, 'Completed');
       case 'rejected':
-        return (
-          AppColors.statusRejected,
-          AppColors.statusRejectedBg,
-          'Rejected'
-        );
+        return (AppColors.statusRejected, 'Rejected');
       case 'cancelled':
-        return (AppColors.textSecondary, const Color(0xFFF5F5F5), 'Cancelled');
+        return (AppColors.textSecondary, 'Cancelled');
       case 'overdue':
-        return (AppColors.statusOverdue, AppColors.statusOverdueBg, 'Overdue');
+        return (AppColors.statusOverdue, 'Overdue');
       case 'verified':
-        return (AppColors.riderGreen, AppColors.successLight, 'Verified');
+        return (AppColors.riderGreen, 'Verified');
       case 'submitted':
-        return (AppColors.info, AppColors.infoLight, 'Submitted');
+        return (AppColors.info, 'Submitted');
       case 'suspended':
-        return (AppColors.error, AppColors.errorLight, 'Suspended');
+        return (AppColors.error, 'Suspended');
       case 'whitelisted':
-        return (
-          AppColors.statusActive,
-          AppColors.statusActiveBg,
-          'Whitelisted'
-        );
+        return (AppColors.statusActive, 'Whitelisted');
       case 'archived':
-        return (AppColors.textSecondary, const Color(0xFFF5F5F5), 'Archived');
+        return (AppColors.textSecondary, 'Archived');
       case 'blacklisted':
-        return (AppColors.error, AppColors.errorLight, 'Blacklisted');
+        return (AppColors.error, 'Blacklisted');
       case 'accepted':
-        return (AppColors.riderGreen, AppColors.successLight, 'Accepted');
+        return (AppColors.riderGreen, 'Accepted');
       case 'requested':
-        return (AppColors.warning, AppColors.warningLight, 'Requested');
+        return (AppColors.warning, 'Requested');
       case 'declined':
-        return (AppColors.error, AppColors.errorLight, 'Declined');
+        return (AppColors.error, 'Declined');
       case 'in_progress':
-        return (AppColors.warning, AppColors.warningLight, 'In Progress');
+        return (AppColors.warning, 'In Progress');
       case 'draft':
-        return (AppColors.textSecondary, const Color(0xFFF5F5F5), 'Draft');
+        return (AppColors.textSecondary, 'Draft');
       case 'converted':
-        return (AppColors.riderGreen, AppColors.successLight, 'Converted');
+        return (AppColors.riderGreen, 'Converted');
       default:
         return (
           AppColors.textSecondary,
-          const Color(0xFFF5F5F5),
           status.replaceAll('_', ' ').toUpperCase()
         );
     }

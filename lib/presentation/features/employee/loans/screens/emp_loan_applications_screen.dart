@@ -1,6 +1,8 @@
 // lib/presentation/features/employee/loans/screens/emp_loan_applications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
@@ -13,7 +15,6 @@ import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../../../head_manager/in_office/widgets/in_office_wizard.dart';
 import '../providers/emp_loan_provider.dart';
-import '../widgets/emp_loan_details_modal.dart';
 import '../../in_office/providers/emp_in_office_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -397,7 +398,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
 
   ResponsiveRow _buildTableRow(LoanModel loan) {
     return ResponsiveRow(
-      onTap: () => showEmpLoanDetailsModal(context, loan.id),
+      onTap: () => _openDetails(context, loan.id),
       cells: [
         Text(
           loan.loanNumber,
@@ -523,7 +524,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
           icon: Icons.visibility_outlined,
           color: AppColors.deepNavy,
           tooltip: 'View details',
-          onTap: () => showEmpLoanDetailsModal(context, loan.id),
+          onTap: () => _openDetails(context, loan.id),
         ),
         const SizedBox(width: 6),
         // 3-dot menu with notification dot when rider needs assignment
@@ -596,7 +597,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
                     _showAssignDeliveryRider(loan);
                     break;
                   case 'view':
-                    showEmpLoanDetailsModal(context, loan.id);
+                    _openDetails(context, loan.id);
                     break;
                 }
               },
@@ -629,6 +630,13 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
           ],
         ),
       ],
+    );
+  }
+
+  void _openDetails(BuildContext context, String loanId) {
+    // Full-page navigation — hindi na modal.
+    context.push(
+      RouteConstants.empLoanApplicationDetails.replaceFirst(':id', loanId),
     );
   }
 

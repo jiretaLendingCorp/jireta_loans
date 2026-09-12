@@ -10,6 +10,7 @@ import '../../../../../data/models/kpi_head_manager_model.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/month_filter_dropdown.dart';
 import '../providers/hm_dashboard_provider.dart';
 import '../widgets/hm_activity_feed.dart';
 import '../widgets/hm_ai_insights_panel.dart';
@@ -34,97 +35,15 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
     return WebScaffold(
       title: 'Dashboard',
       actions: [
-        // Month picker — monthly dashboard (head_manager role only)
-        SizedBox(
-          height: 38,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.zero, border: Border.all(color: AppColors.border)),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: dashState.selectedMonth,
-                icon: const Icon(Icons.calendar_month_rounded, size: 18, color: AppColors.deepNavy),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.deepNavy),
-                isDense: true,
-                items: HmDashboardNotifier.availableMonths().map((m) {
-                  return DropdownMenuItem(value: m, child: Text(HmDashboardNotifier.monthLabel(m)));
-                }).toList(),
-                onChanged: (v) {
-                  if (v != null) notifier.setMonth(v);
-                },
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Exact-day filter — filters dashboard to a single date (YYYY-MM-DD)
-        SizedBox(
-          height: 38,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-                color: dashState.selectedDate != null ? AppColors.deepNavy : Colors.white,
-                borderRadius: BorderRadius.zero,
-                border: Border.all(color: AppColors.border)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                InkWell(
-                  onTap: () => _pickExactDate(context, notifier, dashState.selectedDate),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.event_rounded,
-                          size: 18,
-                          color: dashState.selectedDate != null ? Colors.white : AppColors.deepNavy),
-                      const SizedBox(width: 6),
-                      Text(
-                        dashState.selectedDate ?? 'Exact date',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: dashState.selectedDate != null ? Colors.white : AppColors.deepNavy),
-                      ),
-                    ],
-                  ),
-                ),
-                if (dashState.selectedDate != null) ...[
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () => notifier.clearDate(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.close_rounded, size: 16, color: Colors.white),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          height: 38,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.zero,
-              border: Border.all(color: AppColors.border),
-            ),
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              onPressed: () {
-                notifier.refresh();
-                ref.invalidate(hmRecentActivityProvider);
-              },
-              icon: dashState.isLoading
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.refresh_rounded, color: AppColors.textSecondary, size: 20),
-              tooltip: 'Refresh',
-            ),
-          ),
+        // Single date filter — editable month/year + exact date, animated gaya ng notification
+        MonthFilterDropdown(
+          selectedMonth: dashState.selectedMonth,
+          selectedDate: dashState.selectedDate,
+          monthLabel: HmDashboardNotifier.monthLabel,
+          onMonthSelected: (m) => notifier.setMonth(m),
+          onExactDateTap: () =>
+              _pickExactDate(context, notifier, dashState.selectedDate),
+          onClearDate: () => notifier.clearDate(),
         ),
       ],
       floatingActionButton: AskAiFab(month: dashState.selectedMonth),

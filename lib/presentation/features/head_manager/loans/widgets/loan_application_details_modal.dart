@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/utils/timezone.dart';
+import '../../../../../core/utils/loan_frequency.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
@@ -445,61 +446,97 @@ class _LoanApplicationDetailsModalState
   }
 
   // ───────────────────────── Cards (reused from details page) ─────────────────────────
+  // Puro labeled text rows lang — walang divider line; ang Verified nasa
+  // gray header na.
   Widget _buildLenderCard(Map<String, dynamic> loan) {
     final lender = loan['lender'] as Map<String, dynamic>? ?? {};
     final profile = (loan['lender_profile'] as Map<String, dynamic>?) ??
         (lender['lender_profiles'] as Map<String, dynamic>? ?? {});
-    final name =
-        '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim();
+
+    String pick(Map m, List<String> keys) {
+      for (final k in keys) {
+        final v = m[k];
+        if (v != null && v.toString().trim().isNotEmpty) {
+          return v.toString().trim();
+        }
+      }
+      return '';
+    }
+
+    String orDash(String v) => v.isEmpty ? '-' : v;
+
+    final nameParts = [
+      pick(lender, ['first_name']),
+      pick(lender, ['middle_name']),
+      pick(lender, ['last_name']),
+    ].where((e) => e.isNotEmpty).toList();
+    final name = nameParts.join(' ');
+    final phone =
+        pick(lender, ['phone_number', 'phone', 'mobile_number']);
+    final email = pick(lender, ['email', 'email_address']);
+    // Nasa lender_profiles ang gender/civil_status/birthday (kita sa
+    // kyc-view), kaya profile muna bago lender fallback.
+    final both = <String, dynamic>{...lender, ...profile};
+    final gender = pick(both, ['gender']);
+    final civilStatus = pick(both, ['civil_status']);
+    final dobRaw =
+        pick(both, ['date_of_birth', 'birthdate', 'birth_date']);
+    final employment = pick(profile, ['employment_type', 'employment']);
+    final employer = pick(profile, ['employer_name', 'employer']);
+    final gcash = pick(profile, ['gcash_number', 'gcash']);
+    final upgradeStatus = pick(profile, ['account_upgrade_status']);
+    final addrParts = [
+      pick(lender, ['street_address', 'street']),
+      pick(lender, ['barangay']),
+      pick(lender, ['city', 'town', 'municipality']),
+      pick(lender, ['province']),
+      pick(lender, ['zip_code', 'zipcode', 'postal_code']),
+    ].where((e) => e.isNotEmpty).toList();
+    final address = addrParts.isNotEmpty
+        ? addrParts.join(', ')
+        : _formatAddress(profile['address'] ?? loan['lender_address']);
     return _PremiumCard(
       title: 'Lender Information',
       subtitle: 'Upgraded Account',
+      trailing: Text(
+        upgradeStatus.isEmpty ? 'Unknown' : _capitalize(upgradeStatus),
+        style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Colors.white70),
+      ),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name.isEmpty ? '—' : name,
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
-                    Text(lender['phone_number'] as String? ?? '',
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
-                  ])),
-              Text(
-                _capitalize(
-                    profile['account_upgrade_status'] as String? ?? 'Unknown'),
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: _upgradeColor(
-                        profile['account_upgrade_status'] as String?))),
-            ]),
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 10),
+          _KVRow(label: 'Name', value: name.isEmpty ? '—' : name),
+          _KVRow(label: 'Phone', value: orDash(phone)),
+          _KVRow(label: 'Email', value: orDash(email)),
+          _KVRow(
+              label: 'Gender', value: orDash(_capitalize(gender))),
+          _KVRow(
+              label: 'Civil Status', value: orDash(_capitalize(civilStatus))),
+          _KVRow(
+              label: 'Date of Birth',
+              value: dobRaw.isEmpty ? '-' : _formatDate(dobRaw)),
           _KVRow(
               label: 'Employment',
-              value: _capitalize(profile['employment_type'] as String? ?? '-')),
+              value: orDash(_capitalize(employment))),
+          _KVRow(label: 'Employer', value: orDash(employer)),
           _KVRow(
               label: 'Monthly Income',
               value: profile['monthly_income'] != null
                   ? '₱${NumberFormat('#,##0.00').format(profile['monthly_income'])}'
                   : '-'),
           _KVRow(
+              label: 'GCash Number', value: gcash.isEmpty ? 'N/A' : gcash),
+          _KVRow(
               label: 'Address',
-              value: _formatAddress(profile['address'] ?? loan['lender_address'])),
+              value: orDash(address)),
         ]));
   }
 
   Widget _buildLoanCard(Map<String, dynamic> loan, NumberFormat fmt) {
-    final frequency =
-        (loan['payment_frequency'] ?? loan['frequency'] ?? '-').toString();
+    final resolved = resolveLoanFrequency(loan);
+    final frequency = resolved.isEmpty ? '-' : resolved;
     final method = (loan['disbursement_method'] ?? '-').toString();
     return _PremiumCard(
       title: 'Loan Details',
@@ -545,7 +582,9 @@ class _LoanApplicationDetailsModalState
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Disbursement: ${_capitalize(method.replaceAll('_', ' '))}',
+                  method.trim().isEmpty || method.trim() == '-'
+                      ? 'Disbursement: N/A'
+                      : 'Disbursement: ${_capitalize(method.replaceAll('_', ' '))}',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -577,106 +616,219 @@ class _LoanApplicationDetailsModalState
     final cm = coMakers.first;
     final signature = cm['signature'] as String?;
     final name = '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim();
+    final dob = cm['date_of_birth'] as String? ?? '';
     return _PremiumCard(
       title: 'Co-Maker',
       subtitle: 'Guarantor & signature',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name.isEmpty ? '—' : name,
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary)),
-                    Text(cm['relationship'] as String? ?? '-',
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
-                  ])),
-            ]),
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          const SizedBox(height: 10),
+          _KVRow(label: 'Name', value: name.isEmpty ? '—' : name),
+          _KVRow(
+              label: 'Relationship',
+              value: cm['relationship'] as String? ?? '-'),
           _KVRow(
               label: 'Phone',
               value: cm['phone_number'] as String? ?? '-'),
           _KVRow(
               label: 'Birthday',
-              value: cm['date_of_birth'] as String? ?? '-'),
+              value: dob.isEmpty ? '-' : _formatDate(dob)),
           _KVRow(
               label: 'Address',
               value: cm['address'] as String? ?? '-'),
-          if (signature != null && signature.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            const Text('Co-Maker Signature',
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.4)),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border)),
-              clipBehavior: Clip.antiAlias,
-              child: _buildSignatureImage(signature)),
-          ],
-          if (_coMakerValidIdImages(cm).isNotEmpty) ...[
-            const SizedBox(height: 14),
-            const Text('Co-Maker Valid ID',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.5)),
-            const SizedBox(height: 8),
-            ..._coMakerValidIdImages(cm),
-          ],
+          if (signature != null && signature.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    width: 130,
+                    child: Text('Signature',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary))),
+                  OutlinedButton.icon(
+                    onPressed: () => _showSignatureViewer(signature),
+                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    label: const Text('View',
+                        style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (_coMakerValidIdUrls(cm).isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    width: 130,
+                    child: Text('Valid ID',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary))),
+                  OutlinedButton.icon(
+                    onPressed: () => _showValidIdViewer(
+                        _coMakerValidIdUrls(cm)),
+                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    label: const Text('View',
+                        style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ]));
   }
 
-  /// 00147: renders the co-maker's uploaded valid ID image(s) — sent with the
-  /// loan application and visible to reviewers.
-  List<Widget> _coMakerValidIdImages(Map<String, dynamic> cm) {
+  // Buong view ng signature sa dialog.
+  Future<void> _showSignatureViewer(String signature) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Co-Maker Signature',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary))),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      tooltip: 'Close',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border)),
+                  clipBehavior: Clip.antiAlias,
+                  child: _buildSignatureImage(signature),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 00147: kinukuha ang URL ng co-maker valid ID image(s) — sa dialog
+  /// pinapakita kapag pinindot ang View.
+  List<String> _coMakerValidIdUrls(Map<String, dynamic> cm) {
     final docs = (cm['co_maker_documents'] as List? ?? [])
         .whereType<Map<String, dynamic>>()
         .where((d) => d['document_type'] == 'valid_id')
         .toList();
-    if (docs.isEmpty) return const [];
-    return docs.map((d) {
-      final url =
-          (d['signed_url'] as String?) ?? (d['file_path'] as String?);
-      const placeholder = Center(
-          child: Icon(Icons.badge_outlined,
-              size: 40, color: AppColors.textTertiary));
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Container(
-          width: double.infinity,
-          height: 160,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
+    return docs
+        .map((d) =>
+            (d['signed_url'] as String?) ?? (d['file_path'] as String?))
+        .where((url) => url != null && url.isNotEmpty)
+        .cast<String>()
+        .toList();
+  }
+
+  // Buong view ng valid ID image(s) sa dialog.
+  Future<void> _showValidIdViewer(List<String> urls) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxWidth: 520, maxHeight: 640),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Co-Maker Valid ID',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary))),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      tooltip: 'Close',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < urls.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            height: 280,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border:
+                                  Border.all(color: AppColors.border)),
+                            clipBehavior: Clip.antiAlias,
+                            child: Image.network(
+                              urls[i],
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Icon(Icons.badge_outlined,
+                                    size: 40,
+                                    color: AppColors.textTertiary)),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: url != null && url.isNotEmpty
-              ? Image.network(url,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => placeholder)
-              : placeholder,
         ),
-      );
-    }).toList();
+      ),
+    );
   }
 
   Widget _buildSignatureImage(String signature) {
@@ -709,11 +861,21 @@ class _LoanApplicationDetailsModalState
         .contains(status);
     final schedules =
         (isFinal ? allSchedules : allSchedules.take(5)).toList();
+    final frequency = resolveLoanFrequency(loan);
+    final freqLabel = frequency.isEmpty ? '' : _capitalize(frequency);
+    final emptySubtitle = freqLabel.isEmpty
+        ? 'First 5 periods'
+        : '$freqLabel • First 5 periods';
+    final subtitle = freqLabel.isEmpty
+        ? (isFinal ? 'Full schedule' : 'First 5 periods • Preview')
+        : (isFinal
+            ? '$freqLabel • Full schedule'
+            : '$freqLabel • First 5 periods • Preview');
     if (schedules.isEmpty) {
-      return const _PremiumCard(
+      return _PremiumCard(
         title: 'Payment Schedule',
-        subtitle: 'First 5 periods',
-        child: Row(
+        subtitle: emptySubtitle,
+        child: const Row(
           children: [
             Icon(Icons.event_note_outlined,
                 size: 15, color: AppColors.textTertiary),
@@ -727,14 +889,27 @@ class _LoanApplicationDetailsModalState
     }
     return _PremiumCard(
       title: 'Payment Schedule',
-      subtitle: isFinal ? 'Full schedule' : 'First 5 periods • Preview',
+      subtitle: subtitle,
       trailing: Text('${loan['term_periods'] ?? allSchedules.length} payments',
           style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               color: Colors.white70)),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (freqLabel.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              // Plain text lang — hindi button.
+              child: Text(
+                'Frequency: $freqLabel',
+                style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary),
+              ),
+            ),
           Table(
             columnWidths: const {
               0: FlexColumnWidth(0.9),
@@ -855,21 +1030,6 @@ class _LoanApplicationDetailsModalState
     return a.toString();
   }
 
-  Color _upgradeColor(String? s) {
-    switch (s) {
-      case 'approved':
-      case 'verified':
-        return AppColors.success;
-      case 'pending':
-      case 'submitted':
-        return AppColors.warning;
-      case 'rejected':
-        return AppColors.error;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
-
   Color _disbursementColor(String m) {
     switch (m) {
       case 'gcash':
@@ -895,8 +1055,7 @@ class _LoanApplicationDetailsModalState
   }
 
   String _loanTermLabel(Map<String, dynamic> loan) {
-    final frequency =
-        (loan['payment_frequency'] ?? loan['frequency'] ?? '').toString();
+    final frequency = resolveLoanFrequency(loan);
     final unit = frequency.toLowerCase() == 'daily'
         ? 'days'
         : frequency.toLowerCase() == 'weekly'

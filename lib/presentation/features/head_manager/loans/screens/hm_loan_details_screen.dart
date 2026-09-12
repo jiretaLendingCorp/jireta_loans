@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/utils/timezone.dart';
+import '../../../../../core/utils/loan_frequency.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -460,8 +461,9 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
   }
 
   Widget _buildLoanCard(Map<String, dynamic> loan, NumberFormat fmt) {
-    final frequency =
-        (loan['payment_frequency'] ?? loan['frequency'] ?? '').toString();
+    final frequency = resolveLoanFrequency(loan);
+    final frequencyDisplay =
+        frequency.isEmpty ? '-' : _capitalize(frequency);
 
     return _PremiumCard(
       title: 'Loan Details',
@@ -478,42 +480,9 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
           _KVRow(
               label: 'Interest (20%)',
               value: '₱${fmt.format(loan['interest_amount'] ?? 0)}'),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.deepNavy.withValues(alpha: 0.06),
-                  AppColors.gold.withValues(alpha: 0.10),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.22))),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AppColors.deepNavy,
-                    borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.savings_rounded,
-                      size: 16, color: AppColors.gold)),
-                const SizedBox(width: 10),
-                const Text('Total Payable',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary)),
-                const Spacer(),
-                Text('₱${fmt.format(loan['total_payable'] ?? 0)}',
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.deepNavy)),
-              ])),
+          _KVRow(
+              label: 'Total Payable',
+              value: '₱${fmt.format(loan['total_payable'] ?? 0)}'),
           _KVRow(
               label: 'Outstanding',
               value: '₱${fmt.format(loan['outstanding_balance'] ?? 0)}',
@@ -525,8 +494,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                       : AppColors.textPrimary)),
           _KVRow(
               label: 'Frequency',
-              value: _capitalize(frequency),
-              valueWidget: _FrequencyPill(frequency: frequency)),
+              value: frequencyDisplay),
           _KVRow(
               label: 'Loan Term',
               value: _loanTermLabel(loan)),
@@ -605,10 +573,17 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
         (loan['loan_schedules'] as List? ?? []).cast<Map<String, dynamic>>();
     if (schedules.isEmpty) return const SizedBox.shrink();
     final paid = schedules.where((s) => s['status'] == 'paid').length;
+    final frequency = resolveLoanFrequency(loan);
+    final freqLabel = frequency.isEmpty ? '' : _capitalize(frequency);
+    final freqLine =
+        freqLabel.isEmpty ? '' : 'Frequency: $freqLabel';
+    final subtitle = freqLabel.isEmpty
+        ? 'Installment-by-installment breakdown'
+        : '$freqLabel • Installment-by-installment breakdown';
 
     return _PremiumCard(
       title: 'Payment Schedule',
-      subtitle: 'Installment-by-installment breakdown',
+      subtitle: subtitle,
       trailing: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
@@ -624,7 +599,22 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
               color: paid == schedules.length
                   ? AppColors.success
                   : AppColors.deepNavy))),
-      child: Container(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (freqLine.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              // Plain text lang — hindi button.
+              child: Text(
+                freqLine,
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary),
+              ),
+            ),
+          Container(
         decoration: BoxDecoration(
           border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(10)),
@@ -668,20 +658,17 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w700))),
                 DataCell(Text('₱${fmt.format(s['amount_paid'] ?? 0)}')),
                 DataCell(
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: c.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: c.withValues(alpha: 0.18))),
-                    child: Text(_capitalize(sStatus),
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: c)))),
+                  // Plain text lang — hindi button.
+                  Text(_capitalize(sStatus),
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: c))),
               ]);
-            }).toList()))));
+            }).toList()),
+          ),
+          ),
+        ]));
   }
 
   Widget _buildPaymentsCard(Map<String, dynamic> loan, NumberFormat fmt) {
@@ -934,8 +921,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
       : '${s[0].toUpperCase()}${s.substring(1).replaceAll('_', ' ')}';
 
   String _loanTermLabel(Map<String, dynamic> loan) {
-    final frequency =
-        (loan['payment_frequency'] ?? loan['frequency'] ?? '').toString();
+    final frequency = resolveLoanFrequency(loan);
     final unit = frequency.toLowerCase() == 'daily'
         ? 'days'
         : frequency.toLowerCase() == 'weekly'
@@ -1106,12 +1092,8 @@ class _KVRow extends StatelessWidget {
   final String label;
   final String value;
   final TextStyle? valueStyle;
-  final Widget? valueWidget;
   const _KVRow(
-      {required this.label,
-      required this.value,
-      this.valueStyle,
-      this.valueWidget});
+      {required this.label, required this.value, this.valueStyle});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1127,45 +1109,14 @@ class _KVRow extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: AppColors.deepNavy))),
           Expanded(
-            child: valueWidget ??
-                Text(
-                  value,
-                  style: valueStyle ??
-                      const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary))),
+            child: Text(
+                value,
+                style: valueStyle ??
+                    const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary))),
         ]));
-  }
-}
-
-class _FrequencyPill extends StatelessWidget {
-  final String frequency;
-  const _FrequencyPill({required this.frequency});
-  @override
-  Widget build(BuildContext context) {
-    final f = frequency.toLowerCase();
-    final Color c;
-    switch (f) {
-      case 'daily':
-        c = AppColors.riderGreen;
-        break;
-      case 'weekly':
-        c = AppColors.lenderBlue;
-        break;
-      default:
-        c = AppColors.deepNavy;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-          color: c.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: c.withValues(alpha: 0.22))),
-      child: Text(
-        f.isEmpty ? '-' : '${f[0].toUpperCase()}${f.substring(1)}',
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w800, color: c, letterSpacing: 0.2)));
   }
 }
 

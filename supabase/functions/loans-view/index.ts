@@ -250,7 +250,7 @@ async function handleGetDetails(req: Request) {
     const db = getAdminClient();
 
     const { data: loan } = await db.from('loans')
-      .select(`*, lender_profiles!loans_lender_id_fkey(id, account_upgrade_status, gcash_number, users:users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email))`)
+      .select(`*, lender_profiles!loans_lender_id_fkey(id, account_upgrade_status, gcash_number, gender, civil_status, date_of_birth, users:users!lender_profiles_id_fkey(id, first_name, middle_name, last_name, phone_number, email))`)
       .eq('id', loanId).single();
 
     if (!loan) return errorResponse('Loan not found', 404, 'NOT_FOUND');
