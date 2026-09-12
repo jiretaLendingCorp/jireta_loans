@@ -56,9 +56,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   final List<XFile> _pickedImages = [];
   bool _didPrefillReport = false;
   bool _isInitialLoading = true;
-  // True once the rider tries to continue with a too-short report, so Step 2
-  // can show a persistent inline error instead of only a snackbar.
-  bool _reportAttempted = false;
 
   @override
   void initState() {
@@ -94,18 +91,14 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   int get _pendingCount => _pickedImages.length;
   // Effective docs = server docs + pending staged docs (deferred upload until Review→Submit)
   int get _effectiveDocsCount => _uploadedDocsCount + _pendingCount;
-  int get _reportLen => _reportCtrl.text.trim().length;
   bool get _hasReport => true;
   // DEBUG FIX: upload must NOT succeed before Review Submit, so pending staged docs count toward canSubmit
   // Actual server upload happens atomically inside _submitFinal()
-  // Report: min 10, max 600 chars (user req) — the backend rejects empty
-  // report_summary, so the Submit button must be locked until a report is
-  // actually written (this was the "Failed to submit report" bug).
+  // OPTIONAL ang report — hindi na ito nagba-block ng submit. Kapag blangko,
+  // ang _performSubmit() ang nagpapadala ng "-" fallback dahil hindi
+  // tinatanggap ng backend ang empty na report_summary.
   bool get _canSubmit =>
-      _isAccepted &&
-      _effectiveDocsCount > 0 &&
-      _reportLen >= 10 &&
-      !_isCompleted;
+      _isAccepted && _effectiveDocsCount > 0 && !_isCompleted;
 
   // Step gating — must accept before proceeding past step 0
   bool _canGoToStep(int idx) {
@@ -132,7 +125,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       context,
       title: 'Accept Assignment',
       message:
-          'Are you sure to accept this ci?',
+          'Are you sure you want to accept this Credit Investigation?',
       confirmLabel: 'Accept',
       confirmColor: AppColors.riderGreen,
     );
@@ -191,9 +184,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       String msg = 'Complete all steps first.';
       if (_effectiveDocsCount == 0) {
         msg = 'Upload at least 1 evidence photo in Step 2 before submitting.';
-      } else if (_reportLen < 10) {
-        msg = 'Write at least 10 characters in the investigation report.';
-        setState(() => _reportAttempted = true);
       } else if (_isAssigned) {
         msg = 'You must accept the assignment first.';
       }
@@ -201,7 +191,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       context.showSnackBarAsToast(SnackBar(
           content: Text(msg), backgroundColor: AppColors.error));
       // jump to the failing step (Step 2 is combined Upload & Report for 3-step wizard)
-      if (_effectiveDocsCount == 0 || _reportLen < 10) {
+      if (_effectiveDocsCount == 0) {
         setState(() => _currentStep = 1);
       }
       return;
@@ -250,9 +240,12 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
     }
 
+    // Optional ang report — kapag blangko, "-" ang ipapadala dahil hindi
+    // tinatanggap ng backend ang empty na report_summary.
+    final summary = _reportCtrl.text.trim();
     final ok = await ref.read(riderCiProvider.notifier).submitReport(
           ciId: widget.ciId,
-          reportSummary: _reportCtrl.text.trim(),
+          reportSummary: summary.isEmpty ? '-' : summary,
         );
     if (!ok) {
       final err = ref.read(riderCiProvider).error;
@@ -276,13 +269,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
               content: Text('Upload at least 1 photo is required')));
           return;
         }
-        if (_reportLen < 10) {
-          setState(() => _reportAttempted = true);
-          context.showSnackBarAsToast(const SnackBar(
-              content: Text(
-                  'Write at least 10 characters in the investigation report')));
-          return;
-        }
       }
       setState(() => _currentStep++);
     } else {
@@ -303,6 +289,10 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(riderCiProvider);
     final ci = state.selectedCi;
+
+    // Phone layout: the step actions are pinned to a fixed bottom bar instead
+    // of scrolling with the content. Wide screens keep them inline.
+    final isNarrow = MediaQuery.sizeOf(context).width < 900;
 
     // prefill report once when ci loads
     if (ci != null && !_didPrefillReport) {
@@ -334,7 +324,10 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
               child: Center(
                   child: StatusBadge(
                       status: ci.status == 'accepted' ? 'in_progress' : ci.status,
-                      small: false)),
+                      small: false,
+                      // Green AppBar: semantic status colors would be
+                      // unreadable here (e.g. "ASSIGNED" fell back to gray).
+                      onDark: true)),
             ),
         ],
       ),
@@ -412,29 +405,44 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                         duration: const Duration(milliseconds: 280),
                         switchInCurve: Curves.easeOutCubic,
                         switchOutCurve: Curves.easeInCubic,
-                        child: _buildStepContent(ci),
+                        // Force each step to FILL the area. The switcher's
+                        // internal Stack centers shrink-wrapped children, which
+                        // left a gap above the first card; a filling child
+                        // starts flush under the pipeline header.
+                        child: SizedBox.expand(
+                          child: _buildStepContent(ci,
+                              showInlineActions: !isNarrow),
+                        ),
                       ),
                     ),
-                    _WizardBottomBar(
-                      current: _currentStep,
-                      isAssigned: _isAssigned,
-                      isCompleted: _isCompleted,
-                      isDeclined: _isDeclined,
-                      canSubmit: _canSubmit,
-                      isSubmitting: false,
-                      uploadedCount: _uploadedDocsCount,
-                      pendingCount: _pendingCount,
-                      hasReport: _hasReport,
-                      onPrev: _prev,
-                      onNext: _next,
-                      onSubmit: _submitFinal,
-                    ),
+                    // Details step while unaccepted: Decline/Accept live in the
+                    // bottom bar on phones (in the content on wide screens).
+                    if (_isAssigned && _currentStep == 0 && isNarrow)
+                      _DetailsActionBar(
+                        onDecline: _handleDecline,
+                        onAccept: _handleAccept,
+                      ),
+                    if (!(_isAssigned && _currentStep == 0))
+                      _WizardBottomBar(
+                        current: _currentStep,
+                        isCompleted: _isCompleted,
+                        isDeclined: _isDeclined,
+                        canSubmit: _canSubmit,
+                        isSubmitting: false,
+                        uploadedCount: _uploadedDocsCount,
+                        pendingCount: _pendingCount,
+                        hasReport: _hasReport,
+                        onPrev: _prev,
+                        onNext: _next,
+                        onSubmit: _submitFinal,
+                      ),
                   ],
                 ),
     );
   }
 
-  Widget _buildStepContent(CreditInvestigationModel ci) {
+  Widget _buildStepContent(CreditInvestigationModel ci,
+      {bool showInlineActions = true}) {
     switch (_currentStep) {
       case 0:
         return _DetailsStep(
@@ -443,6 +451,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           ciId: widget.ciId,
           onAccept: _handleAccept,
           onDecline: _handleDecline,
+          showInlineActions: showInlineActions,
         );
       case 1:
         return _UploadReportStep(
@@ -450,7 +459,6 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           ci: ci,
           pickedImages: _pickedImages,
           controller: _reportCtrl,
-          reportAttempted: _reportAttempted,
           onPickMulti: _pickImages,
           onPickCamera: _pickFromCamera,
           onRemovePicked: (i) => setState(() => _pickedImages.removeAt(i)),
@@ -497,7 +505,9 @@ class _WizardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+      // No bottom padding: the step content is flush with the pipeline header
+      // (walang gap sa unang card).
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Column(
         children: [
           Row(
@@ -510,6 +520,9 @@ class _WizardHeader extends StatelessWidget {
                 return false;
               }();
               final isLocked = !isCompleted && (isAssigned || isDeclined) && i > 0;
+              // Pipeline fill: green up to the active step, gray ahead.
+              final toPrevFilled = i <= current || isCompleted;
+              final toNextFilled = (i + 1) <= current || isCompleted;
               return Expanded(
                 child: GestureDetector(
                   onTap: isLocked ? null : () => onTapStep(i),
@@ -517,64 +530,81 @@ class _WizardHeader extends StatelessWidget {
                     opacity: isLocked ? 0.45 : 1,
                     child: Column(
                       children: [
-                        Stack(
-                          clipBehavior: Clip.none,
+                        // The circle is flanked by its two connector halves, so
+                        // the pipeline actually joins the circles instead of a
+                        // bar floating under the labels.
+                        Row(
                           children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 220),
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: isActive
-                                    ? AppColors.riderGreen
-                                    : isDone
-                                        ? AppColors.riderGreen
-                                        : isLocked
-                                            ? AppColors.surfaceVariant
-                                            : Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: isActive || isDone
-                                      ? AppColors.riderGreen
-                                      : AppColors.border,
-                                  width: isActive ? 2 : 1.4,
-                                ),
-                                boxShadow: isActive
-                                    ? [
-                                        BoxShadow(
-                                            color: AppColors.riderGreen
-                                                .withValues(alpha: 0.25),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4))
-                                      ]
-                                    : null,
-                              ),
-                              child: Icon(
-                                isDone && !isActive
-                                    ? Icons.check_rounded
-                                    : _steps[i].icon,
-                                size: 18,
-                                color: isActive || isDone
-                                    ? Colors.white
-                                    : isLocked
-                                        ? AppColors.textTertiary
-                                        : AppColors.textSecondary,
-                              ),
+                            Expanded(
+                              child: i == 0
+                                  ? const SizedBox.shrink()
+                                  : _StepConnector(filled: toPrevFilled),
                             ),
-                            if (isLocked)
-                              Positioned(
-                                right: -2,
-                                top: -2,
-                                child: Container(
-                                  width: 14,
-                                  height: 14,
-                                  decoration: const BoxDecoration(
-                                      color: AppColors.textTertiary,
-                                      shape: BoxShape.circle),
-                                  child: const Icon(Icons.lock_rounded,
-                                      size: 8, color: Colors.white),
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 220),
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: isActive
+                                        ? AppColors.riderGreen
+                                        : isDone
+                                            ? AppColors.riderGreen
+                                            : isLocked
+                                                ? AppColors.surfaceVariant
+                                                : Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isActive || isDone
+                                          ? AppColors.riderGreen
+                                          : AppColors.border,
+                                      width: isActive ? 2 : 1.4,
+                                    ),
+                                    boxShadow: isActive
+                                        ? [
+                                            BoxShadow(
+                                                color: AppColors.riderGreen
+                                                    .withValues(alpha: 0.25),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 4))
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Icon(
+                                    isDone && !isActive
+                                        ? Icons.check_rounded
+                                        : _steps[i].icon,
+                                    size: 18,
+                                    color: isActive || isDone
+                                        ? Colors.white
+                                        : isLocked
+                                            ? AppColors.textTertiary
+                                            : AppColors.textSecondary,
+                                  ),
                                 ),
-                              ),
+                                if (isLocked)
+                                  Positioned(
+                                    right: -2,
+                                    top: -2,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: const BoxDecoration(
+                                          color: AppColors.textTertiary,
+                                          shape: BoxShape.circle),
+                                      child: const Icon(Icons.lock_rounded,
+                                          size: 8, color: Colors.white),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Expanded(
+                              child: i == _steps.length - 1
+                                  ? const SizedBox.shrink()
+                                  : _StepConnector(filled: toNextFilled),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -598,37 +628,26 @@ class _WizardHeader extends StatelessWidget {
               );
             }),
           ),
-          const SizedBox(height: 12),
-          // connector line with progress
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: List.generate(_steps.length - 1, (i) {
-                final filled = i < current || isCompleted;
-                return Expanded(
-                  child: Container(
-                    height: 4,
-                    margin: EdgeInsets.only(
-                        left: i == 0 ? 0 : 6, right: i == _steps.length - 2 ? 0 : 6),
-                    decoration: BoxDecoration(
-                      color: filled
-                          ? AppColors.riderGreen
-                          : AppColors.border.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text('Step ${current + 1} of ${_steps.length} • ${_steps[current].title}',
-              style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
-                  letterSpacing: 0.2)),
         ],
+      ),
+    );
+  }
+}
+
+/// Half of the connector between two wizard circles. Two halves (from adjacent
+/// columns) meet at the column boundary, so the line runs circle to circle.
+class _StepConnector extends StatelessWidget {
+  final bool filled;
+  const _StepConnector({required this.filled});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 2.5,
+      margin: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: filled ? AppColors.riderGreen : AppColors.border,
+        borderRadius: BorderRadius.circular(2),
       ),
     );
   }
@@ -658,12 +677,17 @@ class _DetailsStep extends StatelessWidget {
   final String ciId;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+
+  /// False on phones: the actions are rendered in the fixed bottom bar instead
+  /// (see `_DetailsActionBar`), so the inline row is skipped.
+  final bool showInlineActions;
   const _DetailsStep(
       {super.key,
       required this.ci,
       required this.ciId,
       required this.onAccept,
-      required this.onDecline});
+      required this.onDecline,
+      this.showInlineActions = true});
 
   @override
   Widget build(BuildContext context) {
@@ -672,7 +696,8 @@ class _DetailsStep extends StatelessWidget {
     return SingleChildScrollView(
       key: const ValueKey('details_scroll'),
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      // No top padding: the cards sit directly under the pipeline header.
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         children: [
           // Lender card — premium
@@ -744,7 +769,8 @@ class _DetailsStep extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          if (isAssigned) ...[
+          // Inline actions — wide screens only (phones use the bottom bar).
+          if (isAssigned && showInlineActions) ...[
             Row(
               children: [
                 Expanded(
@@ -763,7 +789,6 @@ class _DetailsStep extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  flex: 2,
                   child: ElevatedButton.icon(
                     onPressed: onAccept,
                     icon: const Icon(Icons.check_rounded, size: 18),
@@ -828,6 +853,7 @@ class _UploadStep extends StatelessWidget {
           if (uploaded.isNotEmpty) ...[
             GridView.builder(
               shrinkWrap: true,
+              padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
@@ -892,6 +918,7 @@ class _UploadStep extends StatelessWidget {
             ),
             GridView.builder(
               shrinkWrap: true,
+              padding: EdgeInsets.zero,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
@@ -990,7 +1017,7 @@ class _ReportStep extends StatelessWidget {
               enabled: !isCompleted,
               style: const TextStyle(fontSize: 14, height: 1.5),
               decoration: const InputDecoration(
-                hintText: 'Enter report',
+                hintText: 'Enter report (optional)',
                 hintStyle: TextStyle(
                     fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
                 border: InputBorder.none,
@@ -1016,7 +1043,6 @@ class _UploadReportStep extends StatelessWidget {
   final CreditInvestigationModel ci;
   final List<XFile> pickedImages;
   final TextEditingController controller;
-  final bool reportAttempted;
   final VoidCallback onPickMulti;
   final VoidCallback onPickCamera;
   final void Function(int) onRemovePicked;
@@ -1027,7 +1053,6 @@ class _UploadReportStep extends StatelessWidget {
     required this.ci,
     required this.pickedImages,
     required this.controller,
-    required this.reportAttempted,
     required this.onPickMulti,
     required this.onPickCamera,
     required this.onRemovePicked,
@@ -1039,144 +1064,170 @@ class _UploadReportStep extends StatelessWidget {
     final uploaded = ci.documents ?? [];
     final hasPending = pickedImages.isNotEmpty;
     final isCompleted = ci.status == 'completed';
-    final reportLen = controller.text.trim().length;
-    final reportError = reportAttempted && reportLen < 10
-        ? 'Investigation report must be at least 10 characters.'
-        : null;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Upload section ──
-          // Uploaded evidence photos sit on TOP; a small text-only "Upload"
-          // button sits below them, and newly picked (pending) photos appear
-          // at the very bottom.
-          const Text('Upload Evidence *',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
-          if (uploaded.isNotEmpty) ...[
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
-              itemCount: uploaded.length,
-              itemBuilder: (ctx, i) {
-                final doc = uploaded[i];
-                final url = (doc['file_url'] as String?) ?? '';
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: url.isNotEmpty
-                      ? Image.network(url,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+          // ── Upload section — CARD sa taas ng step. Dito nakalagay ang mga
+          // upload ni rider (existing evidence + bagong piniling pending).
+          _DetailsSectionCard(
+            title: 'Upload Evidence *',
+            icon: Icons.photo_camera_outlined,
+            accent: AppColors.riderGreen,
+            showDividers: false,
+            children: [
+              // Order inside the card: uploaded evidence photos, then the
+              // newly picked (pending) photos, then the small text-only
+              // "Upload" button at the bottom.
+              if (uploaded.isNotEmpty) ...[
+                GridView.builder(
+                  shrinkWrap: true,
+                  // Kailangan ang explicit zero padding — kapag null, idinadagdag
+                  // ng Flutter ang MediaQuery insets (system nav bar) bilang
+                  // SliverPadding, kaya may blangkong gap sa ilalim ng grid.
+                  padding: EdgeInsets.zero,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8),
+                  itemCount: uploaded.length,
+                  itemBuilder: (ctx, i) {
+                    final doc = uploaded[i];
+                    final url = (doc['file_url'] as String?) ?? '';
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: url.isNotEmpty
+                          ? Image.network(url,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                  color: AppColors.border,
+                                  child: const Icon(
+                                      Icons.broken_image_outlined,
+                                      color: AppColors.textTertiary)))
+                          : Container(
                               color: AppColors.border,
-                              child: const Icon(Icons.broken_image_outlined,
-                                  color: AppColors.textTertiary)))
-                      : Container(
-                          color: AppColors.border,
-                          child: const Icon(Icons.photo_outlined,
-                              color: AppColors.textTertiary)),
-                );
-              },
-            ),
-            const SizedBox(height: 10),
-          ],
-          // Small text-only Upload button (no big tap-to-upload box).
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: isCompleted ? null : onPickMulti,
-              icon: const Icon(Icons.upload_rounded, size: 16),
-              label: const Text('Upload'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.riderGreen,
-                side: const BorderSide(color: AppColors.riderGreen),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                minimumSize: const Size(0, 36),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
-          ),
-          if (uploaded.isEmpty && !hasPending) ...[
-            const SizedBox(height: 8),
-            const Text('Tap Upload to add evidence photos.',
-                style: TextStyle(
-                    fontSize: 12, color: AppColors.textTertiary)),
-          ],
-          if (hasPending) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
+                              child: const Icon(Icons.photo_outlined,
+                                  color: AppColors.textTertiary)),
+                    );
+                  },
+                ),
+                // Spacing lang kapag may Pending section sa ibaba — kung wala,
+                // dikit agad ang Upload/Clear all row sa photos.
+                if (hasPending) const SizedBox(height: 10),
+              ],
+              if (hasPending) ...[
                 Text('Pending (${pickedImages.length})',
                     style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary)),
-                const Spacer(),
-                TextButton(
-                    onPressed: onClearPicked, child: const Text('Clear all')),
-              ],
-            ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
-              itemCount: pickedImages.length,
-              itemBuilder: (ctx, i) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: XFilePreview(file: pickedImages[i])),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: () => onRemovePicked(i),
-                      child: Container(
-                          width: 24,
-                          height: 24,
-                          decoration: const BoxDecoration(
-                              color: AppColors.error, shape: BoxShape.circle),
-                          child: const Icon(Icons.close,
-                              size: 14, color: Colors.white)),
-                    ),
+                GridView.builder(
+                  shrinkWrap: true,
+                  // Kailangan ang explicit zero padding — kapag null, idinadagdag
+                  // ng Flutter ang MediaQuery insets (system nav bar) bilang
+                  // SliverPadding, kaya may blangkong gap sa ilalim ng grid.
+                  padding: EdgeInsets.zero,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8),
+                  itemCount: pickedImages.length,
+                  itemBuilder: (ctx, i) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: XFilePreview(file: pickedImages[i])),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () => onRemovePicked(i),
+                          child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: const BoxDecoration(
+                                  color: AppColors.error,
+                                  shape: BoxShape.circle),
+                              child: const Icon(Icons.close,
+                                  size: 14, color: Colors.white)),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 4,
+                        left: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6)),
+                          child: const Text('NEW',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                    ],
                   ),
-                  Positioned(
-                    bottom: 4,
-                    left: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(6)),
-                      child: const Text('NEW',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800)),
+                ),
+              ],
+              // Small text-only Upload button (no big tap-to-upload box) na
+              // dikit sa ilalim ng photos. Kapag may pending, naka-right align
+              // ang [{Clear all} {Upload}] group — Upload ang nasa dulo.
+              Row(
+                children: [
+                  if (hasPending) const Spacer(),
+                  if (hasPending)
+                    // Minimal padding + shrinkWrap para dikit (walang malaking
+                    // gap) ang "Clear all" sa Upload button.
+                    TextButton(
+                      onPressed: onClearPicked,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Clear all'),
+                    ),
+                  OutlinedButton.icon(
+                    onPressed: isCompleted ? null : onPickMulti,
+                    icon: const Icon(Icons.upload_rounded, size: 16),
+                    label: const Text('Upload'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.riderGreen,
+                      side: const BorderSide(color: AppColors.riderGreen),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      minimumSize: const Size(0, 36),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+              if (uploaded.isEmpty && !hasPending) ...[
+                const SizedBox(height: 8),
+                const Text('Tap Upload to add evidence photos.',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textTertiary)),
+              ],
+            ],
+          ),
 
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 16),
 
-          // ── Report section ──
-          const Text('Investigation Report',
+          // ── Report section (optional) ──
+          const Text('Investigation Report (Optional)',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -1203,7 +1254,7 @@ class _UploadReportStep extends StatelessWidget {
               enabled: !isCompleted,
               style: const TextStyle(fontSize: 14, height: 1.5),
               decoration: const InputDecoration(
-                hintText: 'Enter report',
+                hintText: 'Enter report (optional)',
                 hintStyle: TextStyle(
                     fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
                 border: InputBorder.none,
@@ -1217,25 +1268,6 @@ class _UploadReportStep extends StatelessWidget {
                   null,
             ),
           ),
-          if (reportError != null) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.error_outline,
-                    size: 15, color: AppColors.error),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    reportError,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.error,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-          ],
           const SizedBox(height: 80),
         ],
       ),
@@ -1276,14 +1308,29 @@ class _ReviewStep extends StatelessWidget {
             color: AppColors.lenderBlue,
             child: Column(
               children: [
-                _ReviewTile('Lender', ci.borrowerName.isEmpty ? 'N/A' : ci.borrowerName),
+                // Pareho ng laman ng Details step: Lender Information +
+                // Assignment Details (kasama ang Phone at Assigned By/At).
+                _ReviewTile(
+                    'Lender', ci.borrowerName.isEmpty ? 'N/A' : ci.borrowerName),
                 _ReviewTile('Loan #', ci.loanNumber.isEmpty ? 'N/A' : ci.loanNumber),
                 _ReviewTile('Address',
                     ci.borrowerAddress.isEmpty ? 'N/A' : ci.borrowerAddress),
-                _ReviewTile('Deadline',
+                _ReviewTile(
+                    'Phone', ci.borrowerPhone.isEmpty ? 'N/A' : ci.borrowerPhone),
+                _ReviewTile('Assigned By',
+                    ci.assignedByName.isEmpty ? 'N/A' : ci.assignedByName),
+                _ReviewTile('Assigned At',
+                    DateFormat('MMM d, yyyy • h:mm a').format(ci.assignedAt)),
+                _ReviewTile(
+                    'Deadline',
                     ci.deadline != null
                         ? DateFormat('MMM d, yyyy').format(ci.deadline!)
-                        : 'N/A'),
+                        : 'No deadline',
+                    valueColor: ci.deadline != null &&
+                            ci.deadline!.isOverdue &&
+                            !isCompleted
+                        ? AppColors.error
+                        : null),
                 if (ci.investigationNotes != null && ci.investigationNotes!.isNotEmpty)
                   Container(
                     width: double.infinity,
@@ -1318,6 +1365,7 @@ class _ReviewStep extends StatelessWidget {
                   )
                 : GridView.builder(
                     shrinkWrap: true,
+                    padding: EdgeInsets.zero,
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
@@ -1552,7 +1600,8 @@ class _ReviewCard extends StatelessWidget {
 class _ReviewTile extends StatelessWidget {
   final String label;
   final String value;
-  const _ReviewTile(this.label, this.value);
+  final Color? valueColor;
+  const _ReviewTile(this.label, this.value, {this.valueColor});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -1567,10 +1616,10 @@ class _ReviewTile extends StatelessWidget {
                       fontSize: 11, color: AppColors.textSecondary))),
           Expanded(
               child: Text(value,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary))),
+                      color: valueColor ?? AppColors.textPrimary))),
         ],
       ),
     );
@@ -1648,9 +1697,64 @@ class _CompletedView extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // BOTTOM BAR
 // ─────────────────────────────────────────────────────────────────────────────
+/// Pinned bottom bar with the Details step actions (Decline / Accept) used on
+/// phones. Bare buttons on the page background — no white panel/border/shadow —
+/// so the footer does not read as another card. The scroll area is a separate
+/// `Expanded`, so the content never slides under these buttons.
+class _DetailsActionBar extends StatelessWidget {
+  final VoidCallback onDecline;
+  final VoidCallback onAccept;
+  const _DetailsActionBar(
+      {required this.onDecline, required this.onAccept});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onDecline,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Decline',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: onAccept,
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('Accept',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.riderGreen,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _WizardBottomBar extends StatelessWidget {
   final int current;
-  final bool isAssigned;
   final bool isCompleted;
   final bool isDeclined;
   final bool canSubmit;
@@ -1664,7 +1768,6 @@ class _WizardBottomBar extends StatelessWidget {
 
   const _WizardBottomBar({
     required this.current,
-    required this.isAssigned,
     required this.isCompleted,
     required this.isDeclined,
     required this.canSubmit,
@@ -1684,18 +1787,10 @@ class _WizardBottomBar extends StatelessWidget {
 
     // Completed / Declined — show disabled bar
     if (isCompleted || isDeclined) {
-      return Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: const Border(top: BorderSide(color: AppColors.border)),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, -4))
-          ],
-        ),
+      // Flat footer — walang white box/border/shadow; nakapatong lang ang
+      // button sa page background (same sa _DetailsActionBar).
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
         child: SafeArea(
           top: false,
           child: SizedBox(
@@ -1719,18 +1814,9 @@ class _WizardBottomBar extends StatelessWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: const Border(top: BorderSide(color: AppColors.border)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 16,
-              offset: const Offset(0, -4))
-        ],
-      ),
+    // Flat footer — walang white box/border/shadow; nakapatong lang sa page bg.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: SafeArea(
         top: false,
         child: Row(
@@ -1753,8 +1839,8 @@ class _WizardBottomBar extends StatelessWidget {
             else
               const Expanded(child: SizedBox()),
             const SizedBox(width: 12),
+            // Pantay ang lapad ng Back at Next/Submit (dating flex: 2 ang Next).
             Expanded(
-              flex: 2,
               child: isLast
                   ? ElevatedButton.icon(
                       onPressed: isSubmitting ? null : onSubmit,
@@ -1787,68 +1873,36 @@ class _WizardBottomBar extends StatelessWidget {
                         elevation: 0,
                       ),
                     )
-                  : isAssigned && current == 0
-                      // The Continue button is only shown once the rider has
-                      // ACCEPTED the CI investigation. Before that, a locked
-                      // hint tells them to accept first.
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceVariant,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.lock_rounded,
-                                  size: 14, color: AppColors.textTertiary),
-                              SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  'Accept the assignment to continue',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textSecondary),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ElevatedButton(
-                          onPressed: (() {
-                            if (current == 1 &&
-                                ((uploadedCount + pendingCount) == 0 ||
-                                    !hasReport)) {
-                              return null;
-                            }
-                            return onNext;
-                          })(),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.riderGreen,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            elevation: 0,
-                            disabledBackgroundColor:
-                                AppColors.riderGreen.withValues(alpha: 0.4),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                  current == 0 ? 'Continue' : 'Next',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700)),
-                              const SizedBox(width: 6),
-                              const Icon(Icons.arrow_forward_rounded,
-                                  size: 16),
-                            ],
-                          ),
-                        ),
+                  : ElevatedButton(
+                      onPressed: (() {
+                        if (current == 1 &&
+                            ((uploadedCount + pendingCount) == 0 ||
+                                !hasReport)) {
+                          return null;
+                        }
+                        return onNext;
+                      })(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.riderGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                        disabledBackgroundColor:
+                            AppColors.riderGreen.withValues(alpha: 0.4),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(current == 0 ? 'Continue' : 'Next',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700)),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.arrow_forward_rounded, size: 16),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -1926,47 +1980,76 @@ class _DetailsSectionCard extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final List<Widget> children;
+
+  /// False = walang hairline separator sa pagitan ng children. Gamitin para sa
+  /// custom content (tulad ng upload grid) na hindi label/value rows.
+  final bool showDividers;
+
   const _DetailsSectionCard({
     required this.title,
     required this.icon,
     required this.accent,
     required this.children,
+    this.showDividers = true,
   });
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 2))
+              blurRadius: 12,
+              offset: const Offset(0, 3))
         ],
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header: soft tinted icon chip + section name.
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
             child: Row(
               children: [
-                Icon(icon, size: 16, color: accent),
-                const SizedBox(width: 8),
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary)),
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(icon, size: 16, color: accent),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.1,
+                          color: AppColors.textPrimary)),
+                ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: AppColors.divider),
+          // Rows are separated by hairlines so the values stay easy to scan.
           Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(children: children),
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < children.length; i++) ...[
+                  if (showDividers && i > 0)
+                    const Divider(height: 1, color: Color(0xFFF0F0F0)),
+                  children[i],
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1987,23 +2070,47 @@ class _InfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-              width: 88,
-              child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600))),
+          // Small icon chip leads the row (the tile already receives an icon).
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: AppColors.textSecondary),
+          ),
+          const SizedBox(width: 10),
           Expanded(
-              child: Text(value,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textTertiary,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
                   style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: valueColor ?? AppColors.textPrimary))),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                    color: valueColor ?? AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

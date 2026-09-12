@@ -7,11 +7,18 @@ class StatusBadge extends StatelessWidget {
   final bool small;
   final bool large;
 
+  /// Forces a light (white) label for colored header bars — e.g. the green
+  /// rider AppBar. Without this the semantic status color is applied as-is and
+  /// statuses that fall back to [AppColors.textSecondary] (like `assigned`)
+  /// become unreadable on top of the colored bar.
+  final bool onDark;
+
   const StatusBadge({
     super.key,
     required this.status,
     this.small = false,
     this.large = false,
+    this.onDark = false,
   });
 
   @override
@@ -24,9 +31,9 @@ class StatusBadge extends StatelessWidget {
       cfg.$2,
       style: TextStyle(
         fontSize: fs,
-        fontWeight: FontWeight.w600,
-        color: cfg.$1,
-        letterSpacing: 0.2,
+        fontWeight: onDark ? FontWeight.w700 : FontWeight.w600,
+        color: onDark ? Colors.white : cfg.$1,
+        letterSpacing: onDark ? 0.4 : 0.2,
       ),
     );
   }

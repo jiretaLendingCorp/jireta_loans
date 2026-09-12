@@ -20,22 +20,27 @@ class NotificationBadge extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         child,
-        // Pop whenever the count changes; fade/scale out when it hits 0.
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          transitionBuilder: (child, animation) => ScaleTransition(
-            scale: CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutBack,
+        // The Positioned MUST stay a direct child of this Stack. Wrapping it
+        // inside the AnimatedSwitcher makes it land under the switcher's own
+        // Stack (via FadeTransition/KeyedSubtree), which throws
+        // "Incorrect use of ParentDataWidget"; the header then collapses into
+        // a gray ErrorWidget box whenever there is an unread notification.
+        Positioned(
+          top: -4,
+          right: -4,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutBack,
+              ),
+              child: FadeTransition(opacity: animation, child: child),
             ),
-            child: FadeTransition(opacity: animation, child: child),
-          ),
-          child: count > 0
-              ? Positioned(
-                  key: ValueKey<int>(count),
-                  top: -4,
-                  right: -4,
-                  child: Container(
+            // Pop whenever the count changes; fade/scale out when it hits 0.
+            child: count > 0
+                ? Container(
+                    key: ValueKey<int>(count),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 5,
                       vertical: 2,
@@ -53,9 +58,9 @@ class NotificationBadge extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
-                  ),
-                )
-              : const SizedBox.shrink(key: ValueKey<String>('empty')),
+                  )
+                : const SizedBox.shrink(key: ValueKey<String>('empty')),
+          ),
         ),
       ],
     );

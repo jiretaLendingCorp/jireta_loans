@@ -361,7 +361,12 @@ class _RiderCollectionDetailsScreenState
             if (col != null)
               Padding(
                   padding: const EdgeInsets.only(right: 16),
-                  child: Center(child: StatusBadge(status: col.status, small: false))),
+                  child: Center(
+                      child: StatusBadge(
+                          status: col.status,
+                          small: false,
+                          // Green AppBar: keep the status readable.
+                          onDark: true))),
           ],
         ),
         body: state.isLoading
