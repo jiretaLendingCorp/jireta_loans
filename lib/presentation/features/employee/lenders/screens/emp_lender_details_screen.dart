@@ -2,11 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/details/details_actions_card.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -159,11 +161,24 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           _EmpPreviousLoans(lenderId: lenderId),
           const SizedBox(height: 20),
-          const DetailsActionsCard(
+          DetailsActionsCard(
             title: 'Actions',
             icon: Icons.settings_outlined,
             accentColor: AppColors.lenderBlue,
-            actions: [],
+            actions: [
+              // Escalation pause (00152) — pangalawa nang natapos ang loan
+              // term ng lender na may utang. HM o Employee ang nag-a-unpause.
+              if (data['account_status'] == 'paused')
+                OutlinedButton.icon(
+                  onPressed: () => _unpauseAccount(context, ref, lenderId),
+                  icon: const Icon(Icons.lock_open_rounded, size: 18),
+                  label: const Text('Unpause Account'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.success,
+                    side: const BorderSide(color: AppColors.success),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -180,6 +195,36 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
   void _showEdit(BuildContext context, Map<String, dynamic> data) {
     showDialog(
         context: context, builder: (_) => EmpEditLenderModal(lenderData: data));
+  }
+
+  /// Inaalis ang escalation pause (00152). Ang action na ito (sa backend) ay
+  /// lender-only at 'paused' → 'active' lang ang binabago, kasama ang audit
+  /// log — hindi ito bukas na pag-edit ng user record.
+  Future<void> _unpauseAccount(
+    BuildContext context,
+    WidgetRef ref,
+    String id,
+  ) async {
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Unpause Account',
+      message: 'Reactivate this lender\u2019s account? They will be able to use '
+          'the app and apply for a new loan again. Their outstanding balances '
+          'are not cleared.',
+      confirmLabel: 'Unpause',
+      confirmColor: AppColors.success,
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await sl<UserRemoteDataSource>().unpauseLender(id);
+      ref.invalidate(_lenderDetailProvider(id));
+      if (context.mounted) context.showToast('Account reactivated');
+    } catch (e) {
+      if (context.mounted) {
+        context.showErrorToast(
+            'Failed to unpause: ${e.toString().replaceAll('Exception: ', '')}');
+      }
+    }
   }
 }
 

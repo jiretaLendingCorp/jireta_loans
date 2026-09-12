@@ -6,6 +6,7 @@ import 'core/router/app_router.dart';
 import 'core/security/session_idle_detector.dart';
 import 'core/services/fcm_service.dart';
 import 'core/theme/app_theme.dart';
+import 'presentation/shared/widgets/account_paused_overlay.dart';
 import 'presentation/shared/widgets/connectivity_overlay.dart';
 import 'presentation/shared/widgets/logout_overlay.dart';
 
@@ -22,13 +23,17 @@ class JiretaApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: router,
-      // Global overlays: Connectivity (offline) + Logout passthrough.
+      // Global overlays: Connectivity (offline) + Logout passthrough +
+      // Account Paused (escalation block, lender only).
       // Logout no longer shows a full-screen modal — the pressed logout
-      // button itself shows the loading spinner. Both wrappers are
-      // role-agnostic and sit above every route.
+      // button itself shows the loading spinner.
+      // Ang AccountPausedOverlay ay nasa labas ng ConnectivityOverlay para
+      // ito ang pinakatuktok at hindi ma-tap ang app sa likod niya.
       builder: (context, child) => SessionIdleDetector(
         child: LogoutOverlay(
-          child: ConnectivityOverlay(child: child ?? const SizedBox.shrink()),
+          child: AccountPausedOverlay(
+            child: ConnectivityOverlay(child: child ?? const SizedBox.shrink()),
+          ),
         ),
       ),
       localizationsDelegates: const [

@@ -684,7 +684,7 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
                         fontWeight: FontWeight.w800,
                         color: AppColors.error)),
                 Text(
-                  '20% penalty = ₱${NumberFormat('#,##0.00').format(((loan['total_payable'] as num?)?.toDouble() ?? 0) * 0.20)}',
+                  '20% penalty on current outstanding balance = ₱${NumberFormat('#,##0.00').format(((loan['outstanding_balance'] as num?)?.toDouble() ?? 0) * 0.20)}',
                   style: const TextStyle(
                       color: AppColors.textSecondary, fontSize: 11)),
               ])),

@@ -20,6 +20,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { claimNotification, dispatchPendingPushNotifications } from '../_shared/notifications.ts';
+import { isAuthorizedWebhook } from '../_shared/webhook_auth.ts';
 import { sendPushToUserDevices } from '../_shared/fcm.ts';
 
 serve(async (req) => {
@@ -41,18 +42,6 @@ serve(async (req) => {
     return errorResponse('Internal server error', 500, 'SERVER_ERROR');
   }
 });
-
-async function isAuthorizedWebhook(req: Request): Promise<boolean> {
-  const secret = req.headers.get('x-push-secret');
-  if (!secret) return false;
-  const expected = Deno.env.get('PUSH_WEBHOOK_SECRET');
-  if (!expected || expected === 'REPLACE_ME') return false;
-  // Constant-time-ish comparison for a shared secret.
-  if (secret.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < secret.length; i++) diff |= secret.charCodeAt(i) ^ expected.charCodeAt(i);
-  return diff === 0;
-}
 
 /** Pushes a single existing notification row by id (webhook entry point). */
 async function handleSend(req: Request) {

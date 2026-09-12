@@ -23,6 +23,8 @@ class AuditActionCatalog {
     'archive_role',
     'unarchive_role',
     'update_profile',
+    // Escalation follow-up (00152): inaalis ang automatic account pause
+    'unpause_lender',
     // Loans
     'loan_applied',
     'loan_approve',
@@ -63,6 +65,7 @@ class AuditActionCatalog {
     'in_office_draft_created',
     'in_office_submitted',
     'in_office_account_created_pending_upgrade',
+    'in_office_account_submitted_auto_verified',
     'in_office_auto_converted_after_kyc_verified',
     // System
     'system_config_updated',

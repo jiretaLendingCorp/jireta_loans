@@ -237,7 +237,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                   ModernSheetSection(
                       title: 'Interest & Penalties',
                       body:
-                          'All loans carry 20% interest. A 20% penalty on the total payable applies after one (1) month of delay.'),
+                          'All loans carry 20% interest. If the loan term ends with an unpaid balance, a one-time 20% penalty is charged on the outstanding balance at that time.'),
                   ModernSheetSection(
                       title: 'Account Requirements',
                       body:

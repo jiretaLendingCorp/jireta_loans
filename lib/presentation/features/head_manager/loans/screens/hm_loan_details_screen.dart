@@ -821,7 +821,7 @@ class _HmLoanDetailsScreenState extends ConsumerState<HmLoanDetailsScreen> {
                         color: AppColors.error)),
                 const SizedBox(height: 3),
                 Text(
-                  '20% penalty on total payable = ₱${NumberFormat('#,##0.00').format(((loan['total_payable'] as num?)?.toDouble() ?? 0) * 0.20)}',
+                  '20% penalty on current outstanding balance = ₱${NumberFormat('#,##0.00').format(((loan['outstanding_balance'] as num?)?.toDouble() ?? 0) * 0.20)}',
                   style: const TextStyle(
                       color: AppColors.textSecondary, fontSize: 12)),
               ])),

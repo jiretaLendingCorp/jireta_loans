@@ -24,7 +24,16 @@ import { getLoanFinancials, hasPenaltyApplied } from '../_shared/loan_financials
 import { embedAsObject } from '../_shared/types.ts';
 
 // ── [moved from loans-apply-penalty] ────────────────────────────────────────
-const PENALTY_RATE = 0.20;
+// penalty_logs.penalty_rate is DECIMAL(5,2) holding a PERCENTAGE (default
+// 20.00, and 00138 stores 20.00), so keep the percent value for storage and
+// a separate fraction for the arithmetic.
+const PENALTY_RATE_PCT = 20;
+const PENALTY_RATE = PENALTY_RATE_PCT / 100;
+
+// Penalty base = the loan's CURRENT outstanding balance (total_payable +
+// penalties - verified payments), NOT total_payable. This matches the
+// automatic term-end penalty in migration 00151, so a manually applied
+// penalty and an automatic one always charge the same amount.
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'approve';
@@ -223,13 +232,17 @@ async function handleApplyPenalty(req: Request) {
     if (await hasPenaltyApplied(db, loan_id)) return errorResponse('Penalty already applied', 400, 'DUPLICATE');
 
     const financials = await getLoanFinancials(db, loan_id);
-    const penaltyAmount = Math.round((financials?.total_payable ?? 0) * PENALTY_RATE * 100) / 100;
-    const newBalance = Math.round(((financials?.outstanding_balance ?? 0) + penaltyAmount) * 100) / 100;
+    const penaltyBasis = Math.round((financials?.outstanding_balance ?? 0) * 100) / 100;
+    if (penaltyBasis <= 0) {
+      return errorResponse('Loan has no outstanding balance to penalise', 400, 'INVALID_STATUS');
+    }
+    const penaltyAmount = Math.round(penaltyBasis * PENALTY_RATE * 100) / 100;
+    const newBalance = Math.round((penaltyBasis + penaltyAmount) * 100) / 100;
 
-    await db.from('penalty_logs').insert({ loan_id, applied_by: user.id, penalty_rate: PENALTY_RATE, penalty_basis: financials?.total_payable ?? 0, penalty_amount: penaltyAmount, reason: reason ?? 'Overdue penalty applied' });
+    await db.from('penalty_logs').insert({ loan_id, applied_by: user.id, penalty_rate: PENALTY_RATE_PCT, penalty_basis: penaltyBasis, penalty_amount: penaltyAmount, reason: reason ?? 'Overdue penalty applied' });
 
-    await writeAuditLog({ performedBy: user.id, action: 'apply_penalty', tableName: 'penalty_logs', recordId: loan_id, oldValues: { outstanding_balance: financials?.outstanding_balance }, newValues: { outstanding_balance: newBalance, penalty_amount: penaltyAmount }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: 'Overdue Penalty Applied', body: `A 20% penalty of ₱${penaltyAmount.toLocaleString()} has been added to your outstanding balance.`, type: 'penalty_applied', referenceId: loan_id });
+    await writeAuditLog({ performedBy: user.id, action: 'apply_penalty', tableName: 'penalty_logs', recordId: loan_id, oldValues: { outstanding_balance: penaltyBasis }, newValues: { outstanding_balance: newBalance, penalty_basis: penaltyBasis, penalty_amount: penaltyAmount }, ipAddress: ip });
+    await sendPushNotification({ userId: loan.lender_id, title: `Active Loan Increased by ${PENALTY_RATE_PCT}%`, body: `A ${PENALTY_RATE_PCT}% penalty of ₱${penaltyAmount.toLocaleString()} was added on top of your current active loan balance of ₱${penaltyBasis.toLocaleString()}. Your new outstanding balance is ₱${newBalance.toLocaleString()}.`, type: 'penalty_applied', referenceId: loan_id });
 
     return jsonResponse({ message: 'Penalty applied', penalty_amount: penaltyAmount, new_balance: newBalance });
 }

@@ -198,6 +198,22 @@ serve(async (req) => {
     if (!profile) return errorResponse('Lender profile not found', 404, 'NOT_FOUND');
     if (profile.account_upgrade_status !== 'verified') return errorResponse('Account upgrade must be completed before applying', 403, 'ACCOUNT_UPGRADE_NOT_VERIFIED');
 
+    // Escalation pause (00152): kapag pangalawa nang natapos ang loan term ng
+    // lender na may utang, naka-pause ang account niya at kailangan munang
+    // ma-unpause ng Head Manager o Employee bago makapag-apply ulit.
+    const { data: account } = await db
+      .from('users')
+      .select('account_status')
+      .eq('id', lenderId)
+      .maybeSingle();
+    if (account?.account_status === 'paused') {
+      return errorResponse(
+        'Your account is paused. Please contact our office to reactivate it before applying for a new loan.',
+        403,
+        'ACCOUNT_PAUSED',
+      );
+    }
+
     const { count: activeLoanCount } = await db
       .from('loans')
       .select('*', { count: 'exact', head: true })

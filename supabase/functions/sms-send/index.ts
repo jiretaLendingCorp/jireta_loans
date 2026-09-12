@@ -15,8 +15,19 @@ import { sendSms } from '../_shared/sms.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
+import { isAuthorizedWebhook } from '../_shared/webhook_auth.ts';
 import { getSchedulePayment } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
+
+// Manila (UTC+8) date string N days from today, as YYYY-MM-DD.
+// Date#toISOString() is UTC, so it cannot be used directly for a Manila
+// business date — in the 00:00–08:00 Manila window it returns YESTERDAY.
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+function manilaDatePlusDays(days: number): string {
+  const d = new Date(Date.now() + MANILA_OFFSET_MS);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'send-otp';
@@ -80,16 +91,33 @@ async function handleSendOtp(req: Request) {
 
 // ── [moved from functions/sms-send-reminder/index.ts] ───────────────────────
 async function handleSendReminder(req: Request) {
-  const authResult = await requireAuth(req);
-  if (!isAuthUser(authResult)) return authResult;
-  const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
-  if (roleCheck) return roleCheck;
+  // Two callers:
+  //   1) pg_cron → pg_net webhook with the x-push-secret header — this is the
+  //      automatic daily run scheduled by migration 00151.
+  //   2) A logged-in HM/Employee (JWT) — manual trigger.
+  const authResult = await requireAuth(req).catch(() => null);
+  const authorizedAsStaff = authResult !== null &&
+    isAuthUser(authResult) &&
+    requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE) === null;
+  if (!authorizedAsStaff && !(await isAuthorizedWebhook(req))) {
+    return errorResponse('Unauthorized', 401, 'UNAUTHORIZED');
+  }
 
   const db = getAdminClient();
 
-  const targetDate = new Date();
-  targetDate.setDate(targetDate.getDate() + 2);
-  const targetDateStr = targetDate.toISOString().split('T')[0];
+  // Days before the due date, from system_config (default 2).
+  let reminderDays = 2;
+  const { data: cfg } = await db
+    .from('system_config')
+    .select('config_value')
+    .eq('config_key', 'payment_reminder_days')
+    .maybeSingle();
+  const parsedDays = Number(cfg?.config_value);
+  if (Number.isFinite(parsedDays) && parsedDays >= 0) {
+    reminderDays = Math.floor(parsedDays);
+  }
+
+  const targetDateStr = manilaDatePlusDays(reminderDays);
 
   const { data: dueSchedules, error } = await db
     .from('loan_schedules')
@@ -128,17 +156,27 @@ async function handleSendReminder(req: Request) {
 
     const smsResult = await sendSms({ to: lender.phone_number, message, userId: lender.id, loanScheduleId: schedule.id });
 
-    // Also send an in-app push notification so the lender is notified even
-    // without SMS. Proper, grammatically correct reminder 2 days before due.
+    // In-app + push notification. migration 00151's
+    // send_payment_due_reminders() is the primary inserter; only insert here
+    // when no 'payment_due' notification exists for this schedule yet, so the
+    // DB sweep and this function can never produce a duplicate.
     try {
-      const { sendPushNotification } = await import('../_shared/notifications.ts');
-      await sendPushNotification({
-        userId: lender.id,
-        title: 'Payment Due in 2 Days',
-        body: `Hello ${name}, your payment of ${amount} for loan ${loan.loan_number} is due on ${targetDateStr}. Please pay on time to avoid penalties. Tap to view details.`,
-        type: 'payment_due',
-        referenceId: schedule.id,
-      });
+      const { count } = await db
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('type', 'payment_due')
+        .eq('reference_id', schedule.id)
+        .eq('user_id', lender.id);
+      if ((count ?? 0) === 0) {
+        const { sendPushNotification } = await import('../_shared/notifications.ts');
+        await sendPushNotification({
+          userId: lender.id,
+          title: `Payment Due in ${reminderDays} Days`,
+          body: `Hello ${name}, your payment of ${amount} for loan ${loan.loan_number} is due on ${targetDateStr}. Please pay on time to avoid penalties. Tap to view details.`,
+          type: 'payment_due',
+          referenceId: schedule.id,
+        });
+      }
     } catch (_) {}
 
     results.push({ phone: lender.phone_number, status: smsResult ? 'sent' : 'failed' });

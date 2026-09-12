@@ -5,6 +5,7 @@
 //
 //   users-update-profile →  ?fn=update-profile
 //   users-get-profile    →  ?fn=get-profile
+//   users-unpause-lender →  ?fn=unpause-lender
 //
 // The original per-action logic is preserved verbatim below; each handler is
 // only wrapped so it can live in a single `serve()`.
@@ -12,10 +13,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
-import { ROLES } from '../_shared/rbac.ts';
+import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
 
@@ -43,6 +45,10 @@ serve(async (req) => {
       case 'get-profile':
         // ── [moved from functions/users-get-profile/index.ts] ────────────
         return await handleGetProfile(req);
+      case 'unpause-lender':
+        // ── escalation follow-up: accounts paused by
+        //    apply_loan_term_penalties() (00152) ──────────────────────────
+        return await handleUnpauseLender(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -146,10 +152,12 @@ async function handleUpdateProfile(req: Request) {
 
   if (body.fcm_token !== undefined) updateFields.fcm_token = body.fcm_token;
 
-  // Account status — head manager only.
+  // Account status — head manager only. 'paused' is included so the head
+  // manager can also clear an escalation pause from here; employees use the
+  // narrower ?fn=unpause-lender action below.
   if (
     body.account_status !== undefined &&
-    ['active', 'pending', 'inactive', 'archived'].includes(body.account_status) &&
+    ['active', 'pending', 'inactive', 'archived', 'paused'].includes(body.account_status) &&
     ['head_manager'].includes(user.role)
   ) {
     updateFields.account_status = body.account_status;
@@ -630,4 +638,69 @@ async function handleGetProfile(req: Request) {
   };
 
   return jsonResponse({ user: flattened });
+}
+
+// ── [escalation follow-up] users-unpause-lender ──────────────────────────────
+// Inaalis ang account pause na awtomatikong ibinigay ng
+// apply_loan_term_penalties() (00152) kapag pangalawa nang natapos ang loan
+// term ng lender na may utang.
+//
+// Hiwalay na action ito (imbes na buksan ang update-profile para sa
+// employee) para HIGPIT ang saklaw: HM o Employee, lender lang, 'paused' →
+// 'active' lang, at naka-reset ang term_default_count para malinis ang
+// escalation counter pagkatapos ng review.
+async function handleUnpauseLender(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
+  if (roleCheck) return roleCheck;
+
+  const { user_id, reason } = await req.json();
+  if (!user_id) return errorResponse('user_id is required', 400, 'VALIDATION_ERROR');
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: target } = await db
+    .from('users')
+    .select('id, account_status, roles!users_role_id_fkey(name)')
+    .eq('id', user_id)
+    .maybeSingle();
+  if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
+
+  const role = (target as any)?.roles?.name as string | undefined;
+  if (role !== 'lender') {
+    return errorResponse('Only lender accounts can be unpaused here', 400, 'INVALID_ROLE');
+  }
+  if (target.account_status !== 'paused') {
+    return errorResponse('Account is not paused', 400, 'INVALID_STATUS');
+  }
+
+  await db.from('users').update({ account_status: 'active' }).eq('id', user_id);
+  // Malinis na ang escalation counter pagkatapos ng review — ang susunod na
+  // term default ay muling mag-o-pause (count restarts at 1).
+  await db.from('lender_profiles').update({ term_default_count: 0 }).eq('id', user_id);
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'unpause_lender',
+    tableName: 'users',
+    recordId: user_id,
+    oldValues: { account_status: 'paused' },
+    newValues: { account_status: 'active', reason: reason ?? 'Unpaused by staff' },
+    ipAddress: ip,
+  });
+
+  await sendPushNotification({
+    userId: user_id,
+    title: 'Account Reactivated',
+    body: 'Your account has been reactivated. You can now use the app and apply for a new loan. Please settle any outstanding balance to avoid another pause.',
+    type: 'account_status_change',
+    referenceId: user_id,
+    sentBy: user.id,
+  });
+
+  return jsonResponse({ success: true, account_status: 'active' });
 }

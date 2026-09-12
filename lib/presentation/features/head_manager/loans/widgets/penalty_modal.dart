@@ -11,20 +11,23 @@ import '../providers/hm_loan_provider.dart';
 
 class PenaltyModal extends ConsumerStatefulWidget {
   final String loanId;
-  final double totalPayable;
+
+  /// Kasalukuyang outstanding balance ng loan — ito ang base ng 20% penalty
+  /// (hindi ang total payable), katugma ng automatic term-end penalty.
+  final double outstandingBalance;
   final String loanNumber;
 
   const PenaltyModal({
     super.key,
     required this.loanId,
-    required this.totalPayable,
+    required this.outstandingBalance,
     required this.loanNumber,
   });
 
   static Future<bool?> show(
     BuildContext context, {
     required String loanId,
-    required double totalPayable,
+    required double outstandingBalance,
     required String loanNumber,
   }) {
     return showDialog<bool>(
@@ -32,7 +35,7 @@ class PenaltyModal extends ConsumerStatefulWidget {
       barrierDismissible: false,
       builder: (_) => PenaltyModal(
         loanId: loanId,
-        totalPayable: totalPayable,
+        outstandingBalance: outstandingBalance,
         loanNumber: loanNumber,
       ),
     );
@@ -46,8 +49,8 @@ class _PenaltyModalState extends ConsumerState<PenaltyModal> {
   bool _submitting = false;
   final double _penaltyRate = 0.20;
 
-  double get _penaltyAmount => widget.totalPayable * _penaltyRate;
-  double get _newTotal => widget.totalPayable + _penaltyAmount;
+  double get _penaltyAmount => widget.outstandingBalance * _penaltyRate;
+  double get _newTotal => widget.outstandingBalance + _penaltyAmount;
 
   Future<void> _applyPenalty() async {
     setState(() => _submitting = true);
@@ -132,8 +135,8 @@ class _PenaltyModalState extends ConsumerState<PenaltyModal> {
                 child: Column(
                   children: [
                     _Row(
-                      label: 'Current Total Payable',
-                      value: widget.totalPayable.toCurrency,
+                      label: 'Current Outstanding Balance',
+                      value: widget.outstandingBalance.toCurrency,
                     ),
                     const Divider(height: 20),
                     const _Row(
@@ -150,7 +153,7 @@ class _PenaltyModalState extends ConsumerState<PenaltyModal> {
                     ),
                     const Divider(height: 20),
                     _Row(
-                      label: 'New Total Payable',
+                      label: 'New Outstanding Balance',
                       value: _newTotal.toCurrency,
                       valueColor: AppColors.primary,
                       bold: true,
@@ -174,7 +177,7 @@ class _PenaltyModalState extends ConsumerState<PenaltyModal> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'This action cannot be undone. Penalty is applied only when the loan is overdue by one month.',
+                        'This action cannot be undone. A 20% penalty is charged once, on the current outstanding balance, when the loan is overdue.',
                         style: TextStyle(
                             fontSize: 12, color: AppColors.textSecondary),
                       ),

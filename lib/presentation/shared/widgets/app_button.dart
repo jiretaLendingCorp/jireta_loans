@@ -22,6 +22,10 @@ class AppButton extends StatefulWidget {
   final Color? outlineColor;
   final Color? textColor;
 
+  /// Overrides the default corner radius. Pass [BorderRadius.zero] for the
+  /// square (no border radius) look used by the assign-rider modals.
+  final BorderRadius? borderRadius;
+
   const AppButton({
     super.key,
     required this.label,
@@ -40,6 +44,7 @@ class AppButton extends StatefulWidget {
     this.backgroundColor,
     this.outlineColor,
     this.textColor,
+    this.borderRadius,
   });
 
   @override
@@ -131,6 +136,8 @@ class _AppButtonState extends State<AppButton>
 
   @override
   Widget build(BuildContext context) {
+    final radius =
+        widget.borderRadius ?? BorderRadius.circular(widget.compact ? 8 : 10);
     final child = AnimatedBuilder(
       animation: _scale,
       builder: (context, child) => Transform.scale(
@@ -147,14 +154,14 @@ class _AppButtonState extends State<AppButton>
             color: (widget.onPressed ?? widget.onTap) == null
                 ? _bgColor.withValues(alpha: 0.5)
                 : _bgColor,
-            borderRadius: BorderRadius.circular(widget.compact ? 8 : 10),
+            borderRadius: radius,
             border: _border,
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: widget.isLoading ? null : widget.onPressed ?? widget.onTap,
-              borderRadius: BorderRadius.circular(widget.compact ? 8 : 10),
+              borderRadius: radius,
               child: Padding(
                 padding: EdgeInsets.symmetric(
                     horizontal: widget.compact ? 12 : 20,

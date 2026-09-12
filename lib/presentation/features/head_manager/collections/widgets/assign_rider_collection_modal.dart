@@ -120,7 +120,7 @@ class _AssignRiderCollectionModalState
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: SizedBox(
         width: 460,
         child: Column(
@@ -130,7 +130,7 @@ class _AssignRiderCollectionModalState
               padding: const EdgeInsets.all(20),
               decoration: const BoxDecoration(
                 color: AppColors.deepNavy,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: BorderRadius.zero,
               ),
               child: Row(
                 children: [
@@ -166,7 +166,7 @@ class _AssignRiderCollectionModalState
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: AppColors.warning.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.zero,
                         border: Border.all(
                             color: AppColors.warning.withValues(alpha: 0.3)),
                       ),
@@ -182,7 +182,7 @@ class _AssignRiderCollectionModalState
                     Container(
                       decoration: BoxDecoration(
                           border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.zero),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: _selectedRiderId,
@@ -193,7 +193,7 @@ class _AssignRiderCollectionModalState
                                   style: TextStyle(
                                       color: AppColors.textTertiary))),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.zero,
                           items: _riders.map((r) {
                             final name =
                                 '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}';
@@ -216,7 +216,7 @@ class _AssignRiderCollectionModalState
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                           border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.zero),
                       child: Row(
                         children: [
                           const Icon(Icons.calendar_today_outlined,
@@ -241,14 +241,15 @@ class _AssignRiderCollectionModalState
                       controller: _notesCtrl,
                       label: 'Notes (optional)',
                       maxLines: 2,
-                      maxLength: 255),
+                      maxLength: 255,
+                      borderRadius: BorderRadius.zero),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                           color: AppColors.error.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.zero,
                           border: Border.all(
                               color: AppColors.error.withValues(alpha: 0.3))),
                       child: Text(_error!,
@@ -264,14 +265,26 @@ class _AssignRiderCollectionModalState
                               onPressed: _loading
                                   ? null
                                   : () => Navigator.of(context).pop(),
-                              child: const Text('Cancel'))),
+                              style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                side: const BorderSide(
+                                    color: AppColors.deepNavy),
+                                shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero),
+                              ),
+                              child: const Text('Cancel',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.deepNavy)))),
                       const SizedBox(width: 12),
                       Expanded(
                           child: AppButton(
                               label: 'Assign Rider',
                               onPressed: _loading ? null : _submit,
                               isLoading: _loading,
-                              color: AppColors.deepNavy)),
+                              color: AppColors.deepNavy,
+                              borderRadius: BorderRadius.zero)),
                     ],
                   ),
                 ],

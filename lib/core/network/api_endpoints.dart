@@ -28,6 +28,8 @@ class ApiEndpoints {
       'users-create?fn=create-head-manager';
   static const String usersUpdateProfile = 'users-manage?fn=update-profile';
   static const String usersGetProfile = 'users-manage?fn=get-profile';
+  // Escalation pause (00152) — HM o Employee lang ang makakapag-unpause
+  static const String usersUnpauseLender = 'users-manage?fn=unpause-lender';
   static const String usersGetList = 'users-admin?fn=get-list';
   static const String usersArchive = 'users-admin?fn=archive';
   static const String usersUnarchive = 'users-admin?fn=unarchive';

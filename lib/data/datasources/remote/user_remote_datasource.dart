@@ -123,6 +123,15 @@ class UserRemoteDataSource {
     await _client.patch(ApiEndpoints.usersArchive, data: {'user_id': userId});
   }
 
+  /// Inaalis ang automatic account pause ng isang lender (escalation rule ng
+  /// pagka-pangalawa nang term default, migration 00152). Head Manager o
+  /// Employee lang ang pinapayagan; lender accounts lang, at 'paused' →
+  /// 'active' lamang ang maaaring baguhin ng action na ito.
+  Future<void> unpauseLender(String userId) async {
+    await _client.patch(ApiEndpoints.usersUnpauseLender,
+        data: {'user_id': userId});
+  }
+
   /// Restore an archived user — sets account_status back to 'active'.
   /// Requirement: "KAPAG NA UNARCHIVED NA THEN MA RERESTORE NA UNG ACCOUNT
   /// MAGAGAMIT NA NI USER" — archived = blocked, unarchived = usable again.

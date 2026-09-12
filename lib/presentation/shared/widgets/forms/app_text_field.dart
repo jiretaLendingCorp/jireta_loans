@@ -30,6 +30,10 @@ class AppTextField extends StatefulWidget {
   final FocusNode? focusNode;
   final String? initialValue;
 
+  /// Overrides the default corner radius. Pass [BorderRadius.zero] for the
+  /// square (no border radius) look used by the assign-rider modals.
+  final BorderRadius? borderRadius;
+
   const AppTextField({
     super.key,
     required this.label,
@@ -50,6 +54,7 @@ class AppTextField extends StatefulWidget {
     this.enabled = true,
     this.focusNode,
     this.initialValue,
+    this.borderRadius,
   });
 
   @override
@@ -65,6 +70,7 @@ class _AppTextFieldState extends State<AppTextField> {
     // counterText: '' hides Flutter's "0/255" helper counter so existing UIs
     // look unchanged, but input is still hard-limited.
     final effectiveMaxLength = widget.maxLength ?? kDefaultMaxLength;
+    final radius = widget.borderRadius ?? BorderRadius.circular(10);
     return TextFormField(
       controller: widget.controller,
       initialValue: widget.initialValue,
@@ -110,19 +116,19 @@ class _AppTextFieldState extends State<AppTextField> {
               )
             : widget.suffix,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: radius,
           borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: radius,
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: radius,
           borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: radius,
           borderSide: const BorderSide(color: AppColors.error),
         ),
         filled: true,

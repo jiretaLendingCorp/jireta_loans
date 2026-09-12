@@ -660,8 +660,8 @@ class _SystemConfigTabState extends State<_SystemConfigTab> {
       'type': 'number',
     },
     {
-      'key': 'payment_reminder_days_before',
-      'label': 'SMS Reminder (days before due)',
+      'key': 'payment_reminder_days',
+      'label': 'Payment Reminder (days before due)',
       'value': '2',
       'type': 'number',
     },
