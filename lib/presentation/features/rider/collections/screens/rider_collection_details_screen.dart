@@ -991,8 +991,9 @@ class _RiderCollectionDetailsScreenState
                 children: [
                   Row(
                     children: [
+                      // `cBrandGreen` para manatiling visible sa dark mode.
                       Icon(Icons.person_outline,
-                          color: AppColors.riderGreen, size: 18),
+                          color: context.cBrandGreen, size: 18),
                       SizedBox(width: 8),
                       Text('Lender Information',
                           style: TextStyle(
@@ -1391,8 +1392,9 @@ class _RiderCollectionDetailsScreenState
                 children: [
                   Row(
                     children: [
+                      // `cBrandGreen` para manatiling visible sa dark mode.
                       Icon(Icons.person_outline,
-                          color: AppColors.riderGreen, size: 18),
+                          color: context.cBrandGreen, size: 18),
                       SizedBox(width: 8),
                       Text('Lender Information',
                           style: TextStyle(

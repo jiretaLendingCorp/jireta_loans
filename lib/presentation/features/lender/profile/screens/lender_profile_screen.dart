@@ -13,6 +13,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
+import '../../../../shared/providers/app_settings_provider.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -315,6 +316,31 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               ),
             ),
           ]),
+          const SizedBox(height: 20),
+          const ModernSectionLabel('Notifications'),
+          // Push notifications ON/OFF — kapag OFF, ide-delete ang device token
+          // kaya hindi na makakatanggap ng push ang device na ito (ang in-app
+          // notification center ay hindi apektado).
+          Consumer(builder: (context, ref, _) {
+            final settings = ref.watch(appSettingsProvider);
+            final notifier = ref.read(appSettingsProvider.notifier);
+            return ModernMenuCard(items: [
+              ModernMenuItem(
+                icon: Icons.notifications_active_outlined,
+                title: 'Push Notifications',
+                subtitle: settings.pushNotificationsEnabled
+                    ? 'On — alerts are sent to this device'
+                    : 'Off — no push alerts on this device',
+                onTap: () => notifier
+                    .setPushNotifications(!settings.pushNotificationsEnabled),
+                trailing: Switch.adaptive(
+                  value: settings.pushNotificationsEnabled,
+                  activeTrackColor: _accent,
+                  onChanged: (v) => notifier.setPushNotifications(v),
+                ),
+              ),
+            ]);
+          }),
           const SizedBox(height: 16),
           _buildLogoutButton(),
           const SizedBox(height: 16),

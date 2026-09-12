@@ -499,58 +499,66 @@ class _ApprovedLoanBanner extends StatelessWidget {
   final LoanModel loan;
   const _ApprovedLoanBanner({required this.loan});
 
+  /// Kapareho ng copy sa Application Status screen — nakadepende sa napiling
+  /// paraan ng disbursement ("Your loan was approved ...").
+  String get _message {
+    switch (loan.disbursementMethod) {
+      case 'rider_delivery':
+        return 'Your loan was approved and you chose Cash on Delivery. A rider will be assigned to deliver your cash to your registered address.';
+      case 'office_cash':
+        return 'Your loan was approved and you chose Pick Up at Office. Your cash is being prepared and we will notify you when it is ready.';
+      case 'gcash':
+        return 'Your loan was approved and your GCash disbursement is being processed. We will notify you once the funds have been sent.';
+      case null:
+        return 'Choose how you want to receive your funds to complete the release.';
+      default:
+        return 'Your loan was approved and your disbursement is being processed. We will notify you once the funds are released.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Walang card (box/border) at walang "Loan #..." title — plain na mensahe
+    // lang + View Application Status button.
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () => context.push(RouteConstants.lenderLoans),
         borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.lenderBlue.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(14),
-            border:
-                Border.all(color: AppColors.lenderBlue.withValues(alpha: 0.3)),
-          ),
-          child: Row(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: AppColors.lenderBlue,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check_circle_outline,
-                    color: Colors.white, size: 22),
+              Text(
+                _message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.45,
+                    color: AppColors.textSecondary),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Loan #${loan.loanNumber} Approved',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      loan.disbursementMethod == null
-                          ? 'Choose how you want to receive your funds to complete the release.'
-                          : 'Your funds are being prepared. We will notify you once your loan is released.',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                  ],
+              const SizedBox(height: 12),
+              // Diretso sa Application Status — hindi full width at naka-center.
+              Center(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push(
+                    RouteConstants.lenderLoanApplicationStatus
+                        .replaceFirst(':id', loan.id),
+                  ),
+                  icon: const Icon(Icons.timeline_outlined, size: 16),
+                  label: const Text('View Application Status'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.lenderBlue,
+                    side: BorderSide(
+                        color: AppColors.lenderBlue.withValues(alpha: 0.4)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.lenderBlue),
             ],
           ),
         ),
@@ -910,7 +918,7 @@ class _PayWithSection extends StatelessWidget {
               child: _PayWithCard(
                 assetPath: 'assets/icons/paywithrider.jpg',
                 color: AppColors.riderGreen,
-                title: 'Pay with Rider',
+                title: 'Cash on Delivery',
                 onTap: () {
                   final current = loan;
                   if (current == null) {

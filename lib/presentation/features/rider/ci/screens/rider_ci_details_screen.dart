@@ -1520,29 +1520,6 @@ class _ReviewStep extends StatelessWidget {
                             fontSize: 13, height: 1.5, color: context.cTextPrimary)),
                   ),
           ),
-          SizedBox(height: 14),
-
-          if (isCompleted)
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(14),                  decoration: BoxDecoration(
-                    color: context.cSurface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.celebration_rounded, color: AppColors.riderGreen),
-                  SizedBox(width: 10),
-                  Expanded(
-                      child: Text(
-                          'Report submitted successfully! No further edits allowed.',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.riderGreen))),
-                ],
-              ),
-            ),
           SizedBox(height: 90),
         ],
       ),
