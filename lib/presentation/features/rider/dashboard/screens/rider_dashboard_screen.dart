@@ -59,6 +59,12 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
           route: RouteConstants.riderCi,
         ),
         MobileNavItem(
+          icon: Icons.history_outlined,
+          activeIcon: Icons.history_rounded,
+          label: 'History',
+          route: RouteConstants.riderHistory,
+        ),
+        MobileNavItem(
           icon: Icons.person_outline,
           activeIcon: Icons.person,
           label: 'Profile',
@@ -234,11 +240,11 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.2,
-                    color: AppColors.textPrimary,
+                    color: context.cTextPrimary,
                   ),
                 ),
               ),
@@ -253,7 +259,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                   ),
                   child: Text(
                     '$count',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       color: AppColors.riderGreen,
@@ -385,9 +391,9 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -423,10 +429,10 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
-                          color: AppColors.textPrimary,
+                          color: context.cTextPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -434,9 +440,9 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: context.cTextSecondary,
                         ),
                       ),
                     ],
@@ -470,8 +476,8 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                   ),
                 ),
                 const SizedBox(width: 6),
-                const Icon(Icons.chevron_right,
-                    color: AppColors.textTertiary, size: 18),
+                Icon(Icons.chevron_right,
+                    color: context.cTextTertiary, size: 18),
               ],
             ),
           ),
@@ -498,9 +504,9 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -545,7 +551,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                                     ? FontWeight.w600
                                     : FontWeight.w800,
                                 fontSize: 13.5,
-                                color: AppColors.textPrimary,
+                                color: context.cTextPrimary,
                               ),
                             ),
                           ),
@@ -567,25 +573,25 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
                         n.body,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: context.cTextSecondary,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         _timeAgo(n.createdAt),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10.5,
-                          color: AppColors.textTertiary,
+                          color: context.cTextTertiary,
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right,
-                    color: AppColors.textTertiary, size: 18),
+                Icon(Icons.chevron_right,
+                    color: context.cTextTertiary, size: 18),
               ],
             ),
           ),
@@ -614,7 +620,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     if (t.startsWith('account_upgrade')) {
       return (Icons.verified_user_outlined, AppColors.statusCompleted);
     }
-    return (Icons.notifications_outlined, AppColors.textSecondary);
+    return (Icons.notifications_outlined, _kNeutralColor);
   }
 
   String _timeAgo(DateTime time) {
@@ -631,22 +637,22 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: AppColors.textTertiary, size: 36),
+          Icon(icon, color: context.cTextTertiary, size: 36),
           const SizedBox(height: 8),
           Text(
             message,
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: context.cTextSecondary,
               fontSize: 13,
             ),
           ),
@@ -654,6 +660,9 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       ),
     );
   }
+
+  /// Neutral fallback para sa status colors na wala sa `context` scope.
+  static const Color _kNeutralColor = AppColors.textSecondary;
 
   Color _collStatusColor(String s) {
     switch (s) {
@@ -670,7 +679,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       case 'declined':
         return AppColors.statusRejected;
       default:
-        return AppColors.textSecondary;
+        return _kNeutralColor;
     }
   }
 
@@ -686,7 +695,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       case 'declined':
         return AppColors.statusRejected;
       default:
-        return AppColors.textSecondary;
+        return _kNeutralColor;
     }
   }
 }
@@ -740,7 +749,7 @@ class _EnterpriseHeader extends StatelessWidget {
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.16), blurRadius: 7, offset: const Offset(0, 2))],
               ),
               child: ClipOval(
-                child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.cover, width: 30, height: 30, errorBuilder: (_, __, ___) => const Icon(Icons.shield_rounded, size: 15, color: Colors.black)),
+                child: Image.asset(AssetConstants.logoJpg, fit: BoxFit.cover, width: 30, height: 30, errorBuilder: (_, __, ___) => Icon(Icons.shield_rounded, size: 15, color: Colors.black)),
               ),
             ),
           ),
@@ -784,13 +793,13 @@ class _EnterpriseHeader extends StatelessWidget {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: greetingColor.withValues(alpha: 0.11), borderRadius: BorderRadius.circular(20), border: Border.all(color: greetingColor.withValues(alpha: 0.16))), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(greetingIcon, size: 11, color: greetingColor), const SizedBox(width: 3), Text(greeting.toUpperCase(), style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, letterSpacing: 0.7, color: greetingColor))])),
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)), child: Text(now.formatted, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: context.cBorder)), child: Text(now.formatted, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: context.cTextSecondary))),
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text('Hi, $riderName!', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.3, height: 1.1)),
+                      Text('Hi, $riderName!', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: context.cTextPrimary, letterSpacing: -0.3, height: 1.1)),
                       const SizedBox(height: 2),
-                      Text(subText, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
+                      Text(subText, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: context.cTextSecondary)),
                     ],
                   ),
                 ),
@@ -801,7 +810,7 @@ class _EnterpriseHeader extends StatelessWidget {
       ),
     );
   }
-  Widget _initialsText(String initials) => Text(initials, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.riderGreen, letterSpacing: 0.5));
+  Widget _initialsText(String initials) => Text(initials, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.riderGreen, letterSpacing: 0.5));
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -818,22 +827,22 @@ class _CollectionFilterBar extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
       ),
       child: Row(
         children: [
-          const Icon(Icons.filter_alt_outlined, size: 18, color: AppColors.riderGreen),
+          Icon(Icons.filter_alt_outlined, size: 18, color: AppColors.riderGreen),
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String?>(
                 value: state.selectedMonth,
-                hint: const Text('Monthly — All time',
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                hint: Text('Monthly — All time',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: context.cTextSecondary)),
                 isDense: true,
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: context.cTextPrimary),
                 items: [
                   const DropdownMenuItem<String?>(
                       value: null, child: Text('All time')),
@@ -896,10 +905,10 @@ class _CollectionFilterBar extends ConsumerWidget {
             InkWell(
               onTap: () => notifier.clearFilters(),
               borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.all(6),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
                 child: Icon(Icons.close_rounded,
-                    size: 16, color: AppColors.textSecondary),
+                    size: 16, color: context.cTextSecondary),
               ),
             ),
           ],
@@ -995,7 +1004,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
                           color: Colors.white.withValues(alpha: 0.32),
                           width: 1.3),
                     ),
-                    child: const Icon(Icons.savings_rounded,
+                    child: Icon(Icons.savings_rounded,
                         color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 11),
@@ -1003,7 +1012,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'TOTAL COLLECTED',
                           style: TextStyle(
                             fontSize: 10,
@@ -1019,7 +1028,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
                               : (state.selectedMonth != null
                                   ? 'Monthly collections — ${RiderDashboardNotifier.monthLabel(state.selectedMonth!)}'
                                   : 'All-time field collections'),
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11,
                               color: Colors.white,
                               fontWeight: FontWeight.w600),
@@ -1043,7 +1052,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
                     ),
                     child: Text(
                       '${kpi.totalCompletedCollections}/${kpi.totalAssignedCollections} done',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                         color: AppColors.riderGreen,
@@ -1060,7 +1069,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
                   value: kpi.totalAmountCollected,
                   prefix: '₱',
                   decimalPlaces: 2,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
@@ -1087,7 +1096,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.trending_up_rounded,
+                  Icon(Icons.trending_up_rounded,
                       size: 13, color: Colors.white70),
                   const SizedBox(width: 6),
                   Expanded(
@@ -1095,7 +1104,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
                       ratio == 1 && kpi.totalAssignedCollections > 0
                           ? 'All collections completed — excellent field work!'
                           : '${(ratio * 100).toStringAsFixed(0)}% of assigned collections completed',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11.5,
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -1113,7 +1122,7 @@ class _EnterpriseAmountHero extends StatelessWidget {
                       ),
                       child: Text(
                         '${kpi.totalFailedCollections} failed',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: Colors.white),
@@ -1147,12 +1156,12 @@ class _ErrorBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline, color: AppColors.error, size: 18),
+          Icon(Icons.error_outline, color: AppColors.error, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               error,
-              style: const TextStyle(color: AppColors.error, fontSize: 12),
+              style: TextStyle(color: AppColors.error, fontSize: 12),
             ),
           ),
         ],

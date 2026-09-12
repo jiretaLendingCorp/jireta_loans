@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/ci/screens/rider_upload_ci_documents_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,23 +57,23 @@ class _RiderUploadCiDocumentsScreenState
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Add Photo',
+            Text('Add Photo',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             ListTile(
               leading:
-                  const Icon(Icons.camera_alt, color: AppColors.riderGreen),
-              title: const Text('Camera'),
+                  Icon(Icons.camera_alt, color: AppColors.riderGreen),
+              title: Text('Camera'),
               onTap: () => Navigator.pop(ctx, 'camera'),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined,
+              leading: Icon(Icons.photo_library_outlined,
                   color: AppColors.info),
-              title: const Text('Gallery'),
+              title: Text('Gallery'),
               onTap: () => Navigator.pop(ctx, 'gallery'),
             ),
           ],
@@ -147,10 +148,10 @@ class _RiderUploadCiDocumentsScreenState
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               children: [
                 _InfoBanner(),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 ..._photos.asMap().entries.map((e) => _PhotoCard(
                       photo: e.value,
                       index: e.key,
@@ -162,19 +163,19 @@ class _RiderUploadCiDocumentsScreenState
                       typeLabels: _typeLabels,
                       photoTypes: _photoTypes,
                     )),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.riderGreen,
-                    side: const BorderSide(color: AppColors.riderGreen),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: AppColors.riderGreen),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                     minimumSize: const Size(double.infinity, 50),
                   ),
                   onPressed: _addPhoto,
-                  icon: const Icon(Icons.add_a_photo_outlined),
-                  label: const Text('Add Photo',
+                  icon: Icon(Icons.add_a_photo_outlined),
+                  label: Text('Add Photo',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ],
@@ -182,7 +183,7 @@ class _RiderUploadCiDocumentsScreenState
           ),
           if (_photos.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: AppButton(
                 label: 'Upload ${_photos.length} Photo(s)',
                 onPressed: _isUploading ? null : _uploadAll,
@@ -201,20 +202,20 @@ class _InfoBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.riderGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(Icons.gps_fixed, color: AppColors.riderGreen, size: 18),
           SizedBox(width: 8),
           Expanded(
             child: Text(
               'All photos are GPS-tagged automatically. Add captions to describe each photo for the investigation report.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: context.cTextSecondary),
             ),
           ),
         ],
@@ -264,12 +265,12 @@ class _PhotoCardState extends State<_PhotoCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -283,17 +284,17 @@ class _PhotoCardState extends State<_PhotoCard> {
           Row(
             children: [
               Text('Photo ${widget.index + 1}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-                      color: AppColors.textPrimary)),
+                      color: context.cTextPrimary)),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                     color: AppColors.riderGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8)),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.gps_fixed,
@@ -307,26 +308,26 @@ class _PhotoCardState extends State<_PhotoCard> {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               GestureDetector(
                 onTap: widget.onRemove,
                 child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
                       color: AppColors.errorLight, shape: BoxShape.circle),
                   child:
-                      const Icon(Icons.close, color: AppColors.error, size: 14),
+                      Icon(Icons.close, color: AppColors.error, size: 14),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: XFilePreview(
                 file: widget.photo.file, height: 150, width: double.infinity),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           DropdownButtonFormField<String>(
             initialValue: widget.photo.type,
             decoration: InputDecoration(
@@ -334,7 +335,7 @@ class _PhotoCardState extends State<_PhotoCard> {
               border:
                   OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             items: widget.photoTypes
                 .map((t) => DropdownMenuItem(
@@ -344,7 +345,7 @@ class _PhotoCardState extends State<_PhotoCard> {
               if (v != null) widget.onTypeChange(v);
             },
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           TextField(
             controller: _captionCtrl,
             decoration: InputDecoration(
@@ -353,7 +354,7 @@ class _PhotoCardState extends State<_PhotoCard> {
               border:
                   OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             maxLines: 2,
             onChanged: widget.onCaptionChange,

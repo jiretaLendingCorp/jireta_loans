@@ -2,10 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'core/constants/role_constants.dart';
 import 'core/router/app_router.dart';
 import 'core/security/session_idle_detector.dart';
 import 'core/services/fcm_service.dart';
 import 'core/theme/app_theme.dart';
+import 'presentation/shared/providers/app_settings_provider.dart';
+import 'presentation/shared/providers/auth_state_provider.dart';
 import 'presentation/shared/widgets/account_paused_overlay.dart';
 import 'presentation/shared/widgets/connectivity_overlay.dart';
 import 'presentation/shared/widgets/logout_overlay.dart';
@@ -16,12 +19,20 @@ class JiretaApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
+    // Light / Dark mode — naka-persist na setting mula sa Profile.
+    final settings = ref.watch(appSettingsProvider);
+    // RIDER lang ang may dark mode: kahit naka-on ang setting, mananatiling
+    // light ang lender / employee / head manager (per role).
+    final role = ref.watch(authStateProvider.select((s) => s.role));
+    final isRider = role == RoleConstants.rider;
     // FCM taps navigate through the app's router (role-aware redirects).
     FcmService.instance.attachRouter(router);
     return MaterialApp.router(
       title: 'Jireta Loans & Credit Corp 1966',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: isRider ? settings.themeMode : ThemeMode.light,
       routerConfig: router,
       // Global overlays: Connectivity (offline) + Logout passthrough +
       // Account Paused (escalation block, lender only).

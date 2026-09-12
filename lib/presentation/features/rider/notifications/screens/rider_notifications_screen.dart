@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors
 // lib/presentation/features/rider/notifications/screens/rider_notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +31,11 @@ class RiderNotificationsScreen extends ConsumerWidget {
         label: 'CI Tasks',
         route: RouteConstants.riderCi),
     MobileNavItem(
+        icon: Icons.history_outlined,
+        activeIcon: Icons.history_rounded,
+        label: 'History',
+        route: RouteConstants.riderHistory),
+    MobileNavItem(
         icon: Icons.person_outline,
         activeIcon: Icons.person,
         label: 'Profile',
@@ -55,12 +61,12 @@ class RiderNotificationsScreen extends ConsumerWidget {
           TextButton(
             onPressed: () =>
                 ref.read(riderNotificationProvider.notifier).markAllRead(),
-            child: const Text('Mark all read',
+            child: Text('Mark all read',
                 style: TextStyle(color: Colors.white, fontSize: 13)),
           ),
       ],
       body: state.isLoading
-          ? const ShimmerLoader()
+          ? _buildSkeleton()
           : RefreshIndicator(
               color: AppColors.riderGreen,
               onRefresh: () =>
@@ -88,6 +94,40 @@ class RiderNotificationsScreen extends ConsumerWidget {
             ),
     );
   }
+}
+
+/// Skeletal (shimmer) loading para sa notifications — kaparehong layout ng
+/// tunay na tile (icon + title + body + oras) imbes na spinner.
+Widget _buildSkeleton() {
+  return ListView.builder(
+    physics: const NeverScrollableScrollPhysics(),
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
+    itemCount: 7,
+    itemBuilder: (_, __) => const Padding(
+      padding: EdgeInsets.only(bottom: 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ShimmerLoader(width: 42, height: 42, borderRadius: 21),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerLoader(width: 160, height: 13),
+                SizedBox(height: 8),
+                ShimmerLoader(height: 11),
+                SizedBox(height: 6),
+                ShimmerLoader(width: 200, height: 11),
+                SizedBox(height: 8),
+                ShimmerLoader(width: 70, height: 10),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _NotificationTile extends StatelessWidget {
@@ -161,7 +201,7 @@ class _NotificationTile extends StatelessWidget {
                                   ? FontWeight.w500
                                   : FontWeight.w700,
                               fontSize: 14,
-                              color: AppColors.textPrimary),
+                              color: context.cTextPrimary),
                         ),
                       ),
                       if (!notification.isRead)
@@ -175,14 +215,14 @@ class _NotificationTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(notification.body,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 13, color: context.cTextSecondary),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Text(timeago.format(notification.createdAt),
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textTertiary)),
+                      style: TextStyle(
+                          fontSize: 11, color: context.cTextTertiary)),
                 ],
               ),
             ),

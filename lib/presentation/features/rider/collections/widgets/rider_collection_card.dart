@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/collections/widgets/rider_collection_card.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -29,9 +30,9 @@ class RiderCollectionCard extends StatelessWidget {
       ),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.cSurface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -40,44 +41,44 @@ class RiderCollectionCard extends StatelessWidget {
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(color: AppColors.border, width: 1),
+          border: Border.all(color: context.cBorder, width: 1),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppColors.riderGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.payments_outlined,
+                    child: Icon(Icons.payments_outlined,
                         color: AppColors.riderGreen, size: 20),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           borrowerName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
-                            color: AppColors.textPrimary,
+                            color: context.cTextPrimary,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           dueDate != null
                               ? 'Due: ${DateTime.tryParse(dueDate)?.toPhilippineDate() ?? dueDate}'
                               : 'No due date',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 12, color: context.cTextSecondary),
                         ),
                       ],
                     ),
@@ -85,9 +86,9 @@ class RiderCollectionCard extends StatelessWidget {
                   StatusBadge(status: collection.status),
                 ],
               ),
-              const SizedBox(height: 12),
-              const Divider(height: 1, color: AppColors.divider),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
+              Divider(height: 1, color: context.cDivider),
+              SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -104,11 +105,11 @@ class RiderCollectionCard extends StatelessWidget {
                       value: collection.collectionSchedule!.toPhilippineDate(),
                       color: AppColors.info,
                     ),
-                  const _InfoChip(
+                  _InfoChip(
                     icon: Icons.arrow_forward_ios,
                     label: '',
                     value: 'View',
-                    color: AppColors.textTertiary,
+                    color: context.cTextTertiary,
                   ),
                 ],
               ),
@@ -138,7 +139,7 @@ class _InfoChip extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

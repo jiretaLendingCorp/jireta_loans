@@ -69,4 +69,70 @@ class AppColors {
   static const Color textHint = Color(0xFFB0B0C0);
   static const Color statusApproved = Color(0xFF2E7D32);
   static const Color statusApprovedBg = Color(0xFFE8F5E9);
+
+  // ─── DARK MODE palette ─────────────────────────────────────────────────
+  // Ginagamit ng [AppThemeColors] extension sa ibaba. Ang mga screen na
+  // naka-migrate na sa `context.cSurface` / `context.cTextPrimary` atbp. ang
+  // nag-a-adapt kapag naka-dark mode.
+  static const Color darkPageBg = Color(0xFF0D1117);
+  static const Color darkSurface = Color(0xFF161B22);
+  static const Color darkSurfaceVariant = Color(0xFF1C232C);
+  static const Color darkBorder = Color(0xFF2A323C);
+  static const Color darkDivider = Color(0xFF232A33);
+  static const Color darkTextPrimary = Color(0xFFE6EAF0);
+  static const Color darkTextSecondary = Color(0xFFA9B2BF);
+  static const Color darkTextTertiary = Color(0xFF7C8798);
+
+  /// Header/AppBar sa dark mode — itim.
+  static const Color darkAppBar = Color(0xFF000000);
+
+  /// Shimmer (skeleton loading) sa dark mode.
+  static const Color darkShimmerBase = Color(0xFF1B222B);
+  static const Color darkShimmerHighlight = Color(0xFF2C3641);
+}
+
+/// Theme-aware color tokens (light + dark).
+///
+/// Gamitin sa loob ng `build()` ng mga screen na sumusuporta sa dark mode:
+/// `color: context.cSurface`, `color: context.cTextPrimary`, atbp.
+/// Hindi ito `const` kaya alisin ang `const` sa `TextStyle`/`BoxDecoration`
+/// na gumagamit nito.
+extension AppThemeColors on BuildContext {
+  bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+
+  /// Card / sheet surface.
+  Color get cSurface =>
+      isDarkMode ? AppColors.darkSurface : Colors.white;
+
+  /// Page background.
+  Color get cPageBg =>
+      isDarkMode ? AppColors.darkPageBg : const Color(0xFFF0F2F5);
+
+  Color get cSurfaceVariant =>
+      isDarkMode ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant;
+
+  Color get cTextPrimary =>
+      isDarkMode ? AppColors.darkTextPrimary : AppColors.textPrimary;
+
+  Color get cTextSecondary =>
+      isDarkMode ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
+  Color get cTextTertiary =>
+      isDarkMode ? AppColors.darkTextTertiary : AppColors.textTertiary;
+
+  Color get cBorder => isDarkMode ? AppColors.darkBorder : AppColors.border;
+
+  Color get cDivider => isDarkMode ? AppColors.darkDivider : AppColors.divider;
+
+  /// Soft shadows are almost invisible on dark surfaces.
+  Color get cShadow =>
+      isDarkMode ? Colors.black.withValues(alpha: 0.5) : Colors.black;
+
+  /// Header/AppBar: itim sa dark mode, kulay ng role (accent) sa light mode.
+  Color headerColor(Color accent) =>
+      isDarkMode ? AppColors.darkAppBar : accent;
+
+  /// Rider green na nababasa sa dark surfaces (mas maliwanag sa dark mode).
+  Color get cBrandGreen =>
+      isDarkMode ? AppColors.riderGreenLight : AppColors.riderGreen;
 }

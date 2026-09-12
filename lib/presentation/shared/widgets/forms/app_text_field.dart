@@ -34,6 +34,11 @@ class AppTextField extends StatefulWidget {
   /// square (no border radius) look used by the assign-rider modals.
   final BorderRadius? borderRadius;
 
+  /// Text-like field: walang box at walang fill — manipis na underline lang.
+  /// Ginagamit sa Edit Profile para mukhang plain text ang mga value habang
+  /// naka-pindot pa rin. Default: false (dating boxed look).
+  final bool minimal;
+
   const AppTextField({
     super.key,
     required this.label,
@@ -55,6 +60,7 @@ class AppTextField extends StatefulWidget {
     this.focusNode,
     this.initialValue,
     this.borderRadius,
+    this.minimal = false,
   });
 
   @override
@@ -87,65 +93,113 @@ class _AppTextFieldState extends State<AppTextField> {
       onChanged: widget.onChanged,
       scrollPadding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom + 340),
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 14,
-        color: AppColors.textPrimary,
+        color: context.cTextPrimary,
         fontFamily: 'Inter',
       ),
-      decoration: InputDecoration(
+      decoration: _decoration(context, radius),
+    );
+  }
+
+  Widget? get _prefix => widget.prefixIcon != null
+      ? Icon(widget.prefixIcon, size: 18, color: AppColors.textSecondary)
+      : null;
+
+  Widget? get _suffix => widget.showPasswordToggle
+      ? GestureDetector(
+          onTap: () => setState(() => _obscure = !_obscure),
+          child: Icon(
+            _obscure
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
+        )
+      : widget.suffix;
+
+  InputDecoration _decoration(BuildContext context, BorderRadius radius) {
+    // ── Text-like variant ────────────────────────────────────────────────
+    // Walang box/fill; label sa itaas at manipis na underline ang value.
+    if (widget.minimal) {
+      return InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
         counterText: '',
-        hintStyle: const TextStyle(
-          fontSize: 13,
-          color: AppColors.textTertiary,
-        ),
-        prefixIcon: widget.prefixIcon != null
-            ? Icon(widget.prefixIcon, size: 18, color: AppColors.textSecondary)
-            : null,
-        suffixIcon: widget.showPasswordToggle
-            ? GestureDetector(
-                onTap: () => setState(() => _obscure = !_obscure),
-                child: Icon(
-                  _obscure
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: 18,
-                  color: AppColors.textSecondary,
-                ),
-              )
-            : widget.suffix,
-        border: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: radius,
-          borderSide: const BorderSide(color: AppColors.error),
-        ),
-        filled: true,
-        fillColor: widget.enabled ? Colors.white : AppColors.surfaceVariant,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        labelStyle: const TextStyle(
-          fontSize: 13,
-          color: AppColors.textSecondary,
-        ),
-        floatingLabelStyle: const TextStyle(
+        isDense: true,
+        hintStyle: TextStyle(fontSize: 13, color: context.cTextTertiary),
+        prefixIcon: _prefix,
+        prefixIconConstraints:
+            const BoxConstraints(minWidth: 0, minHeight: 0),
+        suffixIcon: _suffix,
+        filled: false,
+        contentPadding: const EdgeInsets.fromLTRB(0, 6, 0, 8),
+        labelStyle: TextStyle(
           fontSize: 12,
-          color: AppColors.deepNavy,
-          fontWeight: FontWeight.w500,
+          color: context.cTextTertiary,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
         ),
+        floatingLabelStyle: TextStyle(
+          fontSize: 12,
+          color: context.cTextPrimary,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+        border: UnderlineInputBorder(
+            borderSide: BorderSide(color: context.cBorder)),
+        enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: context.cBorder)),
+        focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: context.cTextPrimary, width: 1.5)),
+        errorBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.error)),
+        focusedErrorBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.error, width: 1.5)),
+      );
+    }
+
+    return InputDecoration(
+      labelText: widget.label,
+      hintText: widget.hint,
+      counterText: '',
+      hintStyle: const TextStyle(
+        fontSize: 13,
+        color: AppColors.textTertiary,
+      ),
+      prefixIcon: _prefix,
+      suffixIcon: _suffix,
+      border: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: const BorderSide(color: AppColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: const BorderSide(color: AppColors.deepNavy, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      filled: true,
+      fillColor: widget.enabled ? Colors.white : AppColors.surfaceVariant,
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 14,
+      ),
+      labelStyle: const TextStyle(
+        fontSize: 13,
+        color: AppColors.textSecondary,
+      ),
+      floatingLabelStyle: const TextStyle(
+        fontSize: 12,
+        color: AppColors.deepNavy,
+        fontWeight: FontWeight.w500,
       ),
     );
   }

@@ -73,6 +73,7 @@ class RouteConstants {
   static const String riderDashboard = '/rider/dashboard';
   static const String riderDisbursements = '/rider/disbursements';
   static const String riderDisbursementUploadProof = '/rider/disbursements/:id/proof';
+  static const String riderHistory = '/rider/history';
   static const String riderCollections = '/rider/collections';
   static const String riderCollectionDetails = '/rider/collections/:id';
   static const String riderRecordCollection = '/rider/collections/:id/record';

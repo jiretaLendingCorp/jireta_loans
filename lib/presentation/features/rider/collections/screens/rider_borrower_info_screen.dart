@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/collections/screens/rider_borrower_info_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -76,10 +77,10 @@ class _RiderBorrowerInfoScreenState
             .loadDetails(widget.collectionId);
       },
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         children: [
           _ProfileCard(name: fullName, phone: phone),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _ContactActionsCard(
             phone: phone,
             onCall: () => _callBorrower(phone),
@@ -93,22 +94,22 @@ class _RiderBorrowerInfoScreenState
               );
             },
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _SectionCard(
             title: 'GCash Number',
             icon: Icons.account_balance_wallet_outlined,
             child: Text(gcash.maskPhone(),
                 style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           if (addresses.isNotEmpty) _AddressesCard(addresses: addresses),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.riderGreen,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
@@ -117,8 +118,8 @@ class _RiderBorrowerInfoScreenState
               RouteConstants.riderNavigateToBorrower
                   .replaceFirst(':id', widget.collectionId),
             ),
-            icon: const Icon(Icons.navigation_outlined),
-            label: const Text('Navigate to Lender',
+            icon: Icon(Icons.navigation_outlined),
+            label: Text('Navigate to Lender',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
           ),
         ],
@@ -135,7 +136,7 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.riderGreenDark, AppColors.riderGreen],
@@ -151,23 +152,23 @@ class _ProfileCard extends StatelessWidget {
             backgroundColor: Colors.white.withValues(alpha: 0.2),
             child: Text(
               name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: const TextStyle(
+              style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
                   fontWeight: FontWeight.bold),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(name,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(phone.maskPhone(),
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.85),
@@ -195,11 +196,11 @@ class _ContactActionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -210,12 +211,12 @@ class _ContactActionsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Contact Lender',
+          Text('Contact Lender',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
+                  color: context.cTextPrimary)),
+          SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -225,7 +226,7 @@ class _ContactActionsCard extends StatelessWidget {
                     color: AppColors.riderGreen,
                     onTap: onCall),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: _ActionButton(
                     icon: Icons.sms_outlined,
@@ -233,12 +234,12 @@ class _ContactActionsCard extends StatelessWidget {
                     color: AppColors.info,
                     onTap: onSms),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: _ActionButton(
                     icon: Icons.copy_outlined,
                     label: 'Copy',
-                    color: AppColors.textSecondary,
+                    color: context.cTextSecondary,
                     onTap: onCopy),
               ),
             ],
@@ -265,7 +266,7 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
@@ -274,7 +275,7 @@ class _ActionButton extends StatelessWidget {
         child: Column(
           children: [
             Icon(icon, color: color, size: 22),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(label,
                 style: TextStyle(
                     color: color, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -295,11 +296,11 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -310,15 +311,15 @@ class _SectionCard extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: AppColors.riderGreen, size: 20),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary)),
-                const SizedBox(height: 2),
+                    style: TextStyle(
+                        fontSize: 12, color: context.cTextSecondary)),
+                SizedBox(height: 2),
                 child,
               ],
             ),
@@ -336,11 +337,11 @@ class _AddressesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -351,7 +352,7 @@ class _AddressesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.location_on_outlined,
                   color: AppColors.riderGreen, size: 20),
@@ -360,10 +361,10 @@ class _AddressesCard extends StatelessWidget {
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
-                      color: AppColors.textPrimary)),
+                      color: context.cTextPrimary)),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           ...addresses.map((addr) {
             final a = addr as Map<String, dynamic>;
             final type = (a['address_type'] as String? ?? '').toUpperCase();
@@ -374,27 +375,27 @@ class _AddressesCard extends StatelessWidget {
               a['province'],
             ].where((e) => e != null && (e as String).isNotEmpty).join(', ');
             return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.only(bottom: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: AppColors.riderGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(type,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: AppColors.riderGreen)),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(full.isEmpty ? '—' : full,
-                      style: const TextStyle(
-                          fontSize: 14, color: AppColors.textPrimary)),
+                      style: TextStyle(
+                          fontSize: 14, color: context.cTextPrimary)),
                 ],
               ),
             );

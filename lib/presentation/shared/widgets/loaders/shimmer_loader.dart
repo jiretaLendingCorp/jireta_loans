@@ -17,14 +17,20 @@ class ShimmerLoader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Dark mode: itim / dark gray ang shimmer (hindi puting block sa dark bg).
+    final base =
+        context.isDarkMode ? AppColors.darkShimmerBase : AppColors.shimmerBase;
+    final highlight = context.isDarkMode
+        ? AppColors.darkShimmerHighlight
+        : AppColors.shimmerHighlight;
     return Shimmer.fromColors(
-      baseColor: AppColors.shimmerBase,
-      highlightColor: AppColors.shimmerHighlight,
+      baseColor: base,
+      highlightColor: highlight,
       child: Container(
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.shimmerBase,
+          color: base,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
       ),
@@ -37,24 +43,30 @@ class SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final base =
+        context.isDarkMode ? AppColors.darkShimmerBase : AppColors.shimmerBase;
+    final highlight = context.isDarkMode
+        ? AppColors.darkShimmerHighlight
+        : AppColors.shimmerHighlight;
+    final surface = context.isDarkMode ? AppColors.darkSurface : Colors.white;
     return Shimmer.fromColors(
-      baseColor: AppColors.shimmerBase,
-      highlightColor: AppColors.shimmerHighlight,
+      baseColor: base,
+      highlightColor: highlight,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.cBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(height: 14, color: Colors.white, width: 100),
+            Container(height: 14, color: base, width: 100),
             const SizedBox(height: 8),
-            Container(height: 28, color: Colors.white, width: 140),
+            Container(height: 28, color: base, width: 140),
             const SizedBox(height: 6),
-            Container(height: 12, color: Colors.white, width: 80),
+            Container(height: 12, color: base, width: 80),
           ],
         ),
       ),

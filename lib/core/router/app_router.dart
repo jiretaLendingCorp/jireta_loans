@@ -98,6 +98,7 @@ import '../../presentation/features/rider/ci/screens/rider_navigate_to_borrower_
 import '../../presentation/features/rider/ci/screens/rider_submit_ci_report_screen.dart';
 import '../../presentation/features/rider/ci/screens/rider_upload_ci_documents_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_borrower_info_screen.dart';
+import '../../presentation/features/rider/history/screens/rider_history_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_collection_details_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_collection_list_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_navigate_to_borrower_screen.dart';
@@ -497,6 +498,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.riderDisbursementUploadProof,
           builder: (ctx, s) => RiderDisbursementUploadProofScreen(
               disbursementId: s.pathParameters['id']!)),
+      GoRoute(
+          path: RouteConstants.riderHistory,
+          builder: (ctx, s) => const RiderHistoryScreen()),
       GoRoute(
           path: RouteConstants.riderCollections,
           builder: (ctx, s) => const RiderCollectionListScreen()),

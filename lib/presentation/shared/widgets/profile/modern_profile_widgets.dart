@@ -66,6 +66,43 @@ class ModernProfileStyles {
         fontWeight: FontWeight.w400,
         color: AppColors.textSecondary,
       );
+
+  // ── DARK MODE variants ────────────────────────────────────────────────
+  // Sa light mode, kapareho lang ng static values sa itaas (walang visual
+  // change); sa dark mode, kumukuha sa AppThemeColors tokens.
+  static BoxDecoration cardOf(BuildContext context) => BoxDecoration(
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(cardRadius),
+        border: Border.all(color: context.cBorder),
+      );
+
+  static Color hairlineOf(BuildContext context) => context.cDivider;
+
+  static Color iconBgOf(BuildContext context) => context.cSurfaceVariant;
+
+  static Color iconColorOf(BuildContext context) =>
+      context.isDarkMode ? AppColors.darkTextSecondary : iconColor;
+
+  static TextStyle sectionLabelOf(BuildContext context) =>
+      sectionLabel.copyWith(color: context.cTextTertiary);
+
+  static TextStyle nameOf(BuildContext context) =>
+      name.copyWith(color: context.cTextPrimary);
+
+  static TextStyle subOf(BuildContext context) =>
+      sub.copyWith(color: context.cTextSecondary);
+
+  static TextStyle rowLabelOf(BuildContext context) =>
+      rowLabel.copyWith(color: context.cTextTertiary);
+
+  static TextStyle rowValueOf(BuildContext context) =>
+      rowValue.copyWith(color: context.cTextPrimary);
+
+  static TextStyle menuTitleOf(BuildContext context) =>
+      menuTitle.copyWith(color: context.cTextPrimary);
+
+  static TextStyle menuSubtitleOf(BuildContext context) =>
+      menuSubtitle.copyWith(color: context.cTextSecondary);
 }
 
 /// Centered header: avatar with subtle ring, name, subtitle lines,
@@ -132,16 +169,15 @@ class ModernProfileHeader extends StatelessWidget {
         ? _buildAvatar()
         : Container(
             padding: const EdgeInsets.all(3),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white,
+              color: context.cSurface,
             ),
             child: Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                    color: ModernProfileStyles.cardBorder, width: 1.5),
+                border: Border.all(color: context.cBorder, width: 1.5),
               ),
               child: _buildAvatar(),
             ),
@@ -154,11 +190,13 @@ class ModernProfileHeader extends StatelessWidget {
         Text(
           name.isEmpty ? '—' : name,
           textAlign: TextAlign.center,
-          style: ModernProfileStyles.name,
+          style: ModernProfileStyles.nameOf(context),
         ),
         for (final s in subtitles) ...[
           const SizedBox(height: 3),
-          Text(s, textAlign: TextAlign.center, style: ModernProfileStyles.sub),
+          Text(s,
+              textAlign: TextAlign.center,
+              style: ModernProfileStyles.subOf(context)),
         ],
         const SizedBox(height: 10),
         if (statusAsText)
@@ -219,7 +257,7 @@ class ModernProfileHeader extends StatelessWidget {
     }
     return Container(
       width: double.infinity,
-      decoration: ModernProfileStyles.card,
+      decoration: ModernProfileStyles.cardOf(context),
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
       child: content,
     );
@@ -239,66 +277,131 @@ class ModernProfileHeader extends StatelessWidget {
 }
 
 /// Minimal info card: icon rows separated by hairlines.
-/// No collapsible animation, no colored icon tiles — calm and scannable.
-class ModernInfoCard extends StatelessWidget {
+/// Kapag [collapsible] = true, pwedeng i-tap ang header para i-toggle
+/// (expand/collapse) ang mga rows. Default: laging bukas (dating look).
+class ModernInfoCard extends StatefulWidget {
   final String title;
   final IconData icon;
   final List<ModernInfoRowData> rows;
+
+  /// Kapag true, tappable ang header at pwedeng itago ang rows.
+  final bool collapsible;
+
+  /// Simula sa expanded state (kapag [collapsible]).
+  final bool initiallyExpanded;
+
+  /// Walang card box (puting background/border) — plain na nakalapat lang
+  /// sa page, hairlines pa rin ang naghihiwalay sa rows.
+  final bool flat;
 
   const ModernInfoCard({
     super.key,
     required this.title,
     required this.icon,
     required this.rows,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
+    this.flat = false,
   });
 
   @override
+  State<ModernInfoCard> createState() => _ModernInfoCardState();
+}
+
+class _ModernInfoCardState extends State<ModernInfoCard> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _toggle() {
+    if (!widget.collapsible) return;
+    setState(() => _expanded = !_expanded);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Flat: kaunting indent lang para pantay sa section label (4px).
+    final pad = widget.flat ? 4.0 : 16.0;
+    final header = Padding(
+      padding: EdgeInsets.fromLTRB(pad, 14, pad, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: ModernProfileStyles.iconBgOf(context),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            alignment: Alignment.center,
+            child: Icon(widget.icon,
+                size: 16, color: ModernProfileStyles.iconColorOf(context)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              widget.title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: context.cTextPrimary,
+              ),
+            ),
+          ),
+          if (widget.collapsible)
+            AnimatedRotation(
+              turns: _expanded ? 0 : 0.5,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeInOut,
+              child: Icon(Icons.expand_more_rounded,
+                  size: 20, color: context.cTextTertiary),
+            ),
+        ],
+      ),
+    );
+
+    final rowsSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Divider(height: 1, color: ModernProfileStyles.hairlineOf(context)),
+        for (var i = 0; i < widget.rows.length; i++) ...[
+          _Row(entry: widget.rows[i], horizontal: pad),
+          if (i != widget.rows.length - 1)
+            Divider(
+              height: 1,
+              indent: pad + 42,
+              endIndent: pad,
+              color: ModernProfileStyles.hairlineOf(context),
+            ),
+        ],
+        const SizedBox(height: 4),
+      ],
+    );
+
     return Container(
       width: double.infinity,
-      decoration: ModernProfileStyles.card,
+      decoration: widget.flat ? null : ModernProfileStyles.cardOf(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    color: ModernProfileStyles.iconBg,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon,
-                      size: 16, color: ModernProfileStyles.iconColor),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: ModernProfileStyles.hairline),
-          for (var i = 0; i < rows.length; i++) ...[
-            _Row(entry: rows[i]),
-            if (i != rows.length - 1)
-              const Divider(
-                height: 1,
-                indent: 58,
-                endIndent: 16,
-                color: ModernProfileStyles.hairline,
-              ),
-          ],
-          const SizedBox(height: 4),
+          if (widget.collapsible)
+            InkWell(
+              onTap: _toggle,
+              borderRadius: BorderRadius.circular(ModernProfileStyles.cardRadius),
+              child: header,
+            )
+          else
+            header,
+          if (widget.collapsible)
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 200),
+              sizeCurve: Curves.easeInOut,
+              crossFadeState: _expanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: rowsSection,
+            )
+          else
+            rowsSection,
         ],
       ),
     );
@@ -318,26 +421,29 @@ class ModernInfoRowData {
 
 class _Row extends StatelessWidget {
   final ModernInfoRowData entry;
-  const _Row({required this.entry});
+  final double horizontal;
+  const _Row({required this.entry, this.horizontal = 16});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: 11),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(entry.icon, size: 16, color: ModernProfileStyles.iconColor),
+          Icon(entry.icon,
+              size: 16, color: ModernProfileStyles.iconColorOf(context)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.label, style: ModernProfileStyles.rowLabel),
+                Text(entry.label,
+                    style: ModernProfileStyles.rowLabelOf(context)),
                 const SizedBox(height: 2),
                 Text(
                   entry.value.isEmpty ? '—' : entry.value,
-                  style: ModernProfileStyles.rowValue,
+                  style: ModernProfileStyles.rowValueOf(context),
                 ),
               ],
             ),
@@ -357,17 +463,17 @@ class ModernMenuCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: ModernProfileStyles.card,
+      decoration: ModernProfileStyles.cardOf(context),
       child: Column(
         children: [
           for (var i = 0; i < items.length; i++) ...[
             _MenuRow(item: items[i]),
             if (i != items.length - 1)
-              const Divider(
+              Divider(
                 height: 1,
                 indent: 58,
                 endIndent: 0,
-                color: ModernProfileStyles.hairline,
+                color: ModernProfileStyles.hairlineOf(context),
               ),
           ],
         ],
@@ -381,11 +487,17 @@ class ModernMenuItem {
   final String title;
   final String? subtitle;
   final VoidCallback onTap;
+
+  /// Optional na widget sa dulong kanan (hal. `Switch` para sa settings row).
+  /// Kapag null, chevron ang ipapakita.
+  final Widget? trailing;
+
   const ModernMenuItem({
     required this.icon,
     required this.title,
     this.subtitle,
     required this.onTap,
+    this.trailing,
   });
 }
 
@@ -406,29 +518,32 @@ class _MenuRow extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: ModernProfileStyles.iconBg,
+                color: ModernProfileStyles.iconBgOf(context),
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
               child: Icon(item.icon,
-                  size: 17, color: ModernProfileStyles.iconColor),
+                  size: 17,
+                  color: ModernProfileStyles.iconColorOf(context)),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.title, style: ModernProfileStyles.menuTitle),
+                  Text(item.title,
+                      style: ModernProfileStyles.menuTitleOf(context)),
                   if (item.subtitle != null) ...[
                     const SizedBox(height: 1),
                     Text(item.subtitle!,
-                        style: ModernProfileStyles.menuSubtitle),
+                        style: ModernProfileStyles.menuSubtitleOf(context)),
                   ],
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                size: 20, color: AppColors.textTertiary),
+            item.trailing ??
+                Icon(Icons.chevron_right_rounded,
+                    size: 20, color: context.cTextTertiary),
           ],
         ),
       ),
@@ -497,7 +612,8 @@ class ModernSectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-      child: Text(text.toUpperCase(), style: ModernProfileStyles.sectionLabel),
+      child: Text(text.toUpperCase(),
+          style: ModernProfileStyles.sectionLabelOf(context)),
     );
   }
 }
@@ -521,9 +637,9 @@ class ModernInfoSheet extends StatelessWidget {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.8,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: context.cSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         top: false,
@@ -537,7 +653,7 @@ class ModernInfoSheet extends StatelessWidget {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: ModernProfileStyles.cardBorder,
+                  color: context.cBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -550,33 +666,35 @@ class ModernInfoSheet extends StatelessWidget {
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: ModernProfileStyles.iconBg,
+                      color: ModernProfileStyles.iconBgOf(context),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     alignment: Alignment.center,
                     child: Icon(icon,
-                        size: 17, color: ModernProfileStyles.iconColor),
+                        size: 17,
+                        color: ModernProfileStyles.iconColorOf(context)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
+                        color: context.cTextPrimary,
                       ),
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded,
-                        size: 20, color: AppColors.textTertiary),
+                    icon: Icon(Icons.close_rounded,
+                        size: 20, color: context.cTextTertiary),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: ModernProfileStyles.hairline),
+            Divider(
+                height: 1, color: ModernProfileStyles.hairlineOf(context)),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -586,19 +704,19 @@ class ModernInfoSheet extends StatelessWidget {
                     for (final s in sections) ...[
                       Text(
                         s.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                          color: context.cTextPrimary,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         s.body,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           height: 1.65,
-                          color: AppColors.textSecondary,
+                          color: context.cTextSecondary,
                         ),
                       ),
                       const SizedBox(height: 16),

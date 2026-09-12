@@ -1,4 +1,4 @@
-// ignore_for_file: prefer_const_constructors
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/live_tracking/screens/rider_live_tracking_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -364,6 +364,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
         MobileNavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Home', route: RouteConstants.riderDashboard),
         MobileNavItem(icon: Icons.delivery_dining_outlined, activeIcon: Icons.delivery_dining, label: 'Collections', route: RouteConstants.riderCollections),
         MobileNavItem(icon: Icons.search_outlined, activeIcon: Icons.search, label: 'CI Tasks', route: RouteConstants.riderCi),
+        MobileNavItem(icon: Icons.history_outlined, activeIcon: Icons.history_rounded, label: 'History', route: RouteConstants.riderHistory),
         MobileNavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'Profile', route: RouteConstants.riderProfile),
       ],
       body: Stack(
@@ -392,31 +393,31 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
             right: 12,
             child: Row(children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)]),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(20), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)]),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   AnimatedBuilder(
                     animation: _pulseCtrl,
                     builder: (_, __) {
                       final s = 0.85 + 0.25 * _pulseCtrl.value;
                       return Stack(alignment: Alignment.center, children: [
-                        Opacity(opacity: (1 - _pulseCtrl.value) * 0.45, child: Container(width: 10 * s, height: 10 * s, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle))),
-                        Container(width: 7, height: 7, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+                        Opacity(opacity: (1 - _pulseCtrl.value) * 0.45, child: Container(width: 10 * s, height: 10 * s, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle))),
+                        Container(width: 7, height: 7, decoration: BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
                       ]);
                     },
                   ),
-                  const SizedBox(width: 6),
-                  const Text('Live', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.success)),
-                  const SizedBox(width: 6),
-                  Text(_displayPos != null ? 'You are on the move' : 'Acquiring GPS...', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  SizedBox(width: 6),
+                  Text('Live', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.success)),
+                  SizedBox(width: 6),
+                  Text(_displayPos != null ? 'You are on the move' : 'Acquiring GPS...', style: TextStyle(fontSize: 11, color: context.cTextSecondary)),
                 ]),
               ),
               const Spacer(),
               if (_geocoding)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(color: AppColors.warningLight, borderRadius: BorderRadius.circular(12)),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 6), Text('Locating...', style: TextStyle(fontSize: 10))]),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 6), Text('Locating...', style: TextStyle(fontSize: 10))]),
                 ),
             ]),
           ),
@@ -429,7 +430,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
               left: 12,
               right: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: loc.error!.contains('permanently denied')
                       ? AppColors.error.withValues(alpha: 0.95)
@@ -439,16 +440,16 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.location_off, color: Colors.white, size: 20),
-                    const SizedBox(width: 8),
+                    Icon(Icons.location_off, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         loc.error!,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
                         maxLines: 2,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
                         if (loc.error!.contains('permanently denied')) {
@@ -458,8 +459,8 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                         }
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(20)),
                         child: Text(
                           loc.error!.contains('permanently denied') ? 'Open Settings' : 'Turn On',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: loc.error!.contains('permanently denied') ? AppColors.error : const Color(0xFFE53E3E)),
@@ -476,22 +477,22 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
             left: 12,
             child: Container(
               width: 160,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Tracking Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
+                Text('Tracking Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                SizedBox(height: 8),
                 _FilterChip(label: 'All', count: allTasks.length, selected: _filter == 'All', onTap: () { setState(() { _filter = 'All'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
                 _FilterChip(label: 'Collections', count: dash.todayCollections.length, selected: _filter == 'Collections', onTap: () { setState(() { _filter = 'Collections'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
                 _FilterChip(label: 'Deliveries', count: dash.todayDeliveries.length, selected: _filter == 'Deliveries', onTap: () { setState(() { _filter = 'Deliveries'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
                 _FilterChip(label: 'CI', count: dash.todayCiTasks.length, selected: _filter == 'CI', onTap: () { setState(() { _filter = 'CI'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
-                const Divider(height: 16),
+                Divider(height: 16),
                 Row(children: [
                   SizedBox(width: 18, height: 18, child: Checkbox(value: _showRoutes, onChanged: (v) => setState(() => _showRoutes = v ?? true), activeColor: AppColors.riderGreen, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap)),
-                  const SizedBox(width: 6),
-                  const Text('Show Routes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  SizedBox(width: 6),
+                  Text('Show Routes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 ]),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -499,9 +500,9 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                       ref.read(riderLocationProvider.notifier).startTracking();
                       _resolveSelectedDestination();
                     },
-                    icon: const Icon(Icons.refresh, size: 14),
-                    label: const Text('Refresh', style: TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8), side: const BorderSide(color: AppColors.border)),
+                    icon: Icon(Icons.refresh, size: 14),
+                    label: Text('Refresh', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 8), side: BorderSide(color: context.cBorder)),
                   ),
                 ),
               ]),
@@ -514,45 +515,45 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
               right: 12,
               child: Container(
                 width: 200,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     CircleAvatar(radius: 18, backgroundColor: AppColors.riderGreen.withValues(alpha: 0.1), child: Icon(selectedTask['type'] == 'Collection' ? Icons.payments_outlined : selectedTask['type'] == 'Delivery' ? Icons.delivery_dining : Icons.search, size: 18, color: AppColors.riderGreen)),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Builder(builder: (context) {
                           final raw = selectedTask['label'] as String;
                           final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
-                          return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800));
+                          return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800));
                         }),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                          child: Text(selectedTask['status'] as String, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
+                          child: Text(selectedTask['status'] as String, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
                         ),
                       ]),
                     ),
                   ]),
-                  const SizedBox(height: 8),
-                  Text(selectedTask['subtitle'] as String, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text(selectedTask['address'] as String == '' ? 'No address on file' : selectedTask['address'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 8),
+                  Text(selectedTask['subtitle'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.cTextPrimary)),
+                  SizedBox(height: 2),
+                  Text(selectedTask['address'] as String == '' ? 'No address on file' : selectedTask['address'] as String, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: context.cTextSecondary)),
+                  SizedBox(height: 6),
                   Row(children: [
-                    const Icon(Icons.speed, size: 12, color: AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Text('Speed: $riderSpeedText', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                    Icon(Icons.speed, size: 12, color: context.cTextTertiary),
+                    SizedBox(width: 4),
+                    Text('Speed: $riderSpeedText', style: TextStyle(fontSize: 11, color: context.cTextSecondary)),
                     const Spacer(),
-                    Text(_relative(loc.lastUpdated), style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                    Text(_relative(loc.lastUpdated), style: TextStyle(fontSize: 10, color: context.cTextTertiary)),
                   ]),
                   if (riderDistText != null && riderEtaText != null) ...[
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Row(children: [
-                      const Icon(Icons.route_outlined, size: 12, color: AppColors.riderGreen),
-                      const SizedBox(width: 4),
-                      Text('$riderDistText • ETA: $riderEtaText', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.riderGreen)),
+                      Icon(Icons.route_outlined, size: 12, color: AppColors.riderGreen),
+                      SizedBox(width: 4),
+                      Text('$riderDistText • ETA: $riderEtaText', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.riderGreen)),
                     ]),
                   ],
                 ]),
@@ -566,9 +567,9 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)]),
-                  child: Text(riderDistText != null && riderEtaText != null ? 'You → Lender  •  ETA: $riderEtaText  •  $riderDistText' : 'You → Lender  •  Locating…', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)]),
+                  child: Text(riderDistText != null && riderEtaText != null ? 'You → Lender  •  ETA: $riderEtaText  •  $riderDistText' : 'You → Lender  •  Locating…', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
                 ),
               ),
             ),
@@ -578,26 +579,29 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
             right: 0,
             bottom: 0,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-              decoration: const BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)]),
+              padding: EdgeInsets.fromLTRB(12, 12, 12, 12),
+              decoration: BoxDecoration(color: context.cSurface, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)]),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Text('Active Tasks (${allTasks.length})', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                  Text('Active Tasks (${allTasks.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
                   const Spacer(),
                   GestureDetector(
                     onTap: () {},
-                    child: const Row(children: [Text('View All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.riderGreen)), SizedBox(width: 4), Icon(Icons.arrow_forward, size: 14, color: AppColors.riderGreen)]),
+                    child: Row(children: [Text('View All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.riderGreen)), SizedBox(width: 4), Icon(Icons.arrow_forward, size: 14, color: AppColors.riderGreen)]),
                   ),
                 ]),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 SizedBox(
                   height: 92,
                   child: allTasks.isEmpty
-                      ? const Center(child: Text('No active tasks', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)))
+                      ? Center(
+                          child: Text('No active tasks',
+                              style: TextStyle(
+                                  fontSize: 12, color: context.cTextSecondary)))
                       : ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: allTasks.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          separatorBuilder: (_, __) => SizedBox(width: 8),
                           itemBuilder: (ctx, i) {
                             final t = allTasks[i];
                             final isSel = i == _selectedTaskIndex;
@@ -608,30 +612,30 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                               },
                               child: Container(
                                 width: 150,
-                                padding: const EdgeInsets.all(10),
+                                padding: EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: isSel ? AppColors.riderGreen : AppColors.border, width: isSel ? 1.5 : 1),
+                                  border: Border.all(color: isSel ? AppColors.riderGreen : context.cBorder, width: isSel ? 1.5 : 1),
                                   boxShadow: isSel ? [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.15), blurRadius: 8)] : null,
                                 ),
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Row(children: [
                                     Icon(t['type'] == 'Collection' ? Icons.payments : t['type'] == 'Delivery' ? Icons.delivery_dining : Icons.search, size: 14, color: AppColors.riderGreen),
-                                    const SizedBox(width: 4),
+                                    SizedBox(width: 4),
                                     Expanded(child: Builder(builder: (context) {
                                       final raw = t['label'] as String;
                                       final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
-                                      return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700));
+                                      return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700));
                                     })),
                                   ]),
-                                  const SizedBox(height: 4),
-                                  Text(t['subtitle'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                  SizedBox(height: 4),
+                                  Text(t['subtitle'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: context.cTextSecondary)),
                                   const Spacer(),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                                    child: Text(t['status'] as String, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.success)),
+                                    child: Text(t['status'] as String, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.success)),
                                   ),
                                 ]),
                               ),
@@ -639,10 +643,10 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                           },
                         ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                         color: loc.error != null ? AppColors.error.withValues(alpha: 0.12) : AppColors.successLight,
                         borderRadius: BorderRadius.circular(20)),
@@ -650,29 +654,29 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                         style: TextStyle(
                             fontSize: 10, fontWeight: FontWeight.w700, color: loc.error != null ? AppColors.error : AppColors.success)),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                        color: loc.error != null ? AppColors.error.withValues(alpha: 0.12) : AppColors.surfaceVariant,
+                        color: loc.error != null ? AppColors.error.withValues(alpha: 0.12) : context.cSurfaceVariant,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: loc.error != null ? AppColors.error.withValues(alpha: 0.3) : AppColors.border)),
+                        border: Border.all(color: loc.error != null ? AppColors.error.withValues(alpha: 0.3) : context.cBorder)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Container(
                           width: 6,
                           height: 6,
                           decoration: BoxDecoration(
                               color: loc.error != null ? AppColors.error : AppColors.success, shape: BoxShape.circle)),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(loc.error != null ? 'GPS Off' : (loc.isTracking ? 'GPS Online' : 'GPS Off'),
                           style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: loc.error != null ? AppColors.error : (loc.isTracking ? AppColors.success : AppColors.textSecondary))),
+                              color: loc.error != null ? AppColors.error : (loc.isTracking ? AppColors.success : context.cTextSecondary))),
                     ]),
                   ),
                   const Spacer(),
-                  Text(loc.lastUpdated != null ? 'Updated: ${_relative(loc.lastUpdated)}' : 'No fix yet', style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                  Text(loc.lastUpdated != null ? 'Updated: ${_relative(loc.lastUpdated)}' : 'No fix yet', style: TextStyle(fontSize: 10, color: context.cTextTertiary)),
                 ]),
               ]),
             ),
@@ -683,9 +687,9 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
             bottom: 140,
             child: Column(children: [
               _MapBtn(icon: Icons.add, onTap: () => _mapCtrl?.animateCamera(CameraUpdate.zoomIn())),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               _MapBtn(icon: Icons.remove, onTap: () => _mapCtrl?.animateCamera(CameraUpdate.zoomOut())),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               _MapBtn(icon: Icons.my_location, onTap: _fitToAll),
             ]),
           ),
@@ -712,21 +716,21 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.only(bottom: 6),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: selected ? AppColors.riderGreen : Colors.white,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: selected ? AppColors.riderGreen : AppColors.border),
+            border: Border.all(color: selected ? AppColors.riderGreen : context.cBorder),
           ),
           child: Row(children: [
-            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: selected ? Colors.white : AppColors.textSecondary)),
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: selected ? Colors.white : context.cTextSecondary)),
             const Spacer(),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(color: selected ? Colors.white : AppColors.riderGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
               child: Text('$count', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: selected ? AppColors.riderGreen : AppColors.riderGreen)),
             ),
@@ -745,7 +749,7 @@ class _MapBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]), child: Icon(icon, size: 18, color: Colors.black87)),
+      child: Container(width: 36, height: 36, decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]), child: Icon(icon, size: 18, color: Colors.black87)),
     );
   }
 }

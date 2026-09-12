@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/dashboard/screens/widgets/rider_live_tracking_card.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -221,13 +222,13 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
           accentColor: AppColors.riderGreen,
           isLive: isLive,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.cSurface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: context.cBorder),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -268,37 +269,37 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
                     if (!hasFix)
                       Positioned.fill(
                         child: Container(
-                          color: AppColors.surfaceVariant.withValues(alpha: 0.85),
+                          color: context.cSurfaceVariant.withValues(alpha: 0.85),
                           child: Center(
                             child: Padding(
-                              padding: const EdgeInsets.all(20),
+                              padding: EdgeInsets.all(20),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (locState.error != null)
-                                    const Icon(Icons.location_off, size: 36, color: AppColors.textTertiary)
+                                    Icon(Icons.location_off, size: 36, color: context.cTextTertiary)
                                   else
-                                    const SizedBox(
+                                    SizedBox(
                                       width: 28,
                                       height: 28,
                                       child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.riderGreen),
                                     ),
-                                  const SizedBox(height: 12),
+                                  SizedBox(height: 12),
                                   Text(
                                     locState.error ?? 'Locating you…',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                                    style: TextStyle(fontSize: 13, color: context.cTextSecondary),
                                   ),
                                   if (locState.error != null) ...[
-                                    const SizedBox(height: 10),
+                                    SizedBox(height: 10),
                                     FilledButton.icon(
                                       onPressed: () =>
                                           ref.read(riderLocationProvider.notifier).startTracking(),
-                                      icon: const Icon(Icons.refresh, size: 18),
-                                      label: const Text('Retry'),
+                                      icon: Icon(Icons.refresh, size: 18),
+                                      label: Text('Retry'),
                                       style: FilledButton.styleFrom(
                                         backgroundColor: AppColors.riderGreen,
-                                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                                       ),
                                     ),
                                   ],
@@ -314,7 +315,7 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
                         top: 10,
                         left: 10,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.92),
                             borderRadius: BorderRadius.circular(20),
@@ -337,37 +338,37 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
                                         child: Container(
                                           width: 10 * s,
                                           height: 10 * s,
-                                          decoration: const BoxDecoration(
+                                          decoration: BoxDecoration(
                                               color: AppColors.success, shape: BoxShape.circle),
                                         ),
                                       ),
                                       Container(
                                         width: 7,
                                         height: 7,
-                                        decoration: const BoxDecoration(
+                                        decoration: BoxDecoration(
                                             color: AppColors.success, shape: BoxShape.circle),
                                       ),
                                     ],
                                   );
                                 },
                               ),
-                              const SizedBox(width: 6),
+                              SizedBox(width: 6),
                               Text(
                                 _followRider ? 'Following' : 'Live',
-                                style: const TextStyle(
-                                    fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                                style: TextStyle(
+                                    fontSize: 11, fontWeight: FontWeight.w700, color: context.cTextPrimary),
                               ),
                               if (!_followRider) ...[
-                                const SizedBox(width: 6),
+                                SizedBox(width: 6),
                                 GestureDetector(
                                   onTap: _recenter,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
                                       color: AppColors.riderGreen,
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                    child: const Text('Recenter',
+                                    child: Text('Recenter',
                                         style: TextStyle(
                                             fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
                                   ),
@@ -385,9 +386,9 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _MapIconButton(icon: Icons.add, onTap: _zoomIn),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           _MapIconButton(icon: Icons.remove, onTap: _zoomOut),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           _MapIconButton(
                             icon: Icons.my_location,
                             color: _followRider ? AppColors.riderGreen : Colors.black87,
@@ -402,22 +403,22 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
               // ── Footer strip ──────────────────────────────
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  border: Border(top: BorderSide(color: AppColors.divider)),
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: context.cSurface,
+                  border: Border(top: BorderSide(color: context.cDivider)),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(6),
+                      padding: EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: AppColors.riderGreen.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.delivery_dining, size: 16, color: AppColors.riderGreen),
+                      child: Icon(Icons.delivery_dining, size: 16, color: AppColors.riderGreen),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,31 +427,31 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
                             hasFix ? 'You are here' : '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600, color: context.cTextPrimary),
                           ),
-                          const SizedBox(height: 1),
+                          SizedBox(height: 1),
                           Text(
                             hasFix
                                 ? '${_displayPos!.latitude.toStringAsFixed(5)}, ${_displayPos!.longitude.toStringAsFixed(5)}'
                                 : '',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                            style: TextStyle(fontSize: 11, color: context.cTextSecondary),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: isLive ? AppColors.successLight : AppColors.surfaceVariant,
+                        color: isLive ? AppColors.successLight : context.cSurfaceVariant,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                             color: isLive
                                 ? AppColors.success.withValues(alpha: 0.3)
-                                : AppColors.border),
+                                : context.cBorder),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -463,13 +464,13 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
                               shape: BoxShape.circle,
                             ),
                           ),
-                          const SizedBox(width: 5),
+                          SizedBox(width: 5),
                           Text(
                             isLive ? 'Live' : 'Paused',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: isLive ? AppColors.success : AppColors.textSecondary,
+                              color: isLive ? AppColors.success : context.cTextSecondary,
                             ),
                           ),
                         ],
@@ -485,9 +486,9 @@ class _RiderLiveTrackingCardState extends ConsumerState<RiderLiveTrackingCard>
                   borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.divider))),
-                    child: const Row(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(border: Border(top: BorderSide(color: context.cDivider))),
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.map_outlined, size: 16, color: AppColors.riderGreen),

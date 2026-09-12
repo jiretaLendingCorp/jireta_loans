@@ -21,7 +21,10 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, Tar
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../data/datasources/remote/device_token_remote_datasource.dart';
+import '../constants/app_constants.dart';
 import '../constants/route_constants.dart';
 import '../di/injection.dart';
 import '../security/secure_storage.dart';
@@ -112,6 +115,14 @@ class FcmService {
       }
 
       // ── Token lifecycle ────────────────────────────────────────────────
+      // Kung naka-OFF ang push sa Profile settings, huwag i-register ang
+      // token (at i-deactivate kung dati itong naka-register).
+      if (!await isPushEnabled()) {
+        AppLogger.debug('[FCM] Push disabled by user — skipping token setup');
+        await unregister();
+        return;
+      }
+
       _token = await _messaging.getToken();
       if (_token != null) {
         AppLogger.debug('[FCM] Token acquired');
@@ -233,6 +244,51 @@ class FcmService {
       await sl<DeviceTokenRemoteDataSource>().unregister(token: _token!);
     } catch (e) {
       AppLogger.error('[FCM] Token unregister failed: $e');
+    }
+  }
+
+  // ── Push ON/OFF (Profile setting) ──────────────────────────────────────────
+
+  /// Saved push preference (`Profile → Push Notifications`). Default: ON.
+  Future<bool> isPushEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(AppConstants.prefPushNotifications) ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Push ON — kunin (o i-refresh) ang token at i-register sa backend.
+  Future<void> enable() async {
+    if (!isSupportedPlatform) return;
+    try {
+      final token = _token ?? await _messaging.getToken();
+      if (token == null) return;
+      _token = token;
+      await _registerToken(token);
+      AppLogger.debug('[FCM] Push enabled');
+    } catch (e) {
+      AppLogger.error('[FCM] enable failed: $e');
+    }
+  }
+
+  /// Push OFF — deactivate ang token sa backend at i-delete ang token sa
+  /// device. Hindi na makaka-receive ng push ang device na ito kahit
+  /// naka-login pa. (In-app notification center: hindi apektado.)
+  Future<void> disable() async {
+    if (!isSupportedPlatform) return;
+    try {
+      final token = _token ?? await _messaging.getToken();
+      if (token != null) {
+        _token = token;
+        await unregister();
+      }
+      await _messaging.deleteToken();
+      _token = null;
+      AppLogger.debug('[FCM] Push disabled');
+    } catch (e) {
+      AppLogger.error('[FCM] disable failed: $e');
     }
   }
 

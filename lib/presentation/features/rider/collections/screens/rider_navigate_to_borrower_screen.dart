@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/collections/screens/rider_navigate_to_borrower_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,12 +118,12 @@ class _RiderNavigateToBorrowerScreenState
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: _HeaderCard(name: borrowerName),
         ),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: RiderTripMap(
               destinationLat: lat,
               destinationLng: lng,
@@ -146,7 +147,7 @@ class _RiderNavigateToBorrowerScreenState
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           child: _BottomCard(
             address: formattedAddress,
             canDirections: canDirections,
@@ -171,7 +172,7 @@ class _HeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.riderGreenDark, AppColors.riderGreen],
@@ -182,17 +183,17 @@ class _HeaderCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.person_outline, color: Colors.white, size: 24),
-          const SizedBox(width: 10),
+          Icon(Icons.person_outline, color: Colors.white, size: 24),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Lender',
+                Text('Lender',
                     style: TextStyle(color: Colors.white70, fontSize: 11)),
                 Text(
                   name,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold),
@@ -223,11 +224,11 @@ class _BottomCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: const [
           BoxShadow(
               color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
@@ -236,7 +237,7 @@ class _BottomCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.location_on, color: AppColors.riderGreen, size: 20),
               SizedBox(width: 8),
@@ -244,22 +245,22 @@ class _BottomCard extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             address,
-            style: const TextStyle(
-                fontSize: 14, color: AppColors.textPrimary, height: 1.4),
+            style: TextStyle(
+                fontSize: 14, color: context.cTextPrimary, height: 1.4),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           const RiderMapLegend(),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.riderGreen,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 minimumSize: const Size(double.infinity, 48),
@@ -272,7 +273,7 @@ class _BottomCard extends StatelessWidget {
                 canDirections
                     ? 'Open Directions in Maps'
                     : 'Search Address in Maps',
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.w600, fontSize: 15),
               ),
             ),

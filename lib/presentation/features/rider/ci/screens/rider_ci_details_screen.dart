@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element, unused_element_parameter, unused_field
+// ignore_for_file: unused_element, unused_element_parameter, unused_field, prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/ci/screens/rider_ci_details_screen.dart
 // Wizard CI Details — 3-step flow: Details → Upload & Report → Review & Submit
 // Only on Review→Submit does the report become visible to Head Manager / Employee (status: completed)
@@ -23,6 +23,13 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/rider_ci_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+
+/// Submitted na ba ang CI (wala nang maaaring i-edit)?
+///
+/// Kasama ang `approved` at `rejected`: pagka-review ng staff, hindi na
+/// `completed` ang status kaya dapat read-only pa rin ang wizard para sa rider.
+bool _isCiSubmitted(String? status) =>
+    status == 'completed' || status == 'approved' || status == 'rejected';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Step meta
@@ -54,6 +61,14 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   final _reportCtrl = TextEditingController();
   final _imagePicker = ImagePicker();
   final List<XFile> _pickedImages = [];
+  /// Lokal na kopya ng mga photo na na-upload sa session na ito, keyed by ang
+  /// server na `file_url`. Ginagamit ito ng Review grid para agad na
+  /// mag-render ng preview — walang muling network download (black/loading
+  /// tile) kahit naka-upload na ang photo sa Step 2.
+  final Map<String, XFile> _localPreviews = {};
+  /// True habang tumatakbo ang upload + submit — ang Submit button mismo sa
+  /// footer ang nagpapakita ng spinner (walang confirm modal).
+  bool _isSubmitting = false;
   bool _didPrefillReport = false;
   bool _isInitialLoading = true;
 
@@ -79,7 +94,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   bool get _isAssigned => _ci?.status == 'assigned';
   bool get _isAccepted =>
       _ci?.status == 'accepted' || _ci?.status == 'in_progress';
-  bool get _isCompleted => _ci?.status == 'completed';
+  bool get _isCompleted => _isCiSubmitted(_ci?.status);
   bool get _isDeclined => _ci?.status == 'declined';
   // Display mapping: accepted → in_progress (user req)
   String get _displayStatus {
@@ -180,6 +195,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   }
 
   Future<void> _submitFinal() async {
+    if (_isSubmitting) return;
     if (!_canSubmit) {
       String msg = 'Complete all steps first.';
       if (_effectiveDocsCount == 0) {
@@ -197,47 +213,66 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       return;
     }
 
-    // The confirm dialog's Yes/Submit button shows a spinner while the upload
-    // + submit run; Head Manager / Employee only see the report once this
-    // completes successfully (status flips to completed).
-    final confirmed = await showAsyncConfirmationDialog(
-      context,
-      title: 'Submit Report',
-      message: 'Are you sure to submit this ci?',
-      confirmLabel: 'Submit',
-      confirmColor: AppColors.riderGreen,
-      onConfirm: () => _performSubmit(),
-    );
-    if (confirmed != true || !mounted) return;
+    // Walang "Are you sure…" modal — deretso submit na. Ang Submit button
+    // mismo sa footer ang maglo-loading (spinner) habang tumatakbo ang
+    // upload + submit. Kapag success, lalabas ang 2-second na confirmation
+    // modal at deretso na sa Home.
+    setState(() => _isSubmitting = true);
+    final error = await _performSubmit();
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
 
-    await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
-    if (!mounted) return;
-    await showDialog(
-      context: context,
-      builder: (_) => const SuccessDialog(
-        title: 'Report Submitted!',
-        message: 'Your report and evidence have been submitted.',
-      ),
+    if (error != null) {
+      await showDialog(
+        context: context,
+        builder: (_) => ErrorDialog(message: error),
+      );
+      return;
+    }
+
+    // Success: steady 2-second confirmation modal, tapos deretso na sa Home.
+    // Hindi na iniwan ang wizard sa Review step — doon kasi kukunin muli sa
+    // network ang mga na-upload nang evidence (naglo-load/black tile ulit)
+    // kahit na Step 2 pa lang ay na-upload na sila.
+    await SuccessDialog.showAutoDismiss(
+      context,
+      title: 'Credit Investigation Submitted',
+      message: 'Your report and evidence have been submitted.',
+      buttonText: 'Done',
+      duration: const Duration(seconds: 2),
     );
     if (!mounted) return;
-    // stay on review step showing completed state
-    setState(() => _currentStep = 2);
+    context.go(RouteConstants.riderDashboard);
   }
 
-  /// Runs inside the async confirmation dialog while the Yes button spins.
-  /// Returns null on success, or an error message to show in the dialog.
+  /// Uploads the pending photos (kung mayroon), tapos ipinapasa ang report.
+  /// Returns null on success, or an error message na ipapakita sa ErrorDialog.
   Future<String?> _performSubmit() async {
+    // Snapshot ng mga doc na nasa server na bago mag-upload, para matukoy
+    // kung alin ang bagong gawa ng batch na ito (ma-map sa lokal na preview).
+    final beforeIds = <String>{
+      for (final d in _ci?.documents ?? const <Map<String, dynamic>>[])
+        (d['id'] ?? '').toString(),
+    };
+
     // If there are pending local images not yet uploaded, upload first
     if (_pickedImages.isNotEmpty) {
+      final batch = List<XFile>.from(_pickedImages);
       final okUp = await ref.read(riderCiProvider.notifier).uploadDocuments(
             ciId: widget.ciId,
-            images: List.from(_pickedImages),
+            images: batch,
           );
       if (!okUp) {
         return 'Failed to upload pending photos. Please try again.';
       }
-      if (mounted) setState(() => _pickedImages.clear());
+
+      // MAHALAGA ang order: i-reload muna ang details para nasa `uploaded` na
+      // ang mga bagong doc, BAGO i-clear ang pending. Kung agad idi-clear,
+      // may window na walang laman ang uploaded at wala ring pending — kaya
+      // lumalabas ang "No photos uploaded yet." habang naglo-load ang Submit.
       await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
+      if (mounted) _cacheLocalPreviews(batch, beforeIds);
+      if (mounted) setState(() => _pickedImages.clear());
     }
 
     // Optional ang report — kapag blangko, "-" ang ipapadala dahil hindi
@@ -256,7 +291,24 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
     return null;
   }
 
+  /// Itinatabi ang lokal na XFile ng mga bagong upload (keyed by server
+  /// `file_url`) para hindi na mag-download muli ang Review grid. Kapag hindi
+  /// tugma ang bilang ng bagong doc sa batch, hindi na lang mag-map (network
+  /// ang gagamitin) — mas ligtas kaysa mag-pair ng maling photo.
+  void _cacheLocalPreviews(List<XFile> batch, Set<String> beforeIds) {
+    final docs = _ci?.documents ?? const <Map<String, dynamic>>[];
+    final fresh = docs
+        .where((d) => !beforeIds.contains((d['id'] ?? '').toString()))
+        .toList();
+    if (fresh.length != batch.length) return;
+    for (var i = 0; i < batch.length; i++) {
+      final url = (fresh[i]['file_url'] as String?) ?? '';
+      if (url.isNotEmpty) _localPreviews[url] = batch[i];
+    }
+  }
+
   void _next() {
+    if (_isSubmitting) return;
     if (_currentStep < 2) {
       if (_currentStep == 0 && _isAssigned) {
         context.showSnackBarAsToast(const SnackBar(
@@ -277,10 +329,12 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   }
 
   void _prev() {
+    if (_isSubmitting) return;
     if (_currentStep > 0) setState(() => _currentStep--);
   }
 
   void _jumpTo(int idx) {
+    if (_isSubmitting) return;
     if (_canGoToStep(idx)) setState(() => _currentStep = idx);
   }
 
@@ -307,20 +361,19 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       });
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+    return Scaffold(        backgroundColor: context.cPageBg,
       appBar: AppBar(
-        backgroundColor: AppColors.riderGreen,
+        backgroundColor: context.headerColor(AppColors.riderGreen),
         foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text('CI Investigation',
+        title: Text('CI Investigation',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
         centerTitle: false,
         actions: [
           if (ci != null)
             Padding(
-              padding: const EdgeInsets.only(right: 14),
+              padding: EdgeInsets.only(right: 14),
               child: Center(
                   child: StatusBadge(
                       status: ci.status == 'accepted' ? 'in_progress' : ci.status,
@@ -338,14 +391,14 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.search_off_rounded,
-                          size: 48, color: AppColors.textTertiary),
-                      const SizedBox(height: 12),
-                      const Text('CI assignment not found',
+                      Icon(Icons.search_off_rounded,
+                          size: 48, color: context.cTextTertiary),
+                      SizedBox(height: 12),
+                      Text('CI assignment not found',
                           style: TextStyle(
                               fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary)),
-                      const SizedBox(height: 12),
+                              color: context.cTextSecondary)),
+                      SizedBox(height: 12),
                       OutlinedButton(
                           onPressed: () async {
                             setState(() => _isInitialLoading = true);
@@ -356,7 +409,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                               setState(() => _isInitialLoading = false);
                             }
                           },
-                          child: const Text('Retry'))
+                          child: Text('Retry'))
                     ],
                   ),
                 ))
@@ -377,8 +430,8 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                     if (_isDeclined)
                       Container(
                         width: double.infinity,
-                        margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        padding: const EdgeInsets.symmetric(
+                        margin: EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        padding: EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
                           color: AppColors.errorLight,
@@ -386,7 +439,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                           border: Border.all(
                               color: AppColors.error.withValues(alpha: 0.25)),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
                             Icon(Icons.cancel_outlined,
                                 color: AppColors.error, size: 18),
@@ -428,7 +481,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                         isCompleted: _isCompleted,
                         isDeclined: _isDeclined,
                         canSubmit: _canSubmit,
-                        isSubmitting: false,
+                        isSubmitting: _isSubmitting,
                         uploadedCount: _uploadedDocsCount,
                         pendingCount: _pendingCount,
                         hasReport: _hasReport,
@@ -458,6 +511,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           key: ValueKey('uploadreport_${widget.ciId}'),
           ci: ci,
           pickedImages: _pickedImages,
+          localPreviews: _localPreviews,
           controller: _reportCtrl,
           onPickMulti: _pickImages,
           onPickCamera: _pickFromCamera,
@@ -469,8 +523,10 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           key: ValueKey('review_${widget.ciId}'),
           ci: ci,
           pickedImages: _pickedImages,
+          localPreviews: _localPreviews,
           reportText: _reportCtrl.text,
           isCompleted: _isCompleted,
+          isSubmitting: _isSubmitting,
         );
       default:
         return const SizedBox.shrink();
@@ -504,10 +560,10 @@ class _WizardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white,
+      color: context.cSurface,
       // No bottom padding: the step content is flush with the pipeline header
       // (walang gap sa unang card).
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Column(
         children: [
           Row(
@@ -553,13 +609,13 @@ class _WizardHeader extends StatelessWidget {
                                         : isDone
                                             ? AppColors.riderGreen
                                             : isLocked
-                                                ? AppColors.surfaceVariant
-                                                : Colors.white,
+                                                ? context.cSurfaceVariant
+                                                : context.cSurface,
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: isActive || isDone
                                           ? AppColors.riderGreen
-                                          : AppColors.border,
+                                          : context.cBorder,
                                       width: isActive ? 2 : 1.4,
                                     ),
                                     boxShadow: isActive
@@ -580,8 +636,8 @@ class _WizardHeader extends StatelessWidget {
                                     color: isActive || isDone
                                         ? Colors.white
                                         : isLocked
-                                            ? AppColors.textTertiary
-                                            : AppColors.textSecondary,
+                                            ? context.cTextTertiary
+                                            : context.cTextSecondary,
                                   ),
                                 ),
                                 if (isLocked)
@@ -591,10 +647,10 @@ class _WizardHeader extends StatelessWidget {
                                     child: Container(
                                       width: 14,
                                       height: 14,
-                                      decoration: const BoxDecoration(
-                                          color: AppColors.textTertiary,
+                                      decoration: BoxDecoration(
+                                          color: context.cTextTertiary,
                                           shape: BoxShape.circle),
-                                      child: const Icon(Icons.lock_rounded,
+                                      child: Icon(Icons.lock_rounded,
                                           size: 8, color: Colors.white),
                                     ),
                                   ),
@@ -607,7 +663,7 @@ class _WizardHeader extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         Text(_steps[i].title,
                             style: TextStyle(
                                 fontSize: 11,
@@ -616,11 +672,11 @@ class _WizardHeader extends StatelessWidget {
                                 color: isActive
                                     ? AppColors.riderGreen
                                     : isLocked
-                                        ? AppColors.textTertiary
-                                        : AppColors.textPrimary)),
+                                        ? context.cTextTertiary
+                                        : context.cTextPrimary)),
                         Text(_steps[i].subtitle,
-                            style: const TextStyle(
-                                fontSize: 9, color: AppColors.textTertiary)),
+                            style: TextStyle(
+                                fontSize: 9, color: context.cTextTertiary)),
                       ],
                     ),
                   ),
@@ -644,9 +700,9 @@ class _StepConnector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 2.5,
-      margin: const EdgeInsets.symmetric(horizontal: 5),
+      margin: EdgeInsets.symmetric(horizontal: 5),
       decoration: BoxDecoration(
-        color: filled ? AppColors.riderGreen : AppColors.border,
+        color: filled ? AppColors.riderGreen : context.cBorder,
         borderRadius: BorderRadius.circular(2),
       ),
     );
@@ -662,7 +718,7 @@ class _ProgressBar extends StatelessWidget {
       height: 4,
       child: LinearProgressIndicator(
         value: progress,
-        backgroundColor: AppColors.border.withValues(alpha: 0.4),
+        backgroundColor: context.cBorder.withValues(alpha: 0.4),
         valueColor: const AlwaysStoppedAnimation(AppColors.riderGreen),
       ),
     );
@@ -692,12 +748,12 @@ class _DetailsStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAssigned = ci.status == 'assigned';
-    final isCompleted = ci.status == 'completed';
+    final isCompleted = _isCiSubmitted(ci.status);
     return SingleChildScrollView(
       key: const ValueKey('details_scroll'),
       physics: const AlwaysScrollableScrollPhysics(),
       // No top padding: the cards sit directly under the pipeline header.
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         children: [
           // Lender card — premium
@@ -724,7 +780,7 @@ class _DetailsStep extends StatelessWidget {
                   value: ci.borrowerPhone.isEmpty ? 'N/A' : ci.borrowerPhone),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _DetailsSectionCard(
             title: 'Assignment Details',
             icon: Icons.assignment_outlined,
@@ -753,22 +809,22 @@ class _DetailsStep extends StatelessWidget {
                   ci.investigationNotes!.isNotEmpty)
                 Container(
                   width: double.infinity,
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.all(12),
+                  margin: EdgeInsets.only(top: 8),
+                  padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
                       color: AppColors.riderGreen.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                           color: AppColors.riderGreen.withValues(alpha: 0.15))),
                   child: Text(ci.investigationNotes!,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13,
                           height: 1.45,
-                          color: AppColors.textPrimary)),
+                          color: context.cTextPrimary)),
                 ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // Inline actions — wide screens only (phones use the bottom bar).
           if (isAssigned && showInlineActions) ...[
             Row(
@@ -778,21 +834,21 @@ class _DetailsStep extends StatelessWidget {
                     onPressed: onDecline,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
+                      side: BorderSide(color: AppColors.error),
                       minimumSize: const Size(0, 48),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Decline',
+                    child: Text('Decline',
                         style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: onAccept,
-                    icon: const Icon(Icons.check_rounded, size: 18),
-                    label: const Text('Accept',
+                    icon: Icon(Icons.check_rounded, size: 18),
+                    label: Text('Accept',
                         style: TextStyle(fontWeight: FontWeight.w800)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.riderGreen,
@@ -807,7 +863,7 @@ class _DetailsStep extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -840,16 +896,16 @@ class _UploadStep extends StatelessWidget {
     final uploaded = ci.documents ?? [];
     final hasPending = pickedImages.isNotEmpty;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Upload Evidence *',
+          Text('Upload Evidence *',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
+                  color: context.cTextPrimary)),
+          SizedBox(height: 12),
           if (uploaded.isNotEmpty) ...[
             GridView.builder(
               shrinkWrap: true,
@@ -867,17 +923,17 @@ class _UploadStep extends StatelessWidget {
                       ? Image.network(url,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
-                              color: AppColors.surfaceVariant,
-                              child: const Icon(Icons.broken_image_outlined,
-                                  color: AppColors.textTertiary)))
+                              color: context.cSurfaceVariant,
+                              child: Icon(Icons.broken_image_outlined,
+                                  color: context.cTextTertiary)))
                       : Container(
-                          color: AppColors.surfaceVariant,
-                          child: const Icon(Icons.photo_outlined,
-                              color: AppColors.textTertiary)),
+                          color: context.cSurfaceVariant,
+                          child: Icon(Icons.photo_outlined,
+                              color: context.cTextTertiary)),
                 );
               },
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
           ],
           // Pick buttons
           GestureDetector(
@@ -886,16 +942,16 @@ class _UploadStep extends StatelessWidget {
               width: double.infinity,
               height: 160,
               decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
+                color: context.cSurfaceVariant,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border, width: 2, strokeAlign: BorderSide.strokeAlignInside),
+                border: Border.all(color: context.cBorder, width: 2, strokeAlign: BorderSide.strokeAlignInside),
               ),
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.cloud_upload_outlined, size: 40, color: AppColors.riderGreen),
                   SizedBox(height: 8),
-                  Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  Text('Tap to upload evidence', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.cTextSecondary)),
                   SizedBox(height: 4),
                   Text('Upload', style: TextStyle(fontSize: 12, color: AppColors.riderGreen, fontWeight: FontWeight.w700)),
                 ],
@@ -903,17 +959,17 @@ class _UploadStep extends StatelessWidget {
             ),
           ),
           if (hasPending) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Row(
               children: [
                 Text('Pending (${pickedImages.length})',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                        color: context.cTextPrimary)),
                 const Spacer(),
                 TextButton(
-                    onPressed: onClearPicked, child: const Text('Clear all')),
+                    onPressed: onClearPicked, child: Text('Clear all')),
               ],
             ),
             GridView.builder(
@@ -937,9 +993,9 @@ class _UploadStep extends StatelessWidget {
                       child: Container(
                           width: 24,
                           height: 24,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                               color: AppColors.error, shape: BoxShape.circle),
-                          child: const Icon(Icons.close,
+                          child: Icon(Icons.close,
                               size: 14, color: Colors.white)),
                     ),
                   ),
@@ -947,11 +1003,11 @@ class _UploadStep extends StatelessWidget {
                     bottom: 4,
                     left: 4,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(6)),
-                      child: const Text('NEW',
+                      child: Text('NEW',
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 9,
@@ -962,7 +1018,7 @@ class _UploadStep extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -984,23 +1040,23 @@ class _ReportStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted = ci.status == 'completed';
+    final isCompleted = _isCiSubmitted(ci.status);
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Investigation Report',
+          Text('Investigation Report',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
+                  color: context.cTextPrimary)),
+          SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.cSurface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.cBorder),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -1015,11 +1071,11 @@ class _ReportStep extends StatelessWidget {
               maxLength: 5000,
               maxLengthEnforcement: MaxLengthEnforcement.enforced,
               enabled: !isCompleted,
-              style: const TextStyle(fontSize: 14, height: 1.5),
-              decoration: const InputDecoration(
+              style: TextStyle(fontSize: 14, height: 1.5),
+              decoration: InputDecoration(
                 hintText: 'Enter report (optional)',
                 hintStyle: TextStyle(
-                    fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
+                    fontSize: 12.5, color: context.cTextTertiary, height: 1.4),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(14),
                 counterText: '',
@@ -1031,7 +1087,7 @@ class _ReportStep extends StatelessWidget {
                   null,
             ),
           ),
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -1039,9 +1095,43 @@ class _ReportStep extends StatelessWidget {
 }
 
 // ── COMBINED STEP 2: Upload + Report (required together) ────────────────────
+
+/// Thumbnail ng isang uploaded evidence photo. Kapag may lokal na kopya
+/// (`local`), `XFilePreview` ang gamit — instant na preview, walang network
+/// fetch, kaya hindi na naglo-load/black ang tile sa Review pagkatapos ng
+/// upload sa Step 2.
+Widget _evidenceThumb(
+  BuildContext context, {
+  required String url,
+  XFile? local,
+  double radius = 10,
+}) {
+  if (local != null) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: XFilePreview(file: local),
+    );
+  }
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(radius),
+    child: url.isNotEmpty
+        ? Image.network(url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+                color: context.cBorder,
+                child: Icon(Icons.broken_image_outlined,
+                    color: context.cTextTertiary)))
+        : Container(
+            color: context.cBorder,
+            child: Icon(Icons.photo_outlined,
+                color: context.cTextTertiary)),
+  );
+}
+
 class _UploadReportStep extends StatelessWidget {
   final CreditInvestigationModel ci;
   final List<XFile> pickedImages;
+  final Map<String, XFile> localPreviews;
   final TextEditingController controller;
   final VoidCallback onPickMulti;
   final VoidCallback onPickCamera;
@@ -1052,6 +1142,7 @@ class _UploadReportStep extends StatelessWidget {
     super.key,
     required this.ci,
     required this.pickedImages,
+    this.localPreviews = const {},
     required this.controller,
     required this.onPickMulti,
     required this.onPickCamera,
@@ -1063,10 +1154,10 @@ class _UploadReportStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final uploaded = ci.documents ?? [];
     final hasPending = pickedImages.isNotEmpty;
-    final isCompleted = ci.status == 'completed';
+    final isCompleted = _isCiSubmitted(ci.status);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1098,33 +1189,20 @@ class _UploadReportStep extends StatelessWidget {
                   itemBuilder: (ctx, i) {
                     final doc = uploaded[i];
                     final url = (doc['file_url'] as String?) ?? '';
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: url.isNotEmpty
-                          ? Image.network(url,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                  color: AppColors.border,
-                                  child: const Icon(
-                                      Icons.broken_image_outlined,
-                                      color: AppColors.textTertiary)))
-                          : Container(
-                              color: AppColors.border,
-                              child: const Icon(Icons.photo_outlined,
-                                  color: AppColors.textTertiary)),
-                    );
+                    return _evidenceThumb(context,
+                        url: url, local: localPreviews[url]);
                   },
                 ),
                 // Spacing lang kapag may Pending section sa ibaba — kung wala,
                 // dikit agad ang Upload/Clear all row sa photos.
-                if (hasPending) const SizedBox(height: 10),
+                if (hasPending) SizedBox(height: 10),
               ],
               if (hasPending) ...[
                 Text('Pending (${pickedImages.length})',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                        color: context.cTextPrimary)),
                 GridView.builder(
                   shrinkWrap: true,
                   // Kailangan ang explicit zero padding — kapag null, idinadagdag
@@ -1152,10 +1230,10 @@ class _UploadReportStep extends StatelessWidget {
                           child: Container(
                               width: 24,
                               height: 24,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                   color: AppColors.error,
                                   shape: BoxShape.circle),
-                              child: const Icon(Icons.close,
+                              child: Icon(Icons.close,
                                   size: 14, color: Colors.white)),
                         ),
                       ),
@@ -1163,12 +1241,12 @@ class _UploadReportStep extends StatelessWidget {
                         bottom: 4,
                         left: 4,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
+                          padding: EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                               color: Colors.black54,
                               borderRadius: BorderRadius.circular(6)),
-                          child: const Text('NEW',
+                          child: Text('NEW',
                               style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 9,
@@ -1191,20 +1269,20 @@ class _UploadReportStep extends StatelessWidget {
                     TextButton(
                       onPressed: onClearPicked,
                       style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        padding: EdgeInsets.symmetric(horizontal: 6),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: const Text('Clear all'),
+                      child: Text('Clear all'),
                     ),
                   OutlinedButton.icon(
                     onPressed: isCompleted ? null : onPickMulti,
-                    icon: const Icon(Icons.upload_rounded, size: 16),
-                    label: const Text('Upload'),
+                    icon: Icon(Icons.upload_rounded, size: 16),
+                    label: Text('Upload'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.riderGreen,
-                      side: const BorderSide(color: AppColors.riderGreen),
-                      padding: const EdgeInsets.symmetric(
+                      side: BorderSide(color: AppColors.riderGreen),
+                      padding: EdgeInsets.symmetric(
                           horizontal: 14, vertical: 8),
                       minimumSize: const Size(0, 36),
                       shape: RoundedRectangleBorder(
@@ -1214,30 +1292,30 @@ class _UploadReportStep extends StatelessWidget {
                 ],
               ),
               if (uploaded.isEmpty && !hasPending) ...[
-                const SizedBox(height: 8),
-                const Text('Tap Upload to add evidence photos.',
+                SizedBox(height: 8),
+                Text('Tap Upload to add evidence photos.',
                     style: TextStyle(
-                        fontSize: 12, color: AppColors.textTertiary)),
+                        fontSize: 12, color: context.cTextTertiary)),
               ],
             ],
           ),
 
-          const SizedBox(height: 24),
-          const Divider(),
-          const SizedBox(height: 16),
+          SizedBox(height: 24),
+          Divider(),
+          SizedBox(height: 16),
 
           // ── Report section (optional) ──
-          const Text('Investigation Report (Optional)',
+          Text('Investigation Report (Optional)',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
+                  color: context.cTextPrimary)),
+          SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.cSurface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.cBorder),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -1252,11 +1330,11 @@ class _UploadReportStep extends StatelessWidget {
               maxLength: 5000,
               maxLengthEnforcement: MaxLengthEnforcement.enforced,
               enabled: !isCompleted,
-              style: const TextStyle(fontSize: 14, height: 1.5),
-              decoration: const InputDecoration(
+              style: TextStyle(fontSize: 14, height: 1.5),
+              decoration: InputDecoration(
                 hintText: 'Enter report (optional)',
                 hintStyle: TextStyle(
-                    fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
+                    fontSize: 12.5, color: context.cTextTertiary, height: 1.4),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(14),
                 counterText: '',
@@ -1268,7 +1346,7 @@ class _UploadReportStep extends StatelessWidget {
                   null,
             ),
           ),
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -1281,15 +1359,19 @@ class _UploadReportStep extends StatelessWidget {
 class _ReviewStep extends StatelessWidget {
   final CreditInvestigationModel ci;
   final List<XFile> pickedImages;
+  final Map<String, XFile> localPreviews;
   final String reportText;
   final bool isCompleted;
+  final bool isSubmitting;
 
   const _ReviewStep({
     super.key,
     required this.ci,
     required this.pickedImages,
+    this.localPreviews = const {},
     required this.reportText,
     required this.isCompleted,
+    this.isSubmitting = false,
   });
 
   @override
@@ -1297,7 +1379,7 @@ class _ReviewStep extends StatelessWidget {
     final uploaded = ci.documents ?? [];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1334,19 +1416,19 @@ class _ReviewStep extends StatelessWidget {
                 if (ci.investigationNotes != null && ci.investigationNotes!.isNotEmpty)
                   Container(
                     width: double.infinity,
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.all(10),
+                    margin: EdgeInsets.only(top: 8),
+                    padding: EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
+                        color: context.cSurfaceVariant,
                         borderRadius: BorderRadius.circular(8)),
                     child: Text(ci.investigationNotes!,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary, height: 1.4)),
+                        style: TextStyle(
+                            fontSize: 12, color: context.cTextSecondary, height: 1.4)),
                   ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // Evidence Photos — show both uploaded and pending
           _ReviewCard(
@@ -1354,15 +1436,33 @@ class _ReviewStep extends StatelessWidget {
             icon: Icons.photo_library_rounded,
             color: AppColors.riderGreen,
             child: (uploaded.isEmpty && pickedImages.isEmpty)
-                ? Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                        color: AppColors.warningLight,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: const Text('No photos uploaded yet.',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF8D6E00))),
-                  )
+                // Habang tumatakbo ang submit, huwag ipakita ang misleading
+                // na "No photos uploaded yet" — nasa server na ang photos,
+                // inaantay lang ang refresh.
+                ? (isSubmitting
+                    ? Row(
+                        children: [
+                          SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2)),
+                          SizedBox(width: 10),
+                          Text('Uploading evidence photos…',
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: context.cTextSecondary)),
+                        ],
+                      )
+                    : Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                            color: AppColors.warningLight,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: Text('No photos uploaded yet.',
+                            style:
+                                TextStyle(fontSize: 12, color: Color(0xFF8D6E00))),
+                      ))
                 : GridView.builder(
                     shrinkWrap: true,
                     padding: EdgeInsets.zero,
@@ -1374,20 +1474,8 @@ class _ReviewStep extends StatelessWidget {
                       if (i < uploaded.length) {
                         final doc = uploaded[i];
                         final url = (doc['file_url'] as String?) ?? '';
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: url.isNotEmpty
-                              ? Image.network(url,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                      color: AppColors.surfaceVariant,
-                                      child: const Icon(Icons.broken_image_outlined,
-                                          color: AppColors.textTertiary)))
-                              : Container(
-                                  color: AppColors.surfaceVariant,
-                                  child: const Icon(Icons.photo_outlined,
-                                      color: AppColors.textTertiary)),
-                        );
+                        return _evidenceThumb(context,
+                            url: url, local: localPreviews[url], radius: 8);
                       }
                       final pendingIdx = i - uploaded.length;
                       return ClipRRect(
@@ -1399,12 +1487,12 @@ class _ReviewStep extends StatelessWidget {
           ),
           if ((uploaded.length + pickedImages.length) > 6)
             Padding(
-              padding: const EdgeInsets.only(top: 6),
+              padding: EdgeInsets.only(top: 6),
               child: Text('+ ${(uploaded.length + pickedImages.length) - 6} more photo(s)',
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary)),
+                  style: TextStyle(
+                      fontSize: 11, color: context.cTextSecondary)),
             ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // Investigation Report — read-only
           _ReviewCard(
@@ -1412,39 +1500,37 @@ class _ReviewStep extends StatelessWidget {
             icon: Icons.article_rounded,
             color: const Color(0xFF00838F),
             child: reportText.trim().isEmpty
-                ? Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                        color: AppColors.errorLight,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: const Text('No report written yet.',
-                        style: TextStyle(fontSize: 12, color: AppColors.error)),
+                ? Padding(
+                    padding: EdgeInsets.symmetric(vertical: 2),
+                    child: Text('N/A',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: context.cTextTertiary)),
                   )
                 : Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                        color: AppColors.surfaceVariant,
+                        color: context.cSurfaceVariant,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.border.withValues(alpha: 0.5))),
+                        border: Border.all(color: context.cBorder.withValues(alpha: 0.5))),
                     child: Text(reportText.trim(),
-                        style: const TextStyle(
-                            fontSize: 13, height: 1.5, color: AppColors.textPrimary)),
+                        style: TextStyle(
+                            fontSize: 13, height: 1.5, color: context.cTextPrimary)),
                   ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
 
           if (isCompleted)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
+              padding: EdgeInsets.all(14),                  decoration: BoxDecoration(
+                    color: context.cSurface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.celebration_rounded, color: AppColors.riderGreen),
                   SizedBox(width: 10),
@@ -1457,7 +1543,7 @@ class _ReviewStep extends StatelessWidget {
                 ],
               ),
             ),
-          const SizedBox(height: 90),
+          SizedBox(height: 90),
         ],
       ),
     );
@@ -1477,10 +1563,9 @@ class _CheckRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),          decoration: BoxDecoration(
+            color: context.cSurface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
             color: done
@@ -1498,20 +1583,20 @@ class _CheckRow extends StatelessWidget {
             child: Icon(done ? Icons.check_rounded : Icons.close_rounded,
                 size: 14, color: done ? Colors.white : AppColors.warning),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                        color: context.cTextPrimary)),
                 Text(detail,
                     style: TextStyle(
                         fontSize: 11,
-                        color: done ? AppColors.textSecondary : AppColors.warning)),
+                        color: done ? context.cTextSecondary : AppColors.warning)),
               ],
             ),
           ),
@@ -1520,9 +1605,9 @@ class _CheckRow extends StatelessWidget {
                 onPressed: onFix,
                 style: TextButton.styleFrom(
                     foregroundColor: AppColors.riderGreen,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     minimumSize: const Size(0, 32)),
-                child: const Text('Fix', style: TextStyle(fontSize: 12))),
+                child: Text('Fix', style: TextStyle(fontSize: 12))),
         ],
       ),
     );
@@ -1543,11 +1628,10 @@ class _ReviewCard extends StatelessWidget {
       this.onEdit});
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Container(          decoration: BoxDecoration(
+            color: context.cSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -1559,7 +1643,7 @@ class _ReviewCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            padding: EdgeInsets.fromLTRB(14, 12, 10, 12),
             child: Row(
               children: [
                 Container(
@@ -1569,28 +1653,28 @@ class _ReviewCard extends StatelessWidget {
                         color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8)),
                     child: Icon(icon, size: 16, color: color)),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                     child: Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary))),
+                            color: context.cTextPrimary))),
                 if (onEdit != null)
                   TextButton.icon(
                     onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined, size: 14),
-                    label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                    icon: Icon(Icons.edit_outlined, size: 14),
+                    label: Text('Edit', style: TextStyle(fontSize: 12)),
                     style: TextButton.styleFrom(
                         foregroundColor: AppColors.riderGreen,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         minimumSize: const Size(0, 32)),
                   ),
               ],
             ),
           ),
-          const Divider(height: 1),
-          Padding(padding: const EdgeInsets.all(14), child: child),
+          Divider(height: 1),
+          Padding(padding: EdgeInsets.all(14), child: child),
         ],
       ),
     );
@@ -1605,21 +1689,21 @@ class _ReviewTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
               width: 80,
               child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary))),
+                  style: TextStyle(
+                      fontSize: 11, color: context.cTextSecondary))),
           Expanded(
               child: Text(value,
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: valueColor ?? AppColors.textPrimary))),
+                      color: valueColor ?? context.cTextPrimary))),
         ],
       ),
     );
@@ -1636,35 +1720,10 @@ class _CompletedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 100),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.successLight,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: AppColors.riderGreen.withValues(alpha: 0.25)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.verified_rounded,
-                    color: AppColors.riderGreen, size: 18),
-                SizedBox(width: 8),
-                Expanded(
-                    child: Text(
-                        'Completed — Report submitted.',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.riderGreen))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
           _DetailsSectionCard(
             title: 'Lender Information',
             icon: Icons.person_rounded,
@@ -1686,6 +1745,13 @@ class _CompletedView extends StatelessWidget {
                   icon: Icons.phone_outlined,
                   label: 'Phone',
                   value: ci.borrowerPhone.isEmpty ? 'N/A' : ci.borrowerPhone),
+              // Petsa at oras ng pagkakumpleto — pinakababa ng Lender Info.
+              _InfoTile(
+                  icon: Icons.event_available_rounded,
+                  label: 'Completed',
+                  value: (ci.completedAt ?? ci.reviewedAt ?? ci.createdAt)
+                      .toDateTimeString(),
+                  valueColor: context.cBrandGreen),
             ],
           ),
         ],
@@ -1710,7 +1776,7 @@ class _DetailsActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: SafeArea(
         top: false,
         child: Row(
@@ -1720,21 +1786,21 @@ class _DetailsActionBar extends StatelessWidget {
                 onPressed: onDecline,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.error,
-                  side: const BorderSide(color: AppColors.error),
+                  side: BorderSide(color: AppColors.error),
                   minimumSize: const Size(0, 48),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Decline',
+                child: Text('Decline',
                     style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: onAccept,
-                icon: const Icon(Icons.check_rounded, size: 18),
-                label: const Text('Accept',
+                icon: Icon(Icons.check_rounded, size: 18),
+                label: Text('Accept',
                     style: TextStyle(fontWeight: FontWeight.w800)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.riderGreen,
@@ -1790,20 +1856,20 @@ class _WizardBottomBar extends StatelessWidget {
       // Flat footer — walang white box/border/shadow; nakapatong lang ang
       // button sa page background (same sa _DetailsActionBar).
       return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        padding: EdgeInsets.fromLTRB(16, 10, 16, 12),
         child: SafeArea(
           top: false,
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () => context.go(RouteConstants.riderCi),
-              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              icon: Icon(Icons.arrow_back_rounded, size: 18),
               label: Text(isCompleted ? 'Back to CI List' : 'Back',
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
+                  style: TextStyle(fontWeight: FontWeight.w700)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.riderGreen,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
@@ -1816,7 +1882,7 @@ class _WizardBottomBar extends StatelessWidget {
 
     // Flat footer — walang white box/border/shadow; nakapatong lang sa page bg.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: SafeArea(
         top: false,
         child: Row(
@@ -1826,26 +1892,26 @@ class _WizardBottomBar extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onPrev,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textPrimary,
-                    side: const BorderSide(color: AppColors.border),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    foregroundColor: context.cTextPrimary,
+                    side: BorderSide(color: context.cBorder),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Back',
+                  child: Text('Back',
                       style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               )
             else
-              const Expanded(child: SizedBox()),
-            const SizedBox(width: 12),
+              Expanded(child: SizedBox()),
+            SizedBox(width: 12),
             // Pantay ang lapad ng Back at Next/Submit (dating flex: 2 ang Next).
             Expanded(
               child: isLast
                   ? ElevatedButton.icon(
                       onPressed: isSubmitting ? null : onSubmit,
                       icon: isSubmitting
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
@@ -1860,14 +1926,14 @@ class _WizardBottomBar extends StatelessWidget {
                               : canSubmit
                                   ? 'Submit'
                                   : 'Complete Steps to Submit',
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 13)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: canSubmit
                             ? AppColors.riderGreen
-                            : AppColors.textTertiary,
+                            : context.cTextTertiary,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
@@ -1885,7 +1951,7 @@ class _WizardBottomBar extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.riderGreen,
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                         elevation: 0,
@@ -1896,10 +1962,10 @@ class _WizardBottomBar extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(current == 0 ? 'Continue' : 'Next',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontWeight: FontWeight.w700)),
-                          const SizedBox(width: 6),
-                          const Icon(Icons.arrow_forward_rounded, size: 16),
+                          SizedBox(width: 6),
+                          Icon(Icons.arrow_forward_rounded, size: 16),
                         ],
                       ),
                     ),
@@ -1929,11 +1995,10 @@ class _PremiumSectionCard extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Container(          decoration: BoxDecoration(
+            color: context.cSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -1945,7 +2010,7 @@ class _PremiumSectionCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: accent.withValues(alpha: 0.06),
               borderRadius:
@@ -1955,18 +2020,18 @@ class _PremiumSectionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary)),
+                        color: context.cTextPrimary)),
                 Text(subtitle,
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 11, color: context.cTextSecondary)),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(14),
             child: Column(children: children),
           ),
         ],
@@ -1994,11 +2059,14 @@ class _DetailsSectionCard extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    // Sa dark mode, mas maliwanag na bersyon ng accent ang gamitin — kung
+    // hindi, halos itim na icon (hal. lenderBlue) ang mawawala sa dark card.
+    final fg =
+        context.isDarkMode ? Color.lerp(accent, Colors.white, 0.55)! : accent;
+    return Container(          decoration: BoxDecoration(
+            color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -2012,40 +2080,40 @@ class _DetailsSectionCard extends StatelessWidget {
         children: [
           // Header: soft tinted icon chip + section name.
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            padding: EdgeInsets.fromLTRB(14, 14, 14, 12),
             child: Row(
               children: [
                 Container(
                   width: 30,
                   height: 30,
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.10),
+                    color: fg.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Icon(icon, size: 16, color: accent),
+                  child: Icon(icon, size: 16, color: fg),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text(title,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.1,
-                          color: AppColors.textPrimary)),
+                          color: context.cTextPrimary)),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.divider),
+          Divider(height: 1, color: context.cDivider),
           // Rows are separated by hairlines so the values stay easy to scan.
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+            padding: EdgeInsets.fromLTRB(14, 4, 14, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (var i = 0; i < children.length; i++) ...[
                   if (showDividers && i > 0)
-                    const Divider(height: 1, color: Color(0xFFF0F0F0)),
+                    Divider(height: 1, color: context.cDivider),
                   children[i],
                 ],
               ],
@@ -2070,7 +2138,7 @@ class _InfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 9),
+      padding: EdgeInsets.symmetric(vertical: 9),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2079,33 +2147,33 @@ class _InfoTile extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: AppColors.surfaceVariant,
+              color: context.cSurfaceVariant,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 14, color: AppColors.textSecondary),
+            child: Icon(icon, size: 14, color: context.cTextSecondary),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textTertiary,
+                    color: context.cTextTertiary,
                     letterSpacing: 0.6,
                   ),
                 ),
-                const SizedBox(height: 3),
+                SizedBox(height: 3),
                 Text(
                   value,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     height: 1.35,
-                    color: valueColor ?? AppColors.textPrimary,
+                    color: valueColor ?? context.cTextPrimary,
                   ),
                 ),
               ],

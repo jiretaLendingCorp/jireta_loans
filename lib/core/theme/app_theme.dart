@@ -151,6 +151,122 @@ class AppTheme {
       ),
     );
   }
+
+  /// Dark mode. Ang mga screen na gumagamit ng `context.cSurface` /
+  /// `context.cTextPrimary` (AppThemeColors) ang ganap na nag-a-adapt; ang
+  /// iba pang default na Material widgets (dialogs, bottom sheets, inputs,
+  /// text, dividers, snackbars) ay dito na kumukuha ng kulay.
+  static ThemeData get darkTheme {
+    final base = lightTheme;
+    return base.copyWith(
+      brightness: Brightness.dark,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.gold,
+        onPrimary: AppColors.textOnGold,
+        secondary: AppColors.goldLight,
+        onSecondary: AppColors.deepNavy,
+        surface: AppColors.darkSurface,
+        onSurface: AppColors.darkTextPrimary,
+        error: AppColors.error,
+        onError: Colors.white,
+        outline: AppColors.darkBorder,
+      ),
+      scaffoldBackgroundColor: AppColors.darkPageBg,
+      canvasColor: AppColors.darkSurface,
+      cardColor: AppColors.darkSurface,
+      // Default na kulay ng text na hindi nag-set ng color sa sarili nito.
+      //
+      // IMPORTANTE: gamitin ang SAME text theme ng light mode at kulayan lang
+      // — HUWAG `Typography.white` (Roboto ang font nito). Kapag pinalitan ng
+      // ibang text theme, nagbabago ang font family at metrics ng LAHAT ng
+      // text (Inter → Roboto) tuwing mag-switch ng dark mode, kaya parang
+      // "nag-a-auto adjust" ang mga text sa buong app.
+      textTheme: base.textTheme.apply(
+        bodyColor: AppColors.darkTextPrimary,
+        displayColor: AppColors.darkTextPrimary,
+      ),
+      iconTheme: const IconThemeData(color: AppColors.darkTextSecondary),
+      appBarTheme: base.appBarTheme.copyWith(
+        backgroundColor: AppColors.deepNavy,
+        foregroundColor: Colors.white,
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.darkBorder, width: 1),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+      dialogTheme: const DialogThemeData(
+        backgroundColor: AppColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        color: AppColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppColors.darkSurface,
+        elevation: 8,
+        selectedItemColor: AppColors.gold,
+        unselectedItemColor: AppColors.darkTextTertiary,
+        type: BottomNavigationBarType.fixed,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.darkDivider,
+        thickness: 1,
+        space: 0,
+      ),
+      chipTheme: base.chipTheme.copyWith(
+        backgroundColor: AppColors.darkSurfaceVariant,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.darkSurfaceVariant,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.darkBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.darkBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.gold, width: 2),
+        ),
+        labelStyle: AppTypography.labelMedium.copyWith(
+          color: AppColors.darkTextSecondary,
+        ),
+        hintStyle: AppTypography.bodyMedium.copyWith(
+          color: AppColors.darkTextTertiary,
+        ),
+      ),
+      snackBarTheme: base.snackBarTheme.copyWith(
+        backgroundColor: AppColors.darkSurfaceVariant,
+      ),
+      tabBarTheme: base.tabBarTheme.copyWith(
+        unselectedLabelColor: AppColors.darkTextSecondary,
+      ),
+      listTileTheme: const ListTileThemeData(
+        textColor: AppColors.darkTextPrimary,
+        iconColor: AppColors.darkTextSecondary,
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.gold,
+      ),
+    );
+  }
 }
 
 /// Swaps routed pages with no animation so the sidebar/layout never re-animates

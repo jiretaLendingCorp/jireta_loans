@@ -72,7 +72,7 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
           ),
       ],
       body: state.isLoading
-          ? const ShimmerLoader()
+          ? _buildSkeleton()
           : state.notifications.isEmpty
               ? const EmptyStateWidget(
                   icon: Icons.notifications_none,
@@ -104,6 +104,40 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
                 ),
     );
   }
+}
+
+/// Skeletal (shimmer) loading para sa notifications — kaparehong layout ng
+/// tunay na tile (icon + title + body + oras) imbes na spinner.
+Widget _buildSkeleton() {
+  return ListView.builder(
+    physics: const NeverScrollableScrollPhysics(),
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 108),
+    itemCount: 7,
+    itemBuilder: (_, __) => const Padding(
+      padding: EdgeInsets.only(bottom: 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ShimmerLoader(width: 46, height: 46, borderRadius: 23),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerLoader(width: 160, height: 13),
+                SizedBox(height: 8),
+                ShimmerLoader(height: 11),
+                SizedBox(height: 6),
+                ShimmerLoader(width: 200, height: 11),
+                SizedBox(height: 8),
+                ShimmerLoader(width: 70, height: 10),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Routes a tapped notification to the screen that matches its type, using the

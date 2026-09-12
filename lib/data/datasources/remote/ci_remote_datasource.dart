@@ -20,8 +20,11 @@ class CiRemoteDataSource {
       queryParams: {
         if (status != null) 'status': status,
         if (riderId != null) 'rider_id': riderId,
-        if (startDate != null) 'start_date': startDate,
-        if (endDate != null) 'end_date': endDate,
+        // Ang ci-view (get-list) ay `date_from` / `date_to` ang binabasa —
+        // hindi `start_date` / `end_date`, kaya hindi umiiral ang month
+        // filter dati (all-time ang bumabalik).
+        if (startDate != null) 'date_from': startDate,
+        if (endDate != null) 'date_to': endDate,
         'page': page,
         'limit': limit,
       },

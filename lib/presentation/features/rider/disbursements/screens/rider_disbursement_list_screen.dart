@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors
 // lib/presentation/features/rider/disbursements/screens/rider_disbursement_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,6 +49,12 @@ class _RiderDisbursementListScreenState
           route: RouteConstants.riderDisbursements,
         ),
         MobileNavItem(
+          icon: Icons.history_outlined,
+          activeIcon: Icons.history_rounded,
+          label: 'History',
+          route: RouteConstants.riderHistory,
+        ),
+        MobileNavItem(
           icon: Icons.person_outline,
           activeIcon: Icons.person,
           label: 'Profile',
@@ -90,22 +97,22 @@ class _RiderDisbursementListScreenState
               color: AppColors.riderGreen.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.delivery_dining,
+            child: Icon(Icons.delivery_dining,
                 size: 44, color: AppColors.riderGreen),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No cash delivery assignments',
             style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary),
+                color: context.cTextPrimary),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'When the office assigns you a loan disbursement, it will appear here.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 13, color: context.cTextSecondary),
           ),
         ],
       ),
@@ -120,9 +127,9 @@ class _RiderDisbursementListScreenState
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -142,7 +149,7 @@ class _RiderDisbursementListScreenState
                   color: AppColors.riderGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.payments_outlined,
+                child: Icon(Icons.payments_outlined,
                     color: AppColors.riderGreen, size: 20),
               ),
               const SizedBox(width: 12),
@@ -154,10 +161,10 @@ class _RiderDisbursementListScreenState
                       disbursement.loanNumber.isNotEmpty
                           ? 'Loan ${disbursement.loanNumber}'
                           : 'Cash Delivery',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
-                        color: AppColors.textPrimary,
+                        color: context.cTextPrimary,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -165,8 +172,8 @@ class _RiderDisbursementListScreenState
                       disbursement.lenderName.isEmpty
                           ? 'Lender'
                           : 'To: ${disbursement.lenderName}',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: context.cTextSecondary),
                     ),
                   ],
                 ),
@@ -178,7 +185,7 @@ class _RiderDisbursementListScreenState
                   color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
+                child: Text(
                   'PENDING',
                   style: TextStyle(
                     fontSize: 10,
@@ -194,18 +201,18 @@ class _RiderDisbursementListScreenState
             children: [
               Text(
                 '₱${fmt.format(disbursement.amount)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: context.cTextPrimary,
                 ),
               ),
               const Spacer(),
               if (delivery != null)
                 Text(
                   'Deliver by: ${delivery.month}/${delivery.day}/${delivery.year}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 12, color: context.cTextSecondary),
                 ),
             ],
           ),
@@ -217,8 +224,8 @@ class _RiderDisbursementListScreenState
                 RouteConstants.riderDisbursementUploadProof.replaceFirst(
                     ':id', disbursement.id),
               ),
-              icon: const Icon(Icons.camera_alt_outlined, size: 18),
-              label: const Text('Upload Cash on Delivery Proof'),
+              icon: Icon(Icons.camera_alt_outlined, size: 18),
+              label: Text('Upload Cash on Delivery Proof'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.riderGreen,
                 foregroundColor: Colors.white,

@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/disbursements/screens/rider_disbursement_upload_proof_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,12 +107,12 @@ class _RiderDisbursementUploadProofScreenState
       showBottomNav: false,
       navItems: const [],
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         children: [
           _buildPhotoSection(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _buildSignaturePad(),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           AppButton(
             label: 'Submit',
             onPressed: _isSubmitting ? null : _submit,
@@ -119,18 +120,18 @@ class _RiderDisbursementUploadProofScreenState
             backgroundColor: AppColors.riderGreen,
             icon: Icons.cloud_upload_outlined,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           OutlinedButton(
             onPressed: () => context.pop(),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textSecondary,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              foregroundColor: context.cTextSecondary,
+              side: BorderSide(color: context.cBorder),
+              padding: EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: const Text('Skip'),
+            child: Text('Skip'),
           ),
         ],
       ),
@@ -141,7 +142,7 @@ class _RiderDisbursementUploadProofScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
             Icon(Icons.camera_alt_outlined,
                 color: AppColors.riderGreen, size: 20),
@@ -154,16 +155,16 @@ class _RiderDisbursementUploadProofScreenState
                       style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
-                          color: AppColors.textPrimary)),
+                          color: context.cTextPrimary)),
                   Text('Photo of the cash handed to the lender',
                       style: TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                          fontSize: 12, color: context.cTextSecondary)),
                 ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
           if (_proofPhoto != null)
             Stack(
               children: [
@@ -178,10 +179,10 @@ class _RiderDisbursementUploadProofScreenState
                   child: GestureDetector(
                     onTap: () => setState(() => _proofPhoto = null),
                     child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
                           color: Colors.red, shape: BoxShape.circle),
-                      child: const Icon(Icons.close,
+                      child: Icon(Icons.close,
                           color: Colors.white, size: 16),
                     ),
                   ),
@@ -199,7 +200,7 @@ class _RiderDisbursementUploadProofScreenState
                     onTap: _pickPhoto,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: _PhotoPickerButton(
                     icon: Icons.photo_library_outlined,
@@ -218,7 +219,7 @@ class _RiderDisbursementUploadProofScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
             Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
             SizedBox(width: 8),
@@ -226,20 +227,20 @@ class _RiderDisbursementUploadProofScreenState
                 style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: AppColors.textPrimary)),
+                    color: context.cTextPrimary)),
           ],
         ),
-        const SizedBox(height: 4),
-        const Text('Ask the lender to sign as acknowledgement of receipt',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-        const SizedBox(height: 12),
+        SizedBox(height: 4),
+        Text('Ask the lender to sign as acknowledgement of receipt',
+            style: TextStyle(fontSize: 12, color: context.cTextSecondary)),
+        SizedBox(height: 12),
         SignaturePad(
           height: 150,
           onSignatureChanged: (base64) =>
               setState(() => _signatureBase64 = base64),
         ),
         if (_signatureBase64 != null)
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: 8),
             child: Row(
               children: [
@@ -275,7 +276,7 @@ class _PhotoPickerButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
@@ -284,7 +285,7 @@ class _PhotoPickerButton extends StatelessWidget {
         child: Column(
           children: [
             Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(label,
                 style: TextStyle(
                     color: color, fontSize: 12, fontWeight: FontWeight.w600)),

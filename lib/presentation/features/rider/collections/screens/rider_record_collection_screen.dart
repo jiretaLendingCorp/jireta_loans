@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/collections/screens/rider_record_collection_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -141,20 +142,20 @@ class _RiderRecordCollectionScreenState
     return Form(
       key: _formKey,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         children: [
           _CollectionSummaryCard(
             borrowerName: borrowerName,
             amountDue: amountDue,
             loanNumber: loanNumber,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.cSurface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.cBorder),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -165,12 +166,12 @@ class _RiderRecordCollectionScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Collection Details',
+                Text('Collection Details',
                     style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
-                        color: AppColors.textPrimary)),
-                const SizedBox(height: 16),
+                        color: context.cTextPrimary)),
+                SizedBox(height: 16),
                 AppTextField(
                   controller: _amountCtrl,
                   label: 'Amount Collected (₱)',
@@ -188,7 +189,7 @@ class _RiderRecordCollectionScreenState
                     return null;
                   },
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 AppTextField(
                   controller: _notesCtrl,
                   label: 'Notes (Optional)',
@@ -196,16 +197,16 @@ class _RiderRecordCollectionScreenState
                   prefixIcon: Icons.notes_outlined,
                   maxLines: 3,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.riderGreen.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                         color: AppColors.riderGreen.withValues(alpha: 0.2)),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
                       Icon(Icons.gps_fixed,
                           color: AppColors.riderGreen, size: 16),
@@ -214,7 +215,7 @@ class _RiderRecordCollectionScreenState
                         child: Text(
                           'Your GPS location is automatically captured and recorded with this collection.',
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary),
+                              fontSize: 12, color: context.cTextSecondary),
                         ),
                       ),
                     ],
@@ -223,7 +224,7 @@ class _RiderRecordCollectionScreenState
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           AppButton(
             label: 'Record Collection',
             onPressed: _isSubmitting ? null : _submitCollection,
@@ -231,18 +232,18 @@ class _RiderRecordCollectionScreenState
             backgroundColor: AppColors.riderGreen,
             icon: Icons.check_circle_outline,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           OutlinedButton(
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textSecondary,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              foregroundColor: context.cTextSecondary,
+              side: BorderSide(color: context.cBorder),
+              padding: EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
             ),
             onPressed: () => context.pop(),
-            child: const Text('Cancel',
+            child: Text('Cancel',
                 style: TextStyle(fontWeight: FontWeight.w500)),
           ),
         ],
@@ -263,7 +264,7 @@ class _CollectionSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [AppColors.riderGreenDark, AppColors.riderGreen],
@@ -276,34 +277,34 @@ class _CollectionSummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.person_outline, color: Colors.white70, size: 18),
-              const SizedBox(width: 8),
+              Icon(Icons.person_outline, color: Colors.white70, size: 18),
+              SizedBox(width: 8),
               Expanded(
                   child: Text(borrowerName,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 16))),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.receipt_outlined,
+              Icon(Icons.receipt_outlined,
                   color: Colors.white70, size: 18),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(loanNumber,
-                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  style: TextStyle(color: Colors.white70, fontSize: 13)),
             ],
           ),
           const Divider(color: Colors.white24, height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Amount Due',
+              Text('Amount Due',
                   style: TextStyle(color: Colors.white70, fontSize: 13)),
               Text(amountDue.toPeso(),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 20)),

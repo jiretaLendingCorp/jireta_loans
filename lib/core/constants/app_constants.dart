@@ -100,6 +100,13 @@ class AppConstants {
   static const String loanStatusCancelled = 'cancelled';
   static const String loanStatusOverdue = 'overdue';
 
+  // ── Local preferences (SharedPreferences keys) ────────────────────────
+  /// `system` | `light` | `dark`
+  static const String prefThemeMode = 'app_theme_mode';
+
+  /// FCM push notifications on/off.
+  static const String prefPushNotifications = 'push_notifications_enabled';
+
   static const String accountUpgradeStatusPending = 'pending';
   static const String accountUpgradeStatusSubmitted = 'submitted';
   static const String accountUpgradeStatusVerified = 'verified';

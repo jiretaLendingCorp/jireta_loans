@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/collections/screens/rider_upload_proof_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -97,10 +98,10 @@ class _RiderUploadProofScreenState
       showBottomNav: false,
       navItems: const [],
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         children: [
           _buildInfoBanner(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _buildPhotoSection(
             title: 'Payment Proof Photo *',
             subtitle: 'Take a clear photo of the payment receipt or cash',
@@ -110,9 +111,9 @@ class _RiderUploadProofScreenState
             onGallery: () => _pickImage(isProof: true, fromCamera: false),
             required: true,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _buildSignaturePad(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _buildPhotoSection(
             title: 'Scene Photo (Optional)',
             subtitle: 'Photo of the collection scene for verification',
@@ -122,7 +123,7 @@ class _RiderUploadProofScreenState
             onGallery: () => _pickImage(isProof: false, fromCamera: false),
             required: false,
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           AppButton(
             label: 'Submit & Complete Collection',
             onPressed: _isSubmitting ? null : _submit,
@@ -130,18 +131,18 @@ class _RiderUploadProofScreenState
             backgroundColor: AppColors.riderGreen,
             icon: Icons.cloud_upload_outlined,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           OutlinedButton(
             onPressed: () => context.pop(),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textSecondary,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              foregroundColor: context.cTextSecondary,
+              side: BorderSide(color: context.cBorder),
+              padding: EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: const Text('Skip & Complete Later'),
+            child: Text('Skip & Complete Later'),
           ),
         ],
       ),
@@ -150,20 +151,20 @@ class _RiderUploadProofScreenState
 
   Widget _buildInfoBanner() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.riderGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(Icons.gps_fixed, color: AppColors.riderGreen, size: 18),
           SizedBox(width: 8),
           Expanded(
             child: Text(
               'Your GPS coordinates are automatically captured and attached to all uploaded photos.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 13, color: context.cTextSecondary),
             ),
           ),
         ],
@@ -181,14 +182,14 @@ class _RiderUploadProofScreenState
     required bool required,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: required && photo == null
                 ? AppColors.error.withValues(alpha: 0.3)
-                : AppColors.border),
+                : context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -202,25 +203,25 @@ class _RiderUploadProofScreenState
           Row(
             children: [
               Icon(icon, color: AppColors.riderGreen, size: 20),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
-                            color: AppColors.textPrimary)),
+                            color: context.cTextPrimary)),
                     Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
+                        style: TextStyle(
+                            fontSize: 12, color: context.cTextSecondary)),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           if (photo != null)
             Stack(
               children: [
@@ -241,10 +242,10 @@ class _RiderUploadProofScreenState
                       }
                     }),
                     child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
                           color: Colors.red, shape: BoxShape.circle),
-                      child: const Icon(Icons.close,
+                      child: Icon(Icons.close,
                           color: Colors.white, size: 16),
                     ),
                   ),
@@ -254,12 +255,12 @@ class _RiderUploadProofScreenState
                   left: 8,
                   child: Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.riderGreen,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.check, color: Colors.white, size: 14),
@@ -286,7 +287,7 @@ class _RiderUploadProofScreenState
                     onTap: onCamera,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: _PhotoPickerButton(
                     icon: Icons.photo_library_outlined,
@@ -304,11 +305,11 @@ class _RiderUploadProofScreenState
 
   Widget _buildSignaturePad() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -319,7 +320,7 @@ class _RiderUploadProofScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
               SizedBox(width: 8),
@@ -327,20 +328,20 @@ class _RiderUploadProofScreenState
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-                      color: AppColors.textPrimary)),
+                      color: context.cTextPrimary)),
             ],
           ),
-          const SizedBox(height: 4),
-          const Text('Ask the lender to sign below',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          const SizedBox(height: 12),
+          SizedBox(height: 4),
+          Text('Ask the lender to sign below',
+              style: TextStyle(fontSize: 12, color: context.cTextSecondary)),
+          SizedBox(height: 12),
           SignaturePad(
             height: 150,
             onSignatureChanged: (base64) =>
                 setState(() => _signatureBase64 = base64),
           ),
           if (_signatureBase64 != null)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 8),
               child: Row(
                 children: [
@@ -377,7 +378,7 @@ class _PhotoPickerButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
@@ -386,7 +387,7 @@ class _PhotoPickerButton extends StatelessWidget {
         child: Column(
           children: [
             Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(label,
                 style: TextStyle(
                     color: color, fontSize: 12, fontWeight: FontWeight.w600)),

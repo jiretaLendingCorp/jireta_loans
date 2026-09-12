@@ -57,13 +57,35 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     load();
   }
 
+  /// Statuses na sakop ng bawat tab.
+  ///
+  /// Mahalaga: kapag na-review ng staff ang isang CI, nagiging `approved` o
+  /// `rejected` ito (hindi na `completed`) — kaya kasama pa rin sila sa
+  /// "Completed" tab ng rider at hindi nawawala sa listahan.
+  static const Map<String, String> _tabStatusQuery = {
+    'assigned': 'assigned',
+    'in_progress': 'in_progress',
+    'completed': 'completed,approved,rejected',
+    'declined': 'declined',
+  };
+
+  static const Map<String, Set<String>> _tabStatuses = {
+    'assigned': {'assigned', 'accepted'},
+    'in_progress': {'in_progress', 'accepted'},
+    'completed': {'completed', 'approved', 'rejected'},
+    'declined': {'declined'},
+  };
+
+  /// Ang `status` ay kadalasang TAB NAME ('assigned' / 'in_progress' /
+  /// 'completed') galing sa `setTab()` — kaya dapat i-map muna ito sa tunay
+  /// na query bago ang request. Kung raw lang ito ipapasa, mababalewala ang
+  /// mapping at hindi lalabas ang `approved` / `rejected` sa Completed tab.
   Future<void> load({String? status, bool silent = false}) async {
+    final tab = status ?? state.activeTab;
+    final query = tab == 'all' ? null : (_tabStatusQuery[tab] ?? tab);
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      final list = await _ds.getCiList(
-        status: status ?? (state.activeTab == 'all' ? null : state.activeTab),
-        page: 1,
-      );
+      final list = await _ds.getCiList(status: query, page: 1);
       state = state.copyWith(ciList: list, isLoading: false);
     } catch (e) {
       if (silent) return;
@@ -106,16 +128,8 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
   /// disappear without waiting for the network round trip.
   void _applyStatusLocally(String ciId, String status) {
     bool matchesActiveTab(String s) {
-      switch (state.activeTab) {
-        case 'assigned':
-          return s == 'assigned' || s == 'accepted';
-        case 'in_progress':
-          return s == 'in_progress' || s == 'accepted';
-        case 'completed':
-          return s == 'completed';
-        default:
-          return true; // 'all' tab keeps everything
-      }
+      final allowed = _tabStatuses[state.activeTab];
+      return allowed == null ? true : allowed.contains(s);
     }
 
     final updatedList = state.ciList

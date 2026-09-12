@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/ci/screens/rider_navigate_to_borrower_ci_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -109,12 +110,12 @@ class _RiderNavigateToBorrowerCiScreenState
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: _HeaderCard(name: borrowerName),
         ),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: RiderTripMap(
               destinationLat: mapLat,
               destinationLng: mapLng,
@@ -130,32 +131,32 @@ class _RiderNavigateToBorrowerCiScreenState
         ),
         if (addresses.isEmpty)
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             child: Container(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.cSurface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.cBorder),
               ),
-              child: const Text(
+              child: Text(
                 'No addresses available for navigation.',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: context.cTextSecondary),
               ),
             ),
           )
         else
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                   maxHeight: MediaQuery.sizeOf(context).height * 0.45),
               child: Container(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.cSurface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(color: context.cBorder),
                   boxShadow: const [
                     BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
                   ],
@@ -165,7 +166,7 @@ class _RiderNavigateToBorrowerCiScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _InstructionCard(),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       ...addresses.map((addr) {
                         final a = addr as Map<String, dynamic>;
                         final type = (a['address_type'] as String? ?? '')
@@ -181,14 +182,14 @@ class _RiderNavigateToBorrowerCiScreenState
                         final lat = (a['latitude'] as num?)?.toDouble();
                         final lng = (a['longitude'] as num?)?.toDouble();
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
+                          padding: EdgeInsets.only(bottom: 12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
                                   Container(
-                                    padding: const EdgeInsets.symmetric(
+                                    padding: EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: AppColors.riderGreen
@@ -196,38 +197,38 @@ class _RiderNavigateToBorrowerCiScreenState
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(type,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
                                             color: AppColors.riderGreen)),
                                   ),
                                   const Spacer(),
-                                  const Icon(Icons.location_on,
+                                  Icon(Icons.location_on,
                                       color: AppColors.riderGreen, size: 18),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              SizedBox(height: 8),
                               Text(
                                 full.isEmpty ? '—' : full,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 14,
-                                    color: AppColors.textPrimary,
+                                    color: context.cTextPrimary,
                                     height: 1.4),
                               ),
                               if (lat != null && lng != null) ...[
-                                const SizedBox(height: 6),
+                                SizedBox(height: 6),
                                 Text('$lat, $lng',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 11,
-                                        color: AppColors.textTertiary)),
-                                const SizedBox(height: 10),
+                                        color: context.cTextTertiary)),
+                                SizedBox(height: 10),
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.riderGreen,
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
+                                      padding: EdgeInsets.symmetric(
                                           vertical: 12),
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
@@ -236,9 +237,9 @@ class _RiderNavigateToBorrowerCiScreenState
                                           const Size(double.infinity, 44),
                                     ),
                                     onPressed: () => _openDirections(lat, lng),
-                                    icon: const Icon(Icons.navigation,
+                                    icon: Icon(Icons.navigation,
                                         size: 18),
-                                    label: const Text(
+                                    label: Text(
                                       'Open Directions',
                                       style: TextStyle(
                                           fontWeight: FontWeight.w600),
@@ -269,7 +270,7 @@ class _HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
             colors: [AppColors.riderGreenDark, AppColors.riderGreen],
@@ -279,17 +280,17 @@ class _HeaderCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.assignment_ind_outlined,
+          Icon(Icons.assignment_ind_outlined,
               color: Colors.white, size: 28),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('CI Investigation',
+                Text('CI Investigation',
                     style: TextStyle(color: Colors.white70, fontSize: 12)),
                 Text(name,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.bold)),
@@ -308,20 +309,20 @@ class _InstructionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.riderGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.riderGreen.withValues(alpha: 0.3)),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(Icons.info_outline, color: AppColors.riderGreen, size: 18),
           SizedBox(width: 8),
           Expanded(
             child: Text(
               'Navigate to the lender\'s address to conduct the credit investigation. Visit all provided addresses.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 13, color: context.cTextSecondary),
             ),
           ),
         ],

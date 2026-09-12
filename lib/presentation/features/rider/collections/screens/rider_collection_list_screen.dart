@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors
 // lib/presentation/features/rider/collections/screens/rider_collection_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,6 +73,12 @@ class _RiderCollectionListScreenState
           route: RouteConstants.riderCi,
         ),
         MobileNavItem(
+          icon: Icons.history_outlined,
+          activeIcon: Icons.history_rounded,
+          label: 'History',
+          route: RouteConstants.riderHistory,
+        ),
+        MobileNavItem(
           icon: Icons.person_outline,
           activeIcon: Icons.person,
           label: 'Profile',
@@ -81,14 +88,14 @@ class _RiderCollectionListScreenState
       body: Column(
         children: [
           Container(
-            color: AppColors.riderGreen,
+            color: context.headerColor(AppColors.riderGreen),
             child: TabBar(
               controller: _tabCtrl,
               indicatorColor: AppColors.gold,
               indicatorWeight: 3,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white60,
-              labelStyle: const TextStyle(
+              labelStyle: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -131,11 +138,11 @@ class _RiderCollectionListScreenState
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.inbox_outlined,
-              size: 64, color: AppColors.textTertiary.withValues(alpha: 0.5)),
+              size: 64, color: context.cTextTertiary.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No collections found',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+            style: TextStyle(color: context.cTextSecondary, fontSize: 15),
           ),
         ],
       ),
@@ -161,7 +168,7 @@ class _RiderCollectionListScreenState
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.cSurface,
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
@@ -182,7 +189,7 @@ class _RiderCollectionListScreenState
                     color: AppColors.riderGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.payments_outlined,
+                  child: Icon(Icons.payments_outlined,
                       color: AppColors.riderGreen, size: 20),
                 ),
                 const SizedBox(width: 10),
@@ -192,17 +199,17 @@ class _RiderCollectionListScreenState
                     children: [
                       Text(
                         lenderName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 15,
-                          color: AppColors.textPrimary,
+                          color: context.cTextPrimary,
                         ),
                       ),
                       Text(
                         'Due: $dueDate',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: context.cTextSecondary,
                         ),
                       ),
                     ],
@@ -212,7 +219,7 @@ class _RiderCollectionListScreenState
               ],
             ),
             const SizedBox(height: 12),
-            const Divider(height: 1, color: AppColors.divider),
+            Divider(height: 1, color: context.cDivider),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -233,13 +240,13 @@ class _RiderCollectionListScreenState
   Widget _infoChip(IconData icon, String label) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: AppColors.textSecondary),
+        Icon(icon, size: 14, color: context.cTextSecondary),
         const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: AppColors.textSecondary,
+            color: context.cTextSecondary,
           ),
         ),
       ],

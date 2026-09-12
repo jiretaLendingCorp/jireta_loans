@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element
+// ignore_for_file: unused_element, prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/collections/screens/rider_collection_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -315,32 +315,32 @@ class _RiderCollectionDetailsScreenState
       // Show provider error (e.g. parseBool failure) explicitly instead of silent "not found"
       if (state.error != null && col == null && !state.isLoading) {
         return Scaffold(
-          backgroundColor: const Color(0xFFF5F7FA),
+          backgroundColor: context.cPageBg,
           appBar: AppBar(
-            backgroundColor: AppColors.riderGreen,
+            backgroundColor: context.headerColor(AppColors.riderGreen),
             foregroundColor: Colors.white,
-            title: const Text('Collection',
+            title: Text('Collection',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           ),
           body: Center(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-                  const SizedBox(height: 12),
-                  const Text('Failed to load collection',
+                  Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                  SizedBox(height: 12),
+                  Text('Failed to load collection',
                       style: TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(state.error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  const SizedBox(height: 16),
+                      style: TextStyle(fontSize: 12, color: context.cTextSecondary)),
+                  SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => ref.read(riderCollectionProvider.notifier).loadDetails(widget.collectionId),
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.riderGreen),
-                    child: const Text('Retry', style: TextStyle(color: Colors.white)),
+                    child: Text('Retry', style: TextStyle(color: Colors.white)),
                   ),
                 ],
               ),
@@ -350,17 +350,17 @@ class _RiderCollectionDetailsScreenState
       }
 
       return Scaffold(
-        backgroundColor: const Color(0xFFF5F7FA),
+        backgroundColor: context.cPageBg,
         appBar: AppBar(
-          backgroundColor: AppColors.riderGreen,
+          backgroundColor: context.headerColor(AppColors.riderGreen),
           foregroundColor: Colors.white,
           elevation: 0,
-          title: const Text('Collection',
+          title: Text('Collection',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           actions: [
             if (col != null)
               Padding(
-                  padding: const EdgeInsets.only(right: 16),
+                  padding: EdgeInsets.only(right: 16),
                   child: Center(
                       child: StatusBadge(
                           status: col.status,
@@ -372,7 +372,7 @@ class _RiderCollectionDetailsScreenState
         body: state.isLoading
             ? const ShimmerLoader()
             : col == null
-                ? const Center(child: Text('Collection not found'))
+                ? Center(child: Text('Collection not found'))
                 : Builder(
                     builder: (context) {
                       try {
@@ -420,17 +420,17 @@ class _RiderCollectionDetailsScreenState
                         debugPrint(st.toString());
                       return Center(
                         child: Padding(
-                          padding: const EdgeInsets.all(16),
+                          padding: EdgeInsets.all(16),
                           child: SingleChildScrollView(
                             child: Column(
                               children: [
-                                const Icon(Icons.bug_report, color: AppColors.error, size: 36),
-                                const SizedBox(height: 8),
+                                Icon(Icons.bug_report, color: AppColors.error, size: 36),
+                                SizedBox(height: 8),
                                 Text('Build error: $e',
-                                    style: const TextStyle(color: AppColors.error, fontSize: 12)),
-                                const SizedBox(height: 8),
+                                    style: TextStyle(color: AppColors.error, fontSize: 12)),
+                                SizedBox(height: 8),
                                 Text(st.toString(),
-                                    style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                                    style: TextStyle(fontSize: 10, color: context.cTextTertiary)),
                               ],
                             ),
                           ),
@@ -444,19 +444,22 @@ class _RiderCollectionDetailsScreenState
       debugPrint('RiderCollectionDetails outer build error: $e');
       debugPrint(st.toString());
       return Scaffold(
-        backgroundColor: const Color(0xFFF5F7FA),
-        appBar: AppBar(backgroundColor: AppColors.riderGreen, foregroundColor: Colors.white, title: const Text('Collection')),
+        backgroundColor: context.cPageBg,
+        appBar: AppBar(
+            backgroundColor: context.headerColor(AppColors.riderGreen),
+            foregroundColor: Colors.white,
+            title: Text('Collection')),
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  const Icon(Icons.bug_report, color: AppColors.error, size: 36),
-                  const SizedBox(height: 8),
-                  Text('Outer build error: $e', style: const TextStyle(color: AppColors.error, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Text(st.toString(), style: const TextStyle(fontSize: 10, color: AppColors.textTertiary)),
+                  Icon(Icons.bug_report, color: AppColors.error, size: 36),
+                  SizedBox(height: 8),
+                  Text('Outer build error: $e', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                  SizedBox(height: 8),
+                  Text(st.toString(), style: TextStyle(fontSize: 10, color: context.cTextTertiary)),
                 ],
               ),
             ),
@@ -470,8 +473,8 @@ class _RiderCollectionDetailsScreenState
     final current = _tabController.index;
     final isCompletedOverall = col.status == 'completed';
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      color: context.cSurface,
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 14),
       child: Column(
         children: [
           Row(
@@ -536,12 +539,12 @@ class _RiderCollectionDetailsScreenState
                             ),
                             child: Center(
                               child: isPast || isCompletedOverall
-                                  ? const Icon(Icons.check,
+                                  ? Icon(Icons.check,
                                       size: 16, color: Colors.white)
                                   : isLocked
-                                      ? const Icon(Icons.lock_outline,
+                                      ? Icon(Icons.lock_outline,
                                           size: 14,
-                                          color: AppColors.textTertiary)
+                                          color: context.cTextTertiary)
                                       : Text(
                                           '${i + 1}',
                                           style: TextStyle(
@@ -549,14 +552,14 @@ class _RiderCollectionDetailsScreenState
                                             fontWeight: FontWeight.w800,
                                             color: isActive
                                                 ? Colors.white
-                                                : AppColors.textSecondary,
+                                                : context.cTextSecondary,
                                           ),
                                         ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Text(
                         _steps[i],
                         textAlign: TextAlign.center,
@@ -569,8 +572,8 @@ class _RiderCollectionDetailsScreenState
                               : isPast || isCompletedOverall
                                   ? AppColors.riderGreen
                                   : isLocked
-                                      ? AppColors.textTertiary
-                                      : AppColors.textSecondary,
+                                      ? context.cTextTertiary
+                                      : context.cTextSecondary,
                         ),
                       ),
                     ],
@@ -579,7 +582,7 @@ class _RiderCollectionDetailsScreenState
               );
             }),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -591,26 +594,26 @@ class _RiderCollectionDetailsScreenState
                   const AlwaysStoppedAnimation<Color>(AppColors.riderGreen),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Step ${current + 1} of ${_steps.length}: ${_steps[current]}',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.textSecondary,
+                    color: context.cTextSecondary,
                     fontWeight: FontWeight.w500),
               ),
               if (col.status == 'completed')
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: AppColors.successLight,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.verified,
@@ -639,9 +642,9 @@ class _RiderCollectionDetailsScreenState
 
     // Hide bottom nav for completed? Keep but show Done.
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 16),
+      decoration: BoxDecoration(
+        color: context.cSurface,
         border: Border(top: BorderSide(color: Color(0xFFF0F0F0))),
       ),
       child: Row(
@@ -651,16 +654,16 @@ class _RiderCollectionDetailsScreenState
               child: OutlinedButton(
                 onPressed: () => _goToStep(idx - 1),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textSecondary,
-                  side: const BorderSide(color: AppColors.border),
+                  foregroundColor: context.cTextSecondary,
+                  side: BorderSide(color: context.cBorder),
                   minimumSize: const Size(0, 46),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Back'),
+                child: Text('Back'),
               ),
             ),
-          if (!isFirst) const SizedBox(width: 12),
+          if (!isFirst) SizedBox(width: 12),
           Expanded(
             flex: 2,
             child: _buildPrimaryAction(col, idx, isLast, isCompleted),
@@ -682,7 +685,7 @@ class _RiderCollectionDetailsScreenState
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: const Text('Done',
+        child: Text('Done',
             style: TextStyle(fontWeight: FontWeight.w700)),
       );
     }
@@ -700,7 +703,7 @@ class _RiderCollectionDetailsScreenState
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Accept to continue',
+            child: Text('Accept to continue',
                 style: TextStyle(color: Colors.white)),
           );
         }
@@ -715,7 +718,7 @@ class _RiderCollectionDetailsScreenState
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Continue to Collect',
@@ -738,7 +741,7 @@ class _RiderCollectionDetailsScreenState
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Row(
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text('Continue to Proof',
@@ -767,7 +770,7 @@ class _RiderCollectionDetailsScreenState
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Continue to Proof',
@@ -788,7 +791,7 @@ class _RiderCollectionDetailsScreenState
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Continue to Review',
@@ -809,12 +812,12 @@ class _RiderCollectionDetailsScreenState
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: _isSubmitting
-              ? const SizedBox(
+              ? SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
-              : const Row(
+              : Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.cloud_upload_outlined, size: 18),
@@ -832,9 +835,9 @@ class _RiderCollectionDetailsScreenState
   // ── Read-only footer for completed/declined ───────────────────────────────
   Widget _buildReadOnlyFooter(CollectionAssignmentModel col) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 16),
+      decoration: BoxDecoration(
+        color: context.cSurface,
         border: Border(top: BorderSide(color: Color(0xFFF0F0F0))),
       ),
       child: SizedBox(
@@ -844,7 +847,7 @@ class _RiderCollectionDetailsScreenState
           style: ElevatedButton.styleFrom(
             backgroundColor: col.status == 'completed'
                 ? AppColors.riderGreen
-                : AppColors.textSecondary,
+                : context.cTextSecondary,
             foregroundColor: Colors.white,
             minimumSize: const Size(0, 48),
             shape:
@@ -852,7 +855,7 @@ class _RiderCollectionDetailsScreenState
           ),
           child: Text(
             col.status == 'completed' ? 'Done' : 'Back to Collections',
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
       ),
@@ -865,39 +868,39 @@ class _RiderCollectionDetailsScreenState
         (schedule?['installment_amount'] as num?)?.toDouble() ??
         0;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Success banner
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                   colors: [AppColors.riderGreen, AppColors.riderGreenDark]),
               borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
             child: Column(
               children: [
-                const Icon(Icons.verified, size: 42, color: Colors.white),
-                const SizedBox(height: 10),
-                const Text('Collection Completed',
+                Icon(Icons.verified, size: 42, color: Colors.white),
+                SizedBox(height: 10),
+                Text('Collection Completed',
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 17,
                         fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   col.amountCollected != null
                       ? col.amountCollected!.toCurrency
                       : '₱0.00',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 26,
                       fontWeight: FontWeight.w900),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   'Amount collected from lender',
                   style: TextStyle(
@@ -905,10 +908,10 @@ class _RiderCollectionDetailsScreenState
                       fontSize: 12),
                 ),
                 if (col.completedAt != null) ...[
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(20),
@@ -916,7 +919,7 @@ class _RiderCollectionDetailsScreenState
                     child: Text(
                       DateFormat('MMM d, yyyy  •  h:mm a')
                           .format(col.completedAt!),
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: Colors.white,
                           fontSize: 11,
                           fontWeight: FontWeight.w600),
@@ -926,19 +929,19 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // Summary card - same idea as wizard Details tab but read-only
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.border)),
+                side: BorderSide(color: context.cBorder)),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Icon(Icons.receipt_long_outlined,
                           color: AppColors.riderGreen, size: 18),
@@ -948,7 +951,7 @@ class _RiderCollectionDetailsScreenState
                               fontSize: 13, fontWeight: FontWeight.w700)),
                     ],
                   ),
-                  const Divider(height: 20),
+                  Divider(height: 20),
                   _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
                   _InfoTile('Period',
                       'Period ${schedule?['period_number'] ?? schedule?['installment_number'] ?? '—'}'),
@@ -974,19 +977,19 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Lender info card
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.border)),
+                side: BorderSide(color: context.cBorder)),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Icon(Icons.person_outline,
                           color: AppColors.riderGreen, size: 18),
@@ -996,7 +999,7 @@ class _RiderCollectionDetailsScreenState
                               fontSize: 13, fontWeight: FontWeight.w700)),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   _InfoTile('Name',
                       col.lenderName.isEmpty ? 'N/A' : col.lenderName),
                   _InfoTile('Loan #',
@@ -1007,11 +1010,11 @@ class _RiderCollectionDetailsScreenState
                                   ?['phone_number'] as String?) ??
                           (col.lenderPhone.isEmpty ? 'N/A' : col.lenderPhone)),
                   if (col.lenderAddresses.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const Text('Address',
+                    SizedBox(height: 8),
+                    Text('Address',
                         style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
-                    const SizedBox(height: 4),
+                            fontSize: 11, color: context.cTextSecondary)),
+                    SizedBox(height: 4),
                     ...col.lenderAddresses.take(2).map((a) {
                       final m = a as Map<String, dynamic>;
                       final full = [
@@ -1022,11 +1025,11 @@ class _RiderCollectionDetailsScreenState
                       ].where((e) => e != null && (e as String).isNotEmpty).join(', ');
                       final type = (m['address_type'] as String? ?? '').toUpperCase();
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
+                        padding: EdgeInsets.only(bottom: 6),
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(
+                              padding: EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppColors.riderGreen
@@ -1034,17 +1037,17 @@ class _RiderCollectionDetailsScreenState
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(type.isEmpty ? 'HOME' : type,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.riderGreen)),
                             ),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Expanded(
                                 child: Text(full.isEmpty ? '—' : full,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 12,
-                                        color: AppColors.textPrimary))),
+                                        color: context.cTextPrimary))),
                           ],
                         ),
                       );
@@ -1054,7 +1057,7 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Proof viewer - read only, show stored URLs
           if (col.proofPhoto != null ||
               col.collectionPhoto != null ||
@@ -1063,13 +1066,13 @@ class _RiderCollectionDetailsScreenState
               elevation: 0,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppColors.border)),
+                  side: BorderSide(color: context.cBorder)),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.photo_library_outlined,
                             color: AppColors.riderGreen, size: 18),
@@ -1079,46 +1082,46 @@ class _RiderCollectionDetailsScreenState
                                 fontSize: 13, fontWeight: FontWeight.w700)),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    const Text('Photos and signature submitted for this collection',
+                    SizedBox(height: 4),
+                    Text('Photos and signature submitted for this collection',
                         style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
-                    const SizedBox(height: 12),
+                            fontSize: 11, color: context.cTextSecondary)),
+                    SizedBox(height: 12),
                     if (col.proofPhoto != null) ...[
-                      const Text('Payment Proof',
+                      Text('Payment Proof',
                           style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              color: context.cTextSecondary,
                               fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       DocumentViewer(
                           url: col.proofPhoto,
                           label: 'Payment Proof',
                           height: 200,
                           bucket: 'collection-proofs'),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                     ],
                     if (col.collectionPhoto != null) ...[
-                      const Text('Scene Photo',
+                      Text('Scene Photo',
                           style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              color: context.cTextSecondary,
                               fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       DocumentViewer(
                           url: col.collectionPhoto,
                           label: 'Scene Photo',
                           height: 180,
                           bucket: 'collection-proofs'),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                     ],
                     if (col.borrowerSignature != null) ...[
-                      const Text('Lender Signature',
+                      Text('Lender Signature',
                           style: TextStyle(
                               fontSize: 11,
-                              color: AppColors.textSecondary,
+                              color: context.cTextSecondary,
                               fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       DocumentViewer(
                           url: col.borrowerSignature,
                           label: 'Signature',
@@ -1132,37 +1135,37 @@ class _RiderCollectionDetailsScreenState
           else
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppColors.surfaceGray,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.cBorder),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.info_outline,
-                      color: AppColors.textSecondary, size: 18),
+                      color: context.cTextSecondary, size: 18),
                   SizedBox(width: 8),
                   Expanded(
                       child: Text('No proof photos stored for this collection.',
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary))),
+                              fontSize: 12, color: context.cTextSecondary))),
                 ],
               ),
             ),
           if (col.locationLat != null && col.locationLng != null) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Card(
               elevation: 0,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: AppColors.border)),
+                  side: BorderSide(color: context.cBorder)),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(Icons.location_on_outlined,
                             color: AppColors.riderGreen, size: 18),
@@ -1172,29 +1175,29 @@ class _RiderCollectionDetailsScreenState
                                 fontSize: 13, fontWeight: FontWeight.w700)),
                       ],
                     ),
-                    const Divider(height: 20),
+                    Divider(height: 20),
                     Text(
                       'Lat: ${col.locationLat!.toStringAsFixed(6)}, Lng: ${col.locationLng!.toStringAsFixed(6)}',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: context.cTextSecondary),
                     ),
                   ],
                 ),
               ),
             ),
           ],
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           // Receipt decoration
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.successLight,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                   color: AppColors.riderGreen.withValues(alpha: 0.15)),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.check_circle,
                     color: AppColors.riderGreen, size: 16),
@@ -1211,7 +1214,7 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -1220,18 +1223,18 @@ class _RiderCollectionDetailsScreenState
   Widget _buildDeclinedBody(CollectionAssignmentModel col) {
     final schedule = col.loanSchedule;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       child: Column(
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AppColors.errorLight,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
             ),
-            child: const Column(
+            child: Column(
               children: [
                 Icon(Icons.block_outlined, size: 42, color: AppColors.error),
                 SizedBox(height: 10),
@@ -1243,25 +1246,25 @@ class _RiderCollectionDetailsScreenState
                 SizedBox(height: 4),
                 Text('You declined this assignment.',
                     style:
-                        TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        TextStyle(color: context.cTextSecondary, fontSize: 12)),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.border)),
+                side: BorderSide(color: context.cBorder)),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Details',
+                  Text('Details',
                       style: TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w700)),
-                  const Divider(height: 20),
+                  Divider(height: 20),
                   _InfoTile('Lender',
                       col.lenderName.isEmpty ? 'N/A' : col.lenderName),
                   _InfoTile('Loan #',
@@ -1274,7 +1277,7 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -1285,7 +1288,7 @@ class _RiderCollectionDetailsScreenState
     final schedule = col.loanSchedule;
     final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       child: Column(
         children: [
           // Header summary with gradient + stepper hint
@@ -1293,34 +1296,34 @@ class _RiderCollectionDetailsScreenState
             elevation: 0,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.border)),
+                side: BorderSide(color: context.cBorder)),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: AppColors.riderGreen.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.receipt_long_outlined,
+                        child: Icon(Icons.receipt_long_outlined,
                             color: AppColors.riderGreen, size: 18),
                       ),
-                      const SizedBox(width: 10),
-                      const Text('Collection Summary',
+                      SizedBox(width: 10),
+                      Text('Collection Summary',
                           style: TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w700)),
                       const Spacer(),
                       StatusBadge(status: col.status, small: true),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(colors: [
                         AppColors.riderGreen,
@@ -1330,29 +1333,29 @@ class _RiderCollectionDetailsScreenState
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.payments_outlined,
+                        Icon(Icons.payments_outlined,
                             color: Colors.white, size: 28),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Amount Due',
+                            Text('Amount Due',
                                 style: TextStyle(
                                     color: Colors.white70, fontSize: 12)),
                             Text(amountDue.toCurrency,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 22,
                                     fontWeight: FontWeight.w800)),
                           ],
                         ),
                         const Spacer(),
-                        const Icon(Icons.verified_user_outlined,
+                        Icon(Icons.verified_user_outlined,
                             color: Colors.white54, size: 20),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
                   _InfoTile('Period',
                       'Period ${schedule?['period_number'] ?? schedule?['installment_number'] ?? ''}'),
@@ -1375,18 +1378,18 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.border)),
+                side: BorderSide(color: context.cBorder)),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Icon(Icons.person_outline,
                           color: AppColors.riderGreen, size: 18),
@@ -1396,7 +1399,7 @@ class _RiderCollectionDetailsScreenState
                               fontSize: 13, fontWeight: FontWeight.w700)),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   _InfoTile('Name',
                       col.lenderName.isEmpty ? 'N/A' : col.lenderName),
                   _InfoTile('Loan #',
@@ -1407,11 +1410,11 @@ class _RiderCollectionDetailsScreenState
                                   ?['phone_number'] as String?) ??
                           (col.lenderPhone.isEmpty ? 'N/A' : col.lenderPhone)),
                   if (col.lenderAddresses.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const Text('Address',
+                    SizedBox(height: 8),
+                    Text('Address',
                         style: TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary)),
-                    const SizedBox(height: 4),
+                            fontSize: 11, color: context.cTextSecondary)),
+                    SizedBox(height: 4),
                     ...col.lenderAddresses.take(2).map((a) {
                       final m = a as Map<String, dynamic>;
                       final full = [
@@ -1422,11 +1425,11 @@ class _RiderCollectionDetailsScreenState
                       ].where((e) => e != null && (e as String).isNotEmpty).join(', ');
                       final type = (m['address_type'] as String? ?? '').toUpperCase();
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
+                        padding: EdgeInsets.only(bottom: 6),
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(
+                              padding: EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppColors.riderGreen
@@ -1434,17 +1437,17 @@ class _RiderCollectionDetailsScreenState
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(type.isEmpty ? 'HOME' : type,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.riderGreen)),
                             ),
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Expanded(
                                 child: Text(full.isEmpty ? '—' : full,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 12,
-                                        color: AppColors.textPrimary))),
+                                        color: context.cTextPrimary))),
                           ],
                         ),
                       );
@@ -1457,15 +1460,15 @@ class _RiderCollectionDetailsScreenState
           // Step hint banner for auto-next
           if (col.status == 'accepted' || col.status == 'in_progress')
             Container(
-              margin: const EdgeInsets.only(top: 14),
-              padding: const EdgeInsets.all(12),
+              margin: EdgeInsets.only(top: 14),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.riderGreen.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                     color: AppColors.riderGreen.withValues(alpha: 0.18)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.auto_awesome,
                       color: AppColors.riderGreen, size: 18),
@@ -1484,16 +1487,16 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           if (col.status == 'assigned') ...[
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.warningLight,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                     color: AppColors.warning.withValues(alpha: 0.3)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.info_outline, color: AppColors.warning, size: 18),
                   SizedBox(width: 8),
@@ -1505,7 +1508,7 @@ class _RiderCollectionDetailsScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
@@ -1518,14 +1521,14 @@ class _RiderCollectionDetailsScreenState
                     },
                     style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.error,
-                        side: const BorderSide(color: AppColors.error),
+                        side: BorderSide(color: AppColors.error),
                         minimumSize: const Size(0, 48),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12))),
-                    child: const Text('Decline'),
+                    child: Text('Decline'),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () async {
@@ -1542,48 +1545,48 @@ class _RiderCollectionDetailsScreenState
                         minimumSize: const Size(0, 48),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12))),
-                    child: const Text('Accept'),
+                    child: Text('Accept'),
                   ),
                 ),
               ],
             ),
           ],
           if (col.status == 'accepted' || col.status == 'in_progress') ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () => context.push(
                     RouteConstants.riderNavigateToBorrower
                         .replaceFirst(':id', widget.collectionId)),
-                icon: const Icon(Icons.navigation_outlined, size: 18),
-                label: const Text('Navigate to Lender',
+                icon: Icon(Icons.navigation_outlined, size: 18),
+                label: Text('Navigate to Lender',
                     style: TextStyle(fontWeight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.info,
-                  side: const BorderSide(color: AppColors.info),
+                  side: BorderSide(color: AppColors.info),
                   minimumSize: const Size(0, 48),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: () => context.push(
                     RouteConstants.riderBorrowerInfo
                         .replaceFirst(':id', widget.collectionId)),
-                icon: const Icon(Icons.person_search_outlined, size: 18),
-                label: const Text('View Lender Full Info'),
+                icon: Icon(Icons.person_search_outlined, size: 18),
+                label: Text('View Lender Full Info'),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.riderGreen,
                 ),
               ),
             ),
           ],
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -1593,30 +1596,30 @@ class _RiderCollectionDetailsScreenState
     if (col.status == 'completed') {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
                   color: AppColors.successLight,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.check_circle,
+                child: Icon(Icons.check_circle,
                     size: 40, color: AppColors.riderGreen),
               ),
-              const SizedBox(height: 14),
-              const Text('Collection already completed',
+              SizedBox(height: 14),
+              Text('Collection already completed',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
-              const SizedBox(height: 6),
+                      color: context.cTextPrimary)),
+              SizedBox(height: 6),
               Text('Amount: ${col.amountCollected?.toCurrency ?? '—'}',
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
-              const SizedBox(height: 20),
+                  style: TextStyle(
+                      fontSize: 13, color: context.cTextSecondary)),
+              SizedBox(height: 20),
               AppButton(
                 label: 'Continue to Proof',
                 onPressed: () => _goToStep(2),
@@ -1628,7 +1631,7 @@ class _RiderCollectionDetailsScreenState
       );
     }
     if (col.status == 'declined') {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Column(
@@ -1637,7 +1640,7 @@ class _RiderCollectionDetailsScreenState
               Icon(Icons.block_outlined, size: 48, color: AppColors.error),
               SizedBox(height: 12),
               Text('This collection was declined.',
-                  style: TextStyle(color: AppColors.textSecondary)),
+                  style: TextStyle(color: context.cTextSecondary)),
             ],
           ),
         ),
@@ -1646,43 +1649,43 @@ class _RiderCollectionDetailsScreenState
     if (col.status != 'accepted' && col.status != 'in_progress') {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.warningLight,
                   shape: BoxShape.circle,
                   border: Border.all(
                       color: AppColors.warning.withValues(alpha: 0.3)),
                 ),
-                child: const Icon(Icons.lock_outline,
+                child: Icon(Icons.lock_outline,
                     size: 28, color: AppColors.warning),
               ),
-              const SizedBox(height: 14),
-              const Text('Accept assignment first',
+              SizedBox(height: 14),
+              Text('Accept assignment first',
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
-              const SizedBox(height: 6),
-              const Text(
+                      color: context.cTextPrimary)),
+              SizedBox(height: 6),
+              Text(
                   'You must accept the assignment in Details step before recording a collection.',
                   textAlign: TextAlign.center,
                   style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-              const SizedBox(height: 16),
+                      TextStyle(color: context.cTextSecondary, fontSize: 13)),
+              SizedBox(height: 16),
               OutlinedButton(
                 onPressed: () => _goToStep(0),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.riderGreen,
-                  side: const BorderSide(color: AppColors.riderGreen),
+                  side: BorderSide(color: AppColors.riderGreen),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text('Go to Details'),
+                child: Text('Go to Details'),
               ),
             ],
           ),
@@ -1695,20 +1698,20 @@ class _RiderCollectionDetailsScreenState
     final alreadyRecorded = col.amountCollected != null;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Step intro
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.riderGreen.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                   color: AppColors.riderGreen.withValues(alpha: 0.15)),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.edit_note_outlined,
                     color: AppColors.riderGreen, size: 20),
@@ -1724,9 +1727,9 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(14),
             decoration: BoxDecoration(
                 color: AppColors.riderGreen.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
@@ -1734,25 +1737,25 @@ class _RiderCollectionDetailsScreenState
                     color: AppColors.riderGreen.withValues(alpha: 0.18))),
             child: Row(
               children: [
-                const Icon(Icons.info_outline,
+                Icon(Icons.info_outline,
                     color: AppColors.riderGreen, size: 20),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                     child: Text('Expected amount: ${amountDue.toCurrency}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 14,
                             color: AppColors.riderGreen,
                             fontWeight: FontWeight.w700))),
                 if (alreadyRecorded)
                   Container(
-                    margin: const EdgeInsets.only(left: 8),
+                    margin: EdgeInsets.only(left: 8),
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.riderGreen,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text('Recorded',
+                    child: Text('Recorded',
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -1762,9 +1765,9 @@ class _RiderCollectionDetailsScreenState
             ),
           ),
           if (alreadyRecorded) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.successLight,
                 borderRadius: BorderRadius.circular(12),
@@ -1773,59 +1776,59 @@ class _RiderCollectionDetailsScreenState
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.check_circle,
+                  Icon(Icons.check_circle,
                       color: AppColors.riderGreen, size: 18),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
                         'Already recorded: ${col.amountCollected!.toCurrency} — you can edit or continue.',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13, color: AppColors.riderGreen)),
                   ),
                 ],
               ),
             ),
           ],
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.border)),
+                side: BorderSide(color: context.cBorder)),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Collection Details',
+                  Text('Collection Details',
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                  const SizedBox(height: 14),
+                          color: context.cTextPrimary)),
+                  SizedBox(height: 14),
                   AppTextField(
                       controller: _amountCtrl,
                       label: 'Amount Collected (₱) *',
                       hint: '0.00',
                       keyboardType: TextInputType.number,
                       prefixIcon: Icons.payments_outlined),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   AppTextField(
                       controller: _notesCtrl,
                       label: 'Notes (optional)',
                       hint: 'Any notes about the collection...',
                       maxLines: 3,
                       prefixIcon: Icons.sticky_note_2_outlined),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppColors.riderGreen.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                           color: AppColors.riderGreen.withValues(alpha: 0.15)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(Icons.gps_fixed,
                             color: AppColors.riderGreen, size: 16),
@@ -1835,7 +1838,7 @@ class _RiderCollectionDetailsScreenState
                             'GPS location is automatically captured and recorded with this collection.',
                             style: TextStyle(
                                 fontSize: 11,
-                                color: AppColors.textSecondary,
+                                color: context.cTextSecondary,
                                 height: 1.3),
                           ),
                         ),
@@ -1846,7 +1849,7 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           // Quick actions
           Row(
             children: [
@@ -1856,35 +1859,35 @@ class _RiderCollectionDetailsScreenState
                       amountDue.toStringAsFixed(2),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.riderGreen,
-                    side: const BorderSide(color: AppColors.riderGreen),
+                    side: BorderSide(color: AppColors.riderGreen),
                     minimumSize: const Size(0, 44),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('Use Due Amount',
+                  child: Text('Use Due Amount',
                       style: TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => _amountCtrl.clear(),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: const BorderSide(color: AppColors.border),
+                    foregroundColor: context.cTextSecondary,
+                    side: BorderSide(color: context.cBorder),
                     minimumSize: const Size(0, 44),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('Clear',
+                  child: Text('Clear',
                       style:
                           TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -1893,12 +1896,12 @@ class _RiderCollectionDetailsScreenState
   Widget _buildProofTab(CollectionAssignmentModel col) {
     if (col.status == 'completed') {
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                     colors: [AppColors.riderGreen, AppColors.riderGreenDark]),
@@ -1906,29 +1909,29 @@ class _RiderCollectionDetailsScreenState
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.verified_outlined,
+                  Icon(Icons.verified_outlined,
                       size: 40, color: Colors.white),
-                  const SizedBox(height: 10),
-                  const Text('Collection completed!',
+                  SizedBox(height: 10),
+                  Text('Collection completed!',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Amount: ${col.amountCollected?.toCurrency ?? '—'}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                   if (col.completedAt != null)
                     Text(
                       'Completed: ${DateFormat('MMM d, yyyy h:mm a').format(col.completedAt!)}',
                       style:
-                          const TextStyle(color: Colors.white70, fontSize: 11),
+                          TextStyle(color: Colors.white70, fontSize: 11),
                     ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             AppButton(
               label: 'Go to Review',
               onPressed: () => _goToStep(3),
@@ -1946,19 +1949,19 @@ class _RiderCollectionDetailsScreenState
             _amountCtrl.text.isEmpty);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.riderGreen.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                   color: AppColors.riderGreen.withValues(alpha: 0.15)),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.camera_alt_outlined,
                     color: AppColors.riderGreen, size: 20),
@@ -1974,11 +1977,11 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           if (needCollectFirst)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
                   color: AppColors.warningLight,
                   borderRadius: BorderRadius.circular(12),
@@ -1986,10 +1989,10 @@ class _RiderCollectionDetailsScreenState
                       color: AppColors.warning.withValues(alpha: 0.3))),
               child: Row(
                 children: [
-                  const Icon(Icons.lock_outline,
+                  Icon(Icons.lock_outline,
                       color: AppColors.warning, size: 18),
-                  const SizedBox(width: 10),
-                  const Expanded(
+                  SizedBox(width: 10),
+                  Expanded(
                       child: Text(
                           'Record the collected amount in Collect step first before uploading proof.',
                           style: TextStyle(
@@ -1997,14 +2000,14 @@ class _RiderCollectionDetailsScreenState
                               color: AppColors.warning,
                               fontWeight: FontWeight.w600,
                               height: 1.3))),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   TextButton(
                     onPressed: () => _goToStep(1),
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.warning,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: EdgeInsets.symmetric(horizontal: 8),
                     ),
-                    child: const Text('Go to Collect',
+                    child: Text('Go to Collect',
                         style: TextStyle(
                             fontSize: 11, fontWeight: FontWeight.w700)),
                   ),
@@ -2013,11 +2016,11 @@ class _RiderCollectionDetailsScreenState
             ),
           if (!needCollectFirst) ...[
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.cBorder),
                 boxShadow: [
                   BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -2028,7 +2031,7 @@ class _RiderCollectionDetailsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Icon(Icons.receipt_long_outlined,
                           color: AppColors.riderGreen, size: 18),
@@ -2037,15 +2040,15 @@ class _RiderCollectionDetailsScreenState
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary)),
+                              color: context.cTextPrimary)),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
+                  SizedBox(height: 4),
+                  Text(
                       'Clear photo of receipt or cash — required',
                       style: TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
-                  const SizedBox(height: 12),
+                          fontSize: 11, color: context.cTextSecondary)),
+                  SizedBox(height: 12),
                   _PhotoPicker(
                     photo: _proofPhoto,
                     onPickCamera: () => _pickImage(true),
@@ -2055,14 +2058,14 @@ class _RiderCollectionDetailsScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             // Signature pad card
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.cBorder),
                 boxShadow: [
                   BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -2073,7 +2076,7 @@ class _RiderCollectionDetailsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Icon(Icons.draw_outlined,
                           color: AppColors.riderGreen, size: 18),
@@ -2082,14 +2085,14 @@ class _RiderCollectionDetailsScreenState
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary)),
+                              color: context.cTextPrimary)),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text('Ask lender to sign below',
+                  SizedBox(height: 4),
+                  Text('Ask lender to sign below',
                       style: TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
-                  const SizedBox(height: 12),
+                          fontSize: 11, color: context.cTextSecondary)),
+                  SizedBox(height: 12),
                   SignaturePad(
                     height: 140,
                     onSignatureChanged: (base64) =>
@@ -2097,14 +2100,14 @@ class _RiderCollectionDetailsScreenState
                   ),
                   if (_signatureBase64 != null)
                     Container(
-                      margin: const EdgeInsets.only(top: 8),
-                      padding: const EdgeInsets.symmetric(
+                      margin: EdgeInsets.only(top: 8),
+                      padding: EdgeInsets.symmetric(
                           horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: AppColors.successLight,
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.check_circle,
@@ -2121,13 +2124,13 @@ class _RiderCollectionDetailsScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.cBorder),
                 boxShadow: [
                   BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -2138,7 +2141,7 @@ class _RiderCollectionDetailsScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Icon(Icons.camera_outdoor_outlined,
                           color: AppColors.riderGreen, size: 18),
@@ -2147,14 +2150,14 @@ class _RiderCollectionDetailsScreenState
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary)),
+                              color: context.cTextPrimary)),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text('Photo of collection scene for verification',
+                  SizedBox(height: 4),
+                  Text('Photo of collection scene for verification',
                       style: TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary)),
-                  const SizedBox(height: 12),
+                          fontSize: 11, color: context.cTextSecondary)),
+                  SizedBox(height: 12),
                   _PhotoPicker(
                     photo: _scenePhoto,
                     onPickCamera: () => _pickImage(false),
@@ -2165,16 +2168,16 @@ class _RiderCollectionDetailsScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.riderGreen.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                     color: AppColors.riderGreen.withValues(alpha: 0.18)),
               ),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.gps_fixed, color: AppColors.riderGreen, size: 16),
                   SizedBox(width: 8),
@@ -2182,14 +2185,14 @@ class _RiderCollectionDetailsScreenState
                     child: Text(
                       'GPS coordinates are automatically captured and attached to all uploaded photos.',
                       style: TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary),
+                          fontSize: 11, color: context.cTextSecondary),
                     ),
                   ),
                 ],
               ),
             ),
           ],
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -2204,12 +2207,12 @@ class _RiderCollectionDetailsScreenState
     final isCompleted = col.status == 'completed';
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: isCompleted
                   ? AppColors.successLight
@@ -2228,13 +2231,13 @@ class _RiderCollectionDetailsScreenState
                         : Icons.rate_review_outlined,
                     color: AppColors.riderGreen,
                     size: 20),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                     child: Text(
                         isCompleted
                             ? 'Collection completed — review your submission below.'
                             : 'Step 4 — Review everything before final submit. Check amount, notes, and proofs.',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12,
                             color: AppColors.riderGreen,
                             fontWeight: FontWeight.w600,
@@ -2242,14 +2245,14 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // Summary card
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.cBorder),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -2260,7 +2263,7 @@ class _RiderCollectionDetailsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(Icons.summarize_outlined,
                         color: AppColors.riderGreen, size: 18),
@@ -2270,15 +2273,15 @@ class _RiderCollectionDetailsScreenState
                             fontSize: 13, fontWeight: FontWeight.w700)),
                   ],
                 ),
-                const Divider(height: 20),
+                Divider(height: 20),
                 _ReviewRow('Lender', col.lenderName.isEmpty ? '—' : col.lenderName),
                 _ReviewRow('Loan #', col.loanNumber.isEmpty ? '—' : col.loanNumber),
                 _ReviewRow('Due Date', schedule?['due_date'] ?? '—'),
                 _ReviewRow('Amount Due', amountDue.toCurrency,
-                    valueColor: AppColors.textPrimary, valueBold: true),
-                const SizedBox(height: 6),
+                    valueColor: context.cTextPrimary, valueBold: true),
+                SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.riderGreen.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(10),
@@ -2288,20 +2291,20 @@ class _RiderCollectionDetailsScreenState
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Amount Collected',
+                      Text('Amount Collected',
                           style: TextStyle(
                               fontSize: 12,
                               color: AppColors.riderGreen,
                               fontWeight: FontWeight.w600)),
                       Text(collectedStr,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 16,
                               color: AppColors.riderGreen,
                               fontWeight: FontWeight.w800)),
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _ReviewRow('Notes', notesStr.isEmpty ? 'No notes' : notesStr),
                 _ReviewRow('Status', col.statusLabel),
                 if (col.completedAt != null)
@@ -2312,14 +2315,14 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           // Proof preview card
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.cBorder),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
@@ -2330,7 +2333,7 @@ class _RiderCollectionDetailsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(Icons.photo_library_outlined,
                         color: AppColors.riderGreen, size: 18),
@@ -2340,21 +2343,21 @@ class _RiderCollectionDetailsScreenState
                             fontSize: 13, fontWeight: FontWeight.w700)),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 if (_proofPhoto != null) ...[
-                  const Text('Payment Proof',
+                  Text('Payment Proof',
                       style: TextStyle(
                           fontSize: 11,
-                          color: AppColors.textSecondary,
+                          color: context.cTextSecondary,
                           fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: XFilePreview(
                         file: _proofPhoto!, height: 160, width: double.infinity),
                   ),
-                  const SizedBox(height: 6),
-                  const Row(
+                  SizedBox(height: 6),
+                  Row(
                     children: [
                       Icon(Icons.check_circle,
                           color: AppColors.riderGreen, size: 12),
@@ -2364,17 +2367,17 @@ class _RiderCollectionDetailsScreenState
                               fontSize: 11, color: AppColors.riderGreen)),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                 ] else
                   Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: AppColors.errorLight,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                           color: AppColors.error.withValues(alpha: 0.25)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(Icons.warning_amber,
                             color: AppColors.error, size: 18),
@@ -2388,13 +2391,13 @@ class _RiderCollectionDetailsScreenState
                     ),
                   ),
                 if (_scenePhoto != null) ...[
-                  const SizedBox(height: 10),
-                  const Text('Scene Photo',
+                  SizedBox(height: 10),
+                  Text('Scene Photo',
                       style: TextStyle(
                           fontSize: 11,
-                          color: AppColors.textSecondary,
+                          color: context.cTextSecondary,
                           fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: XFilePreview(
@@ -2402,15 +2405,15 @@ class _RiderCollectionDetailsScreenState
                   ),
                 ],
                 if (_signatureBase64 != null) ...[
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                         horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: AppColors.successLight,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.draw_outlined,
@@ -2425,41 +2428,41 @@ class _RiderCollectionDetailsScreenState
                     ),
                   ),
                 ] else
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 10),
                     child: Text('No signature — optional',
                         style: TextStyle(
-                            fontSize: 11, color: AppColors.textTertiary)),
+                            fontSize: 11, color: context.cTextTertiary)),
                   ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 // Edit CTA
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _goToStep(2),
-                        icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text('Edit Proofs',
+                        icon: Icon(Icons.edit_outlined, size: 16),
+                        label: Text('Edit Proofs',
                             style: TextStyle(fontSize: 12)),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.riderGreen,
-                          side: const BorderSide(color: AppColors.riderGreen),
+                          side: BorderSide(color: AppColors.riderGreen),
                           minimumSize: const Size(0, 40),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _goToStep(1),
-                        icon: const Icon(Icons.payments_outlined, size: 16),
-                        label: const Text('Edit Amount',
+                        icon: Icon(Icons.payments_outlined, size: 16),
+                        label: Text('Edit Amount',
                             style: TextStyle(fontSize: 12)),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
-                          side: const BorderSide(color: AppColors.border),
+                          foregroundColor: context.cTextSecondary,
+                          side: BorderSide(color: context.cBorder),
                           minimumSize: const Size(0, 40),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10)),
@@ -2471,22 +2474,22 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // Checklist
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: const Color(0xFFF9F9F9),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.cBorder),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Checklist before submit',
+                Text('Checklist before submit',
                     style: TextStyle(
                         fontSize: 12, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _CheckItem(
                     done: (col.amountCollected != null ||
                         _amountCtrl.text.isNotEmpty),
@@ -2503,7 +2506,7 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          const SizedBox(height: 80),
+          SizedBox(height: 80),
         ],
       ),
     );
@@ -2520,21 +2523,21 @@ class _InfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
               width: 110,
               child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary))),
+                  style: TextStyle(
+                      fontSize: 12, color: context.cTextSecondary))),
           Expanded(
               child: Text(value,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary))),
+                      color: context.cTextPrimary))),
         ],
       ),
     );
@@ -2552,21 +2555,21 @@ class _ReviewRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
               width: 110,
               child: Text(label,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary))),
+                  style: TextStyle(
+                      fontSize: 11, color: context.cTextSecondary))),
           Expanded(
             child: Text(value,
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: valueBold ? FontWeight.w700 : FontWeight.w600,
-                    color: valueColor ?? AppColors.textPrimary)),
+                    color: valueColor ?? context.cTextPrimary)),
           ),
         ],
       ),
@@ -2584,7 +2587,7 @@ class _CheckItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
           Icon(done ? Icons.check_circle : Icons.radio_button_unchecked,
@@ -2592,23 +2595,23 @@ class _CheckItem extends StatelessWidget {
               color: done
                   ? AppColors.riderGreen
                   : optional
-                      ? AppColors.textTertiary
+                      ? context.cTextTertiary
                       : AppColors.warning),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text(label,
               style: TextStyle(
                   fontSize: 12,
                   color: done
                       ? AppColors.riderGreen
                       : optional
-                          ? AppColors.textTertiary
-                          : AppColors.textSecondary,
+                          ? context.cTextTertiary
+                          : context.cTextSecondary,
                   fontWeight: done ? FontWeight.w600 : FontWeight.w500)),
           if (optional)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(left: 6),
               child: Text('(optional)',
-                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                  style: TextStyle(fontSize: 11, color: context.cTextTertiary)),
             )
         ],
       ),
@@ -2645,10 +2648,10 @@ class _PhotoPicker extends StatelessWidget {
             child: GestureDetector(
               onTap: onRemove,
               child: Container(
-                padding: const EdgeInsets.all(6),
+                padding: EdgeInsets.all(6),
                 decoration:
-                    const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                child: const Icon(Icons.close, color: Colors.white, size: 16),
+                    BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: Icon(Icons.close, color: Colors.white, size: 16),
               ),
             ),
           ),
@@ -2656,12 +2659,12 @@ class _PhotoPicker extends StatelessWidget {
             bottom: 8,
             left: 8,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.riderGreen,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.check, color: Colors.white, size: 12),
@@ -2687,7 +2690,7 @@ class _PhotoPicker extends StatelessWidget {
               color: AppColors.riderGreen,
               onTap: onPickCamera),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: _PickBtn(
               icon: Icons.photo_library_outlined,
@@ -2716,7 +2719,7 @@ class _PickBtn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
@@ -2725,7 +2728,7 @@ class _PickBtn extends StatelessWidget {
         child: Column(
           children: [
             Icon(icon, color: color, size: 22),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(label,
                 style: TextStyle(
                     color: color, fontSize: 12, fontWeight: FontWeight.w700)),

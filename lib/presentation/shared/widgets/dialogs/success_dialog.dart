@@ -91,15 +91,15 @@ class SuccessDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy),
+                    color: context.cTextPrimary),
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(message,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textSecondary),
+                style: TextStyle(
+                    fontSize: 14, color: context.cTextSecondary),
                 textAlign: TextAlign.center),
             const SizedBox(height: 24),
             SizedBox(

@@ -31,19 +31,19 @@ class EmptyStateWidget extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: const BoxDecoration(
-                color: AppColors.surfaceVariant,
+              decoration: BoxDecoration(
+                color: context.cSurfaceVariant,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 32, color: AppColors.textTertiary),
+              child: Icon(icon, size: 32, color: context.cTextTertiary),
             ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+                color: context.cTextPrimary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -51,9 +51,9 @@ class EmptyStateWidget extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 message!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
-                  color: AppColors.textSecondary,
+                  color: context.cTextSecondary,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -62,9 +62,9 @@ class EmptyStateWidget extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 subtitle!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AppColors.textTertiary,
+                  color: context.cTextTertiary,
                 ),
                 textAlign: TextAlign.center,
               ),

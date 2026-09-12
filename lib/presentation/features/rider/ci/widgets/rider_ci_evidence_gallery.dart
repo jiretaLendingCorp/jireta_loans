@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/ci/widgets/rider_ci_evidence_gallery.dart
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -10,15 +11,15 @@ class RiderCiEvidenceGallery extends StatelessWidget {
   Widget build(BuildContext context) {
     if (documents.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         alignment: Alignment.center,
-        child: const Column(
+        child: Column(
           children: [
             Icon(Icons.photo_library_outlined,
-                size: 48, color: AppColors.textTertiary),
+                size: 48, color: context.cTextTertiary),
             SizedBox(height: 8),
             Text('No photos uploaded yet',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                style: TextStyle(fontSize: 13, color: context.cTextSecondary)),
           ],
         ),
       );
@@ -75,7 +76,7 @@ class RiderCiEvidenceGallery extends StatelessWidget {
               right: 8,
               child: IconButton(
                 onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close, color: Colors.white),
+                icon: Icon(Icons.close, color: Colors.white),
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.black54,
                 ),
@@ -88,10 +89,10 @@ class RiderCiEvidenceGallery extends StatelessWidget {
                 right: 0,
                 child: Container(
                   color: Colors.black54,
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(12),
                   child: Text(caption,
                       style:
-                          const TextStyle(color: Colors.white, fontSize: 13)),
+                          TextStyle(color: Colors.white, fontSize: 13)),
                 ),
               ),
           ],
@@ -138,9 +139,9 @@ class _GalleryItem extends StatelessWidget {
                 );
               },
               errorBuilder: (_, __, ___) => Container(
-                color: AppColors.surfaceVariant,
-                child: const Icon(Icons.broken_image_outlined,
-                    color: AppColors.textTertiary, size: 36),
+                color: context.cSurfaceVariant,
+                child: Icon(Icons.broken_image_outlined,
+                    color: context.cTextTertiary, size: 36),
               ),
             ),
             if (lat != null && lng != null)
@@ -149,7 +150,7 @@ class _GalleryItem extends StatelessWidget {
                 left: 6,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(6),
@@ -157,13 +158,13 @@ class _GalleryItem extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.location_on,
+                      Icon(Icons.location_on,
                           size: 10, color: Colors.white),
-                      const SizedBox(width: 2),
+                      SizedBox(width: 2),
                       Text(
                         '${lat!.toStringAsFixed(4)}, ${lng!.toStringAsFixed(4)}',
                         style:
-                            const TextStyle(fontSize: 9, color: Colors.white),
+                            TextStyle(fontSize: 9, color: Colors.white),
                       ),
                     ],
                   ),
@@ -176,8 +177,8 @@ class _GalleryItem extends StatelessWidget {
                 right: 0,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  decoration: const BoxDecoration(
+                      EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
@@ -186,7 +187,7 @@ class _GalleryItem extends StatelessWidget {
                   ),
                   child: Text(
                     caption!,
-                    style: const TextStyle(color: Colors.white, fontSize: 10),
+                    style: TextStyle(color: Colors.white, fontSize: 10),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

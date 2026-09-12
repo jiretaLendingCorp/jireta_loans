@@ -41,14 +41,14 @@ class ErrorStateWidget extends StatelessWidget {
               'Something went wrong',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: context.cTextPrimary,
                   ),
             ),
             const SizedBox(height: 8),
             Text(
               message,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
+                    color: context.cTextSecondary,
                   ),
               textAlign: TextAlign.center,
             ),

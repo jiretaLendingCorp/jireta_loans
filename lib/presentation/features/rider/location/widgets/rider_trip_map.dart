@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/location/widgets/rider_trip_map.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -619,7 +620,7 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
       height: widget.height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -690,7 +691,7 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
             child: GestureDetector(
               onTap: _openFullscreen,
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.92),
                   shape: BoxShape.circle,
@@ -702,7 +703,7 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.fullscreen,
                   size: 20,
                   color: Colors.black87,
@@ -717,7 +718,7 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
               onTap: _openFullscreen,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(8),
@@ -729,18 +730,18 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.fullscreen,
-                        size: 16, color: AppColors.textPrimary),
+                        size: 16, color: context.cTextPrimary),
                     SizedBox(width: 4),
                     Text(
                       'Fullscreen',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: context.cTextPrimary,
                       ),
                     ),
                   ],
@@ -754,7 +755,7 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
             child: GestureDetector(
               onTap: _recenterOnRider,
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.92),
                   shape: BoxShape.circle,
@@ -766,7 +767,7 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.my_location,
                   size: 20,
                   color: AppColors.riderGreen,
@@ -784,7 +785,7 @@ class _RiderTripMapState extends ConsumerState<RiderTripMap>
                   icon: Icons.add,
                   onTap: _zoomIn,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _ZoomButton(
                   icon: Icons.remove,
                   onTap: _zoomOut,
@@ -820,13 +821,13 @@ class RiderMapLegend extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _LegendDot(color: originColor, label: originLabel),
-        const SizedBox(width: 16),
+        SizedBox(width: 16),
         _LegendDot(color: Colors.pink, label: destinationLabel),
         if (extraLabel != null && extraColor != null) ...[
-          const SizedBox(width: 16),
+          SizedBox(width: 16),
           _LegendDot(color: extraColor!, label: extraLabel!),
         ],
-        const SizedBox(width: 16),
+        SizedBox(width: 16),
         const _LegendDot(color: AppColors.riderGreen, label: 'Route'),
       ],
     );
@@ -871,7 +872,7 @@ class _MapBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: error
             ? Colors.red.shade50.withValues(alpha: 0.95)
@@ -885,26 +886,26 @@ class _MapBanner extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (loading) ...[
-            const SizedBox(
+            SizedBox(
               width: 12,
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
           ] else ...[
             Icon(
               error ? Icons.error_outline : Icons.info_outline,
               size: 14,
-              color: error ? Colors.red : AppColors.textSecondary,
+              color: error ? Colors.red : context.cTextSecondary,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
           ],
           Expanded(
             child: Text(
               message,
               style: TextStyle(
                   fontSize: 11,
-                  color: error ? Colors.red.shade900 : AppColors.textSecondary),
+                  color: error ? Colors.red.shade900 : context.cTextSecondary),
             ),
           ),
         ],
@@ -924,10 +925,10 @@ class _LegendDot extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(Icons.location_on, color: color, size: 18),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 12, color: context.cTextSecondary),
         ),
       ],
     );

@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/ci/screens/rider_ci_borrower_info_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -84,12 +85,12 @@ class _RiderCiBorrowerInfoScreenState
       onRefresh: () async =>
           ref.read(riderCiProvider.notifier).loadDetails(widget.ciId),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         children: [
           _CiBanner(ciId: widget.ciId, notes: ci.investigationNotes as String?),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _ProfileHeaderCard(name: fullName, phone: phone),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _ContactRow(
             onCall: () => _callBorrower(phone),
             onSms: () => _smsBorrower(phone),
@@ -102,13 +103,13 @@ class _RiderCiBorrowerInfoScreenState
               );
             },
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _InfoCard(title: 'Personal Information', items: [
             _InfoItem(label: 'Date of Birth', value: dob ?? '—'),
             _InfoItem(label: 'Gender', value: gender),
             _InfoItem(label: 'Civil Status', value: civil),
           ]),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _InfoCard(title: 'Employment', items: [
             _InfoItem(label: 'Employment Type', value: employment),
             _InfoItem(label: 'Employer', value: employer),
@@ -116,17 +117,17 @@ class _RiderCiBorrowerInfoScreenState
                 label: 'Monthly Income',
                 value: income != null ? '₱${income.toStringAsFixed(2)}' : '—'),
           ]),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           if (addresses.isNotEmpty) _AddressesSection(addresses: addresses),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           if (emergencyContacts.isNotEmpty)
             _EmergencyContactsSection(contacts: emergencyContacts),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.riderGreen,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
@@ -134,8 +135,8 @@ class _RiderCiBorrowerInfoScreenState
             onPressed: () => context.push(RouteConstants
                 .riderNavigateToBorrowerCi
                 .replaceFirst(':id', widget.ciId)),
-            icon: const Icon(Icons.navigation_outlined),
-            label: const Text('Navigate to Address',
+            icon: Icon(Icons.navigation_outlined),
+            label: Text('Navigate to Address',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
           ),
         ],
@@ -152,7 +153,7 @@ class _CiBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.riderGreen.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
@@ -161,7 +162,7 @@ class _CiBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.assignment_outlined,
                   color: AppColors.riderGreen, size: 18),
@@ -174,16 +175,16 @@ class _CiBanner extends StatelessWidget {
             ],
           ),
           if (notes != null && notes!.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(notes!,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary)),
+                style: TextStyle(
+                    fontSize: 13, color: context.cTextSecondary)),
           ] else ...[
-            const SizedBox(height: 6),
-            const Text('No additional notes provided.',
+            SizedBox(height: 6),
+            Text('No additional notes provided.',
                 style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.textTertiary,
+                    color: context.cTextTertiary,
                     fontStyle: FontStyle.italic)),
           ],
         ],
@@ -200,7 +201,7 @@ class _ProfileHeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
             colors: [AppColors.riderGreenDark, AppColors.riderGreen],
@@ -214,21 +215,21 @@ class _ProfileHeaderCard extends StatelessWidget {
             radius: 28,
             backgroundColor: Colors.white.withValues(alpha: 0.2),
             child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(
+                style: TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(name,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 17,
                       fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(phone.maskPhone(),
                   style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.85),
@@ -258,19 +259,19 @@ class _ContactRow extends StatelessWidget {
                 label: 'Call',
                 color: AppColors.riderGreen,
                 onTap: onCall)),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
             child: _ContactBtn(
                 icon: Icons.sms_outlined,
                 label: 'SMS',
                 color: AppColors.info,
                 onTap: onSms)),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
             child: _ContactBtn(
                 icon: Icons.copy_outlined,
                 label: 'Copy',
-                color: AppColors.textSecondary,
+                color: context.cTextSecondary,
                 onTap: onCopy)),
       ],
     );
@@ -293,7 +294,7 @@ class _ContactBtn extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
@@ -302,7 +303,7 @@ class _ContactBtn extends StatelessWidget {
         child: Column(
           children: [
             Icon(icon, color: color, size: 22),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(label,
                 style: TextStyle(
                     color: color, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -327,11 +328,11 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
@@ -343,25 +344,25 @@ class _InfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
+                  color: context.cTextPrimary)),
+          SizedBox(height: 12),
           ...items.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: EdgeInsets.only(bottom: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(item.label,
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.textSecondary)),
+                        style: TextStyle(
+                            fontSize: 13, color: context.cTextSecondary)),
                     Flexible(
                         child: Text(item.value,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary),
+                                color: context.cTextPrimary),
                             textAlign: TextAlign.end)),
                   ],
                 ),
@@ -379,11 +380,11 @@ class _AddressesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
@@ -394,12 +395,12 @@ class _AddressesSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Addresses to Investigate',
+          Text('Addresses to Investigate',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
+                  color: context.cTextPrimary)),
+          SizedBox(height: 12),
           ...addresses.map((addr) {
             final a = addr as Map<String, dynamic>;
             final type = (a['address_type'] as String? ?? '').toUpperCase();
@@ -407,8 +408,8 @@ class _AddressesSection extends StatelessWidget {
                 .where((e) => e != null && (e as String).isNotEmpty)
                 .join(', ');
             return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
+              margin: EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.riderGreen.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(10),
@@ -419,14 +420,14 @@ class _AddressesSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(type,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: AppColors.riderGreen)),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(full.isEmpty ? '—' : full,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textPrimary)),
+                      style: TextStyle(
+                          fontSize: 13, color: context.cTextPrimary)),
                 ],
               ),
             );
@@ -444,11 +445,11 @@ class _EmergencyContactsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.cBorder),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),
@@ -459,37 +460,37 @@ class _EmergencyContactsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Emergency Contacts',
+          Text('Emergency Contacts',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
-                  color: AppColors.textPrimary)),
-          const SizedBox(height: 12),
+                  color: context.cTextPrimary)),
+          SizedBox(height: 12),
           ...contacts.map((c) {
             final contact = c as Map<String, dynamic>;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.only(bottom: 10),
               child: Row(
                 children: [
-                  const Icon(Icons.emergency_outlined,
+                  Icon(Icons.emergency_outlined,
                       color: AppColors.warning, size: 18),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(contact['name'] as String? ?? '—',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.w500, fontSize: 13)),
                         Text(contact['relationship'] as String? ?? '—',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textSecondary)),
+                            style: TextStyle(
+                                fontSize: 12, color: context.cTextSecondary)),
                       ],
                     ),
                   ),
                   Text(contact['phone_number'] as String? ?? '—',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                      style: TextStyle(
+                          fontSize: 12, color: context.cTextSecondary)),
                 ],
               ),
             );

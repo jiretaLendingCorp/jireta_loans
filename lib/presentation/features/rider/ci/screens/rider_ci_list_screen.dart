@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors
 // lib/presentation/features/rider/ci/screens/rider_ci_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,13 +42,20 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
         label: 'CI Tasks',
         route: RouteConstants.riderCi),
     MobileNavItem(
+        icon: Icons.history_outlined,
+        activeIcon: Icons.history_rounded,
+        label: 'History',
+        route: RouteConstants.riderHistory),
+    MobileNavItem(
         icon: Icons.person_outline,
         activeIcon: Icons.person,
         label: 'Profile',
         route: RouteConstants.riderProfile),
   ];
 
-  final _tabs = ['Assigned', 'In Progress', 'Completed'];
+  // May "Declined" tab sa tabi ng Completed para makita pa rin ng rider ang
+  // mga assignment na tinanggihan nila (dati'y tuluyang nawawala sa listahan).
+  final _tabs = ['Assigned', 'In Progress', 'Completed', 'Declined'];
 
   @override
   void initState() {
@@ -58,7 +66,7 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
-    final statusMap = ['assigned', 'in_progress', 'completed'];
+    final statusMap = ['assigned', 'in_progress', 'completed', 'declined'];
     ref
         .read(riderCiProvider.notifier)
         .setFilter(statusMap[_tabController.index]);
@@ -80,14 +88,20 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
       navItems: _navItems,
       body: Column(
         children: [
+          // Pareho sa Collections: nakadikit sa header (walang gap) — green
+          // (o itim sa dark mode) ang tab strip, puting label, gold indicator.
           Container(
-            color: Colors.white,
+            color: context.headerColor(AppColors.riderGreen),
             child: TabBar(
               controller: _tabController,
-              isScrollable: true,
-              labelColor: AppColors.riderGreen,
-              unselectedLabelColor: AppColors.textSecondary,
-              indicatorColor: AppColors.riderGreen,
+              indicatorColor: AppColors.gold,
+              indicatorWeight: 3,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white60,
+              labelStyle: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
               tabs: _tabs.map((t) => Tab(text: t)).toList(),
             ),
           ),
@@ -103,10 +117,12 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
                             message: 'No CI assignments found')
                         : ListView.separated(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                            // Siksik na listahan — mas maliit na side/top padding
+                            // at masikip na pagitan ng mga card.
+                            padding: const EdgeInsets.fromLTRB(14, 10, 14, 96),
                             itemCount: state.investigations.length,
                             separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 10),
                             itemBuilder: (ctx, i) => _CiCard(
                               key: ValueKey(state.investigations[i].id),
                               ci: state.investigations[i],
@@ -139,14 +155,14 @@ class _CiCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.cSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
               color: isUrgent
                   ? AppColors.error.withValues(alpha: 0.3)
-                  : AppColors.border),
+                  : context.cBorder),
           boxShadow: [
             BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
@@ -160,12 +176,12 @@ class _CiCard extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                       color: AppColors.lenderBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.search,
+                  child: Icon(Icons.search,
                       color: AppColors.lenderBlue, size: 20),
                 ),
                 const SizedBox(width: 12),
@@ -177,22 +193,22 @@ class _CiCard extends StatelessWidget {
                           ci.borrowerName.isEmpty
                               ? 'Lender'
                               : ci.borrowerName,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary)),
+                              color: context.cTextPrimary)),
                       Text('Loan #${ci.loanNumber}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textSecondary)),
+                          style: TextStyle(
+                              fontSize: 12, color: context.cTextSecondary)),
                     ],
                   ),
                 ),
                 StatusBadge(status: ci.status == 'accepted' ? 'in_progress' : ci.status),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 9),
             const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: 9),
             Row(
               children: [
                 Expanded(
@@ -214,21 +230,21 @@ class _CiCard extends StatelessWidget {
             ),
             if (ci.investigationNotes != null &&
                 ci.investigationNotes!.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 7),
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
                     color: AppColors.surfaceVariant,
                     borderRadius: BorderRadius.circular(8)),
                 child: Text(ci.investigationNotes!,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 12, color: context.cTextSecondary),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis),
               ),
             ],
             if (ci.status == 'assigned') ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
@@ -237,9 +253,9 @@ class _CiCard extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.error,
                           side: const BorderSide(color: AppColors.error),
-                          padding: const EdgeInsets.symmetric(vertical: 10)),
+                          padding: const EdgeInsets.symmetric(vertical: 9)),
                       child:
-                          const Text('Decline', style: TextStyle(fontSize: 13)),
+                          Text('Decline', style: TextStyle(fontSize: 13)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -248,8 +264,8 @@ class _CiCard extends StatelessWidget {
                       onPressed: () => _handleAccept(context),
                       style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.riderGreen,
-                          padding: const EdgeInsets.symmetric(vertical: 10)),
-                      child: const Text('Accept',
+                          padding: const EdgeInsets.symmetric(vertical: 9)),
+                      child: Text('Accept',
                           style: TextStyle(fontSize: 13, color: Colors.white)),
                     ),
                   ),
@@ -268,13 +284,13 @@ class _CiCard extends StatelessWidget {
       builder: (ctx) {
         final ref = ProviderScope.containerOf(ctx);
         return AlertDialog(
-          title: const Text('Accept CI Assignment'),
-          content: const Text(
+          title: Text('Accept CI Assignment'),
+          content: Text(
               'Are you sure you want to accept this credit investigation assignment?'),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+                child: Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.riderGreen),
@@ -283,7 +299,7 @@ class _CiCard extends StatelessWidget {
                 await ref.read(riderCiProvider.notifier).accept(ci.id);
               },
               child:
-                  const Text('Accept', style: TextStyle(color: Colors.white)),
+                  Text('Accept', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -297,13 +313,13 @@ class _CiCard extends StatelessWidget {
       builder: (ctx) {
         final ref = ProviderScope.containerOf(ctx);
         return AlertDialog(
-          title: const Text('Decline CI Assignment'),
+          title: Text('Decline CI Assignment'),
           content:
-              const Text('Are you sure you want to decline this assignment?'),
+              Text('Are you sure you want to decline this assignment?'),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+                child: Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () async {
@@ -311,7 +327,7 @@ class _CiCard extends StatelessWidget {
                 await ref.read(riderCiProvider.notifier).decline(ci.id);
               },
               child:
-                  const Text('Decline', style: TextStyle(color: Colors.white)),
+                  Text('Decline', style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -335,19 +351,19 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: AppColors.textTertiary),
+        Icon(icon, size: 14, color: context.cTextTertiary),
         const SizedBox(width: 4),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: const TextStyle(
-                    fontSize: 10, color: AppColors.textTertiary)),
+                style: TextStyle(
+                    fontSize: 10, color: context.cTextTertiary)),
             Text(value,
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: valueColor ?? AppColors.textPrimary)),
+                    color: valueColor ?? context.cTextPrimary)),
           ],
         ),
       ],

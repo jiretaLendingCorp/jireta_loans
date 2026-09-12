@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/ci/screens/rider_submit_ci_report_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +41,11 @@ class _RiderSubmitCiReportScreenState
         activeIcon: Icons.search,
         label: 'CI Tasks',
         route: RouteConstants.riderCi),
+    MobileNavItem(
+        icon: Icons.history_outlined,
+        activeIcon: Icons.history_rounded,
+        label: 'History',
+        route: RouteConstants.riderHistory),
     MobileNavItem(
         icon: Icons.person_outline,
         activeIcon: Icons.person,
@@ -117,12 +123,12 @@ class _RiderSubmitCiReportScreenState
       navItems: _navItems,
       showBackButton: true,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: docCount > 0
                     ? AppColors.successLight
@@ -139,7 +145,7 @@ class _RiderSubmitCiReportScreenState
                         docCount > 0 ? AppColors.riderGreen : AppColors.warning,
                     size: 22,
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       docCount > 0
@@ -157,7 +163,7 @@ class _RiderSubmitCiReportScreenState
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             if (docCount == 0)
               SizedBox(
                 width: double.infinity,
@@ -166,36 +172,36 @@ class _RiderSubmitCiReportScreenState
                     RouteConstants.riderUploadCiDocuments
                         .replaceFirst(':id', widget.ciId),
                   ),
-                  icon: const Icon(Icons.camera_alt_outlined,
+                  icon: Icon(Icons.camera_alt_outlined,
                       color: AppColors.riderGreen),
-                  label: const Text('Upload CI Photos',
+                  label: Text('Upload CI Photos',
                       style: TextStyle(color: AppColors.riderGreen)),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.riderGreen),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: AppColors.riderGreen),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               'Investigation Report *',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
-                  color: AppColors.textPrimary),
+                  color: context.cTextPrimary),
             ),
-            const SizedBox(height: 6),
-            const Text(
+            SizedBox(height: 6),
+            Text(
               'Describe your findings: visit details, lender verification, property assessment, neighbor statements, and any observations relevant to creditworthiness.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: context.cTextSecondary),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.cSurface,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: _error != null ? AppColors.error : AppColors.border),
+                    color: _error != null ? AppColors.error : context.cBorder),
                 boxShadow: [
                   BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -207,12 +213,12 @@ class _RiderSubmitCiReportScreenState
                 controller: _reportCtrl,
                 maxLines: 10,
                 minLines: 6,
-                style: const TextStyle(fontSize: 14),
-                decoration: const InputDecoration(
+                style: TextStyle(fontSize: 14),
+                decoration: InputDecoration(
                   hintText:
                       'e.g. Visited lender at provided address on [date]. Property confirmed as residential. Spoke with neighbor who confirmed lender has lived here for 3 years. Lender showed employment ID. No red flags observed.',
                   hintStyle:
-                      TextStyle(fontSize: 13, color: AppColors.textTertiary),
+                      TextStyle(fontSize: 13, color: context.cTextTertiary),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.all(14),
                 ),
@@ -220,21 +226,21 @@ class _RiderSubmitCiReportScreenState
               ),
             ),
             if (_error != null) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.error_outline,
+                  Icon(Icons.error_outline,
                       size: 14, color: AppColors.error),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Expanded(
                     child: Text(_error!,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12, color: AppColors.error)),
                   ),
                 ],
               ),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -242,24 +248,24 @@ class _RiderSubmitCiReportScreenState
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.riderGreen,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                   disabledBackgroundColor:
                       AppColors.riderGreen.withValues(alpha: 0.4),
                 ),
                 child: _submitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
-                    : const Text('Submit',
+                    : Text('Submit',
                         style: TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w600)),
               ),
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
           ],
         ),
       ),

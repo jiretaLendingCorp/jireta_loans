@@ -49,6 +49,7 @@ class MobileScaffold extends ConsumerWidget {
     );
 
     final isLender = path.startsWith('/lender');
+    final isRider = path.startsWith('/rider');
     final notificationsRoute = isLender
         ? RouteConstants.lenderNotifications
         : RouteConstants.riderNotifications;
@@ -57,19 +58,21 @@ class MobileScaffold extends ConsumerWidget {
         : ref.watch(riderNotificationProvider).unreadCount;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: Colors.white,
-        systemNavigationBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: context.cSurface,
+        systemNavigationBarIconBrightness:
+            context.isDarkMode ? Brightness.light : Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFF0F2F5),
+        backgroundColor: context.cPageBg,
         extendBody: true,
         extendBodyBehindAppBar: false,
         resizeToAvoidBottomInset: resizeToAvoidBottomInset,
         appBar: AppBar(
-          backgroundColor: accentColor,
+          // Dark mode: itim ang header (gaya ng request); light mode: role accent.
+          backgroundColor: context.headerColor(accentColor),
           foregroundColor: Colors.white,
           elevation: 0,
           scrolledUnderElevation: 0,
@@ -99,10 +102,12 @@ class MobileScaffold extends ConsumerWidget {
                     )
                   : null),
           actions: [
-            if (isLender)
+            // Contact (support sheet) — pareho na sa lender at rider, tabi ng
+            // notification bell sa header.
+            if (isLender || isRider)
               IconButton(
                 tooltip: 'Contact',
-                onPressed: () => _showLenderContactSheet(context),
+                onPressed: () => _showContactSheet(context, accent: accentColor),
                 icon: const Icon(
                   Icons.support_agent_rounded,
                   color: Colors.white,
@@ -182,6 +187,9 @@ class _FloatingBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 5 items (may History na) — kailangan ng kaunting dagdag na lapad at
+    // maliit na padding, kung hindi masyadong siksik ang mga label.
+    final compact = items.length > 4;
     return SafeArea(
       top: false,
       bottom: true,
@@ -192,13 +200,18 @@ class _FloatingBottomNav extends StatelessWidget {
           // Raised a bit more + vibrant per request — 36px above SafeArea
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 36),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 336),
+            constraints: BoxConstraints(maxWidth: compact ? 404 : 336),
             child: Container(
               // PREMIUM — compressed, vibrant, floated
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.white, Color(0xFFFCFCFA)],
+                gradient: LinearGradient(
+                  colors: context.isDarkMode
+                      ? const [
+                          AppColors.darkSurface,
+                          AppColors.darkSurfaceVariant
+                        ]
+                      : const [Colors.white, Color(0xFFFCFCFA)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -248,7 +261,7 @@ class _FloatingBottomNav extends StatelessWidget {
 
       return Expanded(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
+          padding: EdgeInsets.symmetric(horizontal: items.length > 4 ? 2 : 3),
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(22),
@@ -263,8 +276,8 @@ class _FloatingBottomNav extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOutCubic,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: EdgeInsets.symmetric(
+                    horizontal: items.length > 4 ? 6 : 10, vertical: 6),
                 decoration: BoxDecoration(
                   gradient: effectiveSelected
                       ? LinearGradient(
@@ -326,7 +339,7 @@ class _FloatingBottomNav extends StatelessWidget {
                           weight: 700,
                           color: effectiveSelected
                               ? Colors.white
-                              : AppColors.textPrimary,
+                              : context.cTextPrimary,
                         ),
                         if ((item.badgeCount ?? 0) > 0)
                           Positioned(
@@ -378,7 +391,7 @@ class _FloatingBottomNav extends StatelessWidget {
                         height: 1.1,
                         color: effectiveSelected
                             ? Colors.white
-                            : AppColors.textPrimary,
+                            : context.cTextPrimary,
                         fontFamily: 'Inter',
                       ),
                       child: FittedBox(
@@ -424,6 +437,13 @@ List<MobileNavItem> riderNavItems() => [
         label: 'CI Tasks',
         route: RouteConstants.riderCi,
       ),
+      // History ang ika-4 na item (bago ang Profile).
+      const MobileNavItem(
+        icon: Icons.history_outlined,
+        activeIcon: Icons.history_rounded,
+        label: 'History',
+        route: RouteConstants.riderHistory,
+      ),
       const MobileNavItem(
         icon: Icons.person_outlined,
         activeIcon: Icons.person,
@@ -460,11 +480,13 @@ List<MobileNavItem> lenderNavItems() => [
       ),
     ];
 
-void _showLenderContactSheet(BuildContext context) {
+/// [accent] — kulay ng role (rider green / lender blue) para hindi blue ang
+/// mga icon ng sheet sa rider.
+void _showContactSheet(BuildContext context, {required Color accent}) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
+    backgroundColor: context.cSurface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -480,7 +502,7 @@ void _showLenderContactSheet(BuildContext context) {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.border,
+                  color: context.cBorder,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -492,42 +514,44 @@ void _showLenderContactSheet(BuildContext context) {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: AppColors.deepNavy,
+                    color: accent,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.support_agent_rounded, color: Colors.white, size: 22),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Contact Us', style: TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-                      Text('We\'re here to help', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      Text('Contact Us', style: TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 18, fontWeight: FontWeight.w700, color: accent)),
+                      Text('We\'re here to help', style: TextStyle(fontSize: 12, color: context.cTextSecondary)),
                     ],
                   ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(ctx),
-                  icon: const Icon(Icons.close_rounded, color: AppColors.textTertiary),
+                  icon: Icon(Icons.close_rounded, color: context.cTextTertiary),
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            const Divider(color: AppColors.border, height: 1),
+            Divider(color: context.cBorder, height: 1),
             const SizedBox(height: 16),
             _ContactSheetRow(
               icon: Icons.mail_outline_rounded,
+              iconColor: accent,
               title: 'Email',
-              subtitle: 'jireyalendingcorp@gmail.com',
+              subtitle: 'jiretalendingcorp@gmail.com',
               onTap: () async {
-                final uri = Uri.parse('mailto:jireyalendingcorp@gmail.com');
+                final uri = Uri.parse('mailto:jiretalendingcorp@gmail.com');
                 if (await canLaunchUrl(uri)) await launchUrl(uri);
               },
             ),
             const SizedBox(height: 12),
             _ContactSheetRow(
               icon: Icons.phone_outlined,
+              iconColor: accent,
               title: 'Phone',
               subtitle: '09755849954',
               onTap: () async {
@@ -536,8 +560,9 @@ void _showLenderContactSheet(BuildContext context) {
               },
             ),
             const SizedBox(height: 12),
-            const _ContactSheetRow(
+            _ContactSheetRow(
               icon: Icons.access_time_rounded,
+              iconColor: accent,
               title: 'Office Hours',
               subtitle: 'Mon - Fri, 8:00 AM - 5:00 PM',
               onTap: null,
@@ -553,20 +578,62 @@ class _ContactSheetRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final Color iconColor;
   final VoidCallback? onTap;
-  const _ContactSheetRow({required this.icon, required this.title, required this.subtitle, this.onTap});
+  const _ContactSheetRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.iconColor = AppColors.deepNavy,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Hindi action (hal. Office Hours): plain info lang — walang card
+    // background/border at "free" ang icon (walang kahon), kaya hindi ito
+    // mukhang pinipindot.
+    if (onTap == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: iconColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: context.cTextTertiary,
+                          letterSpacing: 0.3)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: context.cTextPrimary)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Tappable rows (Email / Phone): card look para malinaw na action.
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F8FA),
+          color: context.cSurfaceVariant,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+          border: Border.all(color: context.cBorder.withValues(alpha: 0.6)),
         ),
         child: Row(
           children: [
@@ -574,24 +641,26 @@ class _ContactSheetRow extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: context.cSurface,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: context.cBorder),
               ),
-              child: Icon(icon, size: 18, color: AppColors.deepNavy),
+              child: Icon(icon, size: 18, color: iconColor),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.3)),
+                  Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.cTextTertiary, letterSpacing: 0.3)),
                   const SizedBox(height: 2),
                   Text(subtitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
                 ],
               ),
             ),
-            if (onTap != null) const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.textTertiary),
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded,
+                  size: 20, color: context.cTextTertiary),
           ],
         ),
       ),
