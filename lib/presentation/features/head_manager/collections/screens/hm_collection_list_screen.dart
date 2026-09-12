@@ -13,6 +13,7 @@ import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/hm_collection_provider.dart';
 import '../widgets/assign_rider_collection_modal.dart';
@@ -25,6 +26,7 @@ class _PaymentsState {
   final String? error;
   final int currentPage;
   final int totalPages;
+  final int totalCount;
   final String methodFilter;
   final String? dateFrom;
   final String? dateTo;
@@ -34,6 +36,7 @@ class _PaymentsState {
     this.error,
     this.currentPage = 1,
     this.totalPages = 1,
+    this.totalCount = 0,
     this.methodFilter = 'all',
     this.dateFrom,
     this.dateTo,
@@ -44,6 +47,7 @@ class _PaymentsState {
     String? error,
     int? currentPage,
     int? totalPages,
+    int? totalCount,
     String? methodFilter,
     String? dateFrom,
     String? dateTo,
@@ -54,6 +58,7 @@ class _PaymentsState {
         error: error,
         currentPage: currentPage ?? this.currentPage,
         totalPages: totalPages ?? this.totalPages,
+        totalCount: totalCount ?? this.totalCount,
         methodFilter: methodFilter ?? this.methodFilter,
         dateFrom: dateFrom ?? this.dateFrom,
         dateTo: dateTo ?? this.dateTo,
@@ -86,6 +91,7 @@ class _PaymentsNotifier extends StateNotifier<_PaymentsState>
         isLoading: false,
         currentPage: meta['page'] as int? ?? 1,
         totalPages: meta['total_pages'] as int? ?? 1,
+        totalCount: (meta['total'] as num?)?.toInt() ?? payments.length,
         methodFilter: m,
       );
     } catch (e) {
@@ -135,22 +141,22 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   String _activeTab = 'all'; // all, payments, requested, assigned, in_progress, completed
 
   final _dropdownTabs = const [
-    _TabDef('all', 'All', Icons.layers_outlined),
-    _TabDef('requested', 'Requested', Icons.hourglass_top_rounded),
-    _TabDef('assigned', 'Assigned', Icons.assignment_ind_outlined),
-    _TabDef('in_progress', 'In Progress', Icons.sync_rounded),
-    _TabDef('completed', 'Completed', Icons.check_circle_rounded),
+    FilterTabDef('all', 'All', Icons.layers_outlined),
+    FilterTabDef('requested', 'Requested', Icons.hourglass_top_rounded),
+    FilterTabDef('assigned', 'Assigned', Icons.assignment_ind_outlined),
+    FilterTabDef('in_progress', 'In Progress', Icons.sync_rounded),
+    FilterTabDef('completed', 'Completed', Icons.check_circle_rounded),
   ];
 
   final _pillTabs = const [
-    _TabDef('payments', 'Payments', Icons.payments_outlined),
+    FilterTabDef('payments', 'Payments', Icons.payments_outlined),
   ];
 
   final _paymentMethodTabs = const [
-    _TabDef('all', 'All', Icons.layers_outlined),
-    _TabDef('gcash', 'GCash', Icons.phone_android_rounded),
-    _TabDef('office_cash', 'Office', Icons.storefront_rounded),
-    _TabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
+    FilterTabDef('all', 'All', Icons.layers_outlined),
+    FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
+    FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
+    FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
   ];
 
   void _onDateRangeChanged(DateTimeRange? r) {
@@ -241,93 +247,18 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     final isDropdownActive = dropdownKeys.contains(_activeTab);
     final dropdownValue = isDropdownActive ? _activeTab : null;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isDropdownActive ? AppColors.deepNavy : Colors.white,
-              borderRadius: BorderRadius.zero,
-              border: Border.all(
-                color: isDropdownActive ? AppColors.deepNavy : AppColors.border,
-                width: isDropdownActive ? 1.2 : 1,
-              ),
-              boxShadow: isDropdownActive
-                  ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))]
-                  : null,
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: dropdownValue,
-                isDense: true,
-                iconSize: 18,
-                hint: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.filter_list_rounded,
-                        size: 12, color: isDropdownActive ? AppColors.gold : AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Text('Collections',
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: isDropdownActive ? Colors.white : AppColors.textSecondary)),
-                  ],
-                ),
-                icon: Icon(Icons.arrow_drop_down_rounded, size: 16,
-                    color: isDropdownActive ? Colors.white : AppColors.textTertiary),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: isDropdownActive ? Colors.white : AppColors.textSecondary,
-                ),
-                dropdownColor: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                items: _dropdownTabs
-                    .map((t) => DropdownMenuItem<String>(
-                          value: t.key,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(t.icon, size: 12, color: AppColors.textSecondary),
-                              const SizedBox(width: 4),
-                              Text(t.label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                            ],
-                          ),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v == null) return;
-                  _onTabTap(v);
-                },
-                selectedItemBuilder: (ctx) => _dropdownTabs
-                    .map((t) => Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(t.icon, size: 12, color: AppColors.gold),
-                            const SizedBox(width: 4),
-                            Text(t.label,
-                                style: const TextStyle(
-                                    fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
-                          ],
-                        ))
-                    .toList(),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          ..._pillTabs.map((t) {
-            final isActive = t.key == _activeTab;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _PillTab(def: t, active: isActive, onTap: () => _onTabTap(t.key)),
-            );
-          }),
-        ],
-      ),
+    return FilterTabBar(
+      dropdownLabel: 'Collections',
+      dropdownOptions: _dropdownTabs,
+      dropdownValue: dropdownValue,
+      onDropdownChanged: (v) => _onTabTap(v),
+      pills: _pillTabs.map((t) {
+        final isActive = t.key == _activeTab;
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FilterPillTab(def: t, active: isActive, onTap: () => _onTabTap(t.key)),
+        );
+      }).toList(),
     );
   }
 
@@ -339,25 +270,10 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           final isActive = t.key == state.methodFilter;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: InkWell(
+            child: FilterPillTab(
+              def: t,
+              active: isActive,
               onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod(t.key),
-              borderRadius: BorderRadius.zero,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isActive ? AppColors.deepNavy : Colors.white,
-                  borderRadius: BorderRadius.zero,
-                  border: Border.all(color: isActive ? AppColors.deepNavy : AppColors.border, width: isActive ? 1.2 : 1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(t.icon, size: 12, color: isActive ? AppColors.gold : AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Text(t.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isActive ? Colors.white : AppColors.textSecondary)),
-                  ],
-                ),
-              ),
             ),
           );
         }).toList(),
@@ -392,8 +308,12 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(
               count: isPayments
-                  ? _filteredPayments(pState.payments).length
-                  : cState.items.length,
+                  // No search text -> true server total; while searching the
+                  // box filters client-side so the chip matches what is shown.
+                  ? (_searchCtrl.text.trim().isEmpty
+                      ? pState.totalCount
+                      : _filteredPayments(pState.payments).length)
+                  : cState.totalCount,
             ),
           ],
         ),
@@ -751,42 +671,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
 }
 
 // ── Supporting widgets (mirrors loan records style) ──
-class _TabDef {
-  final String key;
-  final String label;
-  final IconData icon;
-  const _TabDef(this.key, this.label, this.icon);
-}
 
-class _PillTab extends StatelessWidget {
-  final _TabDef def;
-  final bool active;
-  final VoidCallback onTap;
-  const _PillTab({required this.def, required this.active, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.zero,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: active ? AppColors.deepNavy : Colors.white,
-          borderRadius: BorderRadius.zero,
-          border: Border.all(color: active ? AppColors.deepNavy : AppColors.border, width: active ? 1.2 : 1),
-          boxShadow: active ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))] : null,
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(def.icon, size: 12, color: active ? AppColors.gold : AppColors.textTertiary),
-          const SizedBox(width: 4),
-          Text(def.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: active ? Colors.white : AppColors.textSecondary)),
-        ]),
-      ),
-    );
-  }
-}
 
 class _PaymentMethodInline extends StatelessWidget {
   final String method;

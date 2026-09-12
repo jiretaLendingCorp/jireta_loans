@@ -116,7 +116,7 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
           ),
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            SearchResultsChip(count: state.loans.length),
+            SearchResultsChip(count: state.totalCount),
           ],
         ),
       );

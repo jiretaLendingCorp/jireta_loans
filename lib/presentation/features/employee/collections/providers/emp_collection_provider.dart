@@ -73,19 +73,24 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
   Future<void> fetch({int page = 1, bool silent = false}) async {
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
-      final list = await _ds.getCollectionList(
+      final res = await _ds.getList(
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         page: page,
         search: state.search.isEmpty ? null : state.search,
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
+      final items = ((res['items'] as List?) ?? [])
+          .map((e) =>
+              CollectionAssignmentModel.fromJson(e as Map<String, dynamic>))
+          .toList();
+      final total = (res['total'] as num?)?.toInt() ?? items.length;
       state = state.copyWith(
-        items: list,
+        items: items,
         isLoading: false,
         currentPage: page,
-        totalPages: list.length < 20 ? page : page + 1,
-        totalCount: list.length + (page - 1) * 20,
+        totalPages: total == 0 ? 1 : (total / 20).ceil(),
+        totalCount: total,
       );
     } catch (e) {
       if (silent) return;

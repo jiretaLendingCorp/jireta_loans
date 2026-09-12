@@ -94,16 +94,16 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(count: state.lenders.length),
-            DropdownButton<String>(
-              value: state.statusFilter,
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('All')),
-                DropdownMenuItem(value: 'active', child: Text('Active')),
-                DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
-              ],
-              onChanged: (v) =>
-                  ref.read(hmLenderProvider.notifier).setStatus(v!),
-            ),
+          DropdownButton<String>(
+            value: state.statusFilter,
+            items: const [
+              DropdownMenuItem(value: 'all', child: Text('All Status')),
+              DropdownMenuItem(value: 'active', child: Text('Active')),
+              DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+            ],
+            onChanged: (v) =>
+                ref.read(hmLenderProvider.notifier).setStatus(v!),
+          ),
           ],
         ),
       );

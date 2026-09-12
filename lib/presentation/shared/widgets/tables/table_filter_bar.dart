@@ -41,24 +41,18 @@ class TableFilterBar extends StatelessWidget {
                     extra != null ||
                     onExportCsv != null) ...[
                   const SizedBox(height: 10),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        ...chips.map((c) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: _FilterDropdown(data: c),
-                            )),
-                        if (extra != null) ...[
-                          const SizedBox(width: 8),
-                          extra!,
-                        ],
-                        if (onExportCsv != null) ...[
-                          const SizedBox(width: 8),
-                          _buildExport(),
-                        ],
-                      ],
-                    ),
+                  // Wrap (not horizontal scroll) so filter chips are never
+                  // cut off at the screen edge on mobile.
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    // Dulo (right end) ang filters sa mobile.
+                    alignment: WrapAlignment.end,
+                    children: [
+                      ...chips.map((c) => _FilterDropdown(data: c)),
+                      if (extra != null) extra!,
+                      if (onExportCsv != null) _buildExport(),
+                    ],
                   ),
                 ],
               ],

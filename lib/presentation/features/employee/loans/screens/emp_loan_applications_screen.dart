@@ -6,6 +6,7 @@ import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
@@ -32,16 +33,16 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   String _inOfficeSearch = '';
 
   final _dropdownTabs = const [
-    _TabDef('all', 'All', Icons.layers_outlined),
-    _TabDef('pending', 'Pending CI', Icons.hourglass_top_rounded),
-    _TabDef('under_review', 'Under Review', Icons.rate_review_outlined),
-    _TabDef('ci_required', 'CI Required', Icons.search_outlined),
-    _TabDef('ci_assigned', 'CI Assigned', Icons.assignment_ind_outlined),
-    _TabDef('ci_completed', 'CI Completed', Icons.verified_outlined),
+    FilterTabDef('all', 'All', Icons.layers_outlined),
+    FilterTabDef('pending', 'Pending CI', Icons.hourglass_top_rounded),
+    FilterTabDef('under_review', 'Under Review', Icons.rate_review_outlined),
+    FilterTabDef('ci_required', 'CI Required', Icons.search_outlined),
+    FilterTabDef('ci_assigned', 'CI Assigned', Icons.assignment_ind_outlined),
+    FilterTabDef('ci_completed', 'CI Completed', Icons.verified_outlined),
   ];
   final _pillTabs = const [
-    _TabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
-    _TabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
+    FilterTabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
+    FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
   ];
 
   void _onDateRangeChanged(DateTimeRange? r) {
@@ -106,106 +107,40 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
     final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
     final isDropdownActive = dropdownKeys.contains(active);
     final dropdownValue = isDropdownActive ? active : null;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isDropdownActive ? AppColors.deepNavy : Colors.white,
-              borderRadius: BorderRadius.zero,
-              border: Border.all(
-                color: isDropdownActive ? AppColors.deepNavy : AppColors.border,
-                width: isDropdownActive ? 1.2 : 1,
-              ),
-              boxShadow: isDropdownActive
-                  ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.18), blurRadius: 6, offset: const Offset(0, 2))]
-                  : null,
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: dropdownValue,
-                isDense: true,
-                iconSize: 18,
-                hint: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.filter_list_rounded,
-                        size: 12, color: isDropdownActive ? AppColors.gold : AppColors.textTertiary),
-                    const SizedBox(width: 4),
-                    Text('Pipeline',
-                        style: TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.w700, color: isDropdownActive ? Colors.white : AppColors.textSecondary)),
-                  ],
-                ),
-                icon: Icon(Icons.arrow_drop_down_rounded, size: 16, color: isDropdownActive ? Colors.white : AppColors.textTertiary),
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: isDropdownActive ? Colors.white : AppColors.textSecondary),
-                dropdownColor: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                items: _dropdownTabs
-                    .map((t) => DropdownMenuItem<String>(
-                          value: t.key,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(t.icon, size: 12, color: AppColors.textSecondary),
-                              const SizedBox(width: 4),
-                              Text(t.label,
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                            ],
-                          ),
-                        ))
-                    .toList(),
-                onChanged: (v) {
-                  if (v == null) return;
-                  if (_overrideTab != null) setState(() => _overrideTab = null);
-                  final statusKey = v == 'all' ? null : v;
-                  ref.read(empLoanProvider.notifier).setStatus(statusKey);
-                },
-                selectedItemBuilder: (ctx) => _dropdownTabs
-                    .map((t) => Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(t.icon, size: 12, color: AppColors.gold),
-                            const SizedBox(width: 4),
-                            Text(t.label,
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
-                          ],
-                        ))
-                    .toList(),
-              ),
-            ),
+    return FilterTabBar(
+      dropdownLabel: 'Pipeline',
+      dropdownOptions: _dropdownTabs,
+      dropdownValue: dropdownValue,
+      onDropdownChanged: (v) {
+        if (_overrideTab != null) setState(() => _overrideTab = null);
+        final statusKey = v == 'all' ? null : v;
+        ref.read(empLoanProvider.notifier).setStatus(statusKey);
+      },
+      pills: _pillTabs.map((t) {
+        final isActive = t.key == active;
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: FilterPillTab(
+            def: t,
+            active: isActive,
+            onTap: () {
+              if (t.key == 'in_office') {
+                setState(() => _overrideTab = 'in_office');
+                ref.read(empInOfficeProvider.notifier).loadList();
+                return;
+              }
+              if (_overrideTab != null) setState(() => _overrideTab = null);
+              final statusKey = t.key == 'all' ? null : t.key;
+              // For 'active' pill, statusKey is 'active' not null, handle specifically
+              if (t.key == 'active') {
+                ref.read(empLoanProvider.notifier).setStatus('active');
+              } else {
+                ref.read(empLoanProvider.notifier).setStatus(statusKey);
+              }
+            },
           ),
-          const SizedBox(width: 8),
-          ..._pillTabs.map((t) {
-            final isActive = t.key == active;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _PillTab(
-                def: t,
-                active: isActive,
-                onTap: () {
-                  if (t.key == 'in_office') {
-                    setState(() => _overrideTab = 'in_office');
-                    ref.read(empInOfficeProvider.notifier).loadList();
-                    return;
-                  }
-                  if (_overrideTab != null) setState(() => _overrideTab = null);
-                  final statusKey = t.key == 'all' ? null : t.key;
-                  // For 'active' pill, statusKey is 'active' not null, handle specifically
-                  if (t.key == 'active') {
-                    ref.read(empLoanProvider.notifier).setStatus('active');
-                  } else {
-                    ref.read(empLoanProvider.notifier).setStatus(statusKey);
-                  }
-                },
-              ),
-            );
-          }),
-        ],
-      ),
+        );
+      }).toList(),
     );
   }
 
@@ -249,7 +184,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
                 ? _filteredEmpInOffice(
                         (inOfficeAsync.valueOrNull?['items'] as List?) ?? [])
                     .length
-                : loanState.loans.length,
+                : loanState.total,
           ),
         ],
       ),
@@ -938,64 +873,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   }
 }
 
-class _TabDef {
-  final String key;
-  final String label;
-  final IconData icon;
-  const _TabDef(this.key, this.label, this.icon);
-}
 
-class _PillTab extends StatelessWidget {
-  final _TabDef def;
-  final bool active;
-  final VoidCallback onTap;
-  const _PillTab({required this.def, required this.active, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.zero,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: active ? AppColors.deepNavy : Colors.white,
-          borderRadius: BorderRadius.zero,
-          border: Border.all(
-              color: active ? AppColors.deepNavy : AppColors.border,
-              width: active ? 1.2 : 1),
-          boxShadow: active
-              ? [
-                  BoxShadow(
-                    color: AppColors.deepNavy.withValues(alpha: 0.18),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(def.icon,
-                size: 12,
-                color: active ? AppColors.gold : AppColors.textTertiary),
-            const SizedBox(width: 4),
-            Text(
-              def.label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: active ? Colors.white : AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 
 class _EmpInOfficeActions extends ConsumerWidget {

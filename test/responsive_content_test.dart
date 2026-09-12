@@ -74,9 +74,22 @@ Future<void> pumpToolbar(WidgetTester tester, double width) async {
         padding: const EdgeInsets.all(24),
         child: ResponsiveSearchToolbar(
           searchField: const TextField(decoration: InputDecoration(hintText: 'Search...')),
+          // Fixed widths mirror the real pill sizes (Filter Date ~132px,
+          // results chip ~104px). Widget tests render text with the Ahem
+          // font where every glyph is 1em wide, so content-sized samples
+          // would be ~2x wider than on a real device and can never share
+          // one phone row.
           trailing: [
-            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: const Text('Filter Date')),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: const Text('8 results')),
+            Container(
+              width: 132,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: const Text('Filter Date'),
+            ),
+            Container(
+              width: 104,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: const Text('8 results'),
+            ),
           ],
         ),
       ),
@@ -296,5 +309,20 @@ void main() {
         expect(find.text('8 results'), findsOneWidget);
       });
     }
+
+    testWidgets('mobile toolbar stays on one row at width 360.0', (tester) async {
+      await pumpToolbar(tester, 360.0);
+      expect(tester.takeException(), isNull);
+      // Search field and both pills share the same row: their vertical
+      // centers must line up (a wrapped two-row layout would offset them
+      // by a full row height).
+      final searchDy = tester.getCenter(find.byType(TextField)).dy;
+      final filterDy = tester.getCenter(find.text('Filter Date')).dy;
+      final resultsDy = tester.getCenter(find.text('8 results')).dy;
+      expect((filterDy - searchDy).abs(), lessThan(20),
+          reason: 'Filter Date is not on the search row');
+      expect((resultsDy - searchDy).abs(), lessThan(20),
+          reason: 'Results chip is not on the search row');
+    });
   });
 }

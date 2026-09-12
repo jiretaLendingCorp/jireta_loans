@@ -52,8 +52,9 @@ class ResponsiveTableScroll extends StatelessWidget {
 /// so it never overflows on narrow screens.
 ///
 /// On wide screens it renders `Expanded(search) + trailing` exactly like the
-/// previous inline Row. Below [breakpoint] the search keeps a fixed width and
-/// the whole toolbar becomes a horizontally scrollable row instead.
+/// previous inline Row. Below [breakpoint] it stays one row: the search
+/// shrinks (Expanded) and the trailing filters keep their compact size at
+/// the end, so nothing wraps to a second line and nothing is cut off.
 class ResponsiveSearchToolbar extends StatelessWidget {
   final Widget searchField;
 
@@ -76,11 +77,11 @@ class ResponsiveSearchToolbar extends StatelessWidget {
     this.compactSearchWidth = 240,
   });
 
-  List<Widget> _trailingWithGaps() {
+  List<Widget> _trailingWithGaps({double gap = 12}) {
     if (trailing.isEmpty) return const [];
     return [
       for (int i = 0; i < trailing.length; i++) ...[
-        if (i > 0) const SizedBox(width: 12),
+        if (i > 0) SizedBox(width: gap),
         trailing[i],
       ],
     ];
@@ -91,16 +92,13 @@ class ResponsiveSearchToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < breakpoint) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(width: compactSearchWidth, child: searchField),
-                const SizedBox(width: 12),
-                ..._trailingWithGaps(),
-              ],
-            ),
+          // Mobile: ISANG ROW LANG — search flexible, filters compact sa dulo.
+          return Row(
+            children: [
+              Expanded(child: searchField),
+              const SizedBox(width: 8),
+              ..._trailingWithGaps(gap: 8),
+            ],
           );
         }
         return Row(

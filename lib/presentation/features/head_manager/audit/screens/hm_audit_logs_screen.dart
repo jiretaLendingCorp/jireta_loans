@@ -22,12 +22,14 @@ class _AuditState {
   final bool isLoading;
   final int currentPage;
   final int totalPages;
+  final int totalCount;
   final String? error;
   const _AuditState(
       {this.logs = const [],
       this.isLoading = false,
       this.currentPage = 1,
       this.totalPages = 1,
+      this.totalCount = 0,
       this.error});
 
   // Sentinel so copyWith can distinguish "not provided" from an explicit
@@ -39,6 +41,7 @@ class _AuditState {
     bool? isLoading,
     int? currentPage,
     int? totalPages,
+    int? totalCount,
     Object? error = _unsetError,
   }) =>
       _AuditState(
@@ -46,6 +49,7 @@ class _AuditState {
           isLoading: isLoading ?? this.isLoading,
           currentPage: currentPage ?? this.currentPage,
           totalPages: totalPages ?? this.totalPages,
+          totalCount: totalCount ?? this.totalCount,
           error: error == _unsetError ? this.error : error as String?);
 }
 
@@ -79,7 +83,8 @@ class _AuditNotifier extends StateNotifier<_AuditState>
           logs: logs,
           isLoading: false,
           currentPage: meta['page'] as int? ?? 1,
-          totalPages: meta['total_pages'] as int? ?? 1);
+          totalPages: meta['total_pages'] as int? ?? 1,
+          totalCount: (meta['total'] as num?)?.toInt() ?? logs.length);
     } catch (e) {
       if (silent && state.logs.isNotEmpty) return;
       state = state.copyWith(
@@ -177,69 +182,125 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
   Widget _buildFilters(_AuditState state) => Container(
         padding: const EdgeInsets.all(16),
         color: Colors.white,
-        child: ResponsiveSearchToolbar(
-          searchField: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              hintText: 'Search by user name...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border)),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-            onChanged: (v) {
-              _searchDebounce?.cancel();
-              _searchDebounce = Timer(const Duration(milliseconds: 400),
-                  () {
-                ref
-                    .read(_auditProvider.notifier)
-                    .fetch(performedBy: v.trim().isEmpty ? null : v.trim(),
-                        startDate: _dateRange == null
-                            ? null
-                            : SearchDateFilter.fromParam(_dateRange!.start),
-                        endDate: _dateRange == null
-                            ? null
-                            : SearchDateFilter.toParam(_dateRange!.end));
-              });
-            },
-          ),
-          trailing: [
-            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            SearchResultsChip(count: state.logs.length),
-            DropdownButtonHideUnderline(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(8)),
-                child: DropdownButton<String?>(
-                  value: _selectedAction,
-                  hint: const Text('Filter by Action'),
-                  items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('All Actions')),
-                    ...AuditActionCatalog.actions.map((a) => DropdownMenuItem(
-                        value: a,
-                        child: Text(AuditActionCatalog.label(a)))),
+        // Audit has 3 trailing filters (date + count + action) which can't
+        // fit one phone row: on narrow screens the action dropdown moves to
+        // its own right-aligned line below. Desktop keeps a single row.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 640;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ResponsiveSearchToolbar(
+                  searchField: TextField(
+                    controller: _searchCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Search by user name...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide:
+                              const BorderSide(color: AppColors.border)),
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onChanged: (v) {
+                      _searchDebounce?.cancel();
+                      _searchDebounce =
+                          Timer(const Duration(milliseconds: 400), () {
+                        ref.read(_auditProvider.notifier).fetch(
+                            performedBy:
+                                v.trim().isEmpty ? null : v.trim(),
+                            startDate: _dateRange == null
+                                ? null
+                                : SearchDateFilter.fromParam(
+                                    _dateRange!.start),
+                            endDate: _dateRange == null
+                                ? null
+                                : SearchDateFilter.toParam(
+                                    _dateRange!.end));
+                      });
+                    },
+                  ),
+                  trailing: [
+                    SearchDateFilter(
+                        value: _dateRange, onChanged: _onDateRangeChanged),
+                    SearchResultsChip(count: state.totalCount),
+                    if (!isNarrow) _buildActionDropdown(),
                   ],
-                  onChanged: (v) {
-                    setState(() => _selectedAction = v);
-                    ref.read(_auditProvider.notifier).fetch(
-                        action: v,
-                        startDate: _dateRange == null
-                            ? null
-                            : SearchDateFilter.fromParam(_dateRange!.start),
-                        endDate: _dateRange == null
-                            ? null
-                            : SearchDateFilter.toParam(_dateRange!.end));
-                  },
                 ),
-              ),
-            ),
-          ],
+                if (isNarrow) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildActionDropdown(),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       );
+
+  Widget _buildActionDropdown() {
+    // Fixed compact width: a plain DropdownButton stretches to its widest
+    // item (long audit action labels). isExpanded + ellipsis keeps the
+    // button short while the popup menu still shows full labels.
+    return DropdownButtonHideUnderline(
+      child: Container(
+        width: 190,
+        // Same 48px height as Filter Date / results chip so all three
+        // pills align in one row.
+        height: 48,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.circular(8)),
+        child: DropdownButton<String?>(
+          value: _selectedAction,
+          isExpanded: true,
+          // Dense so the button shrinks to its content and the 48px box
+          // centers it exactly with the Filter Date / results labels.
+          isDense: true,
+          hint: const Text(
+            'Filter by Action',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('All Actions')),
+            ...AuditActionCatalog.actions.map((a) => DropdownMenuItem(
+                value: a, child: Text(AuditActionCatalog.label(a)))),
+          ],
+          selectedItemBuilder: (context) => [
+            const Text(
+              'All Actions',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            ...AuditActionCatalog.actions.map((a) => Text(
+                  AuditActionCatalog.label(a),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                )),
+          ],
+          onChanged: (v) {
+            setState(() => _selectedAction = v);
+            ref.read(_auditProvider.notifier).fetch(
+                action: v,
+                startDate: _dateRange == null
+                    ? null
+                    : SearchDateFilter.fromParam(_dateRange!.start),
+                endDate: _dateRange == null
+                    ? null
+                    : SearchDateFilter.toParam(_dateRange!.end));
+          },
+        ),
+      ),
+    );
+  }
 
   Widget _buildTable(_AuditState state) => LayoutBuilder(
         builder: (context, constraints) {

@@ -59,15 +59,9 @@ class _CollapsibleSidebarState extends State<CollapsibleSidebar> {
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
       width: sidebarWidth,
+      // Flat navy panel — no border, no shadow/outline on the edge.
       decoration: const BoxDecoration(
         color: AppColors.deepNavy,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 12,
-            offset: Offset(2, 0),
-          ),
-        ],
       ),
       child: Column(
         children: [

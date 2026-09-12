@@ -50,9 +50,6 @@ class AppDecorations {
 
   static BoxDecoration get sidebar => const BoxDecoration(
         color: AppColors.sidebarBg,
-        boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(2, 0)),
-        ],
       );
 
   static BoxDecoration get statsCard => BoxDecoration(

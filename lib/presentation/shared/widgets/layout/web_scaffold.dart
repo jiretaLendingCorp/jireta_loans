@@ -131,7 +131,13 @@ class WebScaffold extends ConsumerWidget {
             ],
           ),
           drawer: Drawer(
-            width: 280,
+            width: 240,
+            backgroundColor: AppColors.deepNavy,
+            elevation: 0,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+              side: BorderSide.none,
+            ),
             child: SafeArea(
               child: _Sidebar(collapsed: false, role: role, inDrawer: true),
             ),
@@ -535,9 +541,15 @@ class _Sidebar extends ConsumerStatefulWidget {
 class _SidebarState extends ConsumerState<_Sidebar> {
   late final ScrollController _scrollCtrl;
 
+  /// Whether text labels may render. Kept false until the expand animation
+  /// finishes — flipping to full content while the panel is still narrow
+  /// overflows (the fixed icon + gap alone exceed the animating width).
+  late bool _showLabels;
+
   @override
   void initState() {
     super.initState();
+    _showLabels = widget.inDrawer ? true : !widget.collapsed;
     // Start where the user left off on the previous page's sidebar.
     _scrollCtrl = ScrollController(
       initialScrollOffset: ref.read(_sidebarScrollOffsetProvider),
@@ -588,20 +600,36 @@ class _SidebarState extends ConsumerState<_Sidebar> {
     final w = inDrawer ? double.infinity : (collapsed ? 68.0 : 240.0);
     final path = GoRouterState.of(context).uri.path;
     final expandedGroups = ref.watch(_sidebarExpandedGroupsProvider);
+    // Hide labels the moment a collapse starts (icon-only always fits);
+    // reveal them only after the expand animation completes.
+    ref.listen<bool>(_sidebarCollapsedProvider, (prev, next) {
+      if (next && _showLabels && mounted) {
+        setState(() => _showLabels = false);
+      }
+    });
+    final showText = inDrawer ? true : (_showLabels && !collapsed);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
       width: w,
+      onEnd: () {
+        if (mounted &&
+            !inDrawer &&
+            !ref.read(_sidebarCollapsedProvider) &&
+            !_showLabels) {
+          setState(() => _showLabels = true);
+        }
+      },
+      // Flat navy panel — no border, no shadow/outline on the edge.
       decoration: const BoxDecoration(
         color: AppColors.deepNavy,
-        boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(2, 0)),
-        ],
       ),
       child: Column(
         children: [
-          _SidebarHeader(collapsed: effectiveCollapsed),
+          // Compact look follows the label flag (not the raw toggle) so the
+          // animating panel never overflows.
+          _SidebarHeader(collapsed: !showText),
           Expanded(
             child: ListView(
               controller: _scrollCtrl,
@@ -633,12 +661,13 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                   return _FlyoutNavGroup(
                     item: item,
                     collapsed: effectiveCollapsed,
+                    showText: showText,
                     sidebarWidth: collapsed ? 68.0 : 240.0,
                   );
                 }
                 return _SidebarItem(
                   item: item,
-                  collapsed: effectiveCollapsed,
+                  collapsed: !showText,
                 );
               }).toList(),
             ),
@@ -1130,10 +1159,12 @@ class _SidebarGroup extends StatelessWidget {
 class _FlyoutNavGroup extends ConsumerStatefulWidget {
   final _NavItem item;
   final bool collapsed;
+  final bool showText;
   final double sidebarWidth;
   const _FlyoutNavGroup({
     required this.item,
     required this.collapsed,
+    required this.showText,
     required this.sidebarWidth,
   });
   @override
@@ -1142,13 +1173,24 @@ class _FlyoutNavGroup extends ConsumerStatefulWidget {
 
 class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
   final GlobalKey _tileKey = GlobalKey();
+  final GlobalKey<_AnimatedFlyoutState> _menuKey =
+      GlobalKey<_AnimatedFlyoutState>();
   OverlayEntry? _entry;
+  bool _closing = false;
   final Object _tapGroupId = Object();
 
   bool _isActivePath(String path, String route) =>
       route.isNotEmpty && (path == route || path.startsWith('$route/'));
 
   void _showFlyout() {
+    if (_closing) {
+      // A close animation is still running — drop its overlay now so a
+      // defunct entry never outlives this State, then open fresh.
+      _closing = false;
+      final stale = _entry;
+      _entry = null;
+      if (stale != null) _safeRemove(stale);
+    }
     if (_entry != null) return;
     final box = _tileKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !mounted) return;
@@ -1156,8 +1198,8 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
     final pos = box.localToGlobal(Offset.zero);
     double left = widget.sidebarWidth + 6;
     double top = pos.dy - 2;
-    const flyoutWidth = 200.0;
-    final flyoutHeight = widget.item.children.length * 42.0 + 16.0;
+    const flyoutWidth = 208.0;
+    final flyoutHeight = widget.item.children.length * 46.0 + 24.0;
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
     if (top + flyoutHeight > screenHeight - 12) {
@@ -1180,57 +1222,101 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
                 onTapOutside: (_) => _hideFlyout(),
                 child: Material(
                   color: Colors.transparent,
-                  child: Container(
-                    width: flyoutWidth,
-                    decoration: const BoxDecoration(
-                      color: AppColors.deepNavy,
-                      border: Border.fromBorderSide(BorderSide(color: Colors.white12)),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: widget.item.children.map((child) {
-                        final childActive = _isActivePath(currentPath, child.route);
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          child: InkWell(
-                            onTap: () {
-                              _hideFlyout();
-                              if (child.route.isNotEmpty) context.go(child.route);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                              decoration: BoxDecoration(
-                                color: childActive
-                                    ? AppColors.gold.withValues(alpha: 0.15)
-                                    : Colors.transparent,
-                                border: childActive
-                                    ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
-                                    : null,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(child.icon,
-                                      size: 18,
-                                      color: childActive ? AppColors.gold : Colors.white70),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      child.label,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: childActive ? FontWeight.w600 : FontWeight.w400,
-                                        color: childActive ? AppColors.gold : Colors.white70,
+                  child: _AnimatedFlyout(
+                    key: _menuKey,
+                    child: Container(
+                      width: flyoutWidth,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.deepNavy,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            blurRadius: 24,
+                            offset: const Offset(4, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: widget.item.children
+                            .asMap()
+                            .entries
+                            .map((entry) {
+                          final i = entry.key;
+                          final child = entry.value;
+                          final childActive =
+                              _isActivePath(currentPath, child.route);
+                          return Padding(
+                            padding: EdgeInsets.only(top: i == 0 ? 0 : 4),
+                            child: InkWell(
+                              onTap: () {
+                                _hideFlyout();
+                                if (child.route.isNotEmpty) {
+                                  context.go(child.route);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: AnimatedContainer(
+                                duration:
+                                    const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: childActive
+                                      ? AppColors.gold
+                                          .withValues(alpha: 0.15)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: childActive
+                                      ? Border.all(
+                                          color: AppColors.gold.withValues(
+                                              alpha: 0.3))
+                                      : null,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(child.icon,
+                                        size: 18,
+                                        color: childActive
+                                            ? AppColors.gold
+                                            : Colors.white70),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        child.label,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: childActive
+                                              ? FontWeight.w600
+                                              : FontWeight.w400,
+                                          color: childActive
+                                              ? AppColors.gold
+                                              : Colors.white70,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                ],
+                                    if (childActive)
+                                      Container(
+                                        width: 6,
+                                        height: 6,
+                                        decoration: const BoxDecoration(
+                                          color: AppColors.gold,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
                 ),
@@ -1246,17 +1332,40 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
   }
 
   void _hideFlyout() {
-    _entry?.remove();
-    _entry = null;
+    final entry = _entry;
+    if (entry == null || _closing) return;
     ref.read(_peopleFlyoutOpenProvider.notifier).state = false;
+    final panel = _menuKey.currentState;
+    if (panel == null) {
+      _entry = null;
+      _safeRemove(entry);
+    } else {
+      // Keep _entry set until the overlay is actually detached so
+      // deactivate/dispose can always find and remove a live entry.
+      _closing = true;
+      panel.reverse().then((_) {
+        _closing = false;
+        if (identical(_entry, entry)) _entry = null;
+        _safeRemove(entry);
+      });
+    }
     if (mounted) setState(() {});
   }
 
+  void _safeRemove(OverlayEntry entry) {
+    try {
+      entry.remove();
+    } catch (_) {
+      // Already detached (e.g. route disposed first) — nothing to do.
+    }
+  }
+
   void _toggleFlyout() {
-    final isCurrentlyOpen = _entry != null;
+    final isCurrentlyOpen = _entry != null && !_closing;
     if (isCurrentlyOpen) {
       _hideFlyout();
     } else {
+      // _showFlyout also cancels a close animation still running.
       // Select People (navigate to All Users) and open the box with 5 items
       if (widget.item.route.isNotEmpty) {
         final currentPath = GoRouterState.of(context).uri.path;
@@ -1303,14 +1412,18 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
 
   @override
   void deactivate() {
-    _entry?.remove();
+    final entry = _entry;
     _entry = null;
+    _closing = false;
+    if (entry != null) _safeRemove(entry);
     super.deactivate();
   }
 
   @override
   void dispose() {
-    _entry?.remove();
+    final entry = _entry;
+    _entry = null;
+    if (entry != null) _safeRemove(entry);
     super.dispose();
   }
 
@@ -1321,7 +1434,7 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
     final childActive = widget.item.children.any((c) => _isActivePath(path, c.route));
     final parentActive = _isActivePath(path, widget.item.route);
     final isActive = isOpen || parentActive || childActive;
-    if (widget.collapsed) {
+    if (!widget.showText) {
       return TapRegion(
         groupId: _tapGroupId,
         child: Container(
@@ -1395,6 +1508,55 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Fade + slide-in wrapper for the People flyout menu so it animates open
+/// (and closed) instead of popping in instantly.
+class _AnimatedFlyout extends StatefulWidget {
+  final Widget child;
+
+  const _AnimatedFlyout({super.key, required this.child});
+
+  @override
+  State<_AnimatedFlyout> createState() => _AnimatedFlyoutState();
+}
+
+class _AnimatedFlyoutState extends State<_AnimatedFlyout>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    duration: const Duration(milliseconds: 200),
+    vsync: this,
+  );
+  late final Animation<double> _opacity =
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+  late final Animation<Offset> _slide = Tween<Offset>(
+    begin: const Offset(-0.08, 0),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.forward();
+  }
+
+  Future<void> reverse() async {
+    await _ctrl.reverse();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _slide, child: widget.child),
     );
   }
 }

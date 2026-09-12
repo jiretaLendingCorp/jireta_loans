@@ -12,6 +12,7 @@ class HmLoanState {
   final String? error;
   final int currentPage;
   final int totalPages;
+  final int totalCount;
   final String statusFilter;
   final String search;
   final String tabFilter;
@@ -24,6 +25,7 @@ class HmLoanState {
     this.error,
     this.currentPage = 1,
     this.totalPages = 1,
+    this.totalCount = 0,
     this.statusFilter = 'all',
     this.search = '',
     this.tabFilter = 'all',
@@ -37,6 +39,7 @@ class HmLoanState {
     String? error,
     int? currentPage,
     int? totalPages,
+    int? totalCount,
     String? statusFilter,
     String? search,
     String? tabFilter,
@@ -49,6 +52,7 @@ class HmLoanState {
         error: error,
         currentPage: currentPage ?? this.currentPage,
         totalPages: totalPages ?? this.totalPages,
+        totalCount: totalCount ?? this.totalCount,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
         tabFilter: tabFilter ?? this.tabFilter,
@@ -101,6 +105,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
         isLoading: false,
         currentPage: meta['page'] as int? ?? 1,
         totalPages: meta['total_pages'] as int? ?? 1,
+        totalCount: (meta['total'] as num?)?.toInt() ?? loans.length,
       );
     } catch (e) {
       if (seq != _requestSeq) return;

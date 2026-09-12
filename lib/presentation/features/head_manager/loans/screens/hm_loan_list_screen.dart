@@ -168,7 +168,7 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
           ),
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            SearchResultsChip(count: state.loans.length),
+            SearchResultsChip(count: state.totalCount),
           ],
         ),
       );
