@@ -7,6 +7,12 @@ const kSessionRevokedMessage =
     'Your account was signed in on another device. This session has been '
     'logged out for security.';
 
+/// Reason kapag na-expire/nawala ang session pero WALANG ibang device na
+/// gumamit ng account — (expired refresh token, o naabot ang idle limit).
+/// Dapat hindi ito ipakita bilang "signed in on another device".
+const kSessionExpiredMessage =
+    'Your session has expired. Please sign in again.';
+
 /// Global broadcast channel that lets low-level layers (HTTP interceptors)
 /// notify the UI that the user's session can no longer be repaired, so the
 /// app can auto-logout instead of leaving a half-open session behind.

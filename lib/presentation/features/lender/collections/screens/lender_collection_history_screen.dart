@@ -179,7 +179,8 @@ class _CollectionCard extends StatelessWidget {
                       'Scheduled'),
                 ],
               ),
-              if (completedAt != null) ...[
+              // Ang `completed_at` ay may halaga lang kapag tapos na talaga.
+              if (status == 'completed' && completedAt != null) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [

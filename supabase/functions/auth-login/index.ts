@@ -17,7 +17,7 @@ import { singleWithObjectEmbeds } from '../_shared/types.ts';
 import { guardRateLimit } from '../_shared/rate_limiter.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
 import {
-  claimActiveSession,
+  claimActiveSessionDetailed,
   cleanSessionId,
   sessionIdentifierFromToken,
 } from '../_shared/auth.ts';
@@ -321,16 +321,32 @@ serve(async (req) => {
       console.warn('[auth-login] last_login_at update failed', e);
     }
 
-    // Single-active-session: this login is now the one active session. Any
-    // other device logged in with this account has its session revoked and
-    // will be logged out server-side on its next authenticated request.
+    // Single-active-session (first-login-wins): ang login na ito ay nagma-marka
+    // ng sariling session id. Kapag may SARIWANG session na ibang identifier
+    // (ibang device na buhay pa), TATANGGIHAN ang claim.
+    //
+    // Dati, tahimik na pinapasa ang pagtanggi at 200 pa rin ang isinasagot —
+    // nag-login ang app na parang successful, tapos SESSION_REVOKED agad sa
+    // kauna-unahang request ("signed in on another device" nang walang
+    // paliwanag). Ngayon, malinaw na error ang ibinabalik para hindi na
+    // mapagkamalang sira ang app.
     try {
-      await claimActiveSession(
+      const claim = await claimActiveSessionDetailed(
         db,
         user.id,
         cleanSessionId(bodySessionId) ??
           sessionIdentifierFromToken(authData.session.access_token),
       );
+      if (claim === 'refused') {
+        return errorResponse(
+          'This account is already signed in on another device. Log out from that device first, then sign in again.',
+          409,
+          'SESSION_ACTIVE_ELSEWHERE',
+        );
+      }
+      if (claim === 'error') {
+        console.warn('[auth-login] claimActiveSession degraded — allowing login');
+      }
     } catch (e) {
       console.warn('[auth-login] claimActiveSession failed', e);
     }

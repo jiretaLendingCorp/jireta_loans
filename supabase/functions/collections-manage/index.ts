@@ -48,6 +48,59 @@ const COLUMN_BY_TYPE: Record<string, string> = {
   signature: 'borrower_signature',
 };
 
+// ── Verified-payment lookup (record + upload-proof) ─────────────────────────
+//
+// Ang guard ng `fn=upload-proof` ay naghahanap ng verified na payment na
+// naka-link sa assignment (`payments.collection_assignment_id`). Kapag hindi ito
+// natagpuan, 409 PAYMENT_NOT_RECORDED ang isinasagot — at doon na-stuck ang
+// rider kahit naitala naman ang cash.
+//
+// Fallback: kung walang naka-link na payment PERO may verified na
+// `rider_collection` payment ang PAREHONG rider para sa loan_schedule ng
+// assignment na ito (na hindi pa naka-link sa kahit anong assignment), iyon na
+// ang ginagamit at **ini-repair** ang link. Ito ang sumasagip sa mga lumang row
+// na nawalan ng link, at pumipigil din sa doble-record (dahil hindi na
+// mag-iinsert muli ang `fn=record`).
+async function findRecordedPayment(
+  db: ReturnType<typeof getAdminClient>,
+  assignmentId: string,
+  loanScheduleId: string | null,
+  riderUserId: string,
+): Promise<{ id: string } | null> {
+  const { data: linked } = await db
+    .from('payments')
+    .select('id')
+    .eq('collection_assignment_id', assignmentId)
+    .eq('status', 'verified')
+    .limit(1)
+    .maybeSingle();
+  if (linked) return linked;
+
+  if (!loanScheduleId) return null;
+  const { data: unlinked } = await db
+    .from('payments')
+    .select('id')
+    .eq('loan_schedule_id', loanScheduleId)
+    .eq('payment_method', 'rider_collection')
+    .eq('status', 'verified')
+    .eq('recorded_by', riderUserId)
+    .is('collection_assignment_id', null)
+    .limit(1)
+    .maybeSingle();
+  if (!unlinked) return null;
+
+  const { error: linkErr } = await db
+    .from('payments')
+    .update({ collection_assignment_id: assignmentId })
+    .eq('id', unlinked.id);
+  if (linkErr) {
+    console.error('payment link repair failed:', linkErr.message);
+  } else {
+    console.log(`[collections] repaired payment ${unlinked.id} → assignment ${assignmentId}`);
+  }
+  return unlinked;
+}
+
 // ── [moved from collections-upload-proof] ───────────────────────────────────
 function decodeBase64(content: string): Uint8Array {
   const binary = atob(content);
@@ -440,12 +493,12 @@ async function handleCollectionRecord(req: Request) {
   // nang mag-insert muli — success (200) na agad para makatuloy ang client sa
   // proof upload. Kailangan ito dahil laging sumusubok mag-record ang client
   // bago mag-upload ng proof (para hindi ma-stuck ang rider kapag nag-retry).
-  const { data: alreadyRecorded } = await db.from('payments')
-    .select('id')
-    .eq('collection_assignment_id', assignment_id)
-    .eq('status', 'verified')
-    .limit(1)
-    .maybeSingle();
+  const alreadyRecorded = await findRecordedPayment(
+    db,
+    assignment_id,
+    assignment.loan_schedule_id,
+    user.id,
+  );
   if (alreadyRecorded) {
     if (assignment.status !== 'in_progress' && assignment.status !== 'completed') {
       await db.from('collection_assignments')
@@ -502,7 +555,12 @@ async function handleCollectionRecord(req: Request) {
   if (newBalance <= 0) {
     await db.from('loans').update({ status: 'completed' }).eq('id', loanId);
   }
-  await db.from('collection_assignments').update({ status: 'in_progress', completed_at: nowManilaISO(), amount_collected }).eq('id', assignment_id);
+  // Business rule: ang `completed_at` ay para LANG sa tunay na natapos na
+  // koleksyon (status = 'completed', naisagawa ng `fn=upload-proof`). Dati,
+  // sine-set din ito dito sa record step — kaya may "Completed At" na agad ang
+  // Head Manager / Employee kahit `in_progress` pa lang (amount pa lang ang
+  // naitala, wala pang proof) at hindi pa tapos ang koleksyon.
+  await db.from('collection_assignments').update({ status: 'in_progress', amount_collected }).eq('id', assignment_id);
 
   await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payments[0].id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });
   await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Received', body: `Hello! Your payment of ₱${amount_collected.toLocaleString()} has been successfully collected. Your remaining balance is ₱${newBalance.toLocaleString()}. Thank you!`, type: 'payment_collected', referenceId: payments[0].id });
@@ -531,7 +589,7 @@ async function handleCollectionUploadProof(req: Request) {
 
   const { data: assignment } = await db
     .from('collection_assignments')
-    .select('id, status, rider_id, proof_photo, borrower_signature, collection_photo')
+    .select('id, status, rider_id, loan_schedule_id, proof_photo, borrower_signature, collection_photo')
     .eq('id', assignment_id)
     .eq('rider_id', user.id)
     .single();
@@ -544,13 +602,12 @@ async function handleCollectionUploadProof(req: Request) {
   // collection can be completed. Without this guard a rider can skip the
   // "Record Collection" step: the assignment completes and the office receives
   // the cash, but no payment row exists so the loan balance never decreases.
-  const { data: recordedPayment } = await db
-    .from('payments')
-    .select('id')
-    .eq('collection_assignment_id', assignment_id)
-    .eq('status', 'verified')
-    .limit(1)
-    .maybeSingle();
+  const recordedPayment = await findRecordedPayment(
+    db,
+    assignment_id,
+    assignment.loan_schedule_id,
+    user.id,
+  );
   if (!recordedPayment) {
     return errorResponse(
       'Record the collected amount first before uploading proof',

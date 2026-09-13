@@ -227,6 +227,10 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     }
     if (ok) ref.read(lenderCollectionProvider.notifier).loadList();
 
+    // Walang mounted check pagkatapos ng huling `await` (`_requestExistsOnServer`)
+    // — kailangan ito bago gamitin muli ang `context` sa mga dialog sa ibaba.
+    if (!mounted) return;
+
     if (ok) {
       AppLogger.i('[OfficePayment] office request OK schedule=$_scheduleId');
       await showDialog<void>(

@@ -17,7 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 import {
-  claimActiveSession,
+  claimActiveSessionDetailed,
   cleanSessionId,
   sessionIdentifierFromToken,
 } from '../_shared/auth.ts';
@@ -190,15 +190,27 @@ async function handleExchange(req: Request) {
     console.warn('[auth-google] last_login_at update failed', e);
   }
 
-  // Single-active-session: the Google sign-in that just finished becomes the
-  // one active session for this lender; previous sessions are revoked.
+  // Single-active-session (first-login-wins). Kapag may SARIWANG session na
+  // ibang identifier, TATANGGIHAN ang claim — noon ay tahimik itong pinapasa
+  // (200 pa rin) kaya SESSION_REVOKED agad ang sumusunod na request. Ngayon,
+  // malinaw na error ang ibinabalik.
   try {
-    await claimActiveSession(
+    const claim = await claimActiveSessionDetailed(
       db,
       user.id,
       cleanSessionId(bodySessionId) ??
         sessionIdentifierFromToken(accessTokenOut),
     );
+    if (claim === 'refused') {
+      return errorResponse(
+        'This account is already signed in on another device. Log out from that device first, then sign in again.',
+        409,
+        'SESSION_ACTIVE_ELSEWHERE',
+      );
+    }
+    if (claim === 'error') {
+      console.warn('[auth-google] claimActiveSession degraded — allowing login');
+    }
   } catch (e) {
     console.warn('[auth-google] claimActiveSession failed', e);
   }

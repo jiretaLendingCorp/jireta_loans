@@ -163,7 +163,8 @@ class _StatusCard extends StatelessWidget {
                 icon: Icons.schedule_outlined,
                 label: 'Scheduled',
                 value: parseManila(scheduledAt)?.toShortDate ?? '-'),
-          if (completedAt != null) ...[
+          // Ang `completed_at` ay may halaga lang kapag tapos na talaga.
+          if (status == 'completed' && completedAt != null) ...[
             const SizedBox(height: 10),
             _DetailRow(
                 icon: Icons.check_circle_outline,

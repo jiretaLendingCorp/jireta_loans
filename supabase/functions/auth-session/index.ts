@@ -11,7 +11,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import {
+  claimActiveSession,
   cleanSessionId,
+  freshSessionCutoffISO,
   isAuthUser,
   requireAuth,
   sessionIdentifierFromToken,
@@ -136,10 +138,44 @@ async function handleRefreshSession(req: Request) {
         { userId: dbUser.id, sessionIdentifier },
       );
     } else {
-      return errorResponse(
-        'Your account was signed in on another device. This session has been logged out for security.',
-        401,
-        'SESSION_REVOKED',
+      // May row para sa account pero IBANG identifier. Tinitiyak muna na BUHAY
+      // pa ang ibang session (may heartbeat sa loob ng 5 minuto) bago mag-revoke
+      // — ang isang stale/leftover row mula sa lumang install ay hindi na dapat
+      // magpa-logout ng buhay na device (dati, naging permanenteng "signed in on
+      // another device" ito). Kapag stale, i-claim (self-heal) para rito.
+      const { data: freshOther } = await db
+        .from('active_sessions')
+        .select('id, session_identifier, last_seen_at')
+        .eq('user_id', dbUser.id)
+        .neq('session_identifier', sessionIdentifier)
+        .is('revoked_at', null)
+        .gt('last_seen_at', freshSessionCutoffISO())
+        .maybeSingle();
+
+      if (freshOther) {
+        console.warn(
+          '[auth-session] SESSION_REVOKED sa refresh — ibang sariwang session',
+          {
+            userId: dbUser.id,
+            sentSessionIdentifier: sessionIdentifier,
+            activeSessionIdentifier: freshOther.session_identifier,
+            activeLastSeenAt: freshOther.last_seen_at,
+          },
+        );
+        return errorResponse(
+          'Your account was signed in on another device. This session has been logged out for security.',
+          401,
+          'SESSION_REVOKED',
+        );
+      }
+      const claimed = await claimActiveSession(
+        db,
+        dbUser.id,
+        sessionIdentifier,
+      );
+      console.warn(
+        '[auth-session] stale active_sessions row for another id — self-healed on refresh',
+        { userId: dbUser.id, sessionIdentifier, claimed },
       );
     }
   }

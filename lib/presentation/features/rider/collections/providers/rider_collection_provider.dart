@@ -83,6 +83,24 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     load(status: tab);
   }
 
+  /// Autoritatibong status ng isang assignment, direkta sa `getCollectionById`.
+  ///
+  /// Hindi tulad ng [loadDetails], hindi ito tumitingin sa naka-cache na
+  /// listahan — kailangan ito para makumpirma na `completed` na talaga sa
+  /// server ang koleksyon bago mag-claim ng success ang UI.
+  Future<String?> fetchStatus(String assignmentId) async {
+    try {
+      final exact = await _ds.getCollectionById(assignmentId);
+      if (exact != null) {
+        state = state.copyWith(selectedCollection: exact);
+        return exact.status;
+      }
+    } catch (e) {
+      print('fetchStatus failed for $assignmentId: $e');
+    }
+    return null;
+  }
+
   Future<void> loadDetails(String assignmentId, {bool silent = false}) async {
     if (!silent) {
       state = state.copyWith(

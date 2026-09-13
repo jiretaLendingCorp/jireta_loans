@@ -239,6 +239,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     // Keep the schedule screen's pending chip in sync even before realtime.
     if (ok) ref.read(lenderCollectionProvider.notifier).loadList();
 
+    // Walang mounted check pagkatapos ng huling `await` (`_requestExistsOnServer`)
+    // — kailangan ito bago gamitin muli ang `context` sa mga dialog sa ibaba.
+    if (!mounted) return;
+
     if (ok) {
       AppLogger.i('[PaymentMethod] rider request OK schedule=$_scheduleId');
       await showDialog<void>(

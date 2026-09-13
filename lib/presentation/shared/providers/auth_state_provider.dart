@@ -87,15 +87,22 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     super.dispose();
   }
 
-  /// Heartbeat tick — no-op unless authenticated. On a SESSION_REVOKED reply
-  /// this device is no longer the active one (another device logged in), so
-  /// hard-log-out with the security message, same as the interceptor path.
+  /// Heartbeat tick — no-op unless authenticated.
+  ///
+  /// `revoked` = tinawag na ng ibang device (SESSION_REVOKED) → security
+  /// message. `expired` = hindi na ma-repair ang session (expired refresh
+  /// token / idle limit) → "session expired" na mensahe, HINDI "signed in on
+  /// another device" (hindi totoo iyon at nakakalito). Ang `offline` ay
+  /// transient — hindi ginagalaw ang session.
   Future<void> _heartbeat() async {
     if (!state.isAuthenticated) return;
     final result = await SessionPing.ping();
     if (result == SessionPingResult.revoked) {
       await SecureStorage.clearAll();
       SessionEvents.emitSessionExpired(kSessionRevokedMessage);
+    } else if (result == SessionPingResult.expired) {
+      await SecureStorage.clearAll();
+      SessionEvents.emitSessionExpired(kSessionExpiredMessage);
     }
   }
 

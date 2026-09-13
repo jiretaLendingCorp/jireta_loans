@@ -21,6 +21,7 @@ import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/document_viewer.dart';
 import '../providers/rider_collection_provider.dart';
+import '../../../../../core/utils/logger.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class RiderCollectionDetailsScreen extends ConsumerStatefulWidget {
@@ -364,7 +365,28 @@ class _RiderCollectionDetailsScreenState
       }
 
       if (mounted) {
+        // ── Verification bago mag-claim ng success ─────────────────────────
+        // Ang `upload-proof` ay nag-200 kahit hindi natuloy ang completion
+        // UPDATE sa lumang deployment ng `collections-manage` (kulang ang proof
+        // bucket / VARCHAR overflow) — kaya lumalabas na "Submitted" sa rider
+        // pero `in_progress` pa rin sa Head Manager / Employee. Kailangan munang
+        // makita ang `completed` sa server bago mag-success dialog at mag-navigate.
         if (okProof) {
+          final completed = await _verifyCompletedOnServer();
+          if (!mounted) return;
+          if (!completed) {
+            AppLogger.w(
+                '[CollectionSubmit] upload-proof OK pero hindi completed ang assignment — id=${widget.collectionId}');
+            await showDialog(
+              context: context,
+              builder: (_) => const ErrorDialog(
+                message:
+                    'Naitala na ang bayad pero hindi naging "Completed" ang collection sa server. '
+                    'I-redeploy ang collections-manage function at i-restart ang app, tapos i-retry ang Submit.',
+              ),
+            );
+            return;
+          }
           // Success: 2-segundong confirmation modal, tapos deretso na sa Home
           // (rider dashboard) — hindi na bumabalik sa listahan o wizard.
           await SuccessDialog.showAutoDismiss(
@@ -385,6 +407,15 @@ class _RiderCollectionDetailsScreenState
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  /// Kumpirmahin sa server na `completed` na ang assignment pagkatapos ng
+  /// `upload-proof`. Hindi na nagsasabi ng success ang UI kapag hindi ito totoo.
+  Future<bool> _verifyCompletedOnServer() async {
+    final status = await ref
+        .read(riderCollectionProvider.notifier)
+        .fetchStatus(widget.collectionId);
+    return status == 'completed';
   }
 
   @override
@@ -1817,12 +1848,12 @@ class _RiderCollectionDetailsScreenState
                     presentLabel: 'Captured'),
                 _ReviewRow('Notes', notesStr.isEmpty ? 'No notes' : notesStr),
                 _ReviewRow('Status', col.statusLabel),
-                // `completed_at` ay nasse-set na ng record step (amount pa lang
-                // ang naitala) — kaya "Recorded" ang label habang hindi pa
-                // completed, para hindi malito ang rider na parang tapos na.
-                if (col.completedAt != null)
-                  _ReviewRow(
-                      col.status == 'completed' ? 'Completed' : 'Recorded',
+                // Business rule: ang `completed_at` ay may halaga lang kapag
+                // tapos na talaga ang koleksyon (status = 'completed'). Hindi
+                // na ito sine-set ng record step, kaya hindi na lumalabas ang
+                // mapanlinlang na "Completed" na timestamp habang in_progress.
+                if (col.status == 'completed' && col.completedAt != null)
+                  _ReviewRow('Completed',
                       DateFormat('MMM d, yyyy h:mm a')
                           .format(col.completedAt!)),
               ],

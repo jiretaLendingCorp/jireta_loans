@@ -262,7 +262,21 @@ class AuthInterceptor extends Interceptor {
             return handler.resolve(retryResponse);
           } on DioException catch (retryErr) {
             if (retryErr.response?.statusCode == 401) {
-              await _dropDeadSession();
+              // Kung tahasang SESSION_REVOKED, ibigay ang tamang dahilan
+              // ("signed in on another device"). Ang ibang 401 mula sa retry ay
+              // hindi sapat na dahilan para mag-hard-logout nang may security
+              // message — ang _dropDeadSession() ay may sariling stale guards.
+              final retryData = retryErr.response?.data;
+              final retryCode = retryData is Map
+                  ? (retryData['error'] is Map
+                      ? (retryData['error'] as Map)['code']?.toString()
+                      : null)
+                  : null;
+              await _dropDeadSession(
+                reason: retryCode == 'SESSION_REVOKED'
+                    ? kSessionRevokedMessage
+                    : null,
+              );
             }
             return handler.next(retryErr);
           }

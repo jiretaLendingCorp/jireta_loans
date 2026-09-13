@@ -53,6 +53,10 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     final schedule = col.loanSchedule ?? {};
     final isOffice = col.collectionType == 'office';
     final hasProof = col.proofPhoto != null || col.borrowerSignature != null || col.collectionPhoto != null;
+    // Business rule: `completed_at` = tapos na talaga (amount + proof na-submit).
+    // Hindi na ito sine-set ng record step, kaya hindi na lumalabas ang
+    // "Completed At" na timestamp sa isang `in_progress` na koleksyon.
+    final isCompleted = col.status.toLowerCase() == 'completed';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -91,7 +95,8 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                   _InfoRow('Assigned At', col.effectiveAssignedAt != null ? dateFmt.format(col.effectiveAssignedAt!) : 'N/A'),
                   _InfoRow('Schedule', col.collectionSchedule != null ? dateFmt.format(col.collectionSchedule!) : 'N/A'),
                   _InfoRow('Response At', col.responseAt != null ? dateFmt.format(col.responseAt!) : 'Pending'),
-                  _InfoRow('Completed At', col.completedAt != null ? dateFmt.format(col.completedAt!) : 'N/A'),
+                  _InfoRow('Completed At',
+                      isCompleted && col.completedAt != null ? dateFmt.format(col.completedAt!) : 'N/A'),
                   const Divider(height: 20),
                   _InfoRow('Notes', col.notes ?? 'None'),
                 ]),
@@ -191,9 +196,9 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
       _StatusRow('Requested', col.collectionSchedule != null),
       _StatusRow('Assigned', col.assignedByName.isNotEmpty),
       _StatusRow('Accepted', col.responseAt != null),
-      // NOTE: huwag gamitin ang completedAt para sa Completed — sine-set na
-      // ito ng backend sa `record` step (status=in_progress, may payment na
-      // pero wala pang proof). Completed lang kapag status==completed.
+      // Business rule: Completed lang kapag status == 'completed' (amount +
+      // proof na-submit). Ang `completed_at` ay sine-set lang ng upload-proof
+      // ngayon, pero status pa rin ang basehan dito — hindi timestamp.
       _StatusRow('Collected (payment recorded)',
           col.amountCollected != null || s == 'in_progress' || s == 'completed'),
       _StatusRow('Completed', s == 'completed'),

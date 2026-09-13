@@ -40,22 +40,55 @@ export function sessionIdentifierFromRequest(
   return sessionIdentifierFromToken(token);
 }
 
-/** Claim the one active session for a newly issued Supabase session. */
-export async function claimActiveSession(
+/**
+ * Resulta ng claim: `claimed` = nakuha ng device na ito ang session;
+ * `refused` = may SARIWANG session na ibang identifier (first-login-wins —
+ * hindi ito nire-revoke, walang row ang bagong device); `error` = RPC/infra
+ * error (degraded — fail-open, hindi dapat mag-block ng login).
+ *
+ * Mahalaga ang pagkakaiba: dati ay boolean lang ito, kaya ang isang REFUSED na
+ * claim sa login ay tahimik na pinapasa — nag-login ang app nang "successful"
+ * at saka naman SESSION_REVOKED sa kauna-unahang request (lumalabas na
+ * "signed in on another device" kahit hindi malinaw kung bakit).
+ */
+export type SessionClaimOutcome = 'claimed' | 'refused' | 'error';
+
+export async function claimActiveSessionDetailed(
   db: ReturnType<typeof getAdminClient>,
   userId: string,
   sessionIdentifier: string,
-): Promise<boolean> {
+): Promise<SessionClaimOutcome> {
   const { data, error } = await db.rpc('claim_active_session', {
     p_user_id: userId,
     p_session_identifier: sessionIdentifier,
   });
   if (error) {
     console.error('[session] claim_active_session failed', error.message);
-    return false;
+    return 'error';
   }
-  return data === true;
+  return data === true ? 'claimed' : 'refused';
 }
+
+/** Claim the one active session for a newly issued Supabase session. */
+export async function claimActiveSession(
+  db: ReturnType<typeof getAdminClient>,
+  userId: string,
+  sessionIdentifier: string,
+): Promise<boolean> {
+  return (await claimActiveSessionDetailed(db, userId, sessionIdentifier)) ===
+    'claimed';
+}
+
+
+/**
+ * Sariwa pa ba ang session (may heartbeat sa loob ng 5 minuto)? Tugma ito sa
+ * freshness window ng `claim_active_session` (first-login-wins). Mas matanda
+ * sa cutoff = patay na ang device → hindi dapat magpa-logout ng ibang device.
+ */
+export function freshSessionCutoffISO(): string {
+  return new Date(Date.now() - 5 * 60 * 1000).toISOString();
+}
+
 
 export async function requireAuth(req: Request): Promise<AuthUser | Response> {
   const authHeader = req.headers.get('Authorization');
@@ -276,11 +309,63 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
         { userId: dbUser.id, sessionIdentifier, claimed },
       );
     } else {
-      return errorResponse(
-        'Your account was signed in on another device. This session has been logged out for security.',
-        401,
-        'SESSION_REVOKED',
-      );
+      // May row para sa account pero IBANG session_identifier. Dati, kahit
+      // anong mismatch ay SESSION_REVOKED — kaya isang leftover na row mula sa
+      // lumang build/install (na wala nang gumagamit) ay nagpapakita ng
+      // "signed in on another device" at hindi na mabuksan ang app.
+      //
+      // Ngayon, tinitiyak muna na BUHAY pa ang ibang session: kapag STALE na
+      // ang row nito (walang heartbeat sa loob ng 5 minuto), patay na iyon at
+      // hindi dapat makagambala sa buhay na device. Self-heal: i-claim ang row
+      // para sa device na ito — tatanggi pa rin ang RPC kapag sariwa ang iba.
+      const { data: freshOther, error: freshErr } = await supabase
+        .from('active_sessions')
+        .select('id, session_identifier, last_seen_at')
+        .eq('user_id', dbUser.id)
+        .neq('session_identifier', sessionIdentifier)
+        .is('revoked_at', null)
+        .gt('last_seen_at', freshSessionCutoffISO())
+        .maybeSingle();
+
+      if (freshErr) {
+        console.error(
+          '[requireAuth] freshness check failed — allowing request',
+          { userId: dbUser.id, error: freshErr.message },
+        );
+      } else if (!freshOther) {
+        const claimed = await claimActiveSession(
+          supabase,
+          dbUser.id,
+          sessionIdentifier,
+        );
+        console.warn(
+          '[requireAuth] stale active_sessions row for another id — self-healed',
+          { userId: dbUser.id, sessionIdentifier, claimed },
+        );
+        if (!claimed) {
+          return errorResponse(
+            'Your account was signed in on another device. This session has been logged out for security.',
+            401,
+            'SESSION_REVOKED',
+          );
+        }
+      } else {
+        // Sariwa ang ibang session — tunay na may ibang device na aktibo.
+        // Detalyadong log para makita KAAGAD kung sino/may kailan ito huling
+        // nakita (ito ang magpapatunay kung tunay ngang ibang device o
+        // leftover row lang na patuloy na nag-heheartbeat).
+        console.warn('[requireAuth] SESSION_REVOKED — ibang sariwang session', {
+          userId: dbUser.id,
+          sentSessionIdentifier: sessionIdentifier,
+          activeSessionIdentifier: freshOther?.session_identifier ?? null,
+          activeLastSeenAt: freshOther?.last_seen_at ?? null,
+        });
+        return errorResponse(
+          'Your account was signed in on another device. This session has been logged out for security.',
+          401,
+          'SESSION_REVOKED',
+        );
+      }
     }
   }
 

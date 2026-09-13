@@ -19,7 +19,7 @@ import { guardRateLimit, recordSecurityEvent, blockKey, checkBlock } from '../_s
 import { sanitizeIpAddress } from '../_shared/audit.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
 import {
-  claimActiveSession,
+  claimActiveSessionDetailed,
   cleanSessionId,
   sessionIdentifierFromToken,
 } from '../_shared/auth.ts';
@@ -546,16 +546,28 @@ async function handleVerifyOtp(req: Request) {
   });
   await db.from('users').update({ last_login_at: nowManilaISO() }).eq('id', user.id);
 
-  // Single-active-session: claiming on every successful OTP verification means
-  // the newest verified login becomes the active session and any older one is
-  // revoked server-side (its next request returns SESSION_REVOKED → auto-logout).
+  // Single-active-session (first-login-wins). Kapag may SARIWANG session na
+  // ibang identifier (buhay pang ibang device), TATANGGIHAN ang claim — noon,
+  // tahimik itong pinapasa at 200 pa rin ang isinasagot, kaya nag-login ang
+  // app na parang successful tapos SESSION_REVOKED agad sa unang request.
+  // Ngayon, malinaw na error ang ibinabalik.
   try {
-    await claimActiveSession(
+    const claim = await claimActiveSessionDetailed(
       db,
       user.id,
       cleanSessionId(bodySessionId) ??
         sessionIdentifierFromToken(session.access_token),
     );
+    if (claim === 'refused') {
+      return errorResponse(
+        'This account is already signed in on another device. Log out from that device first, then sign in again.',
+        409,
+        'SESSION_ACTIVE_ELSEWHERE',
+      );
+    }
+    if (claim === 'error') {
+      console.warn('[auth-verify-otp] claimActiveSession degraded — allowing login');
+    }
   } catch (e) {
     console.warn('[auth-verify-otp] claimActiveSession failed', e);
   }
