@@ -167,14 +167,14 @@ async function handleCiAssign(req: Request) {
   // and scheduled visit date for proper tracking.
   try {
     const { data: riderUser } = await db.from('users').select('first_name, last_name').eq('id', rider_id).single();
-    const { data: loanRow } = await db.from('loans').select('lender_id, loan_number').eq('id', loan_id).single();
+    const { data: loanRow } = await db.from('loans').select('lender_id').eq('id', loan_id).single();
     const riderName = riderUser ? `${(riderUser as any).first_name ?? ''} ${(riderUser as any).last_name ?? ''}`.trim() : 'Our rider';
     const visitDate = deadline ? new Date(deadline).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'soon';
     if ((loanRow as any)?.lender_id) {
       await sendPushNotification({
         userId: (loanRow as any).lender_id,
         title: 'Credit Investigation Scheduled',
-        body: `Hi! ${riderName} has been assigned to your loan application (${(loanRow as any).loan_number ?? 'your loan'}) and will visit your address by ${visitDate} for verification. Please be available. Tap to view your application status.`,
+        body: `Hi! ${riderName} has been assigned to your loan application and will visit your address by ${visitDate} for verification. Please be available. Tap to view your application status.`,
         type: 'ci_assigned',
         referenceId: loan_id,
         sentBy: authResult.id,

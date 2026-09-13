@@ -423,7 +423,7 @@ serve(async (req) => {
           sendPushNotification({
             userId: u.id,
             title: 'New Loan Application',
-            body: `Loan ${loanNumber} of ₱${Number(principal).toLocaleString()} has been submitted.`,
+            body: `A new loan application of ₱${Number(principal).toLocaleString()} has been submitted.`,
             type: 'loan_applied',
             referenceId: loan.id,
           })

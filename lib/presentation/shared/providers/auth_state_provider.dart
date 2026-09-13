@@ -10,6 +10,7 @@ import '../../../core/security/jwt_parser.dart';
 import '../../../core/security/session_events.dart';
 import '../../../core/security/session_ping.dart';
 import '../../../core/security/session_refresher.dart';
+import '../../../core/security/session_revoker.dart';
 import '../../../core/security/secure_storage.dart';
 import '../../../core/services/fcm_service.dart';
 import '../../../core/services/realtime_service.dart';
@@ -353,6 +354,11 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       try {
         await Supabase.instance.client.auth.signOut();
       } catch (_) {}
+      // Release the server-side single-active-session row BEFORE wiping local
+      // storage. Kung hindi, mananatiling "fresh" ang row (~5 min) at ang
+      // susunod na login sa kaparehong device ay tatanggihan ng
+      // "This account is already signed in on another device."
+      await SessionRevoker.revoke();
       await SecureStorage.clearAll();
     } finally {
       if (mounted) {

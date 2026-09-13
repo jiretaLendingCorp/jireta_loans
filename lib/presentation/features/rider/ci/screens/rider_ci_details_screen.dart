@@ -69,6 +69,9 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   /// True habang tumatakbo ang upload + submit — ang Submit button mismo sa
   /// footer ang nagpapakita ng spinner (walang confirm modal).
   bool _isSubmitting = false;
+  /// True habang tumatakbo ang accept call — ang Accept button mismo ang
+  /// nagpapakita ng spinner hanggang matapos, bago mag-unlock ang wizard.
+  bool _isAccepting = false;
   bool _didPrefillReport = false;
   bool _isInitialLoading = true;
 
@@ -145,15 +148,18 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       confirmColor: AppColors.riderGreen,
     );
     if (confirmed != true) return;
+    if (_isAccepting) return;
+    setState(() => _isAccepting = true);
     final ok = await ref.read(riderCiProvider.notifier).accept(widget.ciId);
     if (!mounted) return;
+    setState(() => _isAccepting = false);
     if (ok) {
       context.showSnackBarAsToast(const SnackBar(
           content: Text('Assignment accepted — starting wizard'),
           backgroundColor: AppColors.riderGreen));
+      // Deretso sa wizard: hindi na kailangan ang dagdag na detail fetch —
+      // in-update na ng optimistikong accept() ang selectedCi status.
       setState(() => _currentStep = 1);
-      // reload to reflect status
-      await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
     } else {
       showDialog(
           context: context,
@@ -474,6 +480,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                       _DetailsActionBar(
                         onDecline: _handleDecline,
                         onAccept: _handleAccept,
+                        isAccepting: _isAccepting,
                       ),
                     if (!(_isAssigned && _currentStep == 0))
                       _WizardBottomBar(
@@ -505,6 +512,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           onAccept: _handleAccept,
           onDecline: _handleDecline,
           showInlineActions: showInlineActions,
+          isAccepting: _isAccepting,
         );
       case 1:
         return _UploadReportStep(
@@ -880,13 +888,16 @@ class _DetailsStep extends StatelessWidget {
   /// False on phones: the actions are rendered in the fixed bottom bar instead
   /// (see `_DetailsActionBar`), so the inline row is skipped.
   final bool showInlineActions;
+  /// True habang tumatakbo ang accept call — spinner sa Accept button.
+  final bool isAccepting;
   const _DetailsStep(
       {super.key,
       required this.ci,
       required this.ciId,
       required this.onAccept,
       required this.onDecline,
-      this.showInlineActions = true});
+      this.showInlineActions = true,
+      this.isAccepting = false});
 
   @override
   Widget build(BuildContext context) {
@@ -989,9 +1000,15 @@ class _DetailsStep extends StatelessWidget {
                 SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: onAccept,
-                    icon: Icon(Icons.check_rounded, size: 18),
-                    label: Text('Accept',
+                    onPressed: isAccepting ? null : onAccept,
+                    icon: isAccepting
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : Icon(Icons.check_rounded, size: 18),
+                    label: Text(isAccepting ? 'Accepting…' : 'Accept',
                         style: TextStyle(fontWeight: FontWeight.w800)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.riderGreen,
@@ -1890,8 +1907,9 @@ class _CompletedView extends StatelessWidget {
 class _DetailsActionBar extends StatelessWidget {
   final VoidCallback onDecline;
   final VoidCallback onAccept;
+  final bool isAccepting;
   const _DetailsActionBar(
-      {required this.onDecline, required this.onAccept});
+      {required this.onDecline, required this.onAccept, this.isAccepting = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1918,9 +1936,15 @@ class _DetailsActionBar extends StatelessWidget {
             SizedBox(width: 12),
             Expanded(
               child: ElevatedButton.icon(
-                onPressed: onAccept,
-                icon: Icon(Icons.check_rounded, size: 18),
-                label: Text('Accept',
+                onPressed: isAccepting ? null : onAccept,
+                icon: isAccepting
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Icon(Icons.check_rounded, size: 18),
+                label: Text(isAccepting ? 'Accepting…' : 'Accept',
                     style: TextStyle(fontWeight: FontWeight.w800)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.riderGreen,

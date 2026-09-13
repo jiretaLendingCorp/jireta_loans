@@ -155,7 +155,9 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await _ds.acceptCi(ciId: ciId);
       _ref.read(riderLocationProvider.notifier).startTracking();
       state = state.copyWith(isSubmitting: false);
-      await load();
+      // Silent refresh — ang optimistikong update na ang nag-unlock sa UI, kaya
+      // hindi na dapat mag-shimmer ang listahan habang nag-aantay ng network.
+      await load(silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -175,7 +177,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await _ds.declineCi(ciId: ciId);
       _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
-      await load();
+      await load(silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -198,7 +200,7 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await _ds.submitCiReport(ciId: ciId, reportSummary: reportSummary);
       _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
-      await load();
+      await load(silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -271,7 +273,10 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       await _ds.uploadDocuments(ciId: ciId, docs: docs);
       _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
-      await load();
+      // WALANG list reload dito: ang tanging caller nito (CI wizard
+      // _performSubmit) ay agad namang tumatawag ng loadDetails() at pagkatapos
+      // ng submitReport() ay may sariling refresh — dagdag na round trip lang
+      // ito na nagpapabagal sa Submit button.
       return true;
     } catch (e) {
       state = state.copyWith(

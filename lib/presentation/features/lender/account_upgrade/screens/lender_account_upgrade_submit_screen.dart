@@ -1,5 +1,6 @@
 ﻿// ignore_for_file: curly_braces_in_flow_control_structures
 // lib/presentation/features/lender/account_upgrade/screens/lender_account_upgrade_submit_screen.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -151,6 +152,10 @@ class _LenderAccountUpgradeSubmitScreenState
   // submitted as a lender_signature document (visible to HM/employee).
   String? _lenderSignature;
   String? _signatureError;
+  // Panandaliang "Signature confirmed" feedback: lumalabas sa ilalim ng pad
+  // kapag pinindot ang Confirm, at awtomatikong nawawala pagkatapos ng 2s.
+  bool _showSignatureConfirmed = false;
+  Timer? _signatureConfirmedTimer;
 
   int _step = 0;
   bool _isSubmitting = false;
@@ -276,6 +281,7 @@ class _LenderAccountUpgradeSubmitScreenState
     _scrollController.dispose();
     _streetFocusNode.dispose();
     _zipFocusNode.dispose();
+    _signatureConfirmedTimer?.cancel();
     super.dispose();
   }
 
@@ -772,8 +778,10 @@ class _LenderAccountUpgradeSubmitScreenState
     if (status == 'submitted' || status == 'under_review') {
       // After an in-screen successful submit the success dialog is about to
       // open — stay on the wizard underneath it. Do not swap to the status
-      // page (that is for when the screen is reopened later).
-      if (!_successSubmitted) return _buildSubmittedView(state);
+      // page (that is for when the screen is reopened later). Habang
+      // nagsu-submit (loading ang button) hindi rin dapat sumilip ang status
+      // page bago mag-modal at mag-home.
+      if (!_successSubmitted && !_isSubmitting) return _buildSubmittedView(state);
     }
     // Rejected: 1-month cooldown before resubmit.
     // Still in cooldown → blocked view (text + button only, no icon).
@@ -914,27 +922,47 @@ class _LenderAccountUpgradeSubmitScreenState
         const SizedBox(height: 12),
         SignaturePad(
           onSignatureChanged: (sig) {
+            // Kapag nag-sign/nag-confirm, agad nawawala ang validation text;
+            // kapag na-clear din, nawawala — hindi nagpapakita ng error
+            // hangga't hindi nag-submit/Next.
             setState(() {
               _lenderSignature = sig;
-              _signatureError = (sig != null && sig.isNotEmpty)
-                  ? null
-                  : 'Please sign the pad before continuing';
+              _signatureError = null;
             });
+          },
+          onConfirmed: () {
+            // Panandaliang kumpirmasyon: 2 segundo lang tapos mawawala.
+            _signatureConfirmedTimer?.cancel();
+            setState(() => _showSignatureConfirmed = true);
+            _signatureConfirmedTimer =
+                Timer(const Duration(seconds: 2), () {
+              if (mounted) {
+                setState(() => _showSignatureConfirmed = false);
+              }
+            });
+          },
+          onCleared: () {
+            _signatureConfirmedTimer?.cancel();
+            if (_showSignatureConfirmed) {
+              setState(() => _showSignatureConfirmed = false);
+            }
           },
           height: 180,
         ),
         const SizedBox(height: 4),
-        if (_lenderSignature != null && _lenderSignature!.isNotEmpty) ...[
+        if (_showSignatureConfirmed) ...[
+          const SizedBox(height: 8),
           const Row(
             children: [
-              Icon(Icons.check_circle, color: AppColors.success, size: 18),
+              Icon(Icons.check_circle_rounded,
+                  size: 16, color: AppColors.success),
               SizedBox(width: 6),
               Text(
                 'Signature confirmed',
                 style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.success),
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -1523,9 +1551,10 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Widget _buildStatusBanner(LenderAccountUpgradeState state) {
-    // While the success dialog is open, keep the top of the wizard clean —
-    // the banner belongs on the status page shown on the next visit.
-    if (_successSubmitted) return const SizedBox.shrink();
+    // While the success dialog is open (at habang tumatakbo ang submit
+    // button), keep the top of the wizard clean — the banner belongs on the
+    // status page shown on the next visit.
+    if (_successSubmitted || _isSubmitting) return const SizedBox.shrink();
     Color bgColor;
     Color textColor;
     IconData? icon;

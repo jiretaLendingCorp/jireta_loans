@@ -23,6 +23,9 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   DateTimeRange? _dateRange;
+  // Ang lender na kasalukuyang ni-verify/re-reject para sa per-row spinner.
+  // Hindi ito dapat mag-loading ng buong table.
+  String? _busyLenderId;
 
   final _dropdownTabs = const [
     FilterTabDef('all', 'All', Icons.layers_outlined),
@@ -153,6 +156,8 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
       actionsCol: const ResponsiveActionsCol(width: 260),
       rows: docs.asMap().entries.map((entry) {
         final doc = entry.value;
+        final lenderId = doc.lenderId.isEmpty ? doc.id : doc.lenderId;
+        final isBusy = _busyLenderId == lenderId;
         final status = (doc.status ?? 'pending').toString().toLowerCase();
         final date = DateFormat('MMM dd, yyyy h:mm a').format(doc.submittedAt ?? doc.createdAt);
         return ResponsiveRow(
@@ -167,15 +172,29 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
             _StatusInline(status: status),
           ],
           actions: Row(mainAxisSize: MainAxisSize.min, children: [
-            _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: () => context.go(RouteConstants.empAccountUpgradeDetails.replaceFirst(':id', doc.lenderId.isEmpty ? doc.id : doc.lenderId)), primary: false),
+            _ActionButton(icon: Icons.visibility_outlined, label: 'View', color: AppColors.deepNavy, onPressed: () => context.go(RouteConstants.empAccountUpgradeDetails.replaceFirst(':id', lenderId)), primary: false),
             // Only actionable statuses show Verify/Reject.
             // Verified and rejected submissions show View only —
             // Verify must not appear once rejected.
             if (status == 'submitted' || status == 'pending' || status == 'under_review') ...[
               const SizedBox(width: 6),
-              _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: () => _verifyAll(doc, 'verified'), primary: true),
-              const SizedBox(width: 6),
-              _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: () => _promptReject(doc), primary: false),
+              // Per-row spinner lang habang nag-verify — nananatiling visible
+              // ang buong data table (walang full-table loading flash).
+              if (isBusy)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.riderGreen),
+                  ),
+                )
+              else ...[
+                _ActionButton(icon: Icons.verified_rounded, label: 'Verify', color: AppColors.riderGreen, onPressed: () => _verifyAll(doc, 'verified'), primary: true),
+                const SizedBox(width: 6),
+                _ActionButton(icon: Icons.cancel_rounded, label: 'Reject', color: AppColors.error, onPressed: () => _promptReject(doc), primary: false),
+              ],
             ],
           ]),
         );
@@ -184,8 +203,11 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
   }
 
   Future<void> _verifyAll(dynamic doc, String action) async {
-    final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(lenderId: doc.lenderId.isEmpty ? doc.id : doc.lenderId, action: action);
+    final lenderId = doc.lenderId.isEmpty ? doc.id : doc.lenderId;
+    setState(() => _busyLenderId = lenderId);
+    final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: action);
     if (!mounted) return;
+    setState(() => _busyLenderId = null);
     context.showSnackBarAsToast(SnackBar(content: Text(ok ? (action == 'verified' ? 'Account upgrade documents verified' : 'Account upgrade documents rejected') : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
   }
 
@@ -222,8 +244,10 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
     );
     if (confirmed == true) {
       if (!mounted) return;
+      setState(() => _busyLenderId = lenderId);
       final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: 'rejected');
       if (!mounted) return;
+      setState(() => _busyLenderId = null);
       context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'Account upgrade documents rejected' : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
     }
   }

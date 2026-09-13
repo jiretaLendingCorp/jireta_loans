@@ -281,27 +281,46 @@ class _CiCard extends StatelessWidget {
   void _handleAccept(BuildContext context) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) {
         final ref = ProviderScope.containerOf(ctx);
-        return AlertDialog(
-          title: Text('Accept CI Assignment'),
-          content: Text(
-              'Are you sure you want to accept this credit investigation assignment?'),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text('Cancel')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.riderGreen),
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await ref.read(riderCiProvider.notifier).accept(ci.id);
-              },
-              child:
-                  Text('Accept', style: TextStyle(color: Colors.white)),
-            ),
-          ],
+        var isAccepting = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: Text('Accept CI Assignment'),
+            content: Text(
+                'Are you sure you want to accept this credit investigation assignment?'),
+            actions: [
+              TextButton(
+                  onPressed: isAccepting ? null : () => Navigator.pop(ctx),
+                  child: Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.riderGreen),
+                onPressed: isAccepting
+                    ? null
+                    : () async {
+                        setDialogState(() => isAccepting = true);
+                        final ok = await ref
+                            .read(riderCiProvider.notifier)
+                            .accept(ci.id);
+                        if (!ctx.mounted) return;
+                        if (ok) {
+                          Navigator.pop(ctx);
+                          return;
+                        }
+                        setDialogState(() => isAccepting = false);
+                      },
+                child: isAccepting
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Text('Accept', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
         );
       },
     );

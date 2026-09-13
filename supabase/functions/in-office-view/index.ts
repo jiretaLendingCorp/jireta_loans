@@ -723,7 +723,7 @@ async function handleSubmit(req: Request) {
     await sendPushNotification({
       userId: lenderId,
       title: 'Loan Application Received',
-      body: `Your loan application ${loanNumber} has been submitted for ₱${principalAmount.toLocaleString()}.`,
+      body: `Your loan application has been submitted for ₱${principalAmount.toLocaleString()}.`,
       type: 'loan_applied',
       referenceId: loan.id,
     });

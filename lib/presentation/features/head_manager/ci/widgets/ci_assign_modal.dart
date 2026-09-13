@@ -277,7 +277,10 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
             ),
           ),
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            // Huwag hayaang maisara habang nagse-save para hindi ma-dispose
+            // ang notifier sa gitna ng in-flight na assign.
+            onPressed:
+                _loading ? null : () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close_rounded,
                 size: 18, color: AppColors.textSecondary),
             tooltip: 'Close',

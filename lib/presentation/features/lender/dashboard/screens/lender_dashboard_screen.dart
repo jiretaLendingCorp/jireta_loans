@@ -666,68 +666,39 @@ class _PendingLoanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => context.push(
-          RouteConstants.lenderLoanApplicationStatus.replaceFirst(':id', loan.id),
-        ),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.warningLight,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: AppColors.warning,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.hourglass_top_rounded,
-                    color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Application Status',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                            color: AppColors.textPrimary)),
-                    SizedBox(height: 2),
-                    Text('Tap View Status to track your loan application.',
-                        style: TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.deepNavy,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text('View Status',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.chevron_right, color: AppColors.warning),
-            ],
+    // Walang orange na "Application Status" card/icon/status — naka-center na
+    // prompt lang + ang blue na View Status button sa ibaba nito.
+    return Column(
+      children: [
+        const Text(
+          'Tap View Status to track your loan application.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.5,
+            height: 1.45,
+            color: AppColors.textSecondary,
           ),
         ),
-      ),
+        const SizedBox(height: 12),
+        Center(
+          child: ElevatedButton.icon(
+            onPressed: () => context.push(
+              RouteConstants.lenderLoanApplicationStatus
+                  .replaceFirst(':id', loan.id),
+            ),
+            icon: const Icon(Icons.timeline_outlined, size: 16),
+            label: const Text('View Status'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.lenderBlue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 22, vertical: 11),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

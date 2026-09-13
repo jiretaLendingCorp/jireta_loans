@@ -87,6 +87,10 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
+      // Kung na-dispose ang notifier habang naghihintay (hal. isinara na ang
+      // assign-rider modal), iwasan ang "Bad state: Tried to use EmpCiNotifier
+      // after dispose was called."
+      if (!mounted) return;
       final list = (res['data'] as List? ?? [])
           .map((e) =>
               CreditInvestigationModel.fromJson(e as Map<String, dynamic>))
@@ -100,7 +104,7 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
         totalCount: (meta['total'] as num?)?.toInt() ?? list.length,
       );
     } catch (e) {
-      if (silent) return;
+      if (!mounted || silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
@@ -155,6 +159,7 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
     required String notes,
     required String deadline,
   }) async {
+    final page = state.currentPage;
     try {
       await _ds.assignCi(
         loanId: loanId,
@@ -165,12 +170,14 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
     } catch (e) {
       // Ang totoong server error ang itago sa state (dating kinakain ito ng
       // `catch (_)` kaya generic na "Failed to assign rider" lang ang lumalabas).
+      if (!mounted) return false;
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
     // Hiwalay sa mutation: hindi dapat maging "failed" ang matagumpay na
     // assign kapag nabigo lang ang reload ng listahan.
-    await fetch(page: state.currentPage);
+    if (!mounted) return true;
+    await fetch(page: page, silent: true);
     return true;
   }
 
@@ -204,24 +211,30 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
   }
 
   Future<bool> approveReport({required String ciId, String? notes}) async {
+    final page = state.currentPage;
     try {
       await _ds.approveCiReport(ciId: ciId, reviewNotes: notes);
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
-    await fetch(page: state.currentPage);
+    if (!mounted) return true;
+    await fetch(page: page);
     return true;
   }
 
   Future<bool> rejectReport({required String ciId, required String reason}) async {
+    final page = state.currentPage;
     try {
       await _ds.rejectCiReport(ciId: ciId, rejectionReason: reason);
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
-    await fetch(page: state.currentPage);
+    if (!mounted) return true;
+    await fetch(page: page);
     return true;
   }
 

@@ -19,6 +19,7 @@ import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/philippines_address_field.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../../data/models/loan_model.dart';
@@ -56,16 +57,42 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   // co_maker_documents so HM/employee reviewers can view it).
   PlatformFile? _coMakerValidId;
   String? _validIdError;
+  // Panandaliang "Signature confirmed" feedback para sa co-maker signature:
+  // lumalabas kapag pinindot ang Confirm (3s bago mawala) at agad ding
+  // nawawala kapag Clear.
+  bool _showCoMakerSignatureConfirmed = false;
+  Timer? _coMakerSignatureTimer;
 
   // 00128: financial + emergency are declared PER APPLICATION (this loan).
   final _employerNameCtrl = TextEditingController();
   final _monthlyIncomeCtrl = TextEditingController();
   final _ecNameCtrl = TextEditingController();
   final _ecPhoneCtrl = TextEditingController();
-  final _ecAddressCtrl = TextEditingController();
+  final _monthlyIncomeFocus = FocusNode();
+  // "Other" free-text blanks — lumalabas lang kapag pinili ang "Other" sa
+  // katumbas na dropdown.
+  final _employmentOtherCtrl = TextEditingController();
+  final _sourceOtherCtrl = TextEditingController();
+  final _ecRelationshipOtherCtrl = TextEditingController();
   String? _employmentType;
   String? _sourceOfFunds;
   String? _ecRelationship;
+  // RPCMB emergency-contact address (required).
+  final _ecAddressKey = GlobalKey<PhilippinesAddressFieldState>();
+  String _ecAddress = '';
+
+  // Scroll targets para diretso sa field na may red validation message.
+  final _amountKey = GlobalKey();
+  final _purposeKey = GlobalKey();
+  final _employmentKey = GlobalKey();
+  final _employerKey = GlobalKey();
+  final _incomeKey = GlobalKey();
+  final _sourceKey = GlobalKey();
+  final _ecNameKey = GlobalKey();
+  final _ecRelationshipKey = GlobalKey();
+  final _ecPhoneKey = GlobalKey();
+  final _coMakerSignatureKey = GlobalKey();
+  final _coMakerValidIdKey = GlobalKey();
 
   /// Set the first time the user taps Next on the Financial step so inline
   /// field errors become visible and stay until every field is fixed.
@@ -75,6 +102,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// the loan-state views that would otherwise rebuild behind the success
   /// modal while the list refreshes with the new application.
   bool _justSubmitted = false;
+
+  /// True habang tumatakbo ang apply request — pinipigilan ang shimmer skeleton
+  /// (galing sa `loadLoans`) na sumilip habang naka-loading ang Submit button.
+  bool _submitting = false;
 
   static const _employmentOptions = [
     ('employed', 'Employed'),
@@ -137,6 +168,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   void initState() {
     super.initState();
     _purposeCtrl.addListener(_onPurposeChanged);
+    _monthlyIncomeFocus.addListener(_normalizeIncomeOnBlur);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(lenderAccountUpgradeProvider.notifier).loadStatus();
       ref.read(lenderLoanProvider.notifier).loadLoans();
@@ -148,17 +180,37 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (mounted) setState(() {});
   }
 
+  /// Monthly income: kapag umalis ang focus, awtomatikong idagdag ang `.00`
+  /// para laging peso-formatted ang halaga (e.g. "1,500" → "1,500.00").
+  void _normalizeIncomeOnBlur() {
+    if (_monthlyIncomeFocus.hasFocus) return;
+    final raw =
+        _monthlyIncomeCtrl.text.replaceAll(RegExp(r'[₱,\s]'), '').trim();
+    if (raw.isEmpty) return;
+    final value = double.tryParse(raw);
+    if (value == null) return;
+    final formatted = NumberFormat('#,##0.00').format(value);
+    if (formatted != _monthlyIncomeCtrl.text) {
+      _monthlyIncomeCtrl.text = formatted;
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
     _previewDebounce?.cancel();
+    _coMakerSignatureTimer?.cancel();
     _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
     _amountCtrl.dispose();
     _employerNameCtrl.dispose();
     _monthlyIncomeCtrl.dispose();
+    _monthlyIncomeFocus.dispose();
     _ecNameCtrl.dispose();
     _ecPhoneCtrl.dispose();
-    _ecAddressCtrl.dispose();
+    _employmentOtherCtrl.dispose();
+    _sourceOtherCtrl.dispose();
+    _ecRelationshipOtherCtrl.dispose();
     super.dispose();
   }
 
@@ -179,10 +231,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   bool get _isFinancialValid {
     if (_employmentType == null) return false;
+    if (_employmentType == 'other' &&
+        _employmentOtherCtrl.text.trim().isEmpty) {
+      return false;
+    }
     if (_employerNameCtrl.text.trim().isEmpty) return false;
     final income = _parseMonthlyIncome();
     if (income == null || income <= 0) return false;
     if (_sourceOfFunds == null) return false;
+    if (_sourceOfFunds == 'other' && _sourceOtherCtrl.text.trim().isEmpty) {
+      return false;
+    }
     if (_ecNameCtrl.text.trim().isEmpty) return false;
     final ecPhone = _ecPhoneCtrl.text.trim();
     if (ecPhone.length != 11 ||
@@ -191,6 +250,14 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       return false;
     }
     if (_ecRelationship == null) return false;
+    if (_ecRelationship == 'Other' &&
+        _ecRelationshipOtherCtrl.text.trim().isEmpty) {
+      return false;
+    }
+    // Emergency contact address is required (RPCMB composite).
+    if (_ecAddress.trim().isEmpty) return false;
+    final addressState = _ecAddressKey.currentState;
+    if (addressState != null && !addressState.isValid) return false;
     return true;
   }
 
@@ -231,6 +298,27 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   String? get _ecRelationshipError =>
       _financialAttempted && _ecRelationship == null
           ? 'Select a relationship'
+          : null;
+
+  String? get _employmentOtherError =>
+      _financialAttempted &&
+              _employmentType == 'other' &&
+              _employmentOtherCtrl.text.trim().isEmpty
+          ? 'Please specify your employment type'
+          : null;
+
+  String? get _sourceOtherError =>
+      _financialAttempted &&
+              _sourceOfFunds == 'other' &&
+              _sourceOtherCtrl.text.trim().isEmpty
+          ? 'Please specify your source of funds'
+          : null;
+
+  String? get _ecRelationshipOtherError =>
+      _financialAttempted &&
+              _ecRelationship == 'Other' &&
+              _ecRelationshipOtherCtrl.text.trim().isEmpty
+          ? 'Please specify the relationship'
           : null;
 
   String? get _ecPhoneError {
@@ -291,48 +379,88 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     setState(() => _previewLoading = false);
   }
 
-  Future<void> _submit() async {
-    if (_purposeCtrl.text.trim().isEmpty) {
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text('Please enter your loan purpose.'),
-          backgroundColor: AppColors.error,
-        ),
+  /// Diretso sa field na may red validation message (scroll habang visible).
+  void _focusOn(GlobalKey key) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: 0.12,
       );
+    });
+  }
+
+  /// Unang field na may kulang sa Financial & Emergency step.
+  GlobalKey _firstInvalidFinancialKey() {
+    if (_employmentType == null ||
+        (_employmentType == 'other' &&
+            _employmentOtherCtrl.text.trim().isEmpty)) {
+      return _employmentKey;
+    }
+    if (_employerNameCtrl.text.trim().isEmpty) return _employerKey;
+    final income = _parseMonthlyIncome();
+    if (income == null || income <= 0) return _incomeKey;
+    if (_sourceOfFunds == null ||
+        (_sourceOfFunds == 'other' && _sourceOtherCtrl.text.trim().isEmpty)) {
+      return _sourceKey;
+    }
+    if (_ecNameCtrl.text.trim().isEmpty) return _ecNameKey;
+    if (_ecRelationship == null ||
+        (_ecRelationship == 'Other' &&
+            _ecRelationshipOtherCtrl.text.trim().isEmpty)) {
+      return _ecRelationshipKey;
+    }
+    if (_ecPhoneError != null) return _ecPhoneKey;
+    return _ecAddressKey;
+  }
+
+  Future<void> _submit() async {
+    _normalizeIncomeOnBlur();
+    // ── Step 0: Loan Details ─────────────────────────────────────────────
+    if (!_isAmountValid || _purposeCtrl.text.trim().isEmpty) {
+      setState(() {
+        _step = 0;
+        if (_amountCtrl.text.trim().isEmpty) {
+          _amountError = 'Please enter a loan amount.';
+        }
+      });
+      _focusOn(!_isAmountValid ? _amountKey : _purposeKey);
       return;
     }
-
+    // ── Step 1: Financial & Emergency ────────────────────────────────────
+    setState(() => _financialAttempted = true);
+    if (!_isFinancialValid) {
+      setState(() => _step = 1);
+      _ecAddressKey.currentState?.validate();
+      _focusOn(_firstInvalidFinancialKey());
+      return;
+    }
+    // ── Step 2: Co-Maker ─────────────────────────────────────────────────
     final cmValid = _coMakerFormKey.currentState?.validate() ?? false;
     if (!cmValid) {
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text('Please complete the co-maker details.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      setState(() => _step = 2);
+      _focusOn(_coMakerFormKey);
       return;
     }
-
+    // ── Step 3: Signature + Valid ID ─────────────────────────────────────
     if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
-      setState(() =>
-          _signatureError = 'Co-maker must sign the pad before submission');
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text('Please provide the co-maker signature.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      setState(() {
+        _step = 3;
+        _signatureError = 'Co-maker must sign the pad before submission';
+      });
+      _focusOn(_coMakerSignatureKey);
       return;
     }
     // 00147: co-maker Valid ID is required alongside the signature.
     if (_coMakerValidId == null) {
-      setState(() => _validIdError = 'Co-maker Valid ID is required');
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text('Please upload the co-maker valid ID.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      setState(() {
+        _step = 3;
+        _validIdError = 'Co-maker Valid ID is required';
+      });
+      _focusOn(_coMakerValidIdKey);
       return;
     }
 
@@ -360,19 +488,27 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       'type': _employmentType,
       'employer_name': _employerNameCtrl.text.trim(),
       'monthly_income': _parseMonthlyIncome(),
+      if (_employmentType == 'other')
+        'other_type': _employmentOtherCtrl.text.trim(),
     };
     final emergencyContacts = [
       {
         'name': _ecNameCtrl.text.trim(),
-        'relationship': _ecRelationship,
+        'relationship': _ecRelationship == 'Other'
+            ? (_ecRelationshipOtherCtrl.text.trim().isEmpty
+                ? 'Other'
+                : _ecRelationshipOtherCtrl.text.trim())
+            : _ecRelationship,
         'phone_number': _ecPhoneCtrl.text.trim(),
-        if (_ecAddressCtrl.text.trim().isNotEmpty)
-          'address': _ecAddressCtrl.text.trim(),
+        'address': _ecAddress.trim(),
       },
     ];
 
     // No blocking confirm modal: while the request runs the Submit button on
-    // the Review step shows its loading spinner (state.isSubmitting).
+    // the Review step shows its loading spinner and the screen stays inert
+    // (`_submitting`) — walang shimmer skeleton at walang status flash bago
+    // mag-modal at mag-home.
+    setState(() => _submitting = true);
     final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
           amount: _amount,
           frequency: _frequency,
@@ -386,9 +522,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     if (!mounted) return;
     if (ok) {
-      // Hide the step content so no shimmer / "view status" flash can appear
-      // behind the success modal while the loan list refreshes underneath.
-      setState(() => _justSubmitted = true);
+      // Manatiling naka-loading ang Submit button (`_submitting` = true) at ang
+      // wizard ang naka-render hanggang lumabas ang success modal — hindi ito
+      // dapat huminto bago pa mag-modal. Hindi rin ito napapalitan ng shimmer
+      // skeleton o ng "view status" kahit nagre-refresh ang loan list sa ilalim.
       // Success modal sits for ~2 seconds, then we go straight to Home — no
       // toast, no splash, no intermediate application-status screen.
       await SuccessDialog.showAutoDismiss(
@@ -398,9 +535,14 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         buttonText: 'Go to Home',
       );
       if (mounted) {
+        setState(() {
+          _submitting = false;
+          _justSubmitted = true;
+        });
         context.go(RouteConstants.lenderDashboard);
       }
     } else {
+      setState(() => _submitting = false);
       final err = ref.read(lenderLoanProvider).error ?? 'An error occurred.';
       context.showSnackBarAsToast(
         SnackBar(content: Text(err), backgroundColor: AppColors.error),
@@ -409,72 +551,49 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   }
 
   void _goNext() {
+    // Walang validation toast — ang bawat field ay may sariling inline (red)
+    // error at direkta tayong nag-scroll sa unang kulang na field.
     if (_step == 0) {
       if (!_isAmountValid) {
-        context.showSnackBarAsToast(
-          const SnackBar(
-            content:
-                Text('Please enter a valid loan amount (₱3,000 – ₱500,000).'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        setState(() {
+          if (_amountCtrl.text.trim().isEmpty) {
+            _amountError = 'Please enter a loan amount.';
+          }
+        });
+        _focusOn(_amountKey);
         return;
       }
       if (_purposeCtrl.text.trim().isEmpty) {
-        context.showSnackBarAsToast(
-          const SnackBar(
-            content: Text('Please enter your loan purpose to continue.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        _focusOn(_purposeKey);
         return;
       }
     } else if (_step == 1) {
       // Financial Details + Emergency Contact — reveal inline field errors on
       // the first attempt so the user sees exactly what is missing.
+      _normalizeIncomeOnBlur();
       setState(() => _financialAttempted = true);
       if (!_isFinancialValid) {
-        context.showSnackBarAsToast(
-          const SnackBar(
-            content: Text(
-                'Please complete the financial details and emergency contact.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        _ecAddressKey.currentState?.validate();
+        _focusOn(_firstInvalidFinancialKey());
         return;
       }
     } else if (_step == 2) {
       final valid = _coMakerFormKey.currentState?.validate() ?? false;
       if (!valid) {
-        context.showSnackBarAsToast(
-          const SnackBar(
-            content: Text('Please complete the co-maker details.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        _focusOn(_coMakerFormKey);
         return;
       }
     } else if (_step == 3) {
       if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
         setState(() =>
             _signatureError = 'Co-maker must sign the pad before submission');
-        context.showSnackBarAsToast(
-          const SnackBar(
-            content: Text('Please provide the co-maker signature to continue.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        _focusOn(_coMakerSignatureKey);
         return;
       }
       // 00147: co-maker Valid ID is required before moving on.
       if (_coMakerValidId == null) {
         setState(() => _validIdError = 'Co-maker Valid ID is required');
-        context.showSnackBarAsToast(
-          const SnackBar(
-            content: Text('Please upload the co-maker valid ID to continue.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        _focusOn(_coMakerValidIdKey);
         return;
       }
     }
@@ -602,6 +721,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           const _SectionTitle('Loan Amount'),
           const SizedBox(height: 4),
           TextField(
+            key: _amountKey,
             controller: _amountCtrl,
             keyboardType: TextInputType.number,
             inputFormatters: [
@@ -730,6 +850,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           const _SectionTitle('Purpose'),
           const SizedBox(height: 8),
           TextField(
+            key: _purposeKey,
             controller: _purposeCtrl,
             maxLines: 3,
             maxLength: 255,
@@ -817,6 +938,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           ),
           const SizedBox(height: 12),
           Container(
+            key: _coMakerSignatureKey,
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -829,12 +951,30 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               children: [
                 SignaturePad(
                   onSignatureChanged: (sig) {
+                    // Kapag na-confirm (at kapag na-clear), agad nawawala ang
+                    // status at validation text — hindi ito nananatiling
+                    // naka-display.
                     setState(() {
                       _coMakerSignature = sig;
-                      _signatureError = (sig != null && sig.isNotEmpty)
-                          ? null
-                          : 'Co-maker must sign the pad before submission';
+                      _signatureError = null;
                     });
+                  },
+                  onConfirmed: () {
+                    // Panandaliang kumpirmasyon: 3 segundo lang tapos mawawala.
+                    _coMakerSignatureTimer?.cancel();
+                    setState(() => _showCoMakerSignatureConfirmed = true);
+                    _coMakerSignatureTimer =
+                        Timer(const Duration(seconds: 3), () {
+                      if (mounted) {
+                        setState(() => _showCoMakerSignatureConfirmed = false);
+                      }
+                    });
+                  },
+                  onCleared: () {
+                    _coMakerSignatureTimer?.cancel();
+                    if (_showCoMakerSignatureConfirmed) {
+                      setState(() => _showCoMakerSignatureConfirmed = false);
+                    }
                   },
                   height: 200,
                 ),
@@ -843,20 +983,19 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   'The co-maker signature above serves as consent for this loan.',
                   style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
                 ),
-                if (_coMakerSignature != null &&
-                    _coMakerSignature!.isNotEmpty) ...[
+                if (_showCoMakerSignatureConfirmed) ...[
                   const SizedBox(height: 8),
                   const Row(
                     children: [
-                      Icon(Icons.check_circle,
-                          color: AppColors.success, size: 18),
+                      Icon(Icons.check_circle_rounded,
+                          size: 16, color: AppColors.success),
                       SizedBox(width: 6),
                       Text(
                         'Signature confirmed',
                         style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.success),
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -876,6 +1015,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           // 00147: co-maker Valid ID — required alongside the signature and
           // visible to head manager / employee reviewers after submission.
           Container(
+            key: _coMakerValidIdKey,
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -890,51 +1030,87 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Co-Maker Valid ID *',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  "A clear photo of the co-maker's government-issued ID.",
-                  style: TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 10),
-                if (_coMakerValidId != null) ...[
-                  Row(
-                    children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Co-Maker Valid ID *',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            "A clear photo of the co-maker's government-issued ID.",
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_coMakerValidId != null)
                       const Icon(Icons.check_circle,
-                          color: AppColors.success, size: 18),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _coMakerValidId!.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, color: AppColors.textPrimary),
+                          color: AppColors.success, size: 20),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // Preview ng na-upload na Valid ID — ang litrato mismo ang
+                // ipinapakita sa card, hindi lang ang pangalan ng file.
+                if (_coMakerValidId?.bytes != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: double.infinity,
+                      height: 170,
+                      color: AppColors.surfaceVariant,
+                      child: Image.memory(
+                        _coMakerValidId!.bytes!,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Icon(Icons.broken_image_outlined,
+                              color: AppColors.textTertiary),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 10),
                 ],
-                OutlinedButton.icon(
-                  onPressed: isSubmitting ? null : _pickCoMakerValidId,
-                  icon: const Icon(Icons.upload_file_outlined, size: 18),
-                  label: Text(_coMakerValidId != null
-                      ? 'Change Valid ID'
-                      : 'Upload Valid ID'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.lenderBlue,
-                    side: const BorderSide(color: AppColors.lenderBlue),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                // Upload button sa right-bottom side ng card.
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _coMakerValidId?.name ?? 'No file selected',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: _coMakerValidId != null
+                                ? AppColors.textPrimary
+                                : AppColors.textTertiary),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: isSubmitting ? null : _pickCoMakerValidId,
+                      icon: const Icon(Icons.upload_file_outlined, size: 18),
+                      label:
+                          Text(_coMakerValidId == null ? 'Upload' : 'Change'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.lenderBlue,
+                        side: const BorderSide(color: AppColors.lenderBlue),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 if (_validIdError != null) ...[
                   const SizedBox(height: 8),
@@ -1058,6 +1234,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 DropdownButtonFormField<String>(
+                  key: _employmentKey,
                   initialValue: _employmentType,
                   decoration: _finFieldDeco('Employment Type'),
                   items: _employmentOptions
@@ -1074,8 +1251,22 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                         const TextStyle(fontSize: 11.5, color: AppColors.error),
                   ),
                 ],
+                // "Other" → bigyan ng blank na pwedeng sagutan ng user.
+                if (_employmentType == 'other') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _employmentOtherCtrl,
+                    maxLength: 100,
+                    onChanged: (_) => setState(() {}),
+                    scrollPadding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                    decoration: _finFieldDeco('Please specify employment type',
+                        errorText: _employmentOtherError),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
+                  key: _employerKey,
                   controller: _employerNameCtrl,
                   maxLength: 255,
                   onChanged: (_) => setState(() {}),
@@ -1086,7 +1277,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  key: _incomeKey,
                   controller: _monthlyIncomeCtrl,
+                  focusNode: _monthlyIncomeFocus,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
@@ -1098,6 +1291,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  key: _sourceKey,
                   initialValue: _sourceOfFunds,
                   decoration: _finFieldDeco('Source of Funds'),
                   items: _sourceOfFundsOptions
@@ -1112,6 +1306,18 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                     _sourceOfFundsError!,
                     style:
                         const TextStyle(fontSize: 11.5, color: AppColors.error),
+                  ),
+                ],
+                if (_sourceOfFunds == 'other') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _sourceOtherCtrl,
+                    maxLength: 100,
+                    onChanged: (_) => setState(() {}),
+                    scrollPadding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                    decoration: _finFieldDeco('Please specify source of funds',
+                        errorText: _sourceOtherError),
                   ),
                 ],
               ],
@@ -1137,6 +1343,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TextField(
+                  key: _ecNameKey,
                   controller: _ecNameCtrl,
                   maxLength: 100,
                   onChanged: (_) => setState(() {}),
@@ -1147,6 +1354,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  key: _ecRelationshipKey,
                   initialValue: _ecRelationship,
                   decoration: _finFieldDeco('Relationship'),
                   items: _relationshipOptions
@@ -1162,8 +1370,21 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                         const TextStyle(fontSize: 11.5, color: AppColors.error),
                   ),
                 ],
+                if (_ecRelationship == 'Other') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _ecRelationshipOtherCtrl,
+                    maxLength: 100,
+                    onChanged: (_) => setState(() {}),
+                    scrollPadding: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                    decoration: _finFieldDeco('Please specify relationship',
+                        errorText: _ecRelationshipOtherError),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
+                  key: _ecPhoneKey,
                   controller: _ecPhoneCtrl,
                   keyboardType: TextInputType.phone,
                   maxLength: 11,
@@ -1176,13 +1397,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                       errorText: _ecPhoneError),
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _ecAddressCtrl,
-                  maxLength: 255,
-                  onChanged: (_) => setState(() {}),
-                  scrollPadding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 120),
-                  decoration: _finFieldDeco('Address (Optional)'),
+                // Required na; RPCMB cascading address (Region → Barangay).
+                PhilippinesAddressField(
+                  key: _ecAddressKey,
+                  onChanged: (v) => setState(() => _ecAddress = v),
                 ),
               ],
             ),
@@ -1243,7 +1461,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle('Review Information'),
+          const _SectionTitle('Review Details'),
           const SizedBox(height: 6),
           const Text(
             'Please review the details below. If everything is correct, submit your application.',
@@ -1324,9 +1542,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   : _ecPhoneCtrl.text.trim()),
           _declRow(
               'Address',
-              _ecAddressCtrl.text.trim().isEmpty
-                  ? '—'
-                  : _ecAddressCtrl.text.trim()),
+              _ecAddress.trim().isEmpty ? '—' : _ecAddress.trim()),
         ],
       ),
     );
@@ -1425,9 +1641,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           // Submission accepted: keep the screen inert behind the success
           // modal (no skeleton, no loan-state rebuild) until we go Home.
           ? const SizedBox.shrink()
-          : (loanState.isLoading || accountUpgradeState.isLoading)
-              ? const _LenderApplyLoanSkeleton()
-              : _buildFlow(loanState, accountUpgradeState, fmt),
+          // Habang nagsu-submit (`_submitting`) manatili ang wizard na may
+          // loading na Submit button — hindi dapat sumilip ang shimmer
+          // skeleton o ang loan-state/status views bago mag-modal at mag-home.
+          : _submitting
+              ? _buildWizardStepContent(
+                  fmt, loanState.schedulePreview, _submitting)
+              : (loanState.isLoading || accountUpgradeState.isLoading)
+                  ? const _LenderApplyLoanSkeleton()
+                  : _buildFlow(loanState, accountUpgradeState, fmt),
     );
   }
 
@@ -1474,6 +1696,14 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
     final state = loanState;
     final preview = state.schedulePreview;
+    return _buildWizardStepContent(fmt, preview, state.isSubmitting);
+  }
+
+  /// Ang wizard mismo (step indicator + kasalukuyang step). Hiwalay ito para
+  /// manatili itong naka-render habang nagsu-submit — hindi ito dapat mapalitan
+  /// ng loan-state views ("view status") bago mag-modal at mag-home.
+  Widget _buildWizardStepContent(
+      NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
     return Column(
       children: [
         _StepIndicator(current: _step),
@@ -1481,11 +1711,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           child: IndexedStack(
             index: _step,
             children: [
-              _buildLoanDetailsStep(fmt, preview, state.isSubmitting),
-              _buildFinancialEmergencyStep(state.isSubmitting),
-              _buildCoMakerStep(state.isSubmitting),
-              _buildSignatureStep(state.isSubmitting),
-              _buildReviewStep(fmt, preview, state.isSubmitting),
+              _buildLoanDetailsStep(fmt, preview, isSubmitting),
+              _buildFinancialEmergencyStep(isSubmitting),
+              _buildCoMakerStep(isSubmitting),
+              _buildSignatureStep(isSubmitting),
+              _buildReviewStep(fmt, preview, isSubmitting),
             ],
           ),
         ),
@@ -1558,7 +1788,9 @@ class _CoMakerFormState extends State<_CoMakerForm> {
   final _firstCtrl = TextEditingController();
   final _lastCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
+  final _relationshipOtherCtrl = TextEditingController();
+  final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
+  String _address = '';
   String? _relationship;
   DateTime? _dob;
   String? _dobError;
@@ -1580,7 +1812,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
     _firstCtrl.dispose();
     _lastCtrl.dispose();
     _phoneCtrl.dispose();
-    _addressCtrl.dispose();
+    _relationshipOtherCtrl.dispose();
     super.dispose();
   }
 
@@ -1590,7 +1822,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
       'last_name': _lastCtrl.text.trim(),
       'phone_number': _phoneCtrl.text.trim(),
       'relationship': _relationship,
-      'address': _addressCtrl.text.trim(),
+      'address': _address,
       'date_of_birth': _dob?.toIso8601String().substring(0, 10),
     };
     widget.onChanged(map);
@@ -1602,7 +1834,8 @@ class _CoMakerFormState extends State<_CoMakerForm> {
       _dobError = dobOk ? null : 'Date of birth is required';
     });
     final formOk = _formKey.currentState?.validate() ?? false;
-    return formOk && dobOk;
+    final addressOk = _addressKey.currentState?.validate() ?? false;
+    return formOk && dobOk && addressOk;
   }
 
   Future<void> _pickDob() async {
@@ -1714,17 +1947,29 @@ class _CoMakerFormState extends State<_CoMakerForm> {
                 _emit();
               },
             ),
+            // "Other" → blank na pwedeng sagutan ng user.
+            if (_relationship == 'Other') ...[
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _relationshipOtherCtrl,
+                onChanged: (_) => _emit(),
+                maxLength: 100,
+                scrollPadding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Please specify the relationship'
+                    : null,
+                decoration: _coFieldDeco('Please specify relationship'),
+              ),
+            ],
             const SizedBox(height: 10),
-            TextFormField(
-              controller: _addressCtrl,
-              onChanged: (_) => _emit(),
-              maxLength: 100,
-              scrollPadding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Address is required'
-                  : null,
-              decoration: _coFieldDeco('Address'),
+            // Co-maker address — RPCMB cascading (Region → Barangay).
+            PhilippinesAddressField(
+              key: _addressKey,
+              onChanged: (v) {
+                setState(() => _address = v);
+                _emit();
+              },
             ),
             const SizedBox(height: 10),
             InkWell(

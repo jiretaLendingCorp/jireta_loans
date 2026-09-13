@@ -260,7 +260,7 @@ async function handleRiderDelivery(req: Request) {
   await sendPushNotification({
     userId: rider_id,
     title: 'New Cash Delivery Task',
-    body: `Hello! You have a new cash delivery task: please deliver ₱${amount.toLocaleString()} for loan ${loan.loan_number} on ${formatDeliveryDate(delivery_date)}. Please review the details and proceed.`,
+    body: `Hello! You have a new cash delivery task: please deliver ₱${amount.toLocaleString()} on ${formatDeliveryDate(delivery_date)}. Please review the details and proceed.`,
     type: 'disbursement',
     referenceId: disbursement.id,
     sentBy: authResult.id,

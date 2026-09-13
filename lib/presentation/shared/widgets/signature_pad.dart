@@ -13,12 +13,23 @@ class SignaturePad extends StatefulWidget {
   /// Kapag false, text-only ang Clear/Confirm (walang X/check icons).
   final bool showActionIcons;
 
+  /// Tinatawag LANG kapag pinindot ang Confirm at may laman ang pad — para
+  /// maipakita ng screen ang panandaliang "Signature confirmed" feedback na
+  /// hindi kasama sa onSignatureChanged (na tumatakbo rin sa Clear).
+  final VoidCallback? onConfirmed;
+
+  /// Tinatawag LANG kapag pinindot ang Clear — para maitago agad ng screen
+  /// ang "Signature confirmed" feedback.
+  final VoidCallback? onCleared;
+
   const SignaturePad({
     super.key,
     this.onSigned,
     this.onSignatureChanged,
     this.height = 200,
     this.showActionIcons = true,
+    this.onConfirmed,
+    this.onCleared,
   });
 
   @override
@@ -51,11 +62,13 @@ class _SignaturePadState extends State<SignaturePad> {
     if (_ctrl.isEmpty) return;
     final bytes = await _ctrl.toPngBytes();
     _notify(bytes);
+    widget.onConfirmed?.call();
   }
 
   void _onClear() {
     _ctrl.clear();
     _notify(null);
+    widget.onCleared?.call();
   }
 
   @override

@@ -152,7 +152,7 @@ async function handleSendReminder(req: Request) {
     const amount = new Intl.NumberFormat('en-PH', {
       style: 'currency', currency: 'PHP',
     }).format(Number(schedule.amount_due));
-    const message = `Hello ${name}, this is a friendly reminder that your Jireta Loans payment of ${amount} is due on ${targetDateStr} (Loan: ${loan.loan_number}). Please pay on time to avoid penalties. Thank you!`;
+    const message = `Hello ${name}, this is a friendly reminder that your Jireta Loans payment of ${amount} is due on ${targetDateStr}. Please pay on time to avoid penalties. Thank you!`;
 
     const smsResult = await sendSms({ to: lender.phone_number, message, userId: lender.id, loanScheduleId: schedule.id });
 
@@ -172,7 +172,7 @@ async function handleSendReminder(req: Request) {
         await sendPushNotification({
           userId: lender.id,
           title: `Payment Due in ${reminderDays} Days`,
-          body: `Hello ${name}, your payment of ${amount} for loan ${loan.loan_number} is due on ${targetDateStr}. Please pay on time to avoid penalties. Tap to view details.`,
+          body: `Hello ${name}, your payment of ${amount} is due on ${targetDateStr}. Please pay on time to avoid penalties. Tap to view details.`,
           type: 'payment_due',
           referenceId: schedule.id,
         });

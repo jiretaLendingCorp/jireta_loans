@@ -254,7 +254,7 @@ async function handleVerify(req: Request) {
           await sendPushNotification({
             userId: targetLenderId,
             title: 'Walk-in Loan Now Ready',
-            body: `Your Walk-in loan ${loanNumber} (₱${principalAmount.toLocaleString()}) is now submitted and pending approval. Track it in My Loans.`,
+            body: `Your Walk-in loan application (₱${principalAmount.toLocaleString()}) is now submitted and pending approval. Track it in My Loans.`,
             type: 'loan_applied',
             referenceId: newLoan.id,
           });
@@ -277,7 +277,7 @@ async function handleVerify(req: Request) {
       userId: targetLenderId ?? account_upgrade_doc_id ?? '',
       title: action === 'verified' ? 'Account Upgrade Verified' : 'Account Upgrade Rejected',
       body: action === 'verified'
-        ? 'All of your Account Upgrade documents have been verified.'
+        ? 'Good news! Your account upgrade has been verified. You can now apply for a loan.'
         : (rejection_notes
             ? `Account Upgrade rejected: ${rejection_notes}`
             : 'Account Upgrade rejected. You may resubmit after 1 month.'),

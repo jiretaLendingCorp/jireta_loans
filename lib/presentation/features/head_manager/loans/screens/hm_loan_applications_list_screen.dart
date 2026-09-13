@@ -723,7 +723,9 @@ class _HmLoanApplicationsListScreenState
   }
 
   void _onActionDone() {
-    ref.read(hmLoanProvider.notifier).fetchLoans();
+    // Silent refresh — hindi na naglo-load nang buo ang data table pagkatapos
+    // ng approve / reject / cancel / assign rider.
+    ref.read(hmLoanProvider.notifier).fetchLoans(silent: true);
   }
 
   // ───────────────────────── Loading / Empty / Pagination ─────────────────────────
@@ -925,6 +927,10 @@ class _HmLoanApplicationsListScreenState
   Future<void> _showAssignRider(LoanModel loan) async {
     final assigned = await showDialog<bool>(
       context: context,
+      // Hindi pwedeng i-dismiss habang nagse-save — kung maisasara ito habang
+      // in-flight ang assign, madi-dispose ang notifier at mag-throw ng
+      // "Bad state: Tried to use HmCiNotifier after dispose was called."
+      barrierDismissible: false,
       builder: (_) => CiAssignModal(loanId: loan.id),
     );
     if (assigned == true && mounted) {

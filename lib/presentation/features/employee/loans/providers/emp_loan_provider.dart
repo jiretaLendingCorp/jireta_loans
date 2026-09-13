@@ -123,19 +123,21 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
     return await _ds.getLoanDetails(loanId);
   }
 
+  // Ang mga mutation refresh ay `silent: true` — hindi dapat mag-reload nang
+  // buo (shimmer) ang data table kapag nag-a-approve / reject / request CI.
   Future<void> approveLoan(String loanId) async {
     await _ds.approveLoan(loanId);
-    await load();
+    await load(silent: true);
   }
 
   Future<void> rejectLoan(String loanId, String reason) async {
     await _ds.rejectLoan(loanId, reason);
-    await load();
+    await load(silent: true);
   }
 
   Future<void> requestCi(String loanId) async {
     await _ds.requestCi(loanId);
-    await load();
+    await load(silent: true);
   }
 }
 
@@ -144,7 +146,7 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
   Future<bool> approve(String loanId) async {
     try {
       await _ds.approveLoan(loanId);
-      await load();
+      await load(silent: true);
       return true;
     } catch (_) {
       return false;
@@ -154,7 +156,7 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
   Future<bool> reject(String loanId, String reason) async {
     try {
       await _ds.rejectLoan(loanId, reason);
-      await load();
+      await load(silent: true);
       return true;
     } catch (_) {
       return false;
@@ -163,12 +165,12 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
 
   Future<void> requestCI(String loanId) async {
     await _ds.requestCi(loanId);
-    await load();
+    await load(silent: true);
   }
 
   Future<void> cancel(String loanId) async {
     await _ds.cancelLoan(loanId);
-    await load();
+    await load(silent: true);
   }
 }
 

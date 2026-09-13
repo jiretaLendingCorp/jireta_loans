@@ -665,6 +665,9 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   Future<void> _showAssignRider(LoanModel loan) async {
     final assigned = await showDialog<bool>(
       context: context,
+      // Hindi pwedeng i-dismiss habang nagse-save (iwas sa disposed-notifier
+      // state error sa gitna ng in-flight na assign).
+      barrierDismissible: false,
       builder: (_) => EmpCiAssignModal(loanId: loan.id, ciId: ''),
     );
     if (assigned == true && mounted) {
@@ -674,13 +677,15 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
           backgroundColor: AppColors.success,
         ),
       );
-      ref.read(empLoanProvider.notifier).load();
+      // Silent — hindi dapat mag-loading nang buo ang data table.
+      ref.read(empLoanProvider.notifier).load(silent: true);
     }
   }
 
   Future<void> _showAssignDeliveryRider(LoanModel loan) async {
     final assigned = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => RiderDisburseAssignModal(
         loanId: loan.id,
       ),
@@ -692,7 +697,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
           backgroundColor: AppColors.success,
         ),
       );
-      ref.read(empLoanProvider.notifier).load();
+      ref.read(empLoanProvider.notifier).load(silent: true);
     }
   }
 

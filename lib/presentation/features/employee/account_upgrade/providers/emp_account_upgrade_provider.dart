@@ -130,7 +130,9 @@ class EmpAccountUpgradeNotifier extends StateNotifier<EmpAccountUpgradeState>
         action: action,
         rejectionNotes: rejectionNotes,
       );
-      await fetch(page: state.currentPage);
+      // Silent refresh: huwag ipakita ang shimmer sa buong table habang
+      // nagre-refresh pagkatapos ng verify — manatiling visible ang listahan.
+      await fetch(page: state.currentPage, silent: true);
       return true;
     } catch (_) {
       return false;
@@ -157,7 +159,9 @@ class EmpAccountUpgradeNotifier extends StateNotifier<EmpAccountUpgradeState>
         action: action,
         rejectionNotes: rejectionNotes,
       );
-      await fetch(page: state.currentPage);
+      // Silent refresh: ang Verify/Reject ay per-row lang — hindi dapat
+      // mawala/mag-loading ang buong data table pagkatapos ng aksyon.
+      await fetch(page: state.currentPage, silent: true);
       return true;
     } catch (_) {
       return false;

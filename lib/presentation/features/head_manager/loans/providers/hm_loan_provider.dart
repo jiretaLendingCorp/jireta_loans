@@ -143,10 +143,13 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
     }
   }
 
+  // Ang mga mutation refresh ay `silent: true` — hindi dapat mag-shimmer o
+  // mag-reload nang buo ang data table kapag nag-a-approve / reject / cancel /
+  // request CI / apply penalty. Ang listahan lang ang tahimik na na-u-update.
   Future<bool> approveLoan(String loanId) async {
     try {
       await _ds.approveLoan(loanId);
-      await fetchLoans();
+      await fetchLoans(silent: true);
       return true;
     } catch (_) {
       return false;
@@ -156,7 +159,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
   Future<bool> rejectLoan(String loanId, String reason) async {
     try {
       await _ds.rejectLoan(loanId, reason);
-      await fetchLoans();
+      await fetchLoans(silent: true);
       return true;
     } catch (_) {
       return false;
@@ -166,7 +169,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
   Future<bool> cancelLoan(String loanId) async {
     try {
       await _ds.cancelLoan(loanId);
-      await fetchLoans();
+      await fetchLoans(silent: true);
       return true;
     } catch (_) {
       return false;
@@ -176,7 +179,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
   Future<bool> requestCi(String loanId) async {
     try {
       await _ds.requestCi(loanId);
-      await fetchLoans();
+      await fetchLoans(silent: true);
       return true;
     } catch (_) {
       return false;
@@ -186,7 +189,7 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
   Future<bool> applyPenalty(String loanId) async {
     try {
       await _ds.applyPenalty(loanId);
-      await fetchLoans();
+      await fetchLoans(silent: true);
       return true;
     } catch (_) {
       return false;

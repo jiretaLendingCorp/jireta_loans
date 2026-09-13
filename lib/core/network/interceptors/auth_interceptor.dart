@@ -6,6 +6,7 @@ import '../../constants/app_constants.dart';
 import '../../security/jwt_parser.dart';
 import '../../security/session_events.dart';
 import '../../security/session_refresher.dart';
+import '../../security/session_revoker.dart';
 import '../../security/secure_storage.dart';
 
 // Endpoints that don't own a session — a 401 from them means bad credentials,
@@ -297,6 +298,8 @@ class AuthInterceptor extends Interceptor {
     // stored tokens are permanently dead, so clear them even if the local
     // idle/JWT guards below would otherwise keep the session around.
     if (reason != null && reason.trim().isNotEmpty) {
+      // Fire-and-forget: huwag i-delay ang request/UI sa network round-trip.
+      await _fireAndForgetRevoke();
       await SecureStorage.clearAll();
       SessionEvents.emitSessionExpired(reason);
       return;
@@ -324,7 +327,23 @@ class AuthInterceptor extends Interceptor {
         if (secs != null && secs > 60) return;
       }
     } catch (_) {}
+    // Release the server-side active session before the local wipe so the
+    // next login on this device is not refused with "already signed in on
+    // another device" (the stale row stays fresh for ~5 minutes).
+    await _fireAndForgetRevoke();
     await SecureStorage.clearAll();
     SessionEvents.emitSessionExpired();
+  }
+
+  /// Binabasa ang stable session id bago i-clear ang storage, tapos
+  /// ipinapadala ang revoke nang HINDI hinihintay — para hindi ma-delay ang
+  /// kasalukuyang request/logout ng network round-trip.
+  Future<void> _fireAndForgetRevoke() async {
+    try {
+      final sid = await SecureStorage.getSessionId();
+      if (sid == null || sid.isEmpty) return;
+      // ignore: unawaited_futures
+      SessionRevoker.revoke(sessionId: sid);
+    } catch (_) {}
   }
 }

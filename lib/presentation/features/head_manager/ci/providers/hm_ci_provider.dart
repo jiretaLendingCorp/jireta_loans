@@ -76,6 +76,10 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
+      // Kung na-dispose ang notifier habang naghihintay (hal. isinara na ang
+      // assign-rider modal), huwag nang hawakan ang `state` — ito ang dahilan
+      // ng "Bad state: Tried to use HmCiNotifier after dispose was called."
+      if (!mounted) return;
       final list = (res['data'] as List? ?? [])
           .map((e) =>
               CreditInvestigationModel.fromJson(e as Map<String, dynamic>))
@@ -89,7 +93,7 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
         totalCount: (meta['total'] as num?)?.toInt() ?? list.length,
       );
     } catch (e) {
-      if (silent) return;
+      if (!mounted || silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
@@ -116,6 +120,10 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
     required String notes,
     required String deadline,
   }) async {
+    // Kunin ang page BAGO mag-await — kapag na-dispose na ang notifier (hal.
+    // isinara ng user ang modal habang nagse-save), hindi na mabubuksan pa ang
+    // `state` at hindi na mag-throw ng "Bad state".
+    final page = state.currentPage;
     try {
       await _ds.assignCi(
         loanId: loanId,
@@ -127,6 +135,7 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
       // Ang TOTOONG dahilan (hal. "Rider is not available") ang itago sa state —
       // dati, kinakain ito ng `catch (_)` kaya generic na "Failed to assign
       // rider" lang ang nakikita kahit malinaw naman ang server error.
+      if (!mounted) return false;
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
@@ -134,7 +143,8 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
     // reload ng listahan, hindi dapat maging "failed" ang isang matagumpay na
     // assign (dati, `await fetch()` sa loob ng parehong try ang dahilan ng
     // "Failed to assign rider" kahit naisave na sa server).
-    await fetch(page: state.currentPage);
+    if (!mounted) return true;
+    await fetch(page: page, silent: true);
     return true;
   }
 
@@ -153,24 +163,30 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
   }
 
   Future<bool> approveReport({required String ciId, String? notes}) async {
+    final page = state.currentPage;
     try {
       await _ds.approveCiReport(ciId: ciId, reviewNotes: notes);
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
-    await fetch(page: state.currentPage);
+    if (!mounted) return true;
+    await fetch(page: page);
     return true;
   }
 
   Future<bool> rejectReport({required String ciId, required String reason}) async {
+    final page = state.currentPage;
     try {
       await _ds.rejectCiReport(ciId: ciId, rejectionReason: reason);
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
-    await fetch(page: state.currentPage);
+    if (!mounted) return true;
+    await fetch(page: page);
     return true;
   }
 }

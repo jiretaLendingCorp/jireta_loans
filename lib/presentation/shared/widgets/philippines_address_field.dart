@@ -1,0 +1,284 @@
+// lib/presentation/shared/widgets/philippines_address_field.dart
+//
+// Reusable Philippine address picker (official PSA data via philippines_rpcmb)
+// — Region → Province → City/Municipality → Barangay (+ free-text Street).
+// It emits ONE composed address string so callers that store a single
+// `address` column (e.g. loan emergency contacts, co-makers) can keep their
+// existing payload shape while giving the user the standardized cascade.
+import 'package:flutter/material.dart';
+import 'package:philippines_rpcmb/philippines_rpcmb.dart';
+
+import '../../../core/theme/app_colors.dart';
+
+class PhilippinesAddressField extends StatefulWidget {
+  final String label;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
+
+  const PhilippinesAddressField({
+    super.key,
+    this.label = 'Address',
+    this.errorText,
+    this.onChanged,
+  });
+
+  @override
+  State<PhilippinesAddressField> createState() =>
+      PhilippinesAddressFieldState();
+}
+
+class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
+  final _streetCtrl = TextEditingController();
+  // Kapag na-focus ang Street / House No., hintayin ang keyboard animation at
+  // i-scroll ito sa gitna ng viewport — kung hindi, natatakpan ito ng keyboard
+  // (lalo na kapag huling field ito ng address cascade).
+  final _streetFocus = FocusNode();
+  final _streetFieldKey = GlobalKey();
+  Region? _region;
+  Province? _province;
+  Municipality? _municipality;
+  String? _barangay;
+  bool _attempted = false;
+
+  bool get isValid =>
+      _streetCtrl.text.trim().isNotEmpty &&
+      _region != null &&
+      _province != null &&
+      _municipality != null &&
+      (_barangay != null && _barangay!.trim().isNotEmpty);
+
+  String get composedAddress {
+    final parts = <String>[
+      _streetCtrl.text.trim(),
+      _barangay ?? '',
+      _municipality?.name ?? '',
+      _province?.name ?? '',
+      _region?.regionName ?? '',
+    ].where((p) => p.isNotEmpty).toList();
+    return parts.join(', ');
+  }
+
+  /// Reveals the inline required errors and reports whether the address is
+  /// complete. Call this from the parent's Next/Submit validation.
+  bool validate() {
+    setState(() => _attempted = true);
+    return isValid;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _streetFocus.addListener(_onStreetFocus);
+  }
+
+  void _onStreetFocus() {
+    if (!_streetFocus.hasFocus) return;
+    Future.delayed(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      final ctx = _streetFieldKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+          alignment: 0.85,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _streetFocus.removeListener(_onStreetFocus);
+    _streetFocus.dispose();
+    _streetCtrl.dispose();
+    super.dispose();
+  }
+
+  void _emit() => widget.onChanged?.call(composedAddress);
+
+  @override
+  Widget build(BuildContext context) {
+    final showErrors = _attempted || (widget.errorText?.isNotEmpty ?? false);
+    final missing = showErrors && !isValid;
+
+    const regions = philippineRegions;
+    final provinces = _region?.provinces ?? const <Province>[];
+    final municipalities = _province?.municipalities ?? const <Municipality>[];
+    final barangays = _municipality?.barangays ?? const <String>[];
+
+    Widget dropdown({
+      Key? key,
+      required String label,
+      required String? value,
+      required List<DropdownMenuItem<String>> items,
+      required void Function(String?) onChanged,
+    }) {
+      return DropdownButtonFormField<String>(
+        key: key,
+        initialValue: value,
+        isExpanded: true,
+        decoration: _deco(label, errorText: null),
+        items: items,
+        onChanged: items.isEmpty ? null : onChanged,
+      );
+    }
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final pairUp = constraints.maxWidth >= 520;
+      final regionDropdown = dropdown(
+        label: 'Region *',
+        value: _region?.regionName,
+        items: regions
+            .map((r) =>
+                DropdownMenuItem(value: r.regionName, child: Text(r.regionName)))
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            _region = regions.where((r) => r.regionName == v).firstOrNull;
+            _province = null;
+            _municipality = null;
+            _barangay = null;
+          });
+          _emit();
+        },
+      );
+      final provinceDropdown = dropdown(
+        key: ValueKey('paf-prov-${_region?.regionName ?? ''}'),
+        label: 'Province *',
+        value: _province?.name,
+        items: provinces
+            .map((p) => DropdownMenuItem(value: p.name, child: Text(p.name)))
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            _province = provinces.where((p) => p.name == v).firstOrNull;
+            _municipality = null;
+            _barangay = null;
+          });
+          _emit();
+        },
+      );
+      final cityDropdown = dropdown(
+        key: ValueKey('paf-city-${_province?.name ?? ''}'),
+        label: 'City / Municipality *',
+        value: _municipality?.name,
+        items: municipalities
+            .map((m) => DropdownMenuItem(value: m.name, child: Text(m.name)))
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            _municipality =
+                municipalities.where((m) => m.name == v).firstOrNull;
+            _barangay = null;
+          });
+          _emit();
+        },
+      );
+      final barangayDropdown = dropdown(
+        key: ValueKey('paf-brgy-${_municipality?.name ?? ''}'),
+        label: 'Barangay *',
+        value: _barangay,
+        items: barangays
+            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+            .toList(),
+        onChanged: (v) {
+          setState(() => _barangay = v);
+          _emit();
+        },
+      );
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.errorText != null && widget.errorText!.isNotEmpty) ...[
+            Text(
+              widget.errorText!,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (pairUp)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: regionDropdown),
+                const SizedBox(width: 10),
+                Expanded(child: provinceDropdown),
+              ],
+            )
+          else ...[
+            regionDropdown,
+            const SizedBox(height: 12),
+            provinceDropdown,
+          ],
+          const SizedBox(height: 12),
+          if (pairUp)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: cityDropdown),
+                const SizedBox(width: 10),
+                Expanded(child: barangayDropdown),
+              ],
+            )
+          else ...[
+            cityDropdown,
+            const SizedBox(height: 12),
+            barangayDropdown,
+          ],
+          const SizedBox(height: 12),
+          TextField(
+            key: _streetFieldKey,
+            controller: _streetCtrl,
+            focusNode: _streetFocus,
+            maxLength: 150,
+            onChanged: (_) {
+              setState(() {});
+              _emit();
+            },
+            scrollPadding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+            decoration: _deco('Street / House No. *',
+                errorText: missing && _streetCtrl.text.trim().isEmpty
+                    ? 'Street address is required'
+                    : null),
+          ),
+          if (missing && _region == null)
+            const Padding(
+              padding: EdgeInsets.only(top: 2, left: 12),
+              child: Text('Please select Region, Province, City and Barangay',
+                  style: TextStyle(fontSize: 11.5, color: AppColors.error)),
+            ),
+        ],
+      );
+    });
+  }
+
+  InputDecoration _deco(String label, {String? errorText}) => InputDecoration(
+        labelText: label,
+        counterText: '',
+        isDense: true,
+        filled: true,
+        fillColor: Colors.white,
+        errorText: errorText,
+        errorStyle: const TextStyle(fontSize: 11.5, color: AppColors.error),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+              color: errorText != null ? AppColors.error : AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.lenderBlue),
+        ),
+      );
+}
