@@ -53,7 +53,12 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
 
   LenderLoanNotifier(this._ds, this._disbDs) : super(const LenderLoanState()) {
     bindRealtimeRefresh(
-        ['loans', 'loan_schedules', 'disbursements', 'credit_investigations'],
+        // payments + collection_assignments: kapag nag-record si rider ng
+        // bayad, walang nagbabago sa loans/loan_schedules rows mismo (ang
+        // balance ay computed mula sa payments) — kung wala ang dalawang ito,
+        // hindi magre-refresh ang Active Loan balance hanggang manual reload.
+        ['loans', 'loan_schedules', 'disbursements', 'credit_investigations',
+         'payments', 'collection_assignments'],
         refresh: () => loadLoans(silent: true));
     loadLoans();
   }

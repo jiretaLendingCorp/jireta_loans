@@ -163,10 +163,14 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
                 status == 'declined');
         final displayStatus = isSuperseded ? 'reassigned' : status;
         final isPendingApproval = displayStatus == 'completed';
+        // Tapos na ang CI (approved/rejected/completed) — moot na ang
+        // deadline, kaya walang OVERDUE highlight (gaya sa details screen).
         final isOverdue = ci.deadline != null &&
             (ci.deadline as DateTime).isOverdue &&
             !isSuperseded &&
             displayStatus != 'completed' &&
+            displayStatus != 'approved' &&
+            displayStatus != 'rejected' &&
             displayStatus != 'reassigned';
         return ResponsiveRow(
           cells: [
@@ -358,12 +362,12 @@ class _HmActionCell extends ConsumerWidget {
     if (isLatest &&
         (status == 'failed' || status == 'expired' || status == 'declined')) {
       final loanId = (ci.loanId ?? '').toString();
-      return Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      // Compact width (gaya ng dating View) + parehong size ang dalawa.
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ElevatedButton.icon(
+          ElevatedButton(
             onPressed: loanId.isEmpty
                 ? null
                 : () async {
@@ -383,41 +387,38 @@ class _HmActionCell extends ConsumerWidget {
                       }
                     }
                   },
-            icon: const Icon(Icons.person_add_alt_rounded, size: 14),
-            label: const Text('Reassign',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
+            child: const Text('Reassign',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
           ),
-          InkWell(
-            onTap: () => context.go(
+          const SizedBox(height: 6),
+          OutlinedButton.icon(
+            onPressed: () => context.go(
                 RouteConstants.hmCiDetails.replaceFirst(':id', ci.id)),
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border)),
-              child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.visibility_outlined,
-                        size: 14, color: AppColors.deepNavy),
-                    SizedBox(width: 4),
-                    Text('View',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.deepNavy))
-                  ]),
+            icon: const Icon(Icons.visibility_outlined,
+                size: 14, color: AppColors.deepNavy),
+            label: const Text('View',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy)),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: Colors.white,
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              side: const BorderSide(color: AppColors.border),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ],

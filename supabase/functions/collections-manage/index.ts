@@ -203,6 +203,7 @@ async function handleCollectionRequest(req: Request) {
   const { data: assignment, error: insErr } = await db.from('collection_assignments').insert({
     loan_schedule_id,
     requested_by: user.id,
+    requested_at: nowManilaISO(),
     collection_type: type,
     requested_amount: requestedAmount,
     status: 'requested',
@@ -309,6 +310,7 @@ async function handleCollectionAssign(req: Request) {
     const { error: updErr } = await db.from('collection_assignments').update({
       rider_id,
       assigned_by: user.id,
+      assigned_at: nowManilaISO(),
       collection_schedule: collection_schedule ?? null,
       collection_notes: notes ?? null,
       status: 'assigned',
@@ -331,6 +333,7 @@ async function handleCollectionAssign(req: Request) {
     loan_schedule_id,
     rider_id,
     assigned_by: user.id,
+    assigned_at: nowManilaISO(),
     collection_schedule: collection_schedule ?? null,
     collection_notes: notes ?? null,
     status: 'assigned',

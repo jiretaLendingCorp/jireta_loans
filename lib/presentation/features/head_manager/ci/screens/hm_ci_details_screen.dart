@@ -248,7 +248,7 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
 
   Widget _buildStatusCard(Map<String, dynamic> ci, CreditInvestigationModel model, String status) {
     final deadline = parseManila(ci['deadline']);
-    final isOverdue = deadline != null && deadline.isOverdue && !['completed', 'approved'].contains(status);
+    final isOverdue = deadline != null && deadline.isOverdue && !['completed', 'approved', 'rejected'].contains(status);
     // Backend accepts straight to `in_progress` (no persistent `accepted`),
     // so derive acceptance from response_at for stale/cached rows where
     // status may still read `assigned`/`pending`.

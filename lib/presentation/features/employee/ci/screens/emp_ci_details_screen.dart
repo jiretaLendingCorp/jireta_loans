@@ -240,7 +240,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
 
   Widget _buildStatusCard(Map<String, dynamic> ci, CreditInvestigationModel model, String status) {
     final deadline = parseManila(ci['deadline']);
-    final isOverdue = deadline != null && deadline.isOverdue && !['completed', 'approved'].contains(status);
+    final isOverdue = deadline != null && deadline.isOverdue && !['completed', 'approved', 'rejected'].contains(status);
     final hasAccepted = ci['response_at'] != null;
     var effective = status;
     if ((effective == 'assigned' || effective == 'pending' || effective.isEmpty) && hasAccepted) {

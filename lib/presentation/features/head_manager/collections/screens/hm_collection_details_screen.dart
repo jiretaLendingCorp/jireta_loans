@@ -87,6 +87,8 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                   if (col.lenderPhone.isNotEmpty) _InfoRow('Lender Phone', col.lenderPhone),
                   _InfoRow(isOffice ? 'Payment Location' : 'Assigned Rider', isOffice ? 'Office' : col.riderName.isNotEmpty ? col.riderName : 'Unassigned'),
                   _InfoRow('Assigned By', col.assignedByName.isNotEmpty ? col.assignedByName : 'N/A'),
+                  _InfoRow('Requested At', col.effectiveRequestedAt != null ? dateFmt.format(col.effectiveRequestedAt!) : '—'),
+                  _InfoRow('Assigned At', col.effectiveAssignedAt != null ? dateFmt.format(col.effectiveAssignedAt!) : '—'),
                   _InfoRow('Schedule', col.collectionSchedule != null ? dateFmt.format(col.collectionSchedule!) : 'N/A'),
                   _InfoRow('Response At', col.responseAt != null ? dateFmt.format(col.responseAt!) : 'Pending'),
                   _InfoRow('Completed At', col.completedAt != null ? dateFmt.format(col.completedAt!) : '—'),

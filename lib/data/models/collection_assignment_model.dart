@@ -6,6 +6,9 @@ class CollectionAssignmentModel {
   final String loanScheduleId;
   final String? riderId;
   final String? assignedBy;
+  final String? requestedBy;
+  final DateTime? requestedAt;
+  final DateTime? assignedAt;
   final String status;
   final String collectionType;
   final double? amountCollected;
@@ -36,6 +39,9 @@ class CollectionAssignmentModel {
     required this.loanScheduleId,
     this.riderId,
     this.assignedBy,
+    this.requestedBy,
+    this.requestedAt,
+    this.assignedAt,
     required this.status,
     this.collectionType = 'rider',
     this.amountCollected,
@@ -68,6 +74,13 @@ class CollectionAssignmentModel {
         loanScheduleId: json['loan_schedule_id'] ?? '',
         riderId: json['rider_id'],
         assignedBy: json['assigned_by'],
+        requestedBy: json['requested_by'],
+        requestedAt: json['requested_at'] != null
+            ? parseManila(json['requested_at'])
+            : null,
+        assignedAt: json['assigned_at'] != null
+            ? parseManila(json['assigned_at'])
+            : null,
         status: json['status'] ?? 'pending',
         collectionType: json['collection_type'] ?? 'rider',
         amountCollected: (json['amount_collected'] as num?)?.toDouble(),
@@ -119,6 +132,22 @@ class CollectionAssignmentModel {
     return '${assignedByUser!['first_name'] ?? ''} ${assignedByUser!['last_name'] ?? ''}'
         .trim();
   }
+
+  /// Kung kailan nag-request si lender na magbayad via rider.
+  /// Fallback sa created_at kapag siya ang requester (luma/walang timestamp).
+  DateTime? get effectiveRequestedAt =>
+      requestedAt ??
+      ((requestedBy != null && requestedBy!.isNotEmpty) ? createdAt : null);
+
+  /// Kung kailan na-assign si rider ni staff.
+  /// Fallback sa created_at kapag staff-created ang assignment (walang request).
+  DateTime? get effectiveAssignedAt =>
+      assignedAt ??
+      (((requestedBy == null || requestedBy!.isEmpty) &&
+              riderId != null &&
+              riderId!.isNotEmpty)
+          ? createdAt
+          : null);
 
   String get loanNumber {
     if (flatLoanNumber != null && flatLoanNumber!.isNotEmpty) return flatLoanNumber!;
