@@ -78,7 +78,12 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
       : super(HmLoanState(
             statusFilter: _apiStatus(initialFilter),
             tabFilter: initialFilter)) {
-    bindRealtimeRefresh(['loans', 'loan_schedules'],
+    // Ang `loan_disbursement_preferences` ay nagbabago kapag pumili ang lender
+    // ng "Cash on Delivery" — kung wala ito, hindi agad lumalabas sa HM/Employee
+    // ang assign-rider button hanggang manual refresh. Ang `disbursements` naman
+    // ay para sa rider assignment/delivery updates.
+    bindRealtimeRefresh(
+        ['loans', 'loan_schedules', 'loan_disbursement_preferences', 'disbursements'],
         refresh: () => fetchLoans(silent: true));
     fetchLoans();
   }

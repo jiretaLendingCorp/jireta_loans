@@ -520,13 +520,25 @@ class _HmLoanApplicationsListScreenState
     final dateFmt = DateFormat('MMM dd, yyyy h:mm a');
 
     return ResponsiveListCard(
-      minTableWidth: 920,
+      minTableWidth: 1040,
       columns: const [
-        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        // flex 2 (dating 3) — sapat pa rin sa loan # + pangalan, at naiuusog
+        // pakaliwa ang AMOUNT (dating masyadong malawak ang puwang pagkatapos
+        // ng lender name).
+        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 2),
         ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
+        // Maikling header — ang "Outstanding Balance" ay napuputol sa column
+        // na ito (maxLines: 1 + ellipsis), kaya "Outstanding" ang label.
+        ResponsiveCol('Outstanding',
+            icon: Icons.account_balance_wallet_outlined, flex: 2),
         ResponsiveCol('Frequency', icon: Icons.repeat_rounded, flex: 2),
-        ResponsiveCol('Applied', icon: Icons.event_outlined, flex: 2),
-        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
+        // STATUS muna bago APPLIED — naiuusog pakaliwa ang status column
+        // (dating nasa dulong kanan, katabi ng ACTION).
+        // Status flex 2 (dating 3) + Applied flex 3 (dating 2) — pareho pa rin
+        // ang kabuuang flex, kaya hindi gumagalaw ang STATUS pero umuusog
+        // PAKALIWA ang APPLIED at kasya na ang buong petsa (walang "…").
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+        ResponsiveCol('Applied', icon: Icons.event_outlined, flex: 3),
       ],
       actionsCol: const ResponsiveActionsCol(width: 96, alignment: Alignment.topLeft),
       // Fixed row height so every row stays pantay-pantay even when the
@@ -540,6 +552,11 @@ class _HmLoanApplicationsListScreenState
             '${loan.lenderFirstName} ${loan.lenderLastName}'.trim().isEmpty
                 ? (loan.lenderName ?? '—')
                 : '${loan.lenderFirstName} ${loan.lenderLastName}'.trim();
+        // Ang outstanding balance ay ipinapakita LANG para sa CURRENT ACTIVE
+        // LOAN (active/overdue = na-release at hindi pa tapos). N/A ang lahat
+        // ng iba: pending, approved, rejected, at completed.
+        final isCurrentActiveLoan =
+            loan.status == 'active' || loan.status == 'overdue';
         return ResponsiveRow(
           onTap: () => _openDetails(context, loan.id),
           cells: [
@@ -574,33 +591,25 @@ class _HmLoanApplicationsListScreenState
                   color: AppColors.textPrimary),
               overflow: TextOverflow.ellipsis,
             ),
+            // Outstanding balance — para lang sa CURRENT ACTIVE LOAN;
+            // "N/A" kapag hindi ito ang kasalukuyang aktibong loan.
+            Text(
+              isCurrentActiveLoan
+                  ? '₱${fmt.format(loan.outstandingBalance)}'
+                  : 'N/A',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isCurrentActiveLoan
+                    ? AppColors.deepNavy
+                    : AppColors.textSecondary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
             // Frequency — flat inline, top-aligned like the other cells
             Align(
               alignment: Alignment.topLeft,
               child: _FrequencyInline(frequency: loan.paymentFrequency),
-            ),
-            // Applied date — start-aligned pantay sa header
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  dateFmt.format(loan.createdAt),
-                  textAlign: TextAlign.start,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  _timeAgo(loan.createdAt),
-                  textAlign: TextAlign.start,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textTertiary),
-                ),
-              ],
             ),
             // Status — flat inline dot + text, start-aligned pantay sa header
             Column(
@@ -704,6 +713,30 @@ class _HmLoanApplicationsListScreenState
                     ],
                   ),
                 ],
+              ],
+            ),
+            // Applied date — start-aligned pantay sa header. Nasa dulong
+            // data column na ito (dating bago ang Status).
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dateFmt.format(loan.createdAt),
+                  textAlign: TextAlign.start,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  _timeAgo(loan.createdAt),
+                  textAlign: TextAlign.start,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary),
+                ),
               ],
             ),
           ],

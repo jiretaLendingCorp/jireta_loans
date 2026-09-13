@@ -356,7 +356,9 @@ class _EmpActionCell extends ConsumerWidget {
                           EmpCiAssignModal(loanId: loanId, ciId: ''),
                     );
                     if (ok == true) {
-                      await ref.read(empCiProvider.notifier).fetch();
+                      // Silent refresh — hindi dapat mag-loading nang buo ang
+                      // data table pagkatapos mag-assign/mag-reassign.
+                      ref.read(empCiProvider.notifier).fetch(silent: true);
                       if (context.mounted) {
                         context.showSnackBarAsToast(
                           const SnackBar(

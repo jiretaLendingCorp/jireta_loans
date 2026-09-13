@@ -161,6 +161,41 @@ async function handleGetList(req: Request) {
     };
   });
 
+  // ── Per-lender insights ────────────────────────────────────────────────
+  // Current outstanding balance + early-payer detection (lahat ng verified
+  // payments ay bago/o sa exactong due date) para makita ng Head Manager at
+  // Employee sa lender list. Isang RPC lang para sa buong page.
+  const lenderIds = (data ?? [])
+    .filter((u) => (embedAsObject(u.roles)?.name ?? '') === 'lender')
+    .map((u) => u.id as string)
+    .filter((id) => typeof id === 'string' && id.length > 0);
+
+  if (lenderIds.length > 0) {
+    const { data: insights, error: insightsErr } = await (db as any).rpc(
+      'lender_payment_insights',
+      { p_lender_ids: lenderIds },
+    );
+    if (insightsErr) {
+      // Non-fatal: mananatiling gumagana ang listahan kahit wala ang insights.
+      console.error('lender_payment_insights failed:', insightsErr.message);
+    } else {
+      const byId = new Map<string, Record<string, unknown>>(
+        (insights ?? []).map((r: Record<string, unknown>) => [String(r.lender_id), r]),
+      );
+      for (const m of mapped) {
+        const ins = byId.get(String(m.id));
+        m.outstanding_balance = Number(ins?.outstanding_balance ?? 0);
+        m.active_loans_count = Number(ins?.active_loans_count ?? 0);
+        m.settled_loans_count = Number(ins?.settled_loans_count ?? 0);
+        m.verified_payment_count = Number(ins?.verified_payment_count ?? 0);
+        m.on_time_payment_count = Number(ins?.on_time_payment_count ?? 0);
+        m.late_payment_count = Number(ins?.late_payment_count ?? 0);
+        m.max_days_early = Number(ins?.max_days_early ?? 0);
+        m.is_early_payer = Boolean(ins?.is_early_payer ?? false);
+      }
+    }
+  }
+
   return jsonResponse({
     data: mapped,
     total: count ?? 0,

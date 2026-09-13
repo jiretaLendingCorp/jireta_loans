@@ -1,4 +1,5 @@
 // lib/presentation/features/employee/collections/providers/emp_collection_provider.dart
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
@@ -80,6 +81,7 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
+      if (!mounted) return;
       final items = ((res['items'] as List?) ?? [])
           .map((e) =>
               CollectionAssignmentModel.fromJson(e as Map<String, dynamic>))
@@ -145,7 +147,9 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
     }
     // Hiwalay sa mutation: hindi dapat maging "failed" ang matagumpay na
     // assign kapag nabigo lang ang refresh ng listahan.
-    await fetch();
+    // SILENT + background — hindi dapat mag-loading/shimmer nang buo ang
+    // data table pagkatapos mag-assign ng rider.
+    if (mounted) unawaited(fetch(silent: true));
     return true;
   }
 
@@ -157,7 +161,9 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
-    await fetch();
+    // SILENT + background — hindi dapat mag-loading/shimmer nang buo ang
+    // data table pagkatapos mag-assign ng rider.
+    if (mounted) unawaited(fetch(silent: true));
     return true;
   }
 
@@ -169,7 +175,9 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
-    await fetch();
+    // SILENT + background — hindi dapat mag-loading/shimmer nang buo ang
+    // data table pagkatapos mag-assign ng rider.
+    if (mounted) unawaited(fetch(silent: true));
     return true;
   }
 

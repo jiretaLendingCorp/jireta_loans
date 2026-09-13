@@ -279,6 +279,10 @@ class _CiCard extends StatelessWidget {
   }
 
   void _handleAccept(BuildContext context) {
+    // Kunin ang router BAGO mag-await: habang tumatakbo ang accept, nagre-refresh
+    // ang listahan at maaaring ma-dispose ang card — dapat may valid na router
+    // pa rin para makalipat sa wizard pagkatapos.
+    final router = GoRouter.of(context);
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -306,7 +310,14 @@ class _CiCard extends StatelessWidget {
                             .accept(ci.id);
                         if (!ctx.mounted) return;
                         if (ok) {
+                          // Isara ang modal at DERETSO sa wizard (Step 2 =
+                          // Upload) — hindi na bumabalik sa listahan pagkatapos
+                          // mag-loading ng Accept button.
                           Navigator.pop(ctx);
+                          router.push(
+                            '${RouteConstants.riderCi}/${ci.id}',
+                            extra: 1,
+                          );
                           return;
                         }
                         setDialogState(() => isAccepting = false);

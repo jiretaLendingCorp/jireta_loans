@@ -10,6 +10,7 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/details_actions_card.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -167,6 +168,29 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                         : StatusBadge(
                             status: user.accountUpgradeStatus!,
                             small: true,
+                          ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Payment behavior ng lender (early payer detection). Ang CURRENT
+              // outstanding balance ay nasa Loan Records, hindi dito.
+              DetailsSectionCard(
+                title: 'Payment Profile',
+                icon: Icons.bolt_rounded,
+                accentColor: AppColors.success,
+                items: [
+                  DetailsItem('Active Loans', '${user.activeLoansCount}'),
+                  DetailsItem('Fully Paid Loans', '${user.settledLoansCount}'),
+                  DetailsItem(
+                    'Payment Behavior',
+                    '',
+                    valueWidget: user.isEarlyPayer
+                        ? EarlyPayerBadge(daysEarly: user.maxDaysEarly)
+                        : Text(
+                            user.paymentBehaviorLabel,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppColors.textSecondary),
                           ),
                   ),
                 ],

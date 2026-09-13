@@ -1,4 +1,5 @@
 // lib/presentation/features/rider/disbursements/providers/rider_disbursement_provider.dart
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,13 +80,56 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
       await _ds.uploadDeliveryProof(
           disbursementId: disbursementId, proofs: proofs);
       state = state.copyWith(isSubmitting: false);
-      await load();
+      // Best-effort lang ang reload ng listahan — hindi ito hinihintay at
+      // hindi kasama sa try, para hindi maging "failed" ang isang matagumpay
+      // na upload kahit mabagal/nabigo ang refresh.
+      _safeRefresh();
       return true;
     } catch (e) {
+      // Posibleng naisave na ng server ang proof pero nag-timeout/nabigo ang
+      // response sa client (mabigat ang base64 ng 1–2 larawan). Kumpirmahin
+      // muna sa server bago mag-report ng failure — kaya valid pa rin ang 1
+      // o 2 na na-upload na proof.
+      if (await _isAlreadySubmitted(disbursementId)) {
+        state = state.copyWith(isSubmitting: false);
+        _safeRefresh();
+        return true;
+      }
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
     }
+  }
+
+  /// Hindi hinihintay ang reload ng listahan (background) — hindi nito dapat
+  /// pahabain o gawing "failed" ang submit.
+  void _safeRefresh() {
+    unawaited(() async {
+      try {
+        await load();
+      } catch (_) {}
+    }());
+  }
+
+  /// Sinuri sa server kung completed na ang disbursement kahit "failed" ang
+  /// response na natanggap ng client (lost response / timeout).
+  ///
+  /// Ilang beses itong sinusubukan (may pagitan): kapag nag-timeout ang client
+  /// habang tumatakbo pa ang upload sa server, kailangan ng maliit na palugit
+  /// bago lumabas ang `completed` na status.
+  Future<bool> _isAlreadySubmitted(String disbursementId) async {
+    for (var attempt = 0; attempt < 4; attempt++) {
+      try {
+        final d = await _ds.getDisbursementDetail(disbursementId);
+        if (d != null &&
+            (d.status == 'completed' ||
+                (d.deliveryProof != null && d.deliveryProof!.isNotEmpty))) {
+          return true;
+        }
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+    }
+    return false;
   }
 
   Future<Map<String, dynamic>> _fileToProof(XFile file, String type) async {

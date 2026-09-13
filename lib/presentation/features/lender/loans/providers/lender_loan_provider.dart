@@ -215,7 +215,9 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
         gcashNumber: gcashNumber,
       );
       state = state.copyWith(isSubmitting: false);
-      await loadLoans();
+      // Silent refresh — hindi dapat mag-shimmer/"splash" ang status ng loan
+      // habang naglo-load pa ang confirm button sa modal.
+      await loadLoans(silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(

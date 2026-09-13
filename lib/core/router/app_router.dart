@@ -529,8 +529,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           builder: (ctx, s) => const RiderCiListScreen()),
       GoRoute(
           path: RouteConstants.riderCiDetails,
-          builder: (ctx, s) =>
-              RiderCiDetailsScreen(ciId: s.pathParameters['id']!)),
+          builder: (ctx, s) => RiderCiDetailsScreen(
+            ciId: s.pathParameters['id']!,
+            // Kapag galing sa "Accept" ng listahan, iniipasa ang step 1
+            // (Step 2 sa UI) para deretso na ang rider sa wizard.
+            initialStep: s.extra is int ? s.extra as int : 0,
+          )),
       GoRoute(
           path: RouteConstants.riderCiBorrowerInfo,
           builder: (ctx, s) =>

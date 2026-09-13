@@ -5,6 +5,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
+import '../early_payer_badge.dart';
 
 Future<void> showUserDetailsModal(BuildContext context, UserModel user) {
   return showDialog<void>(
@@ -227,6 +228,30 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
         ];
       case 'lender':
         return [
+          // Early-payer detection — galing sa `lender_payment_insights`
+          // (users-admin get-list / users-manage get-profile), kaya hindi na
+          // kailangan ng dagdag na request. Ang CURRENT outstanding balance ay
+          // nasa Loan Records, hindi dito.
+          _SectionCard(
+            title: 'Payment Profile',
+            icon: Icons.bolt_rounded,
+            accentColor: AppColors.success,
+            items: [
+              _Kv('Active Loans', '${u.activeLoansCount}'),
+              _Kv('Fully Paid Loans', '${u.settledLoansCount}'),
+              _KvWidget(
+                label: 'Payment Behavior',
+                widget: u.isEarlyPayer
+                    ? EarlyPayerBadge(daysEarly: u.maxDaysEarly)
+                    : Text(
+                        u.paymentBehaviorLabel,
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.textSecondary),
+                      ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           _SectionCard(
             title: 'Personal Information',
             icon: Icons.person_outline,

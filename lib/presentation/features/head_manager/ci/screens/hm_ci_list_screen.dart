@@ -376,7 +376,9 @@ class _HmActionCell extends ConsumerWidget {
                       builder: (_) => CiAssignModal(loanId: loanId),
                     );
                     if (ok == true) {
-                      await ref.read(hmCiProvider.notifier).fetch();
+                      // Silent refresh — hindi dapat mag-loading nang buo ang
+                      // data table pagkatapos mag-assign/mag-reassign.
+                      ref.read(hmCiProvider.notifier).fetch(silent: true);
                       if (context.mounted) {
                         context.showSnackBarAsToast(
                           const SnackBar(

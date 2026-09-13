@@ -27,6 +27,24 @@ class UserModel extends UserEntity {
   final bool isWalkIn;
   final Map<String, dynamic>? inOfficeApplication;
 
+  // ── Per-lender payment insights (HM/Employee lender list + details) ──────
+  /// CURRENT outstanding balance — sum ng outstanding ng active/overdue loans.
+  final double outstandingBalance;
+  final int activeLoansCount;
+  final int settledLoansCount;
+
+  /// Bilang ng verified payments, at kung ilan ang on-time/late.
+  final int verifiedPaymentCount;
+  final int onTimePaymentCount;
+  final int latePaymentCount;
+
+  /// Pinakamalaking bilang ng araw na nauna ang bayad kaysa sa due date.
+  final int maxDaysEarly;
+
+  /// TRUE kapag may verified payments at LAHAT ng bayad ay bago/o sa exactong
+  /// due date ng installment (base sa loan term na kinuha ng lender).
+  final bool isEarlyPayer;
+
   const UserModel({
     required super.id,
     required super.role,
@@ -63,9 +81,35 @@ class UserModel extends UserEntity {
     this.emergencyContacts = const [],
     this.isWalkIn = false,
     this.inOfficeApplication,
+    this.outstandingBalance = 0,
+    this.activeLoansCount = 0,
+    this.settledLoansCount = 0,
+    this.verifiedPaymentCount = 0,
+    this.onTimePaymentCount = 0,
+    this.latePaymentCount = 0,
+    this.maxDaysEarly = 0,
+    this.isEarlyPayer = false,
   });
 
   String get phone => phoneNumber ?? '';
+
+  /// May balance pa ba ang lender (may active/overdue na loan)?
+  bool get hasOutstanding => outstandingBalance > 0;
+
+  /// May verified payment history na ba — basehan ng early-payer badge.
+  bool get hasPaymentHistory => verifiedPaymentCount > 0;
+
+  /// Human-readable na paliwanag ng early-payer status para sa details screen.
+  String get paymentBehaviorLabel {
+    if (!hasPaymentHistory) return 'No payments yet';
+    if (isEarlyPayer) {
+      return latePaymentCount == 0 && maxDaysEarly > 0
+          ? 'Early payer — $onTimePaymentCount/$verifiedPaymentCount on time, '
+              'up to $maxDaysEarly day(s) ahead'
+          : 'Early payer — all $verifiedPaymentCount payment(s) on time';
+    }
+    return '$latePaymentCount of $verifiedPaymentCount payment(s) paid late';
+  }
 
   // Forward-compat helper: varchar `code` is deprecated alias for uuid *_id.
   // Reads code first (still sent by Edge), then joined lookup, then uuid fallback.
@@ -129,6 +173,17 @@ class UserModel extends UserEntity {
           const [],
       isWalkIn: json['is_walk_in'] == true || json['isWalkIn'] == true,
       inOfficeApplication: json['in_office_application'] is Map ? Map<String, dynamic>.from(json['in_office_application'] as Map) : null,
+      outstandingBalance:
+          (json['outstanding_balance'] as num?)?.toDouble() ?? 0,
+      activeLoansCount: (json['active_loans_count'] as num?)?.toInt() ?? 0,
+      settledLoansCount: (json['settled_loans_count'] as num?)?.toInt() ?? 0,
+      verifiedPaymentCount:
+          (json['verified_payment_count'] as num?)?.toInt() ?? 0,
+      onTimePaymentCount:
+          (json['on_time_payment_count'] as num?)?.toInt() ?? 0,
+      latePaymentCount: (json['late_payment_count'] as num?)?.toInt() ?? 0,
+      maxDaysEarly: (json['max_days_early'] as num?)?.toInt() ?? 0,
+      isEarlyPayer: json['is_early_payer'] == true,
     );
   }
 
@@ -167,6 +222,14 @@ class UserModel extends UserEntity {
         'emergency_contacts': emergencyContacts,
         'is_walk_in': isWalkIn,
         'in_office_application': inOfficeApplication,
+        'outstanding_balance': outstandingBalance,
+        'active_loans_count': activeLoansCount,
+        'settled_loans_count': settledLoansCount,
+        'verified_payment_count': verifiedPaymentCount,
+        'on_time_payment_count': onTimePaymentCount,
+        'late_payment_count': latePaymentCount,
+        'max_days_early': maxDaysEarly,
+        'is_early_payer': isEarlyPayer,
       };
 
   UserModel copyWith({
@@ -219,6 +282,14 @@ class UserModel extends UserEntity {
       emergencyContacts: emergencyContacts,
       isWalkIn: isWalkIn ?? this.isWalkIn,
       inOfficeApplication: inOfficeApplication ?? this.inOfficeApplication,
+      outstandingBalance: outstandingBalance,
+      activeLoansCount: activeLoansCount,
+      settledLoansCount: settledLoansCount,
+      verifiedPaymentCount: verifiedPaymentCount,
+      onTimePaymentCount: onTimePaymentCount,
+      latePaymentCount: latePaymentCount,
+      maxDaysEarly: maxDaysEarly,
+      isEarlyPayer: isEarlyPayer,
     );
   }
 }

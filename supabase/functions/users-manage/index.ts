@@ -608,6 +608,28 @@ async function handleGetProfile(req: Request) {
     }
   } catch (_) {}
 
+  // ── Per-lender insights (outstanding balance + early-payer detection) ──
+  // Nakikita ito ng Head Manager / Employee sa Lender Details. Best-effort:
+  // kapag nabigo ang RPC, blangko na lang ang mga field at hindi masisira ang
+  // buong profile.
+  let lenderInsights: Record<string, unknown> | null = null;
+  const targetRole = (embedAsObject((data as any)?.roles)?.name ?? '') as string;
+  if (targetRole === 'lender') {
+    try {
+      const { data: insightRows, error: insightErr } = await (db as any).rpc(
+        'lender_payment_insights',
+        { p_lender_ids: [canonicalId] },
+      );
+      if (insightErr) {
+        console.error('lender_payment_insights (profile) failed:', insightErr.message);
+      } else {
+        lenderInsights = (insightRows ?? [])[0] ?? null;
+      }
+    } catch (err) {
+      console.error('lender_payment_insights (profile) threw:', err);
+    }
+  }
+
   const flattened = {
     ...data,
     position: emp?.position ?? null,
@@ -635,6 +657,15 @@ async function handleGetProfile(req: Request) {
     emergency_contacts: emergencyContacts ?? [],
     in_office_application: inOfficeApplication,
     is_walk_in: isWalkIn,
+    // Current outstanding balance + payment behavior (lenders only).
+    outstanding_balance: Number(lenderInsights?.outstanding_balance ?? 0),
+    active_loans_count: Number(lenderInsights?.active_loans_count ?? 0),
+    settled_loans_count: Number(lenderInsights?.settled_loans_count ?? 0),
+    verified_payment_count: Number(lenderInsights?.verified_payment_count ?? 0),
+    on_time_payment_count: Number(lenderInsights?.on_time_payment_count ?? 0),
+    late_payment_count: Number(lenderInsights?.late_payment_count ?? 0),
+    max_days_early: Number(lenderInsights?.max_days_early ?? 0),
+    is_early_payer: Boolean(lenderInsights?.is_early_payer ?? false),
   };
 
   return jsonResponse({ user: flattened });

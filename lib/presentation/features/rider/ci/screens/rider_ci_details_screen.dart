@@ -49,7 +49,14 @@ const _steps = [
 
 class RiderCiDetailsScreen extends ConsumerStatefulWidget {
   final String ciId;
-  const RiderCiDetailsScreen({super.key, required this.ciId});
+
+  /// Simulang step ng wizard: 0 = Details, 1 = Upload, 2 = Review.
+  /// Kapag galing sa listahan ang pag-accept, 1 ang ipinapasa para deretso
+  /// na sa Step 2 (Upload) pagkatapos mag-loading ang Accept button.
+  final int initialStep;
+
+  const RiderCiDetailsScreen(
+      {super.key, required this.ciId, this.initialStep = 0});
 
   @override
   ConsumerState<RiderCiDetailsScreen> createState() =>
@@ -78,6 +85,8 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    // Diretso sa hiniling na step (hal. Step 2 pagkatapos i-accept mula sa list).
+    _currentStep = widget.initialStep;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await ref.read(riderCiProvider.notifier).loadDetails(widget.ciId);
       if (mounted) setState(() => _isInitialLoading = false);

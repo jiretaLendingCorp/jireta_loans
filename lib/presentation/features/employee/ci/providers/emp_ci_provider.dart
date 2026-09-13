@@ -1,4 +1,5 @@
 // lib/presentation/features/employee/ci/providers/emp_ci_provider.dart
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
@@ -177,7 +178,9 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
     // Hiwalay sa mutation: hindi dapat maging "failed" ang matagumpay na
     // assign kapag nabigo lang ang reload ng listahan.
     if (!mounted) return true;
-    await fetch(page: page, silent: true);
+    // Background refresh — hindi hinihintay para hindi tumagal ang loading ng
+    // "Assign Rider" button sa modal.
+    unawaited(fetch(page: page, silent: true));
     return true;
   }
 
@@ -220,7 +223,8 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
       return false;
     }
     if (!mounted) return true;
-    await fetch(page: page);
+    // SILENT — hindi dapat mag-loading/shimmer nang buo ang data table.
+    unawaited(fetch(page: page, silent: true));
     return true;
   }
 
@@ -234,7 +238,8 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
       return false;
     }
     if (!mounted) return true;
-    await fetch(page: page);
+    // SILENT — hindi dapat mag-loading/shimmer nang buo ang data table.
+    unawaited(fetch(page: page, silent: true));
     return true;
   }
 

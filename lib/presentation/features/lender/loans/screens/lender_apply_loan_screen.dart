@@ -3139,52 +3139,47 @@ class _ChooseDisbursementView extends ConsumerStatefulWidget {
 class _ChooseDisbursementViewState
     extends ConsumerState<_ChooseDisbursementView> {
   String _method = 'rider_delivery';
-  bool _submitting = false;
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 
   Future<void> _confirm() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => ConfirmationDialog(
-        title: 'Confirm Disbursement Method',
-        message: _method == 'rider_delivery'
-            ? 'A rider will deliver the cash to your registered address. You will be notified once the rider is scheduled for delivery.'
-            : 'You may pick up the cash at the Jireta Loans office. We will notify you once it is ready for pickup.',
-        confirmLabel: 'Confirm',
-        confirmColor: AppColors.lenderBlue,
-      ),
-    );
-    if (confirmed != true) return;
-
-    setState(() => _submitting = true);
-    final ok =
-        await ref.read(lenderLoanProvider.notifier).selectDisbursementMethod(
+    // Ang CONFIRM BUTTON mismo sa loob ng modal ang nag-loading habang
+    // tumatakbo ang save — hindi ang button ng method sa ilalim. Nananatili
+    // nakabukas ang modal para makita ang spinner ng confirm button.
+    final ok = await showAsyncConfirmationDialog(
+      context,
+      title: 'Confirm Disbursement Method',
+      message: _method == 'rider_delivery'
+          ? 'A rider will deliver the cash to your registered address. You will be notified once the rider is scheduled for delivery.'
+          : 'You may pick up the cash at the Jireta Loans office. We will notify you once it is ready for pickup.',
+      confirmLabel: 'Confirm',
+      confirmColor: AppColors.lenderBlue,
+      onConfirm: () async {
+        final done = await ref
+            .read(lenderLoanProvider.notifier)
+            .selectDisbursementMethod(
               loanId: widget.loan.id,
               method: _method,
             );
-    if (!mounted) return;
-    setState(() => _submitting = false);
-
-    final err = ref.read(lenderLoanProvider).error;
-    context.showSnackBarAsToast(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Your disbursement method has been saved.'
-              : err ?? 'Failed to save your disbursement method.',
-        ),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ),
+        if (done) return null;
+        return ref.read(lenderLoanProvider).error ??
+            'Failed to save your disbursement method.';
+      },
     );
-    if (ok) {
-      Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) context.go(RouteConstants.lenderDashboard);
-      });
-    }
+    if (ok != true || !mounted) return;
+
+    // Pagkatapos ng loading ng confirm button: 2-segundong success modal,
+    // tapos DERETSO sa Home — walang status/shimmer na sasabit.
+    await SuccessDialog.showAutoDismiss(
+      context,
+      title: _method == 'rider_delivery'
+          ? 'Cash on Delivery Confirmed'
+          : 'Office Pickup Confirmed',
+      message: _method == 'rider_delivery'
+          ? 'A rider will be scheduled to deliver your loan to your registered address.'
+          : 'We will notify you once your cash is ready for pickup at the office.',
+      buttonText: 'Done',
+      duration: const Duration(seconds: 2),
+    );
+    if (mounted) context.go(RouteConstants.lenderDashboard);
   }
 
   @override
@@ -3227,7 +3222,6 @@ class _ChooseDisbursementViewState
                 'Confirm ${_method == 'rider_delivery' ? 'COD' : 'Office Pickup'}',
             onTap: _confirm,
             color: AppColors.lenderBlue,
-            isLoading: _submitting,
             isExpanded: true,
           ),
         ],

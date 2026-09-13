@@ -237,7 +237,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     }
 
     // Keep the schedule screen's pending chip in sync even before realtime.
-    if (ok) ref.read(lenderCollectionProvider.notifier).loadList();
+    // Silent — hindi dapat mag-loading ang listahan matapos pindutin ang Yes.
+    if (ok) {
+      ref.read(lenderCollectionProvider.notifier).loadList(silent: true);
+    }
 
     // Walang mounted check pagkatapos ng huling `await` (`_requestExistsOnServer`)
     // — kailangan ito bago gamitin muli ang `context` sa mga dialog sa ibaba.
@@ -268,10 +271,46 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         ),
       );
     } else {
-      final err = ref.read(lenderPaymentProvider).error ??
-          'Failed to submit your request. Please try again.';
+      final err = ref.read(lenderPaymentProvider).error;
       AppLogger.w('[PaymentMethod] rider request FAILED schedule=$_scheduleId error=$err');
       if (kDebugMode) debugPrint('[PaymentMethod] failure dialog error: $err');
+      // Kapag walang error (o timeout/network ang ayaw) huwag ibalita ang
+      // maling "Request Not Sent" — posibleng natanggap na ito ng server.
+      final low = (err ?? '').toLowerCase();
+      final inconclusive = err == null ||
+          err.trim().isEmpty ||
+          low.contains('timed out') ||
+          low.contains('timeout') ||
+          low.contains('unable to reach') ||
+          low.contains('no internet') ||
+          low.contains('server error') ||
+          low.contains('internal server error') ||
+          low.contains('an error occurred');
+      if (inconclusive) {
+        await showDialog<void>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Request Timed Out'),
+            content: const Text(
+              'We could not confirm the server response in time. '
+              'Your request may still have been sent — please check '
+              'Collection History before trying again.',
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK')),
+              TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    context.push(RouteConstants.lenderCollections);
+                  },
+                  child: const Text('View Collections')),
+            ],
+          ),
+        );
+        return;
+      }
       final title = _titleForError(err);
       final isPending = title == 'Already Pending';
       // Dialog instead of a toast: it can never be missed, and it carries the
@@ -300,15 +339,27 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   /// na ito. Ginagamit kapag "failure" ang bumalik sa client pero posible na
   /// palang naipasok ng backend ang request (lost response / timeout). Kung
   /// meron, hindi na dapat sabihin ng app na "Request Not Sent".
+  ///
+  /// Ilang beses itong sinusubukan (may maliit na pagitan): kahit naipasok na
+  /// agad ng server ang request, hindi ito agad lumalabas sa unang listahan
+  /// kaya kung minsan may maling "Request Not Sent" na lumalabas.
   Future<bool> _requestExistsOnServer() async {
-    try {
-      await ref.read(lenderCollectionProvider.notifier).loadList();
-    } catch (e) {
-      AppLogger.w('[PaymentMethod] server re-check failed: $e');
-      return false;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        // Silent — hindi dapat mag-loading/shimmer ang collection list habang
+        // nagre-recheck pagkatapos ng "failure".
+        await ref
+            .read(lenderCollectionProvider.notifier)
+            .loadList(silent: true);
+        if (!mounted) return false;
+        if (_hasPendingLocally()) return true;
+      } catch (e) {
+        AppLogger.w('[PaymentMethod] server re-check failed: $e');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      if (!mounted) return false;
     }
-    if (!mounted) return false;
-    return _hasPendingLocally();
+    return false;
   }
 
   void _showInfo(String message) {
@@ -365,7 +416,6 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
             color: AppColors.riderGreen,
             title: 'Cash on Delivery',
             badge: null,
-            loading: _requesting && _selected == 'rider',
           ),
           const SizedBox(height: 12),
           _MethodCard(
@@ -446,7 +496,6 @@ class _MethodCard extends StatelessWidget {
   final Color color;
   final String title;
   final String? badge;
-  final bool loading;
   final bool disabled;
 
   const _MethodCard({
@@ -458,7 +507,6 @@ class _MethodCard extends StatelessWidget {
     required this.color,
     required this.title,
     required this.badge,
-    this.loading = false,
     this.disabled = false,
   });
 
@@ -545,16 +593,7 @@ class _MethodCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (loading)
-                const Padding(
-                  padding: EdgeInsets.only(left: 8),
-                  child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              else
-                _RadioDot(selected: selected, disabled: disabled),
+              _RadioDot(selected: selected, disabled: disabled),
             ],
           ),
         ),

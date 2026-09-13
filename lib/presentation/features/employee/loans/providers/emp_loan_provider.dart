@@ -65,7 +65,11 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
     with RealtimeRefreshMixin {
   final LoanRemoteDataSource _ds;
   EmpLoanNotifier(this._ds) : super(const EmpLoanState()) {
-    bindRealtimeRefresh(['loans', 'loan_schedules'], refresh: () => load(silent: true));
+    // `loan_disbursement_preferences` → realtime kapag pumili ang lender ng
+    // "Cash on Delivery"; `disbursements` → rider assignment/delivery updates.
+    bindRealtimeRefresh(
+        ['loans', 'loan_schedules', 'loan_disbursement_preferences', 'disbursements'],
+        refresh: () => load(silent: true));
     load();
   }
 

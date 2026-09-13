@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
@@ -380,13 +381,18 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
 
   Widget _buildTable(List<LoanModel> loans) {
     return ResponsiveListCard(
-      minTableWidth: 920,
+      minTableWidth: 1040,
       radius: 0,
       variant: ResponsiveListVariant.card,
       columns: const [
         ResponsiveCol('Loan #', flex: 3),
-        ResponsiveCol('Lender', flex: 3),
+        // flex 2 (dating 3) — naiuusog pakaliwa ang AMOUNT habang sapat pa rin
+        // ang puwang para sa pangalan ng lender.
+        ResponsiveCol('Lender', flex: 2),
         ResponsiveCol('Amount', flex: 2),
+        // Maikling header — ang "Outstanding Balance" ay napuputol sa column
+        // na ito (maxLines: 1 + ellipsis), kaya "Outstanding" ang label.
+        ResponsiveCol('Outstanding', flex: 2),
         ResponsiveCol('Frequency', flex: 2),
         ResponsiveCol('Status', flex: 2),
         ResponsiveCol('Applied', flex: 2),
@@ -397,6 +403,11 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   }
 
   ResponsiveRow _buildTableRow(LoanModel loan) {
+    // Ang outstanding balance ay ipinapakita LANG para sa CURRENT ACTIVE LOAN
+    // (active/overdue = na-release at hindi pa tapos). N/A ang lahat ng iba:
+    // pending, approved, rejected, at completed.
+    final isCurrentActiveLoan =
+        loan.status == 'active' || loan.status == 'overdue';
     return ResponsiveRow(
       onTap: () => _openDetails(context, loan.id),
       cells: [
@@ -418,6 +429,20 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
           '₱${loan.principalAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        // Outstanding balance — para lang sa CURRENT ACTIVE LOAN; "N/A" kapag
+        // hindi ito ang kasalukuyang aktibong loan.
+        Text(
+          isCurrentActiveLoan
+              ? loan.outstandingBalance.toCurrency
+              : 'N/A',
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: isCurrentActiveLoan
+                ? AppColors.deepNavy
+                : AppColors.textSecondary,
+          ),
         ),
         Align(
           alignment: Alignment.centerLeft,

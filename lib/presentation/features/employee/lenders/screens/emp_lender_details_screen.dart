@@ -11,6 +11,7 @@ import '../../../../shared/widgets/details/details_actions_card.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
+import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -159,6 +160,8 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 20),
+          _EmpLoanStanding(data: data),
+          const SizedBox(height: 20),
           _EmpPreviousLoans(lenderId: lenderId),
           const SizedBox(height: 20),
           DetailsActionsCard(
@@ -225,6 +228,61 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
             'Failed to unpause: ${e.toString().replaceAll('Exception: ', '')}');
       }
     }
+  }
+}
+
+/// Payment behavior ng lender (early payer detection) — galing sa
+/// `users-manage?fn=get-profile`, na siyang tumatawag sa
+/// `lender_payment_insights` RPC. Ang CURRENT outstanding balance ay nasa
+/// Loan Records, hindi dito.
+class _EmpLoanStanding extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _EmpLoanStanding({required this.data});
+
+  static int _i(dynamic v) => (v as num?)?.toInt() ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeLoans = _i(data['active_loans_count']);
+    final settledLoans = _i(data['settled_loans_count']);
+    final verifiedPayments = _i(data['verified_payment_count']);
+    final onTimePayments = _i(data['on_time_payment_count']);
+    final latePayments = _i(data['late_payment_count']);
+    final maxDaysEarly = _i(data['max_days_early']);
+    final isEarlyPayer = data['is_early_payer'] == true;
+
+    final String behavior;
+    if (verifiedPayments == 0) {
+      behavior = 'No payments yet';
+    } else if (isEarlyPayer) {
+      behavior = maxDaysEarly > 0
+          ? 'Early payer \u2014 $onTimePayments/$verifiedPayments on time, '
+              'up to $maxDaysEarly day(s) ahead'
+          : 'Early payer \u2014 all $verifiedPayments payment(s) on time';
+    } else {
+      behavior = '$latePayments of $verifiedPayments payment(s) paid late';
+    }
+
+    return DetailsSectionCard(
+      title: 'Payment Profile',
+      icon: Icons.bolt_rounded,
+      accentColor: AppColors.success,
+      items: [
+        DetailsItem('Active Loans', '$activeLoans'),
+        DetailsItem('Fully Paid Loans', '$settledLoans'),
+        DetailsItem(
+          'Payment Behavior',
+          '',
+          valueWidget: isEarlyPayer
+              ? EarlyPayerBadge(daysEarly: maxDaysEarly)
+              : Text(
+                  behavior,
+                  style: const TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary),
+                ),
+        ),
+      ],
+    );
   }
 }
 

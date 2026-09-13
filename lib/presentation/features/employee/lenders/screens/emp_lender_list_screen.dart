@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
+import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -147,6 +148,11 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            // Early payer = lahat ng verified na bayad ay bago/o sa due date.
+            if (user.isEarlyPayer) ...[
+              const SizedBox(width: 6),
+              EarlyPayerBadge(small: true, daysEarly: user.maxDaysEarly),
+            ],
           ],
         ),
         Text(

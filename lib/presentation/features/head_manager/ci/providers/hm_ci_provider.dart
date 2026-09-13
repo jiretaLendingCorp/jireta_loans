@@ -1,4 +1,5 @@
 // lib/presentation/features/head_manager/ci/providers/hm_ci_provider.dart
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
@@ -144,7 +145,9 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
     // assign (dati, `await fetch()` sa loob ng parehong try ang dahilan ng
     // "Failed to assign rider" kahit naisave na sa server).
     if (!mounted) return true;
-    await fetch(page: page, silent: true);
+    // Background refresh — hindi hinihintay para hindi tumagal ang loading ng
+    // "Assign Rider" button sa modal.
+    unawaited(fetch(page: page, silent: true));
     return true;
   }
 
@@ -172,11 +175,14 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
       return false;
     }
     if (!mounted) return true;
-    await fetch(page: page);
+    // SILENT — hindi dapat mag-loading/shimmer nang buo ang data table kapag
+    // nag-approve ng CI report (best-effort refresh lang sa background).
+    unawaited(fetch(page: page, silent: true));
     return true;
   }
 
-  Future<bool> rejectReport({required String ciId, required String reason}) async {
+  Future<bool> rejectReport({
+      required String ciId, required String reason}) async {
     final page = state.currentPage;
     try {
       await _ds.rejectCiReport(ciId: ciId, rejectionReason: reason);
@@ -186,7 +192,8 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
       return false;
     }
     if (!mounted) return true;
-    await fetch(page: page);
+    // SILENT — hindi dapat mag-loading/shimmer nang buo ang data table.
+    unawaited(fetch(page: page, silent: true));
     return true;
   }
 }
