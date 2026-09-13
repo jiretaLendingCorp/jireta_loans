@@ -50,6 +50,11 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   late String _scheduleId;
   late double _amount;
   late String _dueDate;
+  /// Napiling payment method via radio ('rider' | 'office'). GCash disabled.
+  String _selected = 'rider';
+  /// True habang nire-resolve ang installment (galing loan_id lang ang extra).
+  /// Habang true, disabled ang Pay para hindi mag-toast ng "Missing...".
+  bool _resolving = false;
 
   @override
   void initState() {
@@ -59,7 +64,13 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     _dueDate = widget.extra['due_date'] as String? ?? '';
     // When arriving with only a loan (e.g. from the dashboard card), resolve the
     // next payable installment so the cash-collection request has a schedule.
-    if (_scheduleId.isEmpty) Future.microtask(_resolveSchedule);
+    if (_scheduleId.isEmpty) {
+      final loanId = widget.extra['loan_id'] as String? ?? '';
+      if (loanId.isNotEmpty) {
+        _resolving = true;
+        Future.microtask(_resolveSchedule);
+      }
+    }
   }
 
   @override
@@ -70,26 +81,31 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   Future<void> _resolveSchedule() async {
     final loanId = widget.extra['loan_id'] as String? ?? '';
     if (loanId.isEmpty) return;
-    await ref.read(lenderLoanProvider.notifier).loadLoanDetails(loanId);
-    if (!mounted) return;
-    final schedules = ref.read(lenderLoanProvider).selectedLoan?.schedules ?? [];
-    Map<String, dynamic>? target;
-    for (final s in schedules) {
-      final status = (s['status'] ?? 'pending') as String;
-      if (status == 'pending' || status == 'partial') {
-        target = s;
-        break;
+    try {
+      await ref.read(lenderLoanProvider.notifier).loadLoanDetails(loanId);
+      if (!mounted) return;
+      final schedules =
+          ref.read(lenderLoanProvider).selectedLoan?.schedules ?? [];
+      Map<String, dynamic>? target;
+      for (final s in schedules) {
+        final status = (s['status'] ?? 'pending') as String;
+        if (status == 'pending' || status == 'partial') {
+          target = s;
+          break;
+        }
       }
-    }
-    target ??= schedules.isEmpty ? null : schedules.first;
-    final resolved = target;
-    if (resolved != null && mounted) {
-      final amt = (resolved['amount_due'] as num?)?.toDouble() ?? _amount;
-      setState(() {
-        _scheduleId = resolved['id'] as String? ?? _scheduleId;
-        _amount = amt;
-        _dueDate = resolved['due_date'] as String? ?? _dueDate;
-      });
+      target ??= schedules.isEmpty ? null : schedules.first;
+      final resolved = target;
+      if (resolved != null && mounted) {
+        final amt = (resolved['amount_due'] as num?)?.toDouble() ?? _amount;
+        setState(() {
+          _scheduleId = resolved['id'] as String? ?? _scheduleId;
+          _amount = amt;
+          _dueDate = resolved['due_date'] as String? ?? _dueDate;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _resolving = false);
     }
   }
 
@@ -164,13 +180,12 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       await _showPendingDialog();
       return;
     }
-    final displayAmt = _amount.toCurrency;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Request Pay with Rider'),
-        content: Text(
-          'A rider will visit your home to collect $displayAmt. Continue?',
+        title: const Text('Cash on Delivery'),
+        content: const Text(
+          'Are you sure you want to pay with Cash on Delivery?',
         ),
         actions: [
           TextButton(
@@ -178,7 +193,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
               child: const Text('Cancel')),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Request')),
+              child: const Text('Yes')),
         ],
       ),
     );
@@ -259,8 +274,32 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         SnackBar(content: Text(message)));
   }
 
+  /// Pay button sa baba — depende sa napiling radio. Ang rider request ay
+  /// pumapasok bilang collection request na nakikita ni HM/employee.
+  void _onPay() {
+    if (_requesting) return;
+    if (_selected == 'office') {
+      if (_hasPendingLocally()) {
+        _showPendingDialog();
+        return;
+      }
+      context.push(RouteConstants.lenderOfficePayment, extra: {
+        'loan_id': widget.extra['loan_id'],
+        'schedule_id': _scheduleId,
+        'amount': _amount,
+        'due_date': _dueDate,
+      });
+      return;
+    }
+    _requestCashCollection();
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Walang installment (naglo-load pa o walang nahanap) → disabled ang Pay
+    // para hindi mag-toast ng "Missing installment information".
+    final payDisabled =
+        _requesting || _resolving || _scheduleId.isEmpty;
     return MobileScaffold(
       title: 'Payment Method',
       accentColor: AppColors.lenderBlue,
@@ -270,49 +309,86 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           const Text('Choose how you want to pay this installment:',
+              textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
           _MethodCard(
+            value: 'rider',
+            groupValue: _selected,
+            onSelect: _requesting
+                ? null
+                : (v) => setState(() => _selected = v),
             icon: Icons.delivery_dining_outlined,
+            assetPath: 'assets/icons/paywithrider.jpg',
             color: AppColors.riderGreen,
-            title: 'Pay with Rider',
-            subtitle:
-                'A rider will visit your home to collect the payment. Our office assigns the rider and notifies you.',
+            title: 'Cash on Delivery',
             badge: null,
-            onTap: _requesting ? null : _requestCashCollection,
-            loading: _requesting,
+            loading: _requesting && _selected == 'rider',
           ),
           const SizedBox(height: 12),
           _MethodCard(
+            value: 'office',
+            groupValue: _selected,
+            onSelect: _requesting
+                ? null
+                : (v) => setState(() => _selected = v),
             icon: Icons.storefront_outlined,
+            assetPath: 'assets/icons/pay_with_office.jpg',
             color: AppColors.info,
-            title: 'Pay at the Office',
-            subtitle:
-                'Visit our office to pay in cash. Payment will be recorded on-site and a receipt will be issued.',
+            title: 'Office',
             badge: null,
-            onTap: () {
-              if (_hasPendingLocally()) {
-                _showPendingDialog();
-                return;
-              }
-              context.push(RouteConstants.lenderOfficePayment, extra: {
-                'loan_id': widget.extra['loan_id'],
-                'schedule_id': _scheduleId,
-                'amount': _amount,
-                'due_date': _dueDate,
-              });
-            },
           ),
           const SizedBox(height: 12),
           const _MethodCard(
+            value: 'gcash',
+            groupValue: 'rider',
+            onSelect: null,
             icon: Icons.account_balance_wallet,
             color: Color(0xFF007DFF),
             title: 'GCash',
-            subtitle: 'Pay securely via GCash through our payment partner.',
             badge: null,
-            onTap: null,
             disabled: true,
           ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: payDisabled ? null : _onPay,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.lenderBlue,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    AppColors.lenderBlue.withValues(alpha: 0.5),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: (_requesting || _resolving)
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(
+                      _selected == 'office'
+                          ? 'Pay via Office'
+                          : 'Pay via Cash on Delivery',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
+            ),
+          ),
+          if (!_resolving && _scheduleId.isEmpty) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'No payable installment found. Please return to Payment Schedule and tap Pay again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
         ],
       ),
     );
@@ -320,22 +396,26 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
 }
 
 class _MethodCard extends StatelessWidget {
+  final String value;
+  final String groupValue;
+  final ValueChanged<String>? onSelect;
   final IconData icon;
+  final String? assetPath;
   final Color color;
   final String title;
-  final String subtitle;
   final String? badge;
-  final VoidCallback? onTap;
   final bool loading;
   final bool disabled;
 
   const _MethodCard({
+    required this.value,
+    required this.groupValue,
+    required this.onSelect,
     required this.icon,
+    this.assetPath,
     required this.color,
     required this.title,
-    required this.subtitle,
     required this.badge,
-    required this.onTap,
     this.loading = false,
     this.disabled = false,
   });
@@ -343,65 +423,83 @@ class _MethodCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveColor = disabled ? AppColors.textTertiary : color;
+    final selected = !disabled && value == groupValue;
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: disabled ? null : onTap,
+        onTap: disabled || onSelect == null ? null : () => onSelect!(value),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(
+              color: selected ? AppColors.lenderBlue : AppColors.border,
+              width: selected ? 1.6 : 1,
+            ),
           ),
           child: Row(
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: effectiveColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+              if (assetPath != null)
+                SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      assetPath!,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, __, ___) => Container(
+                        decoration: BoxDecoration(
+                          color:
+                              effectiveColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child:
+                            Icon(icon, color: effectiveColor, size: 24),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: effectiveColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: effectiveColor, size: 24),
                 ),
-                child: Icon(icon, color: effectiveColor, size: 24),
-              ),
               const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(title,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                  color: AppColors.textPrimary)),
-                        ),
-                        if (badge != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.warning.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(badge!,
-                                style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.warning)),
-                          ),
-                        ],
-                      ],
+                    Flexible(
+                      child: Text(title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.textPrimary)),
                     ),
-                    const SizedBox(height: 4),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
+                    if (badge != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(badge!,
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.warning)),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -413,13 +511,48 @@ class _MethodCard extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2)),
                 )
-              else if (!disabled)
-                const Icon(Icons.chevron_right,
-                    color: AppColors.textTertiary),
+              else
+                _RadioDot(selected: selected, disabled: disabled),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Custom radio dot — iwas sa deprecated Radio groupValue/onChanged API.
+class _RadioDot extends StatelessWidget {
+  final bool selected;
+  final bool disabled;
+  const _RadioDot({required this.selected, this.disabled = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        disabled ? AppColors.textTertiary : AppColors.lenderBlue;
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? color : AppColors.border,
+          width: 2,
+        ),
+      ),
+      child: selected
+          ? Center(
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

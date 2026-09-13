@@ -3,7 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/logger.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -254,6 +257,29 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
         SnackBar(content: Text(message)));
   }
 
+  String _fmtDueDate() {
+    if (_dueDate.isEmpty) return '—';
+    final parsed = DateTime.tryParse(_dueDate);
+    if (parsed == null) return _dueDate;
+    return DateFormat('MMM dd, yyyy').format(parsed);
+  }
+
+  Future<void> _openOfficeLocation() async {
+    final uri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=Jireta+Loans+%26+Credit+Corp');
+    try {
+      final ok =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        _showInfo('Could not open Maps. Please search Jireta Loans manually.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _showInfo('Could not open Maps. Please search Jireta Loans manually.');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
@@ -262,45 +288,158 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
       navItems: _lenderNavItems,
       showBackButton: true,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
+          // Napiling method (summary card, naka-select na radio).
           Container(
-            width: 72,
-            height: 72,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.lenderBlue, width: 1.6),
             ),
-            child: const Icon(Icons.storefront_outlined,
-                color: AppColors.info, size: 36),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/icons/pay_with_office.jpg',
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (_, __, ___) => Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.storefront_outlined,
+                            color: AppColors.info, size: 24),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Pay at the Office',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: AppColors.textPrimary)),
+                      SizedBox(height: 4),
+                      Text(
+                          'Payment is recorded on-site and a receipt is issued.',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.lenderBlue,
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.check,
+                        size: 14, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Payment details.
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('PAYMENT DETAILS',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: AppColors.textSecondary)),
+                const SizedBox(height: 12),
+                _DetailRow(
+                    label: 'Amount Due',
+                    value: _amount.toCurrency,
+                    bold: true),
+                const SizedBox(height: 8),
+                _DetailRow(label: 'Due Date', value: _fmtDueDate()),
+                const SizedBox(height: 8),
+                const _DetailRow(label: 'Payment Method', value: 'Office'),
+              ],
+            ),
           ),
           const SizedBox(height: 20),
-          const Text('Office Payment',
+          const Row(
+            children: [
+              Icon(Icons.location_on_outlined,
+                  size: 16, color: AppColors.lenderBlue),
+              SizedBox(width: 6),
+              Text('OFFICE',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                      color: AppColors.lenderBlue)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('Jireta Loans & Credit Corp.',
               style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary)),
-          const SizedBox(height: 8),
-          const Text(
-            'Visit our office during business hours to pay your installment '
-            'in cash. Our staff will record your payment and issue an official '
-            'receipt.',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+          const SizedBox(height: 4),
+          const Text('09755849954 • jiretalendingcorp@gmail.com',
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary)),
+          const SizedBox(height: 12),
+          const Row(
+            children: [
+              Icon(Icons.access_time_rounded,
+                  size: 16, color: AppColors.textSecondary),
+              SizedBox(width: 6),
+              Text('Mon - Fri • 8:00 AM - 5:00 PM',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary)),
+            ],
           ),
-          const SizedBox(height: 24),
-          const _StepRow(
-              icon: Icons.location_on_outlined,
-              text: 'Visit our office at the address shown in your profile.'),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: _openOfficeLocation,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                minimumSize: const Size(double.infinity, 50),
+              ),
+              child: const Text('VIEW OFFICE LOCATION',
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700)),
+            ),
+          ),
           const SizedBox(height: 12),
-          const _StepRow(
-              icon: Icons.receipt_long_outlined,
-              text: 'Pay the cashier and keep your official receipt.'),
-          const SizedBox(height: 12),
-          const _StepRow(
-              icon: Icons.verified_outlined,
-              text: 'Your schedule is updated instantly once the payment is '
-                  'recorded.'),
-          const SizedBox(height: 24),
           if (_requested)
             Container(
               padding: const EdgeInsets.all(14),
@@ -329,21 +468,29 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
           else
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: _requesting ? null : _requestOfficeVisit,
-                icon: _requesting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.storefront_outlined, size: 18),
-                label: const Text('Request Office Visit'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.lenderBlue,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      AppColors.lenderBlue.withValues(alpha: 0.5),
                   padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  minimumSize: const Size(double.infinity, 50),
                 ),
+                child: _requesting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('CONFIRM OFFICE PAYMENT',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700)),
               ),
             ),
         ],
@@ -352,27 +499,27 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
   }
 }
 
-class _StepRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _StepRow({required this.icon, required this.text});
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool bold;
+  const _DetailRow(
+      {required this.label, required this.value, this.bold = false});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: AppColors.lenderBlue),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(text,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textPrimary)),
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13, color: AppColors.textSecondary)),
+        Text(value,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                color: AppColors.textPrimary)),
+      ],
     );
   }
 }
