@@ -1,11 +1,11 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/collections/screens/rider_record_collection_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
+import '../../../../../core/utils/input_formatters.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/app_button.dart';
@@ -179,8 +179,9 @@ class _RiderRecordCollectionScreenState
                   prefixIcon: Icons.monetization_on_outlined,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[\d,.]'))
+                  // Comma separator habang nagta-type: 32000 -> 32,000.
+                  inputFormatters: const [
+                    ThousandsSeparatorInputFormatter()
                   ],
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Amount is required';

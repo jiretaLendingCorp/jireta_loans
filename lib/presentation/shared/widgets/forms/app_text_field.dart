@@ -39,6 +39,13 @@ class AppTextField extends StatefulWidget {
   /// naka-pindot pa rin. Default: false (dating boxed look).
   final bool minimal;
 
+  /// Kontrol sa label kapag may laman/hint na ang field. Ang default (null)
+  /// ay `FloatingLabelBehavior.auto` — lumilipad ang label sa itaas ng border.
+  /// Sa madilim na card, ang bahaging iyon ay wala sa puting fill kaya
+  /// nagmumukhang putol — gamitin ang `FloatingLabelBehavior.never` at lagyan
+  /// na lang ng sariling `Text` label sa itaas ng field.
+  final FloatingLabelBehavior? floatingLabelBehavior;
+
   const AppTextField({
     super.key,
     required this.label,
@@ -61,6 +68,7 @@ class AppTextField extends StatefulWidget {
     this.initialValue,
     this.borderRadius,
     this.minimal = false,
+    this.floatingLabelBehavior,
   });
 
   @override
@@ -93,9 +101,14 @@ class _AppTextFieldState extends State<AppTextField> {
       onChanged: widget.onChanged,
       scrollPadding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom + 340),
-      style: TextStyle(
+      // Ang boxed variant ay may fill na LAGING light (Colors.white, o
+      // AppColors.surfaceVariant kapag disabled), kaya DAPAT dark ang text
+      // color. Kung theme-aware ito (context.cTextPrimary), magiging puti ang
+      // typed/recorded na value sa dark mode at hindi ito mababasa — hal. ang
+      // "Amount Collected" sa rider Collect step.
+      style: const TextStyle(
         fontSize: 14,
-        color: context.cTextPrimary,
+        color: AppColors.textPrimary,
         fontFamily: 'Inter',
       ),
       decoration: _decoration(context, radius),
@@ -163,6 +176,7 @@ class _AppTextFieldState extends State<AppTextField> {
     return InputDecoration(
       labelText: widget.label,
       hintText: widget.hint,
+      floatingLabelBehavior: widget.floatingLabelBehavior,
       counterText: '',
       hintStyle: const TextStyle(
         fontSize: 13,

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/logger.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -160,6 +159,17 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     if (low.contains('no internet') || low.contains('unable to reach')) {
       return 'Connection Error';
     }
+    // A timeout / 5xx is NOT proof that the request was rejected. It used to
+    // fall through to the generic "Request Not Sent" title, which made a
+    // request that the server had actually created look like a failure.
+    if (low.contains('timed out') || low.contains('timeout')) {
+      return 'Request Timed Out';
+    }
+    if (low.contains('server error') ||
+        low.contains('internal server error') ||
+        low.contains('an error occurred')) {
+      return 'Server Error';
+    }
     if (low.contains('not found') || low.contains('installment not found')) {
       return 'Not Found';
     }
@@ -213,6 +223,19 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     }
     if (!mounted) return;
     setState(() => _requesting = false);
+
+    // A failed client call does not prove the request was rejected: the server
+    // may have created the assignment after we stopped waiting (timeout, 5xx,
+    // slow staff push fan-out). Ask the server whether the request exists
+    // before claiming it was not sent.
+    if (!ok) {
+      ok = await _requestExistsOnServer();
+      if (ok) {
+        AppLogger.i(
+            '[PaymentMethod] request found on server despite client failure — treating as sent schedule=$_scheduleId');
+      }
+    }
+
     // Keep the schedule screen's pending chip in sync even before realtime.
     if (ok) ref.read(lenderCollectionProvider.notifier).loadList();
 
@@ -267,6 +290,21 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         ),
       );
     }
+  }
+
+  /// True kapag may pending collection request na sa server para sa installment
+  /// na ito. Ginagamit kapag "failure" ang bumalik sa client pero posible na
+  /// palang naipasok ng backend ang request (lost response / timeout). Kung
+  /// meron, hindi na dapat sabihin ng app na "Request Not Sent".
+  Future<bool> _requestExistsOnServer() async {
+    try {
+      await ref.read(lenderCollectionProvider.notifier).loadList();
+    } catch (e) {
+      AppLogger.w('[PaymentMethod] server re-check failed: $e');
+      return false;
+    }
+    if (!mounted) return false;
+    return _hasPendingLocally();
   }
 
   void _showInfo(String message) {

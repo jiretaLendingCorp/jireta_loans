@@ -1,11 +1,15 @@
 // lib/presentation/features/head_manager/collections/widgets/assign_rider_collection_modal.dart
+//
+// DESIGN: kapareho ng "Assign Rider for Credit Investigation" modal sa Loans
+// (grey #F0F2F5 shell + puting card + zero radius + popup-menu picker) para
+// iisa ang layout ng Assign Rider sa buong app.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
-import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../providers/hm_collection_provider.dart';
 
@@ -34,6 +38,7 @@ class _AssignRiderCollectionModalState
   bool _loadingRiders = true;
   List<Map<String, dynamic>> _riders = [];
   String? _error;
+  final GlobalKey _riderKey = GlobalKey();
 
   @override
   void initState() {
@@ -68,7 +73,7 @@ class _AssignRiderCollectionModalState
   Future<void> _pickDateTime() async {
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
+      initialDate: _collectionSchedule ?? DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 30)),
     );
@@ -99,7 +104,7 @@ class _AssignRiderCollectionModalState
       _error = null;
     });
     try {
-      await ref.read(hmCollectionProvider.notifier).assignRider(
+      final ok = await ref.read(hmCollectionProvider.notifier).assignRider(
             loanScheduleId: widget.loanScheduleId,
             loanId: widget.loanId,
             riderId: _selectedRiderId!,
@@ -107,7 +112,15 @@ class _AssignRiderCollectionModalState
             collectionSchedule: _collectionSchedule,
             notes: _notesCtrl.text.trim(),
           );
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+      if (ok) {
+        Navigator.of(context).pop(true);
+      } else {
+        setState(() {
+          _loading = false;
+          _error = 'Failed to assign rider. Please try again.';
+        });
+      }
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
@@ -119,149 +132,81 @@ class _AssignRiderCollectionModalState
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      child: SizedBox(
-        width: 460,
+      child: Container(
+        width: 520,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF0F2F5),
+          borderRadius: BorderRadius.zero,
+          boxShadow: [
+            BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 24,
+                offset: Offset(0, 8)),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: AppColors.deepNavy,
-                borderRadius: BorderRadius.zero,
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.delivery_dining_outlined,
-                      color: AppColors.gold, size: 22),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Assign Rider for Collection',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700),
-                    ),
+            _buildHeader(),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 520),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: AppColors.border),
+                    boxShadow: const [
+                      BoxShadow(
+                          color: Color(0x0A000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 2)),
+                    ],
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close,
-                        color: Colors.white60, size: 20),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_loadingRiders)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_riders.isEmpty)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.zero,
-                        border: Border.all(
-                            color: AppColors.warning.withValues(alpha: 0.3)),
-                      ),
-                      child: const Text('No available riders at the moment.',
-                          style: TextStyle(
-                              color: AppColors.warning, fontSize: 13)),
-                    )
-                  else ...[
-                    const Text('Select Rider *',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.zero),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedRiderId,
-                          isExpanded: true,
-                          hint: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 12),
-                              child: Text('Choose a rider...',
-                                  style: TextStyle(
-                                      color: AppColors.textTertiary))),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          borderRadius: BorderRadius.zero,
-                          items: _riders.map((r) {
-                            final name =
-                                '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}';
-                            final plate =
-                                r['rider_profile']?['plate_number'] ?? '';
-                            return DropdownMenuItem<String>(
-                                value: r['id'] as String,
-                                child: Text('$name — $plate'));
-                          }).toList(),
-                          onChanged: (v) =>
-                              setState(() => _selectedRiderId = v),
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: _pickDateTime,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.zero),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today_outlined,
-                              size: 18, color: AppColors.textSecondary),
-                          const SizedBox(width: 10),
-                          Text(
-                            _collectionSchedule != null
-                                ? '${_collectionSchedule!.day}/${_collectionSchedule!.month}/${_collectionSchedule!.year} ${_collectionSchedule!.hour.toString().padLeft(2, '0')}:${_collectionSchedule!.minute.toString().padLeft(2, '0')}'
-                                : 'Collection Schedule (optional)',
-                            style: TextStyle(
-                                color: _collectionSchedule != null
-                                    ? AppColors.textPrimary
-                                    : AppColors.textTertiary,
-                                fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                      controller: _notesCtrl,
-                      label: 'Notes (optional)',
-                      maxLines: 2,
-                      maxLength: 255,
-                      borderRadius: BorderRadius.zero),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.zero,
-                          border: Border.all(
-                              color: AppColors.error.withValues(alpha: 0.3))),
-                      child: Text(_error!,
-                          style: const TextStyle(
-                              color: AppColors.error, fontSize: 13)),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  Row(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                          child: OutlinedButton(
+                      _buildRiderPicker(),
+                      const SizedBox(height: 16),
+                      _buildSchedulePicker(),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _notesCtrl,
+                        label: 'Notes (optional)',
+                        hint: 'Instructions for the rider...',
+                        maxLines: 3,
+                        maxLength: 255,
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.zero,
+                            border: Border.all(
+                                color: AppColors.error.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(
+                                color: AppColors.error, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
                               onPressed: _loading
                                   ? null
                                   : () => Navigator.of(context).pop(),
@@ -276,23 +221,264 @@ class _AssignRiderCollectionModalState
                               child: const Text('Cancel',
                                   style: TextStyle(
                                       fontWeight: FontWeight.w700,
-                                      color: AppColors.deepNavy)))),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: AppButton(
-                              label: 'Assign Rider',
+                                      color: AppColors.deepNavy)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
                               onPressed: _loading ? null : _submit,
-                              isLoading: _loading,
-                              color: AppColors.deepNavy,
-                              borderRadius: BorderRadius.zero)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.deepNavy,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: AppColors.deepNavy
+                                    .withValues(alpha: 0.5),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.zero),
+                              ),
+                              child: _loading
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white),
+                                    )
+                                  : const Text('Assign Rider',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.delivery_dining_outlined,
+                color: AppColors.gold, size: 18),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Assign Rider for Collection',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded,
+                size: 18, color: AppColors.textSecondary),
+            tooltip: 'Close',
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.surfaceVariant,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiderPicker() {
+    if (_loadingRiders) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_riders.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.zero,
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+        ),
+        child: const Text(
+          'No available riders at the moment.',
+          style: TextStyle(color: AppColors.warning, fontSize: 13),
+        ),
+      );
+    }
+    String? selectedName;
+    if (_selectedRiderId != null) {
+      final sel = _riders.where((r) => r['id'] == _selectedRiderId).toList();
+      if (sel.isNotEmpty) {
+        selectedName =
+            '${sel.first['first_name'] ?? ''} ${sel.first['last_name'] ?? ''}'
+                .trim();
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Select Available Rider *',
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          key: _riderKey,
+          decoration: BoxDecoration(
+            border: Border.all(color: AppColors.border),
+            borderRadius: BorderRadius.zero,
+          ),
+          constraints: const BoxConstraints(minHeight: 46),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: InkWell(
+            onTap: _pickRider,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selectedName ?? 'Choose a rider...',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: selectedName != null
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color: selectedName != null
+                          ? AppColors.textPrimary
+                          : AppColors.textTertiary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_drop_down_rounded,
+                    color: AppColors.textSecondary, size: 22),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSchedulePicker() {
+    final label = _collectionSchedule != null
+        ? DateFormat('MMM d, y h:mm a', 'en_PH').format(_collectionSchedule!)
+        : '';
+    return GestureDetector(
+      onTap: _pickDateTime,
+      child: AbsorbPointer(
+        child: TextFormField(
+          readOnly: true,
+          controller: TextEditingController(text: label),
+          decoration: const InputDecoration(
+            labelText: 'Collection Schedule (optional)',
+            suffixIcon: Icon(
+              Icons.event_outlined,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.zero,
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.zero,
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            labelStyle: TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickRider() async {
+    if (_loadingRiders || _riders.isEmpty) return;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final box = _riderKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final pos = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final value = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        pos.dx,
+        pos.dy + box.size.height,
+        pos.dx + box.size.width,
+        pos.dy + box.size.height,
+      ),
+      constraints: BoxConstraints(
+        minWidth: box.size.width,
+        maxWidth: box.size.width,
+      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      color: const Color(0xFFF0F2F5),
+      elevation: 4,
+      // Pangalan lang ng rider ang nakalista — walang plate number.
+      items: _riders.map((r) {
+        final name = '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}'.trim();
+        return PopupMenuItem<String>(
+          value: r['id'] as String,
+          child: Row(
+            children: [
+              if (r['id'] == _selectedRiderId) ...[
+                const Icon(Icons.check_rounded,
+                    size: 16, color: AppColors.success),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+    if (value != null && mounted) {
+      setState(() => _selectedRiderId = value);
+    }
   }
 }

@@ -367,7 +367,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
               ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
               ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
             ],
-            actionsCol: const ResponsiveActionsCol(width: 120),
+            actionsCol: const ResponsiveActionsCol(width: 150),
             rows: items.map((e) => _buildCollectionRow(e)).toList(),
           ),
         ],
@@ -386,12 +386,12 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     return ResponsiveRow(
       cells: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+          Text(col.loanNumber.isNotEmpty ? col.loanNumber : 'N/A', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
           Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
         ]),
         Text('₱${fmt.format(amount)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
-        Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : '—'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
+        Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : 'N/A'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
         Row(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 7, height: 7, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
           const SizedBox(width: 6),
@@ -399,7 +399,15 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
         ]),
       ],
       actions: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (canAssign)
+        InkWell(
+          onTap: () => context.go(RouteConstants.hmCollectionDetails.replaceFirst(':id', col.id)),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+        ),
+        // "Assign" — dating rider icon button, ginawang text button at inilagay
+        // sa kanan ng View. Requested (hindi pa naka-assign) lang ito lumalabas.
+        if (canAssign) ...[
+          const SizedBox(width: 6),
           InkWell(
             onTap: () async {
               final loanScheduleId = col.loanScheduleId as String? ?? '';
@@ -408,14 +416,9 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
               if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
             },
             borderRadius: BorderRadius.circular(9),
-            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white)),
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Text('Assign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
           ),
-        if (canAssign) const SizedBox(width: 6),
-        InkWell(
-          onTap: () => context.go(RouteConstants.hmCollectionDetails.replaceFirst(':id', col.id)),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
-        ),
+        ],
       ]),
     );
   }

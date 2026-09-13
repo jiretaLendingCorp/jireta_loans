@@ -102,14 +102,28 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         state = state.copyWith(selectedCollection: found, isLoading: false);
         return;
       }
-      // 2) try unfiltered fetch
+      // 2) EKSAKTONG fetch by id (collections-view?fn=get). Ito ang dapat unahin:
+      // isang query lang, at walang "not found" na dulot ng isang tahimik na
+      // nabigong status-scan sa ibaba (katulad ng dati na nagpapakita ng
+      // "Collection not found" bago pa dumating ang totoong data).
+      try {
+        final exact = await _ds.getCollectionById(assignmentId);
+        if (exact != null) {
+          state = state.copyWith(selectedCollection: exact, isLoading: false);
+          return;
+        }
+      } catch (e) {
+        // Fall through sa list-based search sa ibaba.
+        print('loadDetails exact fetch failed, falling back to list scan: $e');
+      }
+      // 3) try unfiltered fetch
       var list = await _ds.getCollectionList(page: 1, limit: 100);
       var matches = list.where((c) => c.id == assignmentId);
       if (matches.isNotEmpty) {
         state = state.copyWith(selectedCollection: matches.first, isLoading: false);
         return;
       }
-      // 3) try each status tab that rider uses
+      // 4) try each status tab that rider uses
       for (final status in ['accepted', 'in_progress', 'assigned', 'completed', 'declined']) {
         try {
           list = await _ds.getCollectionList(status: status, page: 1, limit: 100);

@@ -56,6 +56,25 @@ function decodeBase64(content: string): Uint8Array {
   return bytes;
 }
 
+// ── Background side effects ─────────────────────────────────────────────────
+// EdgeRuntime.waitUntil keeps the isolate alive AFTER the HTTP response is
+// sent, so slow work (audit log insert, FCM fan-out to every staff device)
+// can never delay the reply the client is waiting for. Without this the
+// lender's "Pay via Cash on Delivery" tap could exceed the client's 30s Dio
+// receiveTimeout: the app then showed the generic "Request Not Sent" dialog
+// even though the collection_assignments row had already been inserted.
+function runInBackground(task: Promise<unknown>): void {
+  const runtime = (globalThis as {
+    EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(task);
+    return;
+  }
+  // No waitUntil hook (plain `deno run` / older runtime) — still never await it.
+  task.catch((err) => console.error('background task failed:', err));
+}
+
 // ── [moved from collections-upload-proof] ───────────────────────────────────
 function extFromMime(mimeType?: string): string {
   switch ((mimeType ?? '').toLowerCase()) {
@@ -232,41 +251,48 @@ async function handleCollectionRequest(req: Request) {
     return errorResponse('Failed to create collection request', 500, 'SERVER_ERROR');
   }
 
-  try {
-    await writeAuditLog({
-      performedBy: user.id,
-      action: 'collection_request',
-      tableName: 'collection_assignments',
-      recordId: assignment.id,
-      newValues: { loan_schedule_id, collection_type: type, requested_amount: requestedAmount, status: 'requested' },
-      ipAddress: ip,
-    });
-  } catch (e) {
-    console.error('writeAuditLog failed (non-fatal):', e);
-  }
-
-  try {
-    const amountLabel = requestedAmount ? ` of ₱${requestedAmount.toLocaleString()}` : '';
-    if (type === 'office') {
-      await notifyStaff({
-        title: 'Office Payment Request',
-        body: `A lender will visit the office to pay${amountLabel}. Please prepare to record the payment.`,
-        type: 'office_payment_requested',
-        referenceId: assignment.id,
-        sentBy: user.id,
+  // ── Respond FIRST, then run the audit + staff notifications in the ────────
+  // background. The lender's app gives this call 30s; notifyStaff pushes FCM
+  // to every active staff device (one external HTTP request each), which
+  // regularly blew past that budget and produced a false "Request Not Sent"
+  // dialog for a request that had in fact been created.
+  runInBackground((async () => {
+    try {
+      await writeAuditLog({
+        performedBy: user.id,
+        action: 'collection_request',
+        tableName: 'collection_assignments',
+        recordId: assignment.id,
+        newValues: { loan_schedule_id, collection_type: type, requested_amount: requestedAmount, status: 'requested' },
+        ipAddress: ip,
       });
-    } else {
-      await notifyStaff({
-        title: 'New Collection Request',
-        body: `A lender has requested a rider to collect${amountLabel}. Please assign a rider.`,
-        type: 'collection_requested',
-        referenceId: assignment.id,
-        sentBy: user.id,
-      });
+    } catch (e) {
+      console.error('writeAuditLog failed (non-fatal):', e);
     }
-  } catch (e) {
-    console.error('notifyStaff failed (non-fatal):', e);
-  }
+
+    try {
+      const amountLabel = requestedAmount ? ` of ₱${requestedAmount.toLocaleString()}` : '';
+      if (type === 'office') {
+        await notifyStaff({
+          title: 'Office Payment Request',
+          body: `A lender will visit the office to pay${amountLabel}. Please prepare to record the payment.`,
+          type: 'office_payment_requested',
+          referenceId: assignment.id,
+          sentBy: user.id,
+        });
+      } else {
+        await notifyStaff({
+          title: 'New Collection Request',
+          body: `A lender has requested a rider to collect${amountLabel}. Please assign a rider.`,
+          type: 'collection_requested',
+          referenceId: assignment.id,
+          sentBy: user.id,
+        });
+      }
+    } catch (e) {
+      console.error('notifyStaff failed (non-fatal):', e);
+    }
+  })());
 
   return jsonResponse({ message: 'Collection request created', assignment_id: assignment.id, requested_amount: requestedAmount }, 201);
 }

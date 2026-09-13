@@ -124,6 +124,24 @@ class CollectionRemoteDataSource {
     return {};
   }
 
+  /// Isang assignment lang ang kukunin, gamit ang `collections-view?fn=get`.
+  /// Eksakto at isang query lang — hindi na kailangang mag-scan ng buong listahan
+  /// sa iba't ibang status (na dati ay nagdudulot ng maling "not found" kapag
+  /// may isang status-fetch na tahimik na nabigo).
+  Future<CollectionAssignmentModel?> getCollectionById(
+      String assignmentId) async {
+    final res = await _client.get(
+      ApiEndpoints.collectionsGet,
+      queryParams: {'id': assignmentId},
+    );
+    final data = res.data is Map ? (res.data as Map)['data'] : null;
+    if (data is Map) {
+      return CollectionAssignmentModel.fromJson(
+          Map<String, dynamic>.from(data));
+    }
+    return null;
+  }
+
   Future<void> acceptCollection({required String assignmentId}) async {
     await _client.patch(
       ApiEndpoints.collectionsAccept,
