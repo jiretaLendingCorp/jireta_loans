@@ -9,6 +9,9 @@ import '../../../../../core/utils/loan_frequency.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
+import '../../../../../data/datasources/remote/disbursement_remote_datasource.dart';
+import '../../../../../data/models/disbursement_model.dart';
+import '../../../../shared/widgets/details/collection_proof_viewer.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
@@ -38,6 +41,10 @@ class EmpLoanDetailsModal extends ConsumerStatefulWidget {
 class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
   final _reasonCtrl = TextEditingController();
   bool _isActing = false;
+  // Cache ng COD proof fetch (keyed by loan number) para hindi mag-refetch
+  // sa bawat rebuild ng modal.
+  String? _codProofKey;
+  Future<List<DisbursementModel>>? _codProofFuture;
 
   @override
   void dispose() {
@@ -231,6 +238,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 ],
               );
             }),
+          const SizedBox(height: 14),
+          _buildCodProofSection(loan),
           const SizedBox(height: 14),
           if (rawStatus == 'overdue' && loan['penalty_applied'] != true)
             _buildPenaltyAction(loan),
@@ -785,6 +794,99 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     } catch (_) {
       return placeholder;
     }
+  }
+
+  /// Cash on Delivery proof na in-upload ni rider — nakikita ni employee
+  /// dito sa loan modal (thumbnails + fullscreen viewer).
+  /// Ipinapakita lang kapag rider_delivery ang disbursement method.
+  Widget _buildCodProofSection(Map<String, dynamic> loan) {
+    final method = (loan['disbursement_method'] ?? '').toString();
+    if (method != 'rider_delivery') return const SizedBox.shrink();
+    final loanNumber = (loan['loan_number'] ?? '').toString();
+    final loanId = (loan['id'] ?? '').toString();
+    if (loanNumber.isEmpty) return const SizedBox.shrink();
+    if (_codProofKey != loanNumber) {
+      _codProofKey = loanNumber;
+      _codProofFuture = sl<DisbursementRemoteDataSource>()
+          .getDisbursementList(search: loanNumber, method: 'rider_delivery');
+    }
+    return _PremiumCard(
+      title: 'Cash on Delivery Proof',
+      subtitle: 'Uploaded by rider',
+      child: FutureBuilder<List<DisbursementModel>>(
+        future: _codProofFuture,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(strokeWidth: 2)));
+          }
+          final rows = snap.data ?? const <DisbursementModel>[];
+          DisbursementModel? row;
+          for (final r in rows) {
+            if (r.loanId.isNotEmpty && r.loanId == loanId) {
+              row = r;
+              break;
+            }
+          }
+          row ??= rows.isEmpty ? null : rows.first;
+          final items = <CollectionProofItem>[
+            if (((row?.deliveryProof ?? '').isNotEmpty))
+              CollectionProofItem(
+                  label: 'Proof Photo 1', url: row!.deliveryProof!),
+            if (((row?.deliveryProof2 ?? '').isNotEmpty))
+              CollectionProofItem(
+                  label: 'Proof Photo 2', url: row!.deliveryProof2!),
+            if (((row?.borrowerSignature ?? '').isNotEmpty))
+              CollectionProofItem(
+                  label: 'Lender Signature',
+                  url: row!.borrowerSignature!),
+          ];
+          if (items.isEmpty) {
+            return const Text('No proof uploaded yet',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.textTertiary));
+          }
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final item in items)
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: () => showCollectionProofDialog(
+                    context,
+                    items,
+                    title: 'Cash on Delivery Proof',
+                  ),
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.border),
+                      color: AppColors.surfaceVariant,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        item.url,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.broken_image_outlined,
+                            color: AppColors.textTertiary),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildLoanCard(Map<String, dynamic> loan, NumberFormat fmt) {

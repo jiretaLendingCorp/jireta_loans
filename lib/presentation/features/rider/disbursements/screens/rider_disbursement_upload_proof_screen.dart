@@ -78,33 +78,48 @@ class _RiderDisbursementUploadProofScreenState
     }
 
     setState(() => _isSubmitting = true);
+    bool ok = false;
+    String? backendError;
     try {
-      final ok = await ref
+      ok = await ref
           .read(riderDisbursementProvider.notifier)
           .uploadProof(
             disbursementId: widget.disbursementId,
             proofPhotos: List.of(_proofPhotos),
             signatureBase64: _signatureBase64,
           );
+      backendError = ref.read(riderDisbursementProvider).error;
+    } catch (_) {
+      ok = false;
+    }
+    if (!mounted) return;
+    // I-reset AGAD ang spinner bago mag-modal — kahit mag-fail ang dialog,
+    // hindi maii-stuck ang screen sa loading state.
+    setState(() => _isSubmitting = false);
+    if (!mounted) return;
 
-      if (mounted) {
-        if (ok) {
-          await showDialog(
-            context: context,
-            builder: (_) => const SuccessDialog(
-                message: 'Proof uploaded and loan released to the lender!'),
-          );
-          if (mounted) context.go(RouteConstants.riderDisbursements);
-        } else {
-          showDialog(
-            context: context,
-            builder: (_) => const ErrorDialog(
-                message: 'Failed to upload proof. Please try again.'),
-          );
-        }
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+    if (ok) {
+      // Auto-dismiss pattern (gaya sa CI submit): steady 2s modal, tapos
+      // diretso sa list. Naka-try/catch para kahit mag-error ang dialog,
+      // makakaalis pa rin si rider sa screen (naka-submit na sa backend).
+      try {
+        await SuccessDialog.showAutoDismiss(
+          context,
+          title: 'Cash on Delivery Submitted',
+          message: 'Proof uploaded and loan released to the lender!',
+          buttonText: 'Done',
+        );
+      } catch (_) {}
+      if (!mounted) return;
+      context.go(RouteConstants.riderDisbursements);
+    } else {
+      final msg = (backendError == null || backendError.isEmpty)
+          ? 'Failed to upload proof. Please try again.'
+          : backendError;
+      await showDialog(
+        context: context,
+        builder: (_) => ErrorDialog(message: msg),
+      );
     }
   }
 
@@ -130,7 +145,15 @@ class _RiderDisbursementUploadProofScreenState
           ),
           SizedBox(height: 12),
           OutlinedButton(
-            onPressed: () => context.pop(),
+            // Cancel = back. Kapag walang ma-pop (hal. deep link), diretso
+            // sa disbursements list para hindi ma-stuck sa screen.
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                context.pop();
+              } else {
+                context.go(RouteConstants.riderDisbursements);
+              }
+            },
             style: OutlinedButton.styleFrom(
               foregroundColor: context.cTextSecondary,
               side: BorderSide(color: context.cBorder),

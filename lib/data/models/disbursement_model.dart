@@ -18,6 +18,10 @@ class DisbursementModel {
   final DateTime createdAt;
   final Map<String, dynamic>? loan;
   final Map<String, dynamic>? rider;
+  // Rider-delivery COD proofs (signed URLs mula sa disbursements-view).
+  final String? deliveryProof;
+  final String? deliveryProof2;
+  final String? borrowerSignature;
 
   const DisbursementModel({
     required this.id,
@@ -36,6 +40,9 @@ class DisbursementModel {
     required this.createdAt,
     this.loan,
     this.rider,
+    this.deliveryProof,
+    this.deliveryProof2,
+    this.borrowerSignature,
   });
 
   // Forward-compat: canonical columns are method_id + status_id (uuid FK -> lookup.id).
@@ -77,10 +84,37 @@ class DisbursementModel {
             : DateTime.now(),
         loan: json['loan'] as Map<String, dynamic>?,
         rider: json['rider'] as Map<String, dynamic>?,
+        deliveryProof: json['delivery_proof'] as String?,
+        deliveryProof2: json['delivery_proof_2'] as String?,
+        borrowerSignature: json['borrower_signature'] as String?,
       );
 
   String get loanNumber => loan?['loan_number'] ?? '';
-  String get lenderName {
+
+  /// Rider display name mula sa `rider` join (users.first_name + last_name).
+  /// Fallback sa `disbursedBy` kapag walang join (UUID man ito o pangalan).
+  String get riderName {
+    final r = rider;
+    if (r != null) {
+      final u = r['users'];
+      Map<String, dynamic>? user;
+      if (u is Map<String, dynamic>) {
+        user = u;
+      } else if (u is List && u.isNotEmpty && u.first is Map) {
+        user = Map<String, dynamic>.from(u.first as Map);
+      }
+      if (user != null) {
+        final name =
+            '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
+        if (name.isNotEmpty) return name;
+      }
+      for (final k in ['name', 'full_name', 'rider_name']) {
+        final v = (r[k] ?? '').toString().trim();
+        if (v.isNotEmpty) return v;
+      }
+    }
+    return disbursedBy ?? '';
+  }  String get lenderName {
     final flat = loan?['lender_name'] as String?;
     if (flat != null && flat.trim().isNotEmpty) return flat;
     final lp = loan?['lender_profiles'] as Map<String, dynamic>?;

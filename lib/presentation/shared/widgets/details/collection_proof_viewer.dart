@@ -10,11 +10,14 @@ class CollectionProofItem {
   const CollectionProofItem({required this.label, required this.url});
 }
 
-/// Opens a dialog showing the rider's submitted collection proofs.
+/// Opens a dialog showing the rider's submitted proofs.
+/// [title] defaults to 'Collection Proof' (collections flow); pass
+/// 'Cash on Delivery Proof' for disbursement proofs.
 Future<void> showCollectionProofDialog(
   BuildContext context,
-  List<CollectionProofItem> items,
-) {
+  List<CollectionProofItem> items, {
+  String title = 'Collection Proof',
+}) {
   return showDialog<void>(
     context: context,
     builder: (_) => Dialog(
@@ -34,9 +37,9 @@ Future<void> showCollectionProofDialog(
                   const Icon(Icons.photo_library_outlined,
                       color: AppColors.deepNavy, size: 20),
                   const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text('Collection Proof',
-                        style: TextStyle(
+                  Expanded(
+                    child: Text(title,
+                        style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary)),

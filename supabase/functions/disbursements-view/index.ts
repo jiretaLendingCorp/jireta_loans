@@ -22,7 +22,7 @@ import { dispatchPendingPushNotifications } from '../_shared/notifications.ts';
 // stores paths, not signed URLs, because signed URLs embed a JWT that can
 // overflow the proof column width. Convert them to fresh signed URLs on read
 // so every consumer always receives a viewable link.
-const PROOF_FIELDS = ['delivery_proof', 'borrower_signature'] as const;
+const PROOF_FIELDS = ['delivery_proof', 'delivery_proof_2', 'borrower_signature'] as const;
 async function signProof(db: ReturnType<typeof getAdminClient>, value: unknown): Promise<unknown> {
   if (typeof value !== 'string' || value.length === 0) return value;
   if (value.startsWith('http') || value.startsWith('data:')) return value;
@@ -81,7 +81,7 @@ async function handleGetList(req: Request) {
     `id, loan_id, method, amount, status,
      xendit_disbursement_id:xendit_id, xendit_reference, xendit_status,
      rider_id, disbursed_by:authorized_by, disbursed_at, delivery_date,
-     notes:delivery_notes, delivery_proof, borrower_signature, created_at, updated_at,
+     notes:delivery_notes, delivery_proof, delivery_proof_2, borrower_signature, created_at, updated_at,
      loan:loans!disbursements_loan_id_fkey!inner(
        id, loan_number, status,
        lender_profiles!loans_lender_id_fkey(

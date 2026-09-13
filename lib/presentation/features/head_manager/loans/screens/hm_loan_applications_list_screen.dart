@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -15,10 +16,15 @@ import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
+import '../../disbursements/screens/hm_disbursement_details_screen.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
 import '../../in_office/providers/hm_in_office_provider.dart';
 import '../../in_office/widgets/in_office_wizard.dart';
+import '../../disbursements/providers/hm_disbursement_provider.dart';
+import '../../../../../data/models/disbursement_model.dart';
+import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/empty_state_widget.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmLoanApplicationsListScreen extends ConsumerStatefulWidget {
@@ -51,6 +57,7 @@ class _HmLoanApplicationsListScreenState
   final _pillTabs = const [
     FilterTabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
     FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
+    FilterTabDef('disbursements', 'Disbursements', Icons.payments_outlined),
   ];
 
   void _onDateRangeChanged(DateTimeRange? r) {
@@ -72,8 +79,10 @@ class _HmLoanApplicationsListScreenState
   Widget build(BuildContext context) {
     final loanState = ref.watch(hmLoanProvider);
     final inOfficeState = ref.watch(hmInOfficeProvider);
+    final disbState = ref.watch(hmDisbursementProvider);
     final effectiveTab = _overrideTab ?? loanState.tabFilter;
     final isInOffice = effectiveTab == 'in_office';
+    final isDisbursements = effectiveTab == 'disbursements';
 
     return WebScaffold(
       title: 'Loan Records',
@@ -90,10 +99,13 @@ class _HmLoanApplicationsListScreenState
               // Toolbar stays visible for both modes; search filters the
               // currently visible list. For In-Office we still show the
               // same outer box (no inner box) with placeholder "Search".
-              _buildToolbar(loanState, inOfficeState, isInOffice),
+              _buildToolbar(loanState, inOfficeState, disbState,
+                  isInOffice, isDisbursements),
               const SizedBox(height: 16),
               if (isInOffice) ...[
                 _buildInOfficeSection(inOfficeState),
+              ] else if (isDisbursements) ...[
+                _buildDisbursementSection(disbState),
               ] else ...[
                 if (loanState.isLoading)
                   _buildLoadingShimmer()
@@ -145,6 +157,12 @@ class _HmLoanApplicationsListScreenState
                 ref.read(hmInOfficeProvider.notifier).load();
                 return;
               }
+              if (t.key == 'disbursements') {
+                setState(() => _overrideTab = 'disbursements');
+                // ignore: unused_result
+                ref.read(hmDisbursementProvider.notifier).load();
+                return;
+              }
               if (_overrideTab != null) setState(() => _overrideTab = null);
               ref.read(hmLoanProvider.notifier).setTab(t.key);
             },
@@ -157,13 +175,20 @@ class _HmLoanApplicationsListScreenState
   // ─────────────────────────────── Toolbar ───────────────────────────────
   // No inner box — single outer container with flat Search field (hint "Search").
   Widget _buildToolbar(
-      HmLoanState loanState, HmInOfficeState inOfficeState, bool isInOffice) => Padding(
+      HmLoanState loanState,
+      HmInOfficeState inOfficeState,
+      HmDisbursementState disbState,
+      bool isInOffice,
+      bool isDisbursements) =>
+      Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ResponsiveSearchToolbar(
           searchField: TextField(
             controller: _searchCtrl,
             decoration: InputDecoration(
-              hintText: 'Search loan applications...',
+              hintText: isDisbursements
+                  ? 'Search loan number or lender...'
+                  : 'Search loan applications...',
               prefixIcon: const Icon(Icons.search, size: 20),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -174,6 +199,8 @@ class _HmLoanApplicationsListScreenState
             onChanged: (v) {
               if (isInOffice) {
                 setState(() => _inOfficeSearch = v);
+              } else if (isDisbursements) {
+                ref.read(hmDisbursementProvider.notifier).setSearch(v);
               } else {
                 ref.read(hmLoanProvider.notifier).setSearch(v);
               }
@@ -184,7 +211,9 @@ class _HmLoanApplicationsListScreenState
             SearchResultsChip(
               count: isInOffice
                   ? _filteredInOffice(inOfficeState.applications).length
-                  : loanState.totalCount,
+                  : isDisbursements
+                      ? disbState.disbursements.length
+                      : loanState.totalCount,
             ),
           ],
         ),
@@ -207,6 +236,115 @@ class _HmLoanApplicationsListScreenState
     final apps = _filteredInOffice(st.applications);
     if (apps.isEmpty) return _buildInOfficeEmpty();
     return _Entrance(child: _buildInOfficeList(apps));
+  }
+
+  // ─────────────────────── Disbursements (embedded tab) ─────────────────────
+  // Nasa tabi ng In-Office pill (wala sa side nav). Tap ng row → details page
+  // kung saan makikita ang Cash on Delivery proof photos ni rider.
+  Widget _buildDisbursementSection(HmDisbursementState st) {
+    if (st.isLoading) return _buildLoadingShimmer();
+    if (st.disbursements.isEmpty) {
+      return const EmptyStateWidget(
+        title: 'No Disbursements',
+        message: 'Loan disbursements will appear here',
+        icon: Icons.account_balance_wallet_outlined,
+      );
+    }
+    return _Entrance(child: _buildDisbursementTable(st.disbursements));
+  }
+
+  Widget _buildDisbursementTable(List<DisbursementModel> items) {
+    return ResponsiveListCard(
+      minTableWidth: 880,
+      variant: ResponsiveListVariant.card,
+      headerTextStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textSecondary),
+      columns: const [
+        ResponsiveCol('Loan #', flex: 2),
+        ResponsiveCol('Lender', flex: 3),
+        ResponsiveCol('Method', flex: 2),
+        ResponsiveCol('Amount', flex: 2),
+        ResponsiveCol('Status', flex: 2),
+        ResponsiveCol('Date', flex: 2),
+      ],
+      actionsCol: const ResponsiveActionsCol(
+          label: 'Actions',
+          width: 80,
+          alignment: Alignment.centerRight,
+          alignEnd: true),
+      rowBorder: const Border(bottom: BorderSide(color: AppColors.divider)),
+      rows: items.map((d) => _buildDisbursementRow(d)).toList(),
+    );
+  }
+
+  ResponsiveRow _buildDisbursementRow(DisbursementModel d) {
+    return ResponsiveRow(
+      cells: [
+        Text(d.loanNumber,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.deepNavy)),
+        Text(d.lenderName, style: const TextStyle(fontSize: 13)),
+        _disbMethodChip(d.disbursementMethod),
+        Text(d.amount.toCurrency,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        StatusBadge(status: d.status),
+        Text(DateFormat('MMM d, y h:mm a').format(d.createdAt),
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+      ],
+      actions: Tooltip(
+        message: 'View',
+        child: InkWell(
+          onTap: () => showHmDisbursementDetailsModal(context, d.id),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                  color: AppColors.deepNavy.withValues(alpha: 0.14)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.visibility_outlined,
+                    size: 14, color: AppColors.deepNavy),
+                SizedBox(width: 4),
+                Text('View',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepNavy)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _disbMethodChip(String method) {
+    final label = switch (method) {
+      'gcash' => 'GCash',
+      'office_cash' => 'Office Cash',
+      'rider_delivery' => 'Rider',
+      _ => method,
+    };
+    final color = switch (method) {
+      'gcash' => AppColors.info,
+      'office_cash' => AppColors.success,
+      'rider_delivery' => AppColors.lenderBlue,
+      _ => AppColors.textSecondary,
+    };
+    // Plain text lang — hindi pill/button style.
+    return Text(label,
+        style: TextStyle(
+            fontSize: 13, color: color, fontWeight: FontWeight.w600));
   }
 
   Widget _buildInOfficeList(List<Map<String, dynamic>> apps) {

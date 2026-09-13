@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../data/models/disbursement_model.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -152,7 +153,7 @@ class _HmDisbursementListScreenState
                 color: AppColors.deepNavy)),
         Text(d.lenderName, style: const TextStyle(fontSize: 13)),
         _methodChip(d.disbursementMethod),
-        Text('₱${d.amount.toStringAsFixed(2)}',
+        Text(d.amount.toCurrency,
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         StatusBadge(status: d.status),
         Text(DateFormat('MMM d, y h:mm a').format(d.createdAt),
@@ -201,16 +202,10 @@ class _HmDisbursementListScreenState
       'rider_delivery' => AppColors.lenderBlue,
       _ => AppColors.textSecondary,
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-    );
+    // Plain text lang — hindi pill/button style.
+    return Text(label,
+        style: TextStyle(
+            fontSize: 13, color: color, fontWeight: FontWeight.w600));
   }
 
   Widget _buildShimmer() {
