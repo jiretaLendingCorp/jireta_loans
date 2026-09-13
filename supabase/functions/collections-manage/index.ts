@@ -69,12 +69,15 @@ async function findRecordedPayment(
 ): Promise<{ id: string } | null> {
   const { data: linked } = await db
     .from('payments')
-    .select('id')
+    .select('id, loan_schedule_id')
     .eq('collection_assignment_id', assignmentId)
     .eq('status', 'verified')
     .limit(1)
     .maybeSingle();
-  if (linked) return linked;
+  if (linked) {
+    await linkPaymentToSchedule(db, linked.id, linked.loan_schedule_id, loanScheduleId);
+    return { id: linked.id };
+  }
 
   if (!loanScheduleId) return null;
   const { data: unlinked } = await db
@@ -99,6 +102,34 @@ async function findRecordedPayment(
     console.log(`[collections] repaired payment ${unlinked.id} → assignment ${assignmentId}`);
   }
   return unlinked;
+}
+
+// Kung ang verified payment ay WALANG `loan_schedule_id` (o naka-NULL), i-link
+// ito sa schedule ng assignment. Ang per-schedule reads (`v_loan_schedules`,
+// `getSchedulePayment`) ay sumusunod sa link na iyon — kung NULL, mukhang hindi
+// pa bayad ang installment kahit naitala na ang pera. (Ang kabuuang outstanding
+// balance ay sumasalo na ng `collection_assignment_id` link sa
+// `sumVerifiedPaymentsByLoan`, pero dapat pareho ang nakikita sa lahat ng
+// screen.)
+async function linkPaymentToSchedule(
+  db: ReturnType<typeof getAdminClient>,
+  paymentId: string,
+  currentScheduleId: string | null | undefined,
+  assignmentScheduleId: string | null,
+): Promise<void> {
+  if (!paymentId || !assignmentScheduleId || currentScheduleId) return;
+  const { error } = await db
+    .from('payments')
+    .update({ loan_schedule_id: assignmentScheduleId })
+    .eq('id', paymentId)
+    .is('loan_schedule_id', null);
+  if (error) {
+    console.error('[collections] payment schedule link repair failed:', error.message);
+  } else {
+    console.log(
+      `[collections] repaired payment ${paymentId} → schedule ${assignmentScheduleId}`,
+    );
+  }
 }
 
 // ── [moved from collections-upload-proof] ───────────────────────────────────
@@ -485,7 +516,7 @@ async function handleCollectionRecord(req: Request) {
   if (existing) return errorResponse('Duplicate request detected', 409, 'IDEMPOTENCY_CONFLICT');
 
   const { data: assignment } = await db.from('collection_assignments')
-    .select('id, status, rider_id, loan_schedule_id, assigned_by, loan_schedule:loan_schedules(loan_id, loans(lender_id))')
+    .select('id, status, rider_id, loan_schedule_id, assigned_by, amount_collected, loan_schedule:loan_schedules(loan_id, loans(lender_id))')
     .eq('id', assignment_id).eq('rider_id', user.id).single();
   if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
 
@@ -500,12 +531,49 @@ async function handleCollectionRecord(req: Request) {
     user.id,
   );
   if (alreadyRecorded) {
-    if (assignment.status !== 'in_progress' && assignment.status !== 'completed') {
-      await db.from('collection_assignments')
-        .update({ status: 'in_progress', amount_collected })
-        .eq('id', assignment_id);
+    // Huwag nang mag-insert muli (magdodoble ang ibabawas sa loan).
+    //
+    // PERO ang `amount_collected` ay dapat LAGING tugma sa AKTWAL na verified
+    // payments ng assignment na ito — hindi sa halagang ipinasa ng client.
+    // Dati, ang value mula sa request ang isinusulat dito, kaya may pagkakataon
+    // (hal. nauna nang nag-record na may ibang halaga, o naayos ang payment sa
+    // staff side) na ang nakikita ng Head Manager / Employee na "Amount
+    // Collected" ay iba sa aktwal na nabawas sa loan — ang balance ay DERIVED
+    // mula sa payments, kaya hindi sila dapat magkahiwalay.
+    const { data: paymentRows } = await db
+      .from('payments')
+      .select('amount')
+      .eq('collection_assignment_id', assignment_id)
+      .eq('status', 'verified');
+    const recordedSum =
+      Math.round((paymentRows ?? []).reduce((s, p) => s + Number(p.amount), 0) * 100) / 100;
+    const storedAmount =
+      assignment.amount_collected === null || assignment.amount_collected === undefined
+        ? null
+        : Number(assignment.amount_collected);
+
+    const patch: Record<string, unknown> = {};
+    if (storedAmount === null || Math.abs(storedAmount - recordedSum) > 0.005) {
+      patch.amount_collected = recordedSum;
     }
-    return jsonResponse({ message: 'Payment already recorded', payment_id: alreadyRecorded.id }, 200);
+    // Huwag ibaba ang `completed` pabalik sa `in_progress`.
+    if (assignment.status !== 'in_progress' && assignment.status !== 'completed') {
+      patch.status = 'in_progress';
+    }
+    if (Object.keys(patch).length > 0) {
+      await db.from('collection_assignments').update(patch).eq('id', assignment_id);
+      console.warn('[collections] record idempotent — inayos ang amount_collected', {
+        assignmentId: assignment_id,
+        storedAmount,
+        recordedSum,
+        patch,
+      });
+    }
+    return jsonResponse({
+      message: 'Payment already recorded',
+      payment_id: alreadyRecorded.id,
+      amount_collected: recordedSum,
+    }, 200);
   }
 
   // `in_progress` ay pinapayagan para maka-recover ang rider kapag naiwang
@@ -516,28 +584,104 @@ async function handleCollectionRecord(req: Request) {
     return errorResponse('Assignment must be accepted first', 400, 'INVALID_STATUS');
   }
 
+  const recorded = await recordRiderCollectionPayment({
+    db,
+    riderUserId: user.id,
+    assignment,
+    amount: Number(amount_collected),
+    notes,
+    idempotencyKey,
+    ip,
+  });
+  if (!recorded.ok) {
+    return errorResponse(
+      recorded.message ?? 'Failed to record payment',
+      recorded.status ?? 500,
+      recorded.code ?? 'SERVER_ERROR',
+    );
+  }
+
+  return jsonResponse({
+    message: 'Payment recorded',
+    payment_id: recorded.paymentId,
+    new_balance: recorded.newBalance,
+  }, 201);
+}
+
+// ── Verified-payment recording core (fn=record AT fn=upload-proof) ─────────
+//
+// Business rule: hindi maaaring maging `completed` ang isang koleksyon nang
+// walang verified payment — ang loan balance ay DERIVED mula sa payments, kaya
+// kung walang payment, bababa ang status pero HINDI bababa ang balanse ng
+// lender (at may "Payment Received" push pa).
+//
+// Isang lugar lang ang logic na ito para magamit ng dalawang endpoint:
+//   * `fn=record`        — normal na hakbang ng rider (Step 3 submit)
+//   * `fn=upload-proof`  — kapag tumawag ng proof ang rider na WALA pang
+//     verified payment (hal. na-reverse sa HM side, o na-skip ang record
+//     dahil lumang build), DITO NA RIN itinatala ang amount sa halip na
+//     ibalik ang paulit-ulit na 409 PAYMENT_NOT_RECORDED na parati nang
+//     nagpapa-stuck sa rider ("in_progress" kahit naka-submit na).
+interface RecordCoreResult {
+  ok: boolean;
+  paymentId?: string;
+  newBalance?: number;
+  message?: string;
+  status?: number;
+  code?: string;
+}
+
+async function recordRiderCollectionPayment(opts: {
+  db: ReturnType<typeof getAdminClient>;
+  riderUserId: string;
+  // deno-lint-ignore no-explicit-any
+  assignment: Record<string, any>;
+  amount: number;
+  notes?: string | null;
+  idempotencyKey: string;
+  ip: string;
+}): Promise<RecordCoreResult> {
+  const { db, riderUserId, assignment, amount, notes, idempotencyKey, ip } = opts;
+  const assignmentId = String(assignment.id);
+
   const loanSchedule = embedAsObject(assignment?.loan_schedule);
   const loanId = loanSchedule?.loan_id;
   const loanData = embedAsObject(loanSchedule?.loans);
   const financials = await getLoanFinancials(db, loanId);
-  if (!loanId || !loanData || !financials) return errorResponse('Loan not found', 404, 'NOT_FOUND');
-  if (amount_collected > financials.outstanding_balance) return errorResponse('Amount exceeds outstanding balance', 400, 'VALIDATION_ERROR');
+  if (!loanId || !loanData || !financials) {
+    return { ok: false, message: 'Loan not found', status: 404, code: 'NOT_FOUND' };
+  }
+  if (amount > financials.outstanding_balance) {
+    return {
+      ok: false,
+      message: 'Amount exceeds outstanding balance',
+      status: 400,
+      code: 'VALIDATION_ERROR',
+    };
+  }
 
-  const newBalance = Math.round((financials.outstanding_balance - amount_collected) * 100) / 100;
+  const newBalance = Math.round((financials.outstanding_balance - amount) * 100) / 100;
 
   // Allocate the collected amount across unpaid installments (oldest first).
   // Amounts beyond the current installment roll forward to the next ones so a
   // lender can advance-pay upcoming installments in a single collection.
-  const allocations = await allocatePayment(db, loanId, amount_collected);
-  if (allocations.length === 0) return errorResponse('No unpaid installments to apply the payment to', 409, 'INVALID_STATUS');
+  const allocations = await allocatePayment(db, loanId, amount);
+  if (allocations.length === 0) {
+    return {
+      ok: false,
+      message: 'No unpaid installments to apply the payment to',
+      status: 409,
+      code: 'INVALID_STATUS',
+    };
+  }
 
   const paymentRows = allocations.map((a, i) => ({
     loan_schedule_id: a.loan_schedule_id,
     amount: a.amount,
     payment_method: 'rider_collection',
     status: 'verified',
-    recorded_by: user.id,
-    collection_assignment_id: assignment_id,
+    recorded_by: riderUserId,
+    collection_assignment_id: assignmentId,
     notes: notes ?? null,
     paid_at: nowManilaISO(),
     idempotency_key: allocations.length > 1 ? `${idempotencyKey}-${i + 1}` : idempotencyKey,
@@ -549,23 +693,37 @@ async function handleCollectionRecord(req: Request) {
     .select('id');
   if (payErr || !payments || payments.length === 0) {
     console.error('payment insert failed:', payErr);
-    return errorResponse('Failed to record payment', 500, 'SERVER_ERROR');
+    return { ok: false, message: 'Failed to record payment', status: 500, code: 'SERVER_ERROR' };
   }
 
   if (newBalance <= 0) {
     await db.from('loans').update({ status: 'completed' }).eq('id', loanId);
   }
   // Business rule: ang `completed_at` ay para LANG sa tunay na natapos na
-  // koleksyon (status = 'completed', naisagawa ng `fn=upload-proof`). Dati,
-  // sine-set din ito dito sa record step — kaya may "Completed At" na agad ang
-  // Head Manager / Employee kahit `in_progress` pa lang (amount pa lang ang
-  // naitala, wala pang proof) at hindi pa tapos ang koleksyon.
-  await db.from('collection_assignments').update({ status: 'in_progress', amount_collected }).eq('id', assignment_id);
+  // koleksyon (status = 'completed', naisagawa ng `fn=upload-proof`). Dito sa
+  // record, `in_progress` + `amount_collected` lang ang isinusulat.
+  await db
+    .from('collection_assignments')
+    .update({ status: 'in_progress', amount_collected: amount })
+    .eq('id', assignmentId);
 
-  await writeAuditLog({ performedBy: user.id, action: 'collection_record', tableName: 'payments', recordId: payments[0].id, newValues: { amount: amount_collected, method: 'rider_collection' }, ipAddress: ip });
-  await sendPushNotification({ userId: loanData.lender_id, title: 'Payment Received', body: `Hello! Your payment of ₱${amount_collected.toLocaleString()} has been successfully collected. Your remaining balance is ₱${newBalance.toLocaleString()}. Thank you!`, type: 'payment_collected', referenceId: payments[0].id });
+  await writeAuditLog({
+    performedBy: riderUserId,
+    action: 'collection_record',
+    tableName: 'payments',
+    recordId: payments[0].id,
+    newValues: { amount, method: 'rider_collection' },
+    ipAddress: ip,
+  });
+  await sendPushNotification({
+    userId: loanData.lender_id,
+    title: 'Payment Received',
+    body: `Hello! Your payment of ₱${amount.toLocaleString()} has been successfully collected. Your remaining balance is ₱${newBalance.toLocaleString()}. Thank you!`,
+    type: 'payment_collected',
+    referenceId: payments[0].id,
+  });
 
-  return jsonResponse({ message: 'Payment recorded', payment_id: payments[0].id, new_balance: newBalance }, 201);
+  return { ok: true, paymentId: payments[0].id, newBalance };
 }
 
 // ── [moved from functions/collections-upload-proof/index.ts] ────────────────
@@ -576,7 +734,15 @@ async function handleCollectionUploadProof(req: Request) {
   const roleCheck = requireRole(user, ROLES.RIDER);
   if (roleCheck) return roleCheck;
 
-  const { assignment_id, proofs } = await req.json();
+  const {
+    assignment_id,
+    proofs,
+    // Opsyonal: kapag WALA pang verified payment, ito ang amount na itatala ng
+    // upload-proof mismo (self-heal). Ipinapasa ito ng rider app (ang amount na
+    // nakalagay/na-validate sa Step 1–3).
+    amount_collected: bodyAmount,
+    notes: bodyNotes,
+  } = await req.json();
   if (!assignment_id || !Array.isArray(proofs) || proofs.length === 0) {
     return errorResponse('assignment_id and proofs[] required', 400, 'VALIDATION_ERROR');
   }
@@ -589,7 +755,7 @@ async function handleCollectionUploadProof(req: Request) {
 
   const { data: assignment } = await db
     .from('collection_assignments')
-    .select('id, status, rider_id, loan_schedule_id, proof_photo, borrower_signature, collection_photo')
+    .select('id, status, rider_id, loan_schedule_id, amount_collected, proof_photo, borrower_signature, collection_photo, loan_schedule:loan_schedules(loan_id, loans(lender_id))')
     .eq('id', assignment_id)
     .eq('rider_id', user.id)
     .single();
@@ -602,18 +768,53 @@ async function handleCollectionUploadProof(req: Request) {
   // collection can be completed. Without this guard a rider can skip the
   // "Record Collection" step: the assignment completes and the office receives
   // the cash, but no payment row exists so the loan balance never decreases.
-  const recordedPayment = await findRecordedPayment(
+  let recordedPayment = await findRecordedPayment(
     db,
     assignment_id,
     assignment.loan_schedule_id,
     user.id,
   );
   if (!recordedPayment) {
-    return errorResponse(
-      'Record the collected amount first before uploading proof',
-      409,
-      'PAYMENT_NOT_RECORDED',
+    // ── Self-heal: itala na rito mismo ang cash ────────────────────────────
+    // Dati, 409 PAYMENT_NOT_RECORDED ang isinasagot dito — at iyon ang paulit-
+    // ulit na error ng rider ("Record the collected amount first before
+    // uploading proof") kahit naka-lagay na ang amount sa app (hal. na-reverse
+    // ang payment sa HM side, o na-skip ang record ng lumang build). Naiiwan
+    // tuloy ang koleksyon sa `in_progress` forever.
+    //
+    // Ngayon: kung may amount (mula sa request o sa assignment), DITO NA RIN
+    // itinatala ito (verified payment + `in_progress`) bago mag-upload ng proof
+    // — kaya hindi na maaaring ma-stuck, at hindi rin mabababa ang status nang
+    // hindi bumababa ang balanse ng loan.
+    const amount = Number(bodyAmount ?? assignment.amount_collected ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return errorResponse(
+        'Record the collected amount first before uploading proof',
+        409,
+        'PAYMENT_NOT_RECORDED',
+      );
+    }
+    console.warn(
+      '[collections] upload-proof: walang verified payment — nire-record na rito ang amount',
+      { assignmentId: assignment_id, amount },
     );
+    const recorded = await recordRiderCollectionPayment({
+      db,
+      riderUserId: user.id,
+      assignment,
+      amount,
+      notes: typeof bodyNotes === 'string' ? bodyNotes : null,
+      idempotencyKey: `proof-${assignment_id}-${Date.now()}`,
+      ip,
+    });
+    if (!recorded.ok) {
+      return errorResponse(
+        recorded.message ?? 'Failed to record payment',
+        recorded.status ?? 500,
+        recorded.code ?? 'SERVER_ERROR',
+      );
+    }
+    recordedPayment = { id: recorded.paymentId ?? '' };
   }
 
   const updates: Record<string, string> = {};
@@ -656,11 +857,26 @@ async function handleCollectionUploadProof(req: Request) {
     );
   }
 
-  const { error: updErr } = await db.from('collection_assignments').update({
+  // Isama ang `amount_collected` sa completion update. Dapat laging tugma ang
+  // nakasulat na amount sa AKTWAL na verified payments ng assignment (ang loan
+  // balance ay derived mula sa payments) — kung hindi, may koleksyong
+  // `completed` na walang nakatalang halaga ("hindi na-save ang amount").
+  const { data: payRows } = await db
+    .from('payments')
+    .select('amount')
+    .eq('collection_assignment_id', assignment_id)
+    .eq('status', 'verified');
+  const recordedSum = Math.round(
+    (payRows ?? []).reduce((s: number, p: { amount: string | number }) => s + Number(p.amount), 0) * 100,
+  ) / 100;
+  const completionPatch: Record<string, unknown> = {
     ...updates,
     status: 'completed',
     completed_at: nowManilaISO(),
-  }).eq('id', assignment_id);
+  };
+  if (recordedSum > 0) completionPatch.amount_collected = recordedSum;
+
+  const { error: updErr } = await db.from('collection_assignments').update(completionPatch).eq('id', assignment_id);
   if (updErr) {
     console.error('assignment completion update failed:', updErr);
     return errorResponse('Failed to mark collection completed', 500, 'SERVER_ERROR');
@@ -671,14 +887,19 @@ async function handleCollectionUploadProof(req: Request) {
     action: 'collection_upload_proof',
     tableName: 'collection_assignments',
     recordId: assignment_id,
-    newValues: { status: 'completed', failed_proofs: failed },
+    newValues: { status: 'completed', amount_collected: recordedSum || null, failed_proofs: failed },
     ipAddress: ip,
   });
 
+  // Ang `status` ay isinasauli sa client para hindi na kailangan ng karagdagang
+  // `get` (may kasamang pag-sign ng 3 proof URL, mabigat) para kumpirmahin ang
+  // completion — pinapabilis nito nang malaki ang Submit sa Step 3.
   return jsonResponse({
     message: failed.length > 0
       ? 'Collection completed, but some proofs failed to upload'
       : 'Proof uploaded, assignment completed',
+    status: 'completed',
+    amount_collected: recordedSum || null,
     failed_proofs: failed,
   });
 }

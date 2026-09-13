@@ -173,13 +173,31 @@ class CollectionRemoteDataSource {
     );
   }
 
-  Future<void> uploadProof({
+  /// Returns ang server-confirmed status (`'completed'`) kapag nagtagumpay, o
+  /// `null` kapag walang status sa sagot. Ito ang tanging tawag sa Step 3
+  /// Submit — dito na naka-save ang `amount_collected` at ang proofs, kaya
+  /// hindi na kailangang mag-record muna ng hiwalay na request.
+  Future<String?> uploadProof({
     required String assignmentId,
     required List<Map<String, dynamic>> proofs,
+    /// Kapag WALA pang verified payment sa server, ito ang amount na itatala ng
+    /// `fn=upload-proof` mismo (self-heal) — hindi na kailangang umulit ng
+    /// rider mula Step 1 dahil sa PAYMENT_NOT_RECORDED.
+    double? amountCollected,
+    String? notes,
   }) async {
-    await _client.post(
+    final res = await _client.post(
       ApiEndpoints.collectionsUploadProof,
-      data: {'assignment_id': assignmentId, 'proofs': proofs},
+      data: {
+        'assignment_id': assignmentId,
+        'proofs': proofs,
+        if (amountCollected != null && amountCollected > 0)
+          'amount_collected': amountCollected,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
     );
+    final data = res.data;
+    if (data is Map) return data['status'] as String?;
+    return null;
   }
 }

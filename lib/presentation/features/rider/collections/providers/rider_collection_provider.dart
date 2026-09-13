@@ -1,5 +1,6 @@
 // ignore_for_file: avoid_print
 // lib/presentation/features/rider/collections/providers/rider_collection_provider.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
@@ -83,22 +84,30 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     load(status: tab);
   }
 
-  /// Autoritatibong status ng isang assignment, direkta sa `getCollectionById`.
+  /// Autoritatibong bersyon ng assignment, direkta sa `getCollectionById`.
   ///
   /// Hindi tulad ng [loadDetails], hindi ito tumitingin sa naka-cache na
-  /// listahan — kailangan ito para makumpirma na `completed` na talaga sa
-  /// server ang koleksyon bago mag-claim ng success ang UI.
-  Future<String?> fetchStatus(String assignmentId) async {
+  /// listahan. Kailangan ito sa submit (Step 3) para ang `status` AT ang
+  /// `amountCollected` na gagamitin ay galing talaga sa server — hindi sa
+  /// lumang cached id na puwedeng may ibang halaga (maling amount ang
+  /// maire-record, o makumpirma/ma-deny ang completion nang mali).
+  Future<CollectionAssignmentModel?> fetchFresh(String assignmentId) async {
     try {
       final exact = await _ds.getCollectionById(assignmentId);
       if (exact != null) {
         state = state.copyWith(selectedCollection: exact);
-        return exact.status;
+        return exact;
       }
     } catch (e) {
-      print('fetchStatus failed for $assignmentId: $e');
+      print('fetchFresh failed for $assignmentId: $e');
     }
     return null;
+  }
+
+  /// Status lamang mula sa autoritatibong fetch (para sa success verification).
+  Future<String?> fetchStatus(String assignmentId) async {
+    final fresh = await fetchFresh(assignmentId);
+    return fresh?.status;
   }
 
   Future<void> loadDetails(String assignmentId, {bool silent = false}) async {
@@ -213,8 +222,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         idempotencyKey: key,
       );
       state = state.copyWith(isSubmitting: false);
-      await load();
-      await loadDetails(assignmentId, silent: true);
+      await _safeRefresh(assignmentId);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -223,11 +231,41 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     }
   }
 
-  Future<bool> uploadProof({
+  /// Refresh pagkatapos ng mutation — best-effort at HINDI hinihintay.
+  ///
+  /// Dati, ang `load()` (buong listahan) at `loadDetails()` ay nasa loob ng
+  /// parehong `try` ng POST: kapag nabigo ang alinman sa kanila (mabagal na
+  /// network, timeout), ang isang MATAGUMPAY na record/upload ay nagreresulta
+  /// ng "Failed to record/upload" sa rider — kahit naisave na sa server ang
+  /// amount at proof. Ngayon, hiwalay na sila at nasa background, kaya mabilis
+  /// ding bumalik ang Submit.
+  Future<void> _safeRefresh(String assignmentId) async {
+    try {
+      await loadDetails(assignmentId, silent: true);
+    } catch (_) {}
+    // Ang buong listahan ay sa background — hindi hinihintay para hindi mabagal
+    // ang Submit (bawat row kasi doon ay may proof URL signing sa server).
+    unawaited(() async {
+      try {
+        await load();
+      } catch (_) {}
+    }());
+  }
+
+  Future<String?> uploadProof({
     required String assignmentId,
     required XFile proofPhoto,
     XFile? scenePhoto,
     String? signatureBase64,
+    /// Ipinapasa sa backend bilang `amount_collected` — kapag wala pang
+    /// verified payment, ito ang itatala ng `fn=upload-proof` (self-heal) kaya
+    /// hindi na ma-stuck ang rider sa PAYMENT_NOT_RECORDED.
+    ///
+    /// Ito rin ang tanging tawag sa Step 3 Submit: dito na nagse-save ang
+    /// amount AT ang proof nang sabay — hindi na kailangang mag-record muna ng
+    /// hiwalay (mas mabilis, walang kalahating-saved na state).
+    double? amountCollected,
+    String? notes,
   }) async {
     state = state.copyWith(isSubmitting: true);
     try {
@@ -239,16 +277,20 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       if (signatureBase64 != null) {
         proofs.add({'type': 'signature', 'content_base64': signatureBase64});
       }
-      await _ds.uploadProof(assignmentId: assignmentId, proofs: proofs);
+      final status = await _ds.uploadProof(
+        assignmentId: assignmentId,
+        proofs: proofs,
+        amountCollected: amountCollected,
+        notes: notes,
+      );
       _ref.read(riderLocationProvider.notifier).stopTracking();
       state = state.copyWith(isSubmitting: false);
-      await load();
-      await loadDetails(assignmentId, silent: true);
-      return true;
+      unawaited(_safeRefresh(assignmentId));
+      return status;
     } catch (e) {
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
-      return false;
+      return null;
     }
   }
 

@@ -54,9 +54,11 @@ interface PenaltyRow {
 }
 
 interface PaymentRow {
+  id?: string;
   amount: string | number;
   paid_at?: string | null;
   loan_schedule_id?: string | null;
+  collection_assignment_id?: string | null;
 }
 
 interface ScheduleRow {
@@ -74,6 +76,78 @@ export function computeTotalPayable(principal: number, interestRatePct: number):
 
 export function computeInterestAmount(principal: number, totalPayable: number): number {
   return Math.max(0, round2(totalPayable - principal));
+}
+
+// Sum ng VERIFIED payments kada loan, mula sa LAHAT ng link na konektado sa
+// loan — hindi lang sa `loan_schedule_id`.
+//
+// MAHALAGA: ang isang rider-collection payment ay konektado sa loan sa
+// pamamagitan ng (a) `loan_schedule_id` (allocation) AT (b)
+// `collection_assignment_id` (ang koleksyon na nag-record nito). Dati, (a)
+// lang ang binibilang ng balance. Kapag nawala o hindi tumutugma ang (a) —
+// hal. muling nabuo ang `loan_schedules` (backfill), o naka-NULL ang
+// `loan_schedule_id` ng payment — HINDI nababawas ang outstanding balance
+// kahit na-record ang bayad at naging `completed` ang koleksyon (ang record
+// at upload-proof ay kumikilala ng payment sa pamamagitan ng (b), kaya
+// "completed pero hindi nabawasan" ang eksaktong sintomas).
+//
+// Ang (b) ay fallback lamang, at deduplicated sa pamamagitan ng payment id —
+// hindi maaaring mabilang nang doble ang isang bayad.
+export async function sumVerifiedPaymentsByLoan(
+  db: DbClient,
+  scheduleRows: ScheduleRow[],
+): Promise<Record<string, number>> {
+  const paidByLoan: Record<string, number> = {};
+  const scheduleLoan = new Map<string, string>(
+    (scheduleRows ?? [])
+      .filter((s) => s?.id && s?.loan_id)
+      .map((s) => [String(s.id), String(s.loan_id)]),
+  );
+  const scheduleIds = [...scheduleLoan.keys()];
+  if (scheduleIds.length === 0) return paidByLoan;
+
+  // (a) payment → loan_schedule (normal na allocation).
+  const { data: bySchedule } = await db
+    .from('payments')
+    .select('id, amount, loan_schedule_id')
+    .eq('status', 'verified')
+    .in('loan_schedule_id', scheduleIds);
+
+  // (b) payment → collection_assignment → loan_schedule (fallback/repair).
+  const { data: assignmentRows } = await db
+    .from('collection_assignments')
+    .select('id, loan_schedule_id')
+    .in('loan_schedule_id', scheduleIds);
+  const assignmentLoan = new Map<string, string>();
+  for (const a of (assignmentRows ?? []) as Array<{ id: string; loan_schedule_id: string | null }>) {
+    const lid = scheduleLoan.get(String(a.loan_schedule_id));
+    if (lid) assignmentLoan.set(String(a.id), lid);
+  }
+  let byAssignment: PaymentRow[] = [];
+  const assignmentIds = [...assignmentLoan.keys()];
+  if (assignmentIds.length > 0) {
+    const { data } = await db
+      .from('payments')
+      .select('id, amount, collection_assignment_id')
+      .eq('status', 'verified')
+      .in('collection_assignment_id', assignmentIds);
+    byAssignment = (data ?? []) as PaymentRow[];
+  }
+
+  const counted = new Set<string>();
+  for (const p of (bySchedule ?? []) as PaymentRow[]) {
+    const lid = scheduleLoan.get(String(p.loan_schedule_id));
+    if (!lid) continue;
+    if (p.id) counted.add(String(p.id));
+    paidByLoan[lid] = round2((paidByLoan[lid] ?? 0) + Number(p.amount));
+  }
+  for (const p of byAssignment) {
+    if (p.id && counted.has(String(p.id))) continue; // hindi ma-doble
+    const lid = assignmentLoan.get(String(p.collection_assignment_id));
+    if (!lid) continue;
+    paidByLoan[lid] = round2((paidByLoan[lid] ?? 0) + Number(p.amount));
+  }
+  return paidByLoan;
 }
 
 // Outstanding balance = total_payable + penalties - verified payments.
@@ -96,19 +170,10 @@ export async function getLoanFinancials(db: DbClient, loanId: string): Promise<L
 
   const { data: scheduleRows } = await db
     .from('loan_schedules')
-    .select('id')
+    .select('id, loan_id')
     .eq('loan_id', loanId);
-  const scheduleIds = (scheduleRows ?? []).map((s: ScheduleRow) => s.id);
-
-  let paymentsTotal = 0;
-  if (scheduleIds.length > 0) {
-    const { data: payRows } = await db
-      .from('payments')
-      .select('amount')
-      .eq('status', 'verified')
-      .in('loan_schedule_id', scheduleIds);
-    paymentsTotal = round2((payRows ?? []).reduce((s: number, p: PaymentRow) => s + Number(p.amount), 0));
-  }
+  const paidByLoan = await sumVerifiedPaymentsByLoan(db, (scheduleRows ?? []) as ScheduleRow[]);
+  const paymentsTotal = round2(paidByLoan[loanId] ?? 0);
 
   const outstandingBalance = Math.max(0, round2(totalPayable + penaltiesTotal - paymentsTotal));
 
@@ -266,23 +331,7 @@ export async function getLoanFinancialsBatch(db: DbClient, loanIds: string[]): P
     db.from('loan_schedules').select('id, loan_id').in('loan_id', ids),
   ]);
 
-  const scheduleIds = (scheduleRows ?? []).map((s: ScheduleRow) => s.id);
-  let payRows: PaymentRow[] = [];
-  if (scheduleIds.length > 0) {
-    const { data } = await db
-      .from('payments')
-      .select('amount, loan_schedule_id')
-      .eq('status', 'verified')
-      .in('loan_schedule_id', scheduleIds);
-    payRows = data ?? [];
-  }
-
-  const scheduleLoan = new Map<string, string>((scheduleRows ?? []).map((s: ScheduleRow) => [String(s.id), String(s.loan_id)]));
-  const paidByLoan: Record<string, number> = {};
-  for (const p of payRows) {
-    const lid = scheduleLoan.get(p.loan_schedule_id ?? '');
-    if (lid) paidByLoan[lid] = round2((paidByLoan[lid] ?? 0) + Number(p.amount));
-  }
+  const paidByLoan = await sumVerifiedPaymentsByLoan(db, (scheduleRows ?? []) as ScheduleRow[]);
   const penaltyByLoan: Record<string, number> = {};
   for (const p of penaltyRows ?? []) {
     penaltyByLoan[p.loan_id] = round2((penaltyByLoan[p.loan_id] ?? 0) + Number(p.penalty_amount));

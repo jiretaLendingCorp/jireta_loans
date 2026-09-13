@@ -62,12 +62,18 @@ class _RiderUploadProofScreenState
 
     setState(() => _isSubmitting = true);
     try {
-      final ok = await ref.read(riderCollectionProvider.notifier).uploadProof(
-            assignmentId: widget.assignmentId,
-            proofPhoto: _proofPhoto!,
-            scenePhoto: _scenePhoto,
-            signatureBase64: _signatureBase64,
-          );
+      final status =
+          await ref.read(riderCollectionProvider.notifier).uploadProof(
+                assignmentId: widget.assignmentId,
+                proofPhoto: _proofPhoto!,
+                scenePhoto: _scenePhoto,
+                signatureBase64: _signatureBase64,
+              );
+      // Ang `fn=upload-proof` ay nagbabalik na ng `status` — hindi na kailangan
+      // ng hiwalay na `get` para kumpirmahin ang completion.
+      final ok = status == 'completed' ||
+          (status == null &&
+              ref.read(riderCollectionProvider).error == null);
 
       if (mounted) {
         if (ok) {

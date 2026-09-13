@@ -262,16 +262,19 @@ class _RiderCollectionDetailsScreenState
 
     setState(() => _isSubmitting = true);
     try {
-      // Refresh first para hindi stale ang status/amount.
-      var fresh = col;
-      try {
-        await ref
-            .read(riderCollectionProvider.notifier)
-            .loadDetails(widget.collectionId, silent: true);
-        final updated =
-            ref.read(riderCollectionProvider).selectedCollection;
-        if (updated != null) fresh = updated;
-      } catch (_) {}
+      // Autoritatibong fetch muna para hindi stale ang status/amount.
+      //
+      // DATE: `loadDetails(silent: true)` — ngunit ang unang hakbang nito ay
+      // tumitingin sa NAKA-CACHE na listahan, kaya kung may lumang kopya ang
+      // rider list, ang `amountCollected`/`status` mula roon ang gagamitin ng
+      // submit: puwedeng maling amount ang mairecord (o maling desisyon kung
+      // kailangan pang mag-record) kahit tama ang nakikita/nai-type ng rider.
+      // Ang `fetchFresh` ay direktang kumukuha sa server.
+      // Hindi na kumukuha ng `fetchFresh` bago mag-submit: ang amount mula sa
+      // Step 1 ang basehan at ang backend (idempotent + self-healing) ang
+      // autoridad. Ang dating pre-fetch ay dagdag na round trip na may kasamang
+      // pag-sign ng 3 proof URL — isa ito sa mga dahilan ng mabagal na loading.
+      final fresh = col;
 
       // Business rule: kailangan may VERIFIED payment row bago ma-upload ang
       // proof (binabantayan ito ng backend na `fn=upload-proof`).
@@ -286,9 +289,10 @@ class _RiderCollectionDetailsScreenState
       // backend kapag may verified payment na para sa assignment, kaya safe ito
       // kahit i-retry ng rider ang submit.
       final recordAmount = pendingAmount ??
-          fresh.amountCollected ??
-          double.tryParse(_amountCtrl.text.replaceAll(',', ''));
-      if (fresh.status != 'completed' && recordAmount == null) {
+          double.tryParse(_amountCtrl.text.replaceAll(',', '')) ??
+          fresh.amountCollected;
+      if (fresh.status != 'completed' &&
+          (recordAmount == null || recordAmount <= 0)) {
         // Walang amount na maipapasa (hal. na-clear ang field at walang
         // na-record na sa server) — huwag nang subukan ang proof, siguradong
         // PAYMENT_NOT_RECORDED (409) lang ang aabutin nito.
@@ -301,37 +305,26 @@ class _RiderCollectionDetailsScreenState
         }
         return;
       }
-      if (fresh.status != 'completed' &&
-          recordAmount != null &&
-          recordAmount > 0) {
-        final okRecord = await ref
-            .read(riderCollectionProvider.notifier)
-            .recordCollection(
-              assignmentId: widget.collectionId,
-              amountCollected: recordAmount,
-              notes: _notesCtrl.text.trim().isEmpty
-                  ? null
-                  : _notesCtrl.text.trim(),
-            );
-        if (!okRecord) {
-          if (mounted) {
-            final errMsg = ref.read(riderCollectionProvider).error ??
-                'Failed to record amount';
-            await showDialog(
-                context: context,
-                builder: (_) => ErrorDialog(message: errMsg));
-          }
-          return;
-        }
-      }
+      // WALANG hiwalay na `record` call dito. Ang `fn=upload-proof` (ibaba) ang
+      // nagse-save ng LAHAT sa isang request: kung wala pang verified payment,
+      // siya na mismo ang nagre-record ng amount bago mag-complete (business
+      // rule: sa Step 3 Submit nase-save ang amount at proof). Mas mabilis
+      // (isang POST), at walang kalahating-saved na estado.
 
-      // Now upload proof
-      var okProof = await ref
+      // Now upload proof — kasama ang amount: kapag nawala/na-reverse ang
+      // verified payment sa server, ito na mismo ang magre-record nito
+      // (self-heal) kaya hindi na lalabas ang "Record the collected amount
+      // first before uploading proof" at hindi na maiiwan sa in_progress.
+      String? proofStatus = await ref
           .read(riderCollectionProvider.notifier)
           .uploadProof(
             assignmentId: widget.collectionId,
             proofPhoto: _proofPhoto!,
             signatureBase64: _signatureBase64,
+            amountCollected: recordAmount,
+            notes: _notesCtrl.text.trim().isEmpty
+                ? null
+                : _notesCtrl.text.trim(),
           );
 
       // Recovery: kapag PAYMENT_NOT_RECORDED (409) ang isinagot ng backend —
@@ -339,7 +332,7 @@ class _RiderCollectionDetailsScreenState
       // assignment — i-record muna ang amount tapos i-retry ang proof nang
       // isang beses. Kung hindi, mananatiling stuck ang rider sa parehong
       // "Record the collected amount first before uploading proof" error.
-      if (!okProof && _isPaymentNotRecordedError()) {
+      if (proofStatus == null && _isPaymentNotRecordedError()) {
         final retryAmount =
             recordAmount ?? double.tryParse(_amountCtrl.text.replaceAll(',', ''));
         if (retryAmount != null && retryAmount > 0) {
@@ -353,56 +346,54 @@ class _RiderCollectionDetailsScreenState
                     : _notesCtrl.text.trim(),
               );
           if (okRecord) {
-            okProof = await ref
+            proofStatus = await ref
                 .read(riderCollectionProvider.notifier)
                 .uploadProof(
                   assignmentId: widget.collectionId,
                   proofPhoto: _proofPhoto!,
                   signatureBase64: _signatureBase64,
+                  amountCollected: retryAmount,
+                  notes: _notesCtrl.text.trim().isEmpty
+                      ? null
+                      : _notesCtrl.text.trim(),
                 );
           }
         }
       }
 
-      if (mounted) {
-        // ── Verification bago mag-claim ng success ─────────────────────────
-        // Ang `upload-proof` ay nag-200 kahit hindi natuloy ang completion
-        // UPDATE sa lumang deployment ng `collections-manage` (kulang ang proof
-        // bucket / VARCHAR overflow) — kaya lumalabas na "Submitted" sa rider
-        // pero `in_progress` pa rin sa Head Manager / Employee. Kailangan munang
-        // makita ang `completed` sa server bago mag-success dialog at mag-navigate.
-        if (okProof) {
-          final completed = await _verifyCompletedOnServer();
-          if (!mounted) return;
-          if (!completed) {
-            AppLogger.w(
-                '[CollectionSubmit] upload-proof OK pero hindi completed ang assignment — id=${widget.collectionId}');
-            await showDialog(
-              context: context,
-              builder: (_) => const ErrorDialog(
-                message:
-                    'Naitala na ang bayad pero hindi naging "Completed" ang collection sa server. '
-                    'I-redeploy ang collections-manage function at i-restart ang app, tapos i-retry ang Submit.',
-              ),
-            );
-            return;
-          }
-          // Success: 2-segundong confirmation modal, tapos deretso na sa Home
-          // (rider dashboard) — hindi na bumabalik sa listahan o wizard.
-          await SuccessDialog.showAutoDismiss(
-            context,
-            title: 'Collection Submitted',
-            message: 'The collected amount and proof were submitted.',
-            buttonText: 'Done',
-            duration: const Duration(seconds: 2),
-          );
-          if (mounted) context.go(RouteConstants.riderDashboard);
-        } else {
-          final errMsg = ref.read(riderCollectionProvider).error ??
-              'Failed to upload proof. Naka-record na ang cash (in_progress) — subukan ulit mag-upload ng proof para maging completed.';
-          showDialog(
-              context: context, builder: (_) => ErrorDialog(message: errMsg));
-        }
+      if (!mounted) return;
+
+      // ── Verification bago mag-claim ng success ─────────────────────────
+      // Ang `fn=upload-proof` ay nagbabalik na ng `status: 'completed'` — hindi
+      // na kailangan ng hiwalay na `get` (mabigat ito: may kasamang pag-sign ng
+      // 3 proof URL) para kumpirmahin ang completion. Ang fallback na
+      // verification ay para lang sa LUMANG deployment na hindi pa nagbabalik
+      // ng `status`; doon lang ito gagastos ng extra request.
+      if (proofStatus == null &&
+          ref.read(riderCollectionProvider).error == null) {
+        final completed = await _verifyCompletedOnServer();
+        if (!mounted) return;
+        if (completed) proofStatus = 'completed';
+      }
+
+      if (proofStatus == 'completed') {
+        // Success: 2-segundong confirmation modal, tapos deretso na sa Home
+        // (rider dashboard) — hindi na bumabalik sa listahan o wizard.
+        await SuccessDialog.showAutoDismiss(
+          context,
+          title: 'Collection Submitted',
+          message: 'The collected amount and proof were submitted.',
+          buttonText: 'Done',
+          duration: const Duration(seconds: 2),
+        );
+        if (mounted) context.go(RouteConstants.riderDashboard);
+      } else {
+        AppLogger.w(
+            '[CollectionSubmit] hindi nag-complete ang assignment — id=${widget.collectionId}');
+        final errMsg = ref.read(riderCollectionProvider).error ??
+            'Failed to upload proof. Subukan muli ang Submit.';
+        await showDialog(
+            context: context, builder: (_) => ErrorDialog(message: errMsg));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

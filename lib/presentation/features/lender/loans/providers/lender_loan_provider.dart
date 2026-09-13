@@ -29,6 +29,13 @@ class LenderLoanState {
   LenderLoanState copyWith({
     List<LoanModel>? loans,
     LoanModel? activeLoan,
+    /// Kailangan ito dahil ang `activeLoan` ay nullable: ang `activeLoan ??
+    /// this.activeLoan` ay HINDI makakapag-clear ng dating value (ang `null` na
+    /// ipinasa ay binabalewala). Kapag na-full-pay ang loan (naging `completed`
+    /// at wala nang aktibong loan), mananatili ang LUMANG `activeLoan` object —
+    /// kaya patuloy na ipinapakita ng dashboard ang lumang outstanding balance
+    /// ("hindi nabawasan ang active loan") kahit bayad na.
+    bool clearActiveLoan = false,
     LoanModel? selectedLoan,
     Map<String, dynamic>? schedulePreview,
     bool? isLoading,
@@ -37,7 +44,7 @@ class LenderLoanState {
   }) =>
       LenderLoanState(
         loans: loans ?? this.loans,
-        activeLoan: activeLoan ?? this.activeLoan,
+        activeLoan: clearActiveLoan ? null : (activeLoan ?? this.activeLoan),
         selectedLoan: selectedLoan ?? this.selectedLoan,
         schedulePreview: schedulePreview ?? this.schedulePreview,
         isLoading: isLoading ?? this.isLoading,
@@ -59,7 +66,15 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
         // hindi magre-refresh ang Active Loan balance hanggang manual reload.
         ['loans', 'loan_schedules', 'disbursements', 'credit_investigations',
          'payments', 'collection_assignments'],
-        refresh: () => loadLoans(silent: true));
+        refresh: () async {
+          await loadLoans(silent: true);
+          // Ang Loan Details screen ay nagbabasa ng `selectedLoan`, hindi ng
+          // listahan — kung hindi ito i-refresh, mananatili ang LUMANG
+          // "Outstanding Balance" doon kahit bayad na (ang balance ay derived
+          // mula sa payments, walang nagbabago sa loans row mismo).
+          final selected = state.selectedLoan;
+          if (selected != null) await loadLoanDetails(selected.id, silent: true);
+        });
     loadLoans();
   }
 
@@ -75,8 +90,16 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
         active = loans.where((l) => l.status == s).firstOrNull;
         if (active != null) break;
       }
-      state =
-          state.copyWith(loans: loans, activeLoan: active, isLoading: false);
+      // `clearActiveLoan` ang tanging paraan para maging null ito: kapag
+      // na-full-pay ang loan sa rider collection, wala nang active/overdue na
+      // loan — dapat mawala na ang "Active Loan" card (at lumabas ang loan sa
+      // Loan History) sa halip na ipakita pa ang lumang balance.
+      state = state.copyWith(
+        loans: loans,
+        activeLoan: active,
+        clearActiveLoan: active == null,
+        isLoading: false,
+      );
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
@@ -84,12 +107,15 @@ class LenderLoanNotifier extends StateNotifier<LenderLoanState>
     }
   }
 
-  Future<void> loadLoanDetails(String loanId) async {
-    state = state.copyWith(isLoading: true, error: null);
+  /// [silent] = walang loading flash — gamit ito ng realtime refresh para hindi
+  /// kumislap ang screen habang naka-open ang Loan Details.
+  Future<void> loadLoanDetails(String loanId, {bool silent = false}) async {
+    if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final loan = await _ds.getLoanDetails(loanId);
       state = state.copyWith(selectedLoan: loan, isLoading: false);
     } catch (e) {
+      if (silent) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
