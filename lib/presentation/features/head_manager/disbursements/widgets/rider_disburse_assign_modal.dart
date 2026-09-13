@@ -266,7 +266,7 @@ class _RiderDisburseAssignModalState
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
-              'Assign Delivery Rider',
+              'Assign Cash on Delivery Rider',
               style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 15,

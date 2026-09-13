@@ -383,13 +383,13 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   Widget _buildDisbursementAction(
       BuildContext context, WidgetRef ref, Map<String, dynamic> loan) {
     return _PremiumCard(
-      title: 'Cash via Rider — Disbursement',
+      title: 'Cash on Delivery — Disbursement',
       subtitle: 'Assign an available rider to hand the cash to the lender',
       child: Row(
         children: [
           const Expanded(
             child: Text(
-              'The lender chose to receive the loan via a delivery rider.',
+              'The lender chose to receive the loan via cash on delivery.',
               style:
                   TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           ),
@@ -397,7 +397,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
           ElevatedButton.icon(
             onPressed: () => _showAssignDeliveryRider(context, ref, loan),
             icon: const Icon(Icons.delivery_dining, size: 18),
-            label: const Text('Assign Delivery Rider'),
+            label: const Text('Assign Cash on Delivery Rider'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: Colors.black87,

@@ -193,7 +193,7 @@ class HmDisbursementDetailsContent extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Rider Delivery Details',
+            const Text('Cash on Delivery Details',
                 style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,

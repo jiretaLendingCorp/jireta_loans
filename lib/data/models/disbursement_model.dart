@@ -130,7 +130,7 @@ class DisbursementModel {
       case 'office_cash':
         return 'Office Cash';
       case 'rider_delivery':
-        return 'Rider Delivery';
+        return 'Cash on Delivery';
       default:
         return method;
     }

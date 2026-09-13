@@ -332,7 +332,7 @@ class _HmLoanApplicationsListScreenState
     final label = switch (method) {
       'gcash' => 'GCash',
       'office_cash' => 'Office Cash',
-      'rider_delivery' => 'Rider',
+      'rider_delivery' => 'Cash on Delivery',
       _ => method,
     };
     final color = switch (method) {
@@ -1178,7 +1178,7 @@ class _RowActions extends StatelessWidget {
                         Icon(Icons.delivery_dining_rounded,
                             size: 16, color: AppColors.goldDark),
                         SizedBox(width: 8),
-                        Text('Assign Delivery Rider')
+                        Text('Assign Cash on Delivery Rider')
                       ])),
                 if (canReject)
                   const PopupMenuItem(

@@ -584,7 +584,7 @@ class _LoanApplicationDetailsModalState
                 child: Text(
                   method.trim().isEmpty || method.trim() == '-'
                       ? 'Disbursement: N/A'
-                      : 'Disbursement: ${_capitalize(method.replaceAll('_', ' '))}',
+                      : 'Disbursement: ${_disbMethodLabel(method)}',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -1011,6 +1011,13 @@ class _LoanApplicationDetailsModalState
   String _capitalize(String s) => s.isEmpty
       ? s
       : '${s[0].toUpperCase()}${s.substring(1).replaceAll('_', ' ')}';
+
+  /// Display label ng disbursement method — rider_delivery ay
+  /// "Cash on Delivery" (code mananatiling rider_delivery sa backend).
+  String _disbMethodLabel(String method) {
+    if (method.trim() == 'rider_delivery') return 'Cash on Delivery';
+    return _capitalize(method.replaceAll('_', ' '));
+  }
 
   String _formatAddress(dynamic a) {
     if (a == null) return '-';

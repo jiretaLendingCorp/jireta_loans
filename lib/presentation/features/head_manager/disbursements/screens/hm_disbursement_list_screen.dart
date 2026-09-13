@@ -96,7 +96,7 @@ class _HmDisbursementListScreenState
               DropdownMenuItem(
                   value: 'office_cash', child: Text('Office Cash')),
               DropdownMenuItem(
-                  value: 'rider_delivery', child: Text('Rider Delivery')),
+                  value: 'rider_delivery', child: Text('Cash on Delivery')),
             ],
             onChanged: (v) =>
                 ref.read(hmDisbursementProvider.notifier).setMethod(v!),
@@ -193,7 +193,7 @@ class _HmDisbursementListScreenState
     final label = switch (method) {
       'gcash' => 'GCash',
       'office_cash' => 'Office Cash',
-      'rider_delivery' => 'Rider',
+      'rider_delivery' => 'Cash on Delivery',
       _ => method,
     };
     final color = switch (method) {

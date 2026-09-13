@@ -158,24 +158,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                     ),
                   ]),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
-                      child: const Row(children: [
-                        SizedBox(width: 8),
-                        Text('Progress', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
-                      ]),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: _buildTimeline(col),
-                    ),
-                  ]),
-                ),
               ]),
             );
 
@@ -213,42 +195,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
       _StatusRow('Collected (payment recorded)',
           col.amountCollected != null || s == 'in_progress' || s == 'completed'),
       _StatusRow('Completed', s == 'completed'),
-    ]);
-  }
-
-  Widget _buildTimeline(CollectionAssignmentModel col) {
-    final s = col.status.toLowerCase();
-    final steps = [
-      ('Requested', col.collectionSchedule != null),
-      ('Assigned', col.assignedByName.isNotEmpty),
-      ('Accepted', col.responseAt != null),
-      ('Collected (payment recorded)',
-          col.amountCollected != null || s == 'in_progress' || s == 'completed'),
-      ('Completed', s == 'completed'),
-    ];
-    return Column(children: [
-      for (int i = 0; i < steps.length; i++) ...[
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Column(children: [
-            Container(
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: steps[i].$2 ? AppColors.riderGreen : AppColors.surfaceVariant,
-                shape: BoxShape.circle,
-                border: Border.all(color: steps[i].$2 ? AppColors.riderGreen : AppColors.border),
-              ),
-              child: Icon(steps[i].$2 ? Icons.check_rounded : Icons.circle_outlined, size: 14, color: steps[i].$2 ? Colors.white : AppColors.textTertiary),
-            ),
-            if (i < steps.length - 1) Container(width: 2, height: 26, color: steps[i].$2 ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border),
-          ]),
-          const SizedBox(width: 10),
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(steps[i].$1, style: TextStyle(fontSize: 12, fontWeight: steps[i].$2 ? FontWeight.w700 : FontWeight.w600, color: steps[i].$2 ? AppColors.textPrimary : AppColors.textSecondary)),
-          ),
-        ]),
-      ],
     ]);
   }
 

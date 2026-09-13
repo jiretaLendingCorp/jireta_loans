@@ -449,7 +449,10 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
                 Icon(_disbursementIcon(method),
                     size: 13, color: _disbursementColor(method)),
                 const SizedBox(width: 6),
-                Text(_capitalize(method.replaceAll('_', ' ')),
+                Text(
+                    method == 'rider_delivery'
+                        ? 'Cash on Delivery'
+                        : _capitalize(method.replaceAll('_', ' ')),
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,

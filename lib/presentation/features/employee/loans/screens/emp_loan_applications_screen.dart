@@ -562,7 +562,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
                         Icon(Icons.delivery_dining_rounded,
                             size: 16, color: AppColors.goldDark),
                         SizedBox(width: 8),
-                        Text('Assign Delivery Rider')
+                        Text('Assign Cash on Delivery Rider')
                       ])),
                 if (canReject)
                   const PopupMenuItem(

@@ -409,20 +409,20 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
 
   Widget _buildDisbursementAction(Map<String, dynamic> loan) {
     return _PremiumCard(
-      title: 'Cash via Rider — Disbursement',
+      title: 'Cash on Delivery — Disbursement',
       subtitle: 'Assign an available rider to hand the cash to the lender',
       child: Row(
         children: [
           const Expanded(
             child: Text(
-              'The lender chose to receive the loan via a delivery rider.',
+              'The lender chose to receive the loan via cash on delivery.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           ),
           const SizedBox(width: 12),
           ElevatedButton.icon(
             onPressed: () => _showAssignDeliveryRider(loan),
             icon: const Icon(Icons.delivery_dining, size: 18),
-            label: const Text('Assign Delivery Rider'),
+            label: const Text('Assign Cash on Delivery Rider'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: Colors.black87,
@@ -946,7 +946,7 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 child: Text(
                   method.trim().isEmpty || method.trim() == '-'
                       ? 'Disbursement: N/A'
-                      : 'Disbursement: ${_capitalize(method.replaceAll('_', ' '))}',
+                      : 'Disbursement: ${method.trim() == 'rider_delivery' ? 'Cash on Delivery' : _capitalize(method.replaceAll('_', ' '))}',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
