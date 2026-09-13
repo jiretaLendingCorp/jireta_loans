@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
 
@@ -438,11 +439,11 @@ class _LoanApplicationDetailsModalState
     }
   }
 
+  // Top-right na toast (hindi na nasa ilalim na buong-lapad na bar).
   void _toast(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: color,
-    ));
+    context.showSnackBarAsToast(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
   }
 
   // ───────────────────────── Cards (reused from details page) ─────────────────────────
@@ -893,7 +894,8 @@ class _LoanApplicationDetailsModalState
                 size: 15, color: AppColors.textTertiary),
             SizedBox(width: 8),
             Expanded(
-              child: Text('No schedule generated yet.',
+              child: Text(
+                  'Payment schedule will start once the loan is active.',
                   style: TextStyle(
                       fontSize: 12, color: AppColors.textSecondary)),
             ),

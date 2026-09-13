@@ -21,6 +21,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification, notifyStaff } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
+import { ensureLoanSchedulesIfMissing } from '../_shared/loan_schedules.ts';
 import {
   getSchedulePayment,
   scheduleStatus,
@@ -665,7 +666,16 @@ async function recordRiderCollectionPayment(opts: {
   // Allocate the collected amount across unpaid installments (oldest first).
   // Amounts beyond the current installment roll forward to the next ones so a
   // lender can advance-pay upcoming installments in a single collection.
-  const allocations = await allocatePayment(db, loanId, amount);
+  let allocations = await allocatePayment(db, loanId, amount);
+  if (allocations.length === 0) {
+    // Safety net: ang schedule ay ginagawa sa pag-activate ng loan. Kung
+    // na-miss iyon (lumang data / bagong activation path), gawin na rito ang
+    // schedule base sa ngayon at subukan muli — hindi dapat ma-stuck ang
+    // koleksyon sa "No unpaid installments" dahil lang walang rows.
+    if (await ensureLoanSchedulesIfMissing(db, loanId)) {
+      allocations = await allocatePayment(db, loanId, amount);
+    }
+  }
   if (allocations.length === 0) {
     return {
       ok: false,

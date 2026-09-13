@@ -108,7 +108,7 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
       _error = null;
     });
     try {
-      await ref.read(empCollectionProvider.notifier).assignRider(
+      final ok = await ref.read(empCollectionProvider.notifier).assignRider(
             loanScheduleId: widget.loanScheduleId,
             loanId: widget.loanId,
             riderId: _selectedRiderId!,
@@ -116,7 +116,19 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
             collectionSchedule: _collectionSchedule,
             notes: _notesCtrl.text.trim(),
           );
-      if (mounted) Navigator.of(context).pop(true);
+      if (!mounted) return;
+      // Dati, basta walang exception ay nag-po-pop na ito — kaya lumilitaw na
+      // "tagumpay" kahit nabigo pala ang assign (ang provider ay `false` ang
+      // isinasauli kapag may error).
+      if (ok) {
+        Navigator.of(context).pop(true);
+      } else {
+        setState(() {
+          _loading = false;
+          _error = ref.read(empCollectionProvider).error ??
+              'Failed to assign rider. Please try again.';
+        });
+      }
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');

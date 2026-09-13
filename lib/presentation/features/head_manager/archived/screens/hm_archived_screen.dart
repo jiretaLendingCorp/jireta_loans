@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
@@ -252,7 +253,7 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
               try {
                 await ref.read(hmArchivedProvider.notifier).restore(user.id);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     SnackBar(
                         content: Text(
                             '${_roleLabel(user.role)} restored successfully')),
@@ -260,7 +261,7 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     SnackBar(content: Text('Failed to restore: $e')),
                   );
                 }

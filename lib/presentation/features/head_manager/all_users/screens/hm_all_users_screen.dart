@@ -241,7 +241,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
               try {
                 await ref.read(hmAllUsersProvider.notifier).archive(user.id);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     SnackBar(
                         content: Text(
                             '${_roleLabel(user.role)} archived successfully')),
@@ -249,7 +249,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     SnackBar(content: Text('Failed to archive: $e')),
                   );
                 }

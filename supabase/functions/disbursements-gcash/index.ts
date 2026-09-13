@@ -8,6 +8,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID } from '../_shared/validators.ts';
 import { createDisbursement } from '../_shared/xendit.ts';
+import { startLoanPaymentSchedule } from '../_shared/loan_schedules.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -93,6 +94,8 @@ serve(async (req) => {
         .from('loans')
         .update({ status: 'active' })
         .eq('id', loan_id);
+      // Business rule: dito nagsisimula ang payment schedule (petsa ng release).
+      await startLoanPaymentSchedule(db, loan_id, new Date(now));
     }
 
     await writeAuditLog({

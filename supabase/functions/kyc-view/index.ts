@@ -177,13 +177,10 @@ async function handleVerify(req: Request) {
             console.error('kyc-verify auto-convert loan insert failed', { appId, loanErr });
             continue;
           }
-          const scheduleRows = sched.dueDates.map((due: string, i: number) => ({
-            loan_id: newLoan.id,
-            installment_number: i + 1,
-            due_date: due,
-            amount_due: (sched.amounts as number[])[i],
-          }));
-          await db.from('loan_schedules').insert(scheduleRows);
+          // Business rule: ang payment schedule ay ginagawa lang kapag ACTIVE
+          // na ang loan (sa disbursement) — hindi sa pag-convert ng walk-in
+          // application. Kaya wala itong due dates na naka-base sa petsa ng
+          // application.
           // 00130: fan out legacy emergency contacts onto the per-loan snapshot.
           const autoEc = (ecRes as any).data ?? [];
           if (Array.isArray(autoEc) && autoEc.length > 0) {

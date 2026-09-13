@@ -26,6 +26,7 @@ import { validateUUID } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { createDisbursement } from '../_shared/xendit.ts';
+import { startLoanPaymentSchedule } from '../_shared/loan_schedules.ts';
 
 const ALLOWED_METHODS = ['gcash', 'office_cash', 'rider_delivery'];
 
@@ -135,6 +136,10 @@ serve(async (req) => {
 
       if (xenditResult.status === 'COMPLETED') {
         await db.from('loans').update({ status: 'active' }).eq('id', loan_id);
+        // Business rule: dito (pag-active ng loan) nagsisimula ang payment
+        // schedule — naka-base sa petsa ng release, hindi sa petsa ng
+        // application. Wala pang schedule ang loan bago ito.
+        await startLoanPaymentSchedule(db, loan_id, new Date(now));
       }
 
       await writeAuditLog({

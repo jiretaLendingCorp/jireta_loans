@@ -91,7 +91,10 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
       } else {
         setState(() {
           _loading = false;
-          _error = 'Failed to assign rider. Please try again.';
+          // Ipakita ang TOTOONG dahilan mula sa server (hal. "Rider is not
+          // available", "already has an active credit investigation") kapag mayroon.
+          _error = ref.read(hmCiProvider).error ??
+              'Failed to assign rider. Please try again.';
         });
       }
     } catch (e) {

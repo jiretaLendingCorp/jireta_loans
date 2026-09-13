@@ -79,6 +79,37 @@ async function handleCiAssign(req: Request) {
     return errorResponse('Loan must be pending or under_review to assign CI', 409, 'INVALID_STATUS');
   }
 
+  // IDEMPOTENT RE-ASSIGN: kung may AKTIBONG credit investigation na para sa
+  // loan na ito (assigned / in_progress), huwag nang gumawa ng bago.
+  //   • PAREHONG rider → success (200) na may parehong ci_id. Dati, 409
+  //     RIDER_UNAVAILABLE (o duplicate row) ang isinagot kapag na-retry — ang
+  //     unang assign ay nag-set na ng `is_available = false` sa rider — kaya
+  //     "Failed to assign rider" ang nakikita ng user kahit naitala na pala
+  //     ang assignment sa server.
+  //   • IBANG rider → 409 na may malinaw na paliwanag (may active CI pa).
+  const { data: activeCi } = await db
+    .from('credit_investigations')
+    .select('id, rider_id, status')
+    .eq('loan_id', loan_id)
+    .in('status', ['assigned', 'in_progress'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activeCi) {
+    if (String(activeCi.rider_id) === rider_id) {
+      return jsonResponse({
+        ci_id: activeCi.id,
+        message: 'Credit investigation is already assigned to this rider',
+      }, 200);
+    }
+    return errorResponse(
+      'This loan already has an active credit investigation assigned to another rider. Complete or void it first before assigning a new rider.',
+      409,
+      'CI_ALREADY_ASSIGNED',
+    );
+  }
+
   const { data: rider } = await db
     .from('rider_profiles')
     .select('id, is_available')
@@ -86,7 +117,13 @@ async function handleCiAssign(req: Request) {
     .single();
 
   if (!rider) return errorResponse('Rider not found', 404, 'NOT_FOUND');
-  if (!rider.is_available) return errorResponse('Rider is not available', 409, 'RIDER_UNAVAILABLE');
+  if (!rider.is_available) {
+    return errorResponse(
+      'Rider is not available — they may already be handling another assignment.',
+      409,
+      'RIDER_UNAVAILABLE',
+    );
+  }
 
   // FIX: close out any previous failed/expired/declined investigation for this
   // loan so the old row no longer shows a "Reassign" button. The old row is

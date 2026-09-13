@@ -863,7 +863,10 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border)),
-          child: const Text('No schedule generated yet.',
+          // Business rule: walang payment schedule hangga't hindi pa ACTIVE ang
+          // loan — nagsisimula ang mga installment sa petsa ng release.
+          child: const Text(
+              'Payment schedule will start once the loan is active (released).',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary))));
     }
 

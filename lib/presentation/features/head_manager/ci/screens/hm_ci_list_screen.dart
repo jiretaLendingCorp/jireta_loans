@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
@@ -311,16 +312,16 @@ class _TableApproveButtonState extends ConsumerState<_TableApproveButton> {
       final ok = widget.isHm ? await ref.read(hmCiProvider.notifier).approveReport(ciId: widget.ci.id as String) : await ref.read(hmCiProvider.notifier).approveReport(ciId: widget.ci.id as String);
       setState(() => _loading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'CI approved — loan ready for final approval' : 'Approve failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.success : AppColors.error));
+      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'CI approved — loan ready for final approval' : 'Approve failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.success : AppColors.error));
     } else {
       final reasonCtrl = TextEditingController();
-      final reason = await showDialog<String>(context: context, builder: (_) => AlertDialog(title: const Text('Reject CI Report'), content: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Provide reason (min 10 chars).', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)), const SizedBox(height: 12), TextField(controller: reasonCtrl, maxLines: 3, decoration: const InputDecoration(hintText: 'Rejection reason', border: OutlineInputBorder()))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), ElevatedButton(onPressed: () { final r = reasonCtrl.text.trim(); if (r.length < 10) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reason must be at least 10 characters'))); return; } Navigator.pop(context, r); }, style: ElevatedButton.styleFrom(backgroundColor: AppColors.error), child: const Text('Reject', style: TextStyle(color: Colors.white)))]));
+      final reason = await showDialog<String>(context: context, builder: (_) => AlertDialog(title: const Text('Reject CI Report'), content: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Provide reason (min 10 chars).', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)), const SizedBox(height: 12), TextField(controller: reasonCtrl, maxLines: 3, decoration: const InputDecoration(hintText: 'Rejection reason', border: OutlineInputBorder()))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), ElevatedButton(onPressed: () { final r = reasonCtrl.text.trim(); if (r.length < 10) { context.showSnackBarAsToast(const SnackBar(content: Text('Reason must be at least 10 characters'))); return; } Navigator.pop(context, r); }, style: ElevatedButton.styleFrom(backgroundColor: AppColors.error), child: const Text('Reject', style: TextStyle(color: Colors.white)))]));
       if (reason == null) return;
       setState(() => _loading = true);
       final ok = await ref.read(hmCiProvider.notifier).rejectReport(ciId: widget.ci.id as String, reason: reason);
       setState(() => _loading = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'CI rejected — loan returned to review' : 'Reject failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.error : AppColors.error));
+      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'CI rejected — loan returned to review' : 'Reject failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.error : AppColors.error));
     }
   }
 
@@ -377,7 +378,7 @@ class _HmActionCell extends ConsumerWidget {
                     if (ok == true) {
                       await ref.read(hmCiProvider.notifier).fetch();
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        context.showSnackBarAsToast(
                           const SnackBar(
                             content: Text('Rider reassigned for credit investigation'),
                             backgroundColor: AppColors.success,

@@ -998,7 +998,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 size: 15, color: AppColors.textTertiary),
             SizedBox(width: 8),
             Expanded(
-              child: Text('No schedule generated yet.',
+              child: Text(
+                  'Payment schedule will start once the loan is active.',
                   style:
                       TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             ),

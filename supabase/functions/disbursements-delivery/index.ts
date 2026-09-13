@@ -17,6 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID } from '../_shared/validators.ts';
+import { startLoanPaymentSchedule } from '../_shared/loan_schedules.ts';
 
 const PROOF_BUCKET = 'disbursement-proofs';
 
@@ -164,6 +165,9 @@ async function handleOfficeCash(req: Request) {
     .from('loans')
     .update({ status: 'active' })
     .eq('id', loan_id);
+
+  // Business rule: dito nagsisimula ang payment schedule (petsa ng release).
+  await startLoanPaymentSchedule(db, loan_id, new Date(now));
 
   await writeAuditLog({
     performedBy: authResult.id,
@@ -377,6 +381,10 @@ async function handleUploadProof(req: Request) {
   }
 
   await db.from('loans').update({ status: 'active' }).eq('id', disbursement.loan_id);
+
+  // Business rule: ang petsa ng pag-deliver (hindi ng application) ang
+  // day 0 ng payment schedule.
+  await startLoanPaymentSchedule(db, disbursement.loan_id, new Date());
 
   await writeAuditLog({
     performedBy: user.id,

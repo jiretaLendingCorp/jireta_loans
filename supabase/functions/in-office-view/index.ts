@@ -606,8 +606,6 @@ async function handleSubmit(req: Request) {
     }
     const sched = computeSchedule(principalAmount, frequency, new Date(), periodsOverride);
     const termDays = sched.termDays;
-    const dueDates = sched.dueDates;
-    const amounts = sched.amounts;
 
     const releaseDate = new Date();
     const dueDate = new Date(releaseDate);
@@ -639,19 +637,9 @@ async function handleSubmit(req: Request) {
 
     if (loanErr || !loan) return errorResponse('Failed to create loan', 500);
 
-    const scheduleRows: {
-      loan_id: string;
-      installment_number: number;
-      due_date: string;
-      amount_due: number;
-    }[] = dueDates.map((dueDateStr, i) => ({
-      loan_id: loan.id,
-      installment_number: i + 1,
-      due_date: dueDateStr,
-      amount_due: amounts[i],
-    }));
-
-    await db.from('loan_schedules').insert(scheduleRows);
+    // Business rule: WALANG payment schedule habang hindi pa ACTIVE ang loan.
+    // Gagawin ito sa pag-activate/disburse (startLoanPaymentSchedule) para ang
+    // day 0 ng mga installment ay ang petsa ng release, hindi ng application.
 
     // 00130: fan out any legacy in-office emergency contacts (old drafts)
     // onto the per-loan snapshot. New drafts send an empty list — no-op.

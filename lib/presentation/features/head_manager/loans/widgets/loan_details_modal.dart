@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -727,7 +728,8 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
     if (confirm == true && mounted) {
       final ok = await ref.read(hmLoanProvider.notifier).applyPenalty(loanId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      // Top-right na toast (hindi na nasa ilalim na buong-lapad na bar).
+      context.showSnackBarAsToast(
         SnackBar(
             content: Text(ok ? 'Penalty applied' : 'Failed to apply penalty'),
             backgroundColor: ok ? AppColors.success : AppColors.error));

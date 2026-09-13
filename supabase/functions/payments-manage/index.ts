@@ -18,6 +18,7 @@ import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getPaymentLoanId, getLoanFinancials, allocatePayment } from '../_shared/loan_financials.ts';
+import { ensureLoanSchedulesIfMissing } from '../_shared/loan_schedules.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'record-office';
@@ -103,7 +104,16 @@ async function handleRecordOffice(req: Request) {
   // covering several upcoming installments) in a single transaction, and makes
   // double-recording on an already-paid installment impossible — excess can
   // only ever land on still-unpaid installments.
-  const allocations = await allocatePayment(db, loan_id, Number(amount));
+  let allocations = await allocatePayment(db, loan_id, Number(amount));
+  if (allocations.length === 0) {
+    // Safety net: ang payment schedule ay ginagawa sa pag-activate ng loan.
+    // Kung wala pa ito (hal. lumang data o na-miss na activation path), gawin
+    // na rito base sa ngayon bago sumuko — hindi dapat harangan ng "No unpaid
+    // installments" ang isang lehitimong bayad.
+    if (await ensureLoanSchedulesIfMissing(db, loan_id)) {
+      allocations = await allocatePayment(db, loan_id, Number(amount));
+    }
+  }
   if (allocations.length === 0) {
     return errorResponse('No unpaid installments remaining', 409, 'PAYMENT_ALREADY_MADE');
   }

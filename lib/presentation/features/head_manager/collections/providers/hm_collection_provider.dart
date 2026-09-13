@@ -126,11 +126,16 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
         collectionSchedule: collectionSchedule?.toIso8601String(),
         notes: notes,
       );
-      await fetch();
-      return true;
-    } catch (_) {
+    } catch (e) {
+      // Ang totoong server error ang itago sa state (dating kinakain ito ng
+      // `catch (_)` kaya generic na "Failed to assign rider" lang ang lumalabas).
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
+    // Hiwalay sa mutation: hindi dapat maging "failed" ang matagumpay na
+    // assign kapag nabigo lang ang refresh ng listahan.
+    await fetch();
+    return true;
   }
 }
 

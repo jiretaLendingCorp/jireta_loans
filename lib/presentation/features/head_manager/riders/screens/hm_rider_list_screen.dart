@@ -1,6 +1,7 @@
 // lib/presentation/features/head_manager/riders/screens/hm_rider_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
@@ -244,14 +245,14 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
               try {
                 await ref.read(hmRiderProvider.notifier).archive(user.id);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     const SnackBar(
                         content: Text('Rider archived successfully')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     SnackBar(content: Text('Failed to archive: $e')),
                   );
                 }

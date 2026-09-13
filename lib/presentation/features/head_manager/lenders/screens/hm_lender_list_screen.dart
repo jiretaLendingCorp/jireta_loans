@@ -279,13 +279,13 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
               try {
                 await ref.read(hmLenderProvider.notifier).archive(user.id);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     const SnackBar(content: Text('Lender archived successfully')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  context.showSnackBarAsToast(
                     SnackBar(content: Text('Failed to archive: $e')),
                   );
                 }

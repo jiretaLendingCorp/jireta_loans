@@ -140,6 +140,11 @@ async function handleGetList(req: Request) {
 
     const loanIds = (data ?? []).map((r) => r.id);
     const lenderIds = (data ?? []).map((r) => r.lender_id);
+    // Business rule: ang due date / payment period ay para lang sa RELEASED na
+    // loan (active/overdue/completed) — walang "next due" bago ma-activate.
+    const releasedLoanIds = (data ?? [])
+      .filter((r) => ['active', 'overdue', 'completed'].includes(String(r.status ?? '').toLowerCase()))
+      .map((r) => r.id);
     const [financials, disbursements, lenderAddresses, disbPrefs, upcomingSchedules] = await Promise.all([
       getLoanFinancialsBatch(db, loanIds),
       getLoanDisbursementsBatch(db, loanIds),
@@ -147,10 +152,10 @@ async function handleGetList(req: Request) {
       getLoanDisbursementPrefsBatch(db, loanIds),
       // Next outstanding (unpaid) schedule due date per loan. The loans table
       // has no due_date column — it lives on loan_schedules.
-      loanIds.length > 0
+      releasedLoanIds.length > 0
         ? db.from('v_loan_schedules')
             .select('loan_id, due_date')
-            .in('loan_id', loanIds)
+            .in('loan_id', releasedLoanIds)
             .in('status', ['pending', 'partial', 'overdue'])
             .order('due_date', { ascending: true })
         : Promise.resolve({ data: null }),
@@ -216,6 +221,7 @@ async function handleGetList(req: Request) {
         term_periods: r.term_periods,
         installment_amount: r.installment_amount,
         status: r.status,
+        // Null kapag hindi pa active ang loan (walang schedule bago mag-release).
         due_date: nextDueByLoan[r.id] ?? null,
         created_at: r.created_at,
         disbursed_at: disb?.disbursed_at ?? null,
@@ -265,17 +271,29 @@ async function handleGetDetails(req: Request) {
       .eq('loan_id', loanId)
       .order('created_at', { ascending: true });
 
-    const { data: schedule } = await db.from('v_loan_schedules').select('*').eq('loan_id', loanId).order('installment_number');
+    // BUSINESS RULE: ang payment schedule ay para lang sa ACTIVE/OVERDUE (at
+    // naging `completed`) na loan — nagsisimula ito sa pag-release, hindi sa
+    // application. Kaya para sa pending/approved/ci_* na loan, walang
+    // schedule na isinasabmit dito: hindi dapat magpakita ng "Payment
+    // Schedule" (o due date) ang Loan Application Details bago ma-activate.
+    const scheduleReleased = ['active', 'overdue', 'completed'].includes(
+      String((loan as { status?: string }).status ?? '').toLowerCase(),
+    );
+    const { data: schedule } = scheduleReleased
+      ? await db.from('v_loan_schedules').select('*').eq('loan_id', loanId).order('installment_number')
+      : { data: [] as Record<string, unknown>[] };
     // Next outstanding (unpaid) schedule due date — the loans table itself has
     // no due_date column, it lives on loan_schedules.
-    const { data: nextSched } = await db
-      .from('v_loan_schedules')
-      .select('due_date')
-      .eq('loan_id', loanId)
-      .in('status', ['pending', 'partial', 'overdue'])
-      .order('due_date', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const { data: nextSched } = scheduleReleased
+      ? await db
+          .from('v_loan_schedules')
+          .select('due_date')
+          .eq('loan_id', loanId)
+          .in('status', ['pending', 'partial', 'overdue'])
+          .order('due_date', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
     const scheduleIds = (schedule ?? []).map((s) => s.id);
     let payments: Record<string, unknown>[] = [];
     if (scheduleIds.length > 0) {

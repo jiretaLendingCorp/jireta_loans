@@ -162,11 +162,16 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
         investigationNotes: notes.isEmpty ? null : notes,
         deadline: deadline.isEmpty ? null : deadline,
       );
-      await fetch(page: state.currentPage);
-      return true;
-    } catch (_) {
+    } catch (e) {
+      // Ang totoong server error ang itago sa state (dating kinakain ito ng
+      // `catch (_)` kaya generic na "Failed to assign rider" lang ang lumalabas).
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
+    // Hiwalay sa mutation: hindi dapat maging "failed" ang matagumpay na
+    // assign kapag nabigo lang ang reload ng listahan.
+    await fetch(page: state.currentPage);
+    return true;
   }
 
   Future<bool> assign({
@@ -201,23 +206,23 @@ class EmpCiNotifier extends StateNotifier<EmpCiState>
   Future<bool> approveReport({required String ciId, String? notes}) async {
     try {
       await _ds.approveCiReport(ciId: ciId, reviewNotes: notes);
-      await fetch(page: state.currentPage);
-      return true;
     } catch (e) {
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
+    await fetch(page: state.currentPage);
+    return true;
   }
 
   Future<bool> rejectReport({required String ciId, required String reason}) async {
     try {
       await _ds.rejectCiReport(ciId: ciId, rejectionReason: reason);
-      await fetch(page: state.currentPage);
-      return true;
     } catch (e) {
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
+    await fetch(page: state.currentPage);
+    return true;
   }
 
   Future<List<Map<String, dynamic>>> getAvailableRiders() async {

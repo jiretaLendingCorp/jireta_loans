@@ -297,14 +297,11 @@ serve(async (req) => {
       }
     }
 
-    const scheduleRows = sched.dueDates.map((date, i) => ({
-      loan_id: loan.id,
-      installment_number: i + 1,
-      due_date: date,
-      amount_due: sched.amounts[i],
-    }));
-
-    await db.from('loan_schedules').insert(scheduleRows);
+    // Business rule: WALANG payment schedule habang hindi pa ACTIVE ang loan.
+    // Ang `loan_schedules` ay ginagawa na lang sa pag-activate/disburse
+    // (`startLoanPaymentSchedule`) — kaya ang day 0 ng mga installment ay ang
+    // petsa ng release, hindi ang petsa ng application. Ang `sched` dito ay
+    // ginagamit pa rin para sa loan snapshot at sa preview sa sagot.
 
     if (co_maker && co_maker.first_name && co_maker.last_name) {
       const coMakerName = String(co_maker.first_name).trim();

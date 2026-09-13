@@ -123,11 +123,19 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
         investigationNotes: notes,
         deadline: deadline,
       );
-      await fetch(page: state.currentPage);
-      return true;
-    } catch (_) {
+    } catch (e) {
+      // Ang TOTOONG dahilan (hal. "Rider is not available") ang itago sa state —
+      // dati, kinakain ito ng `catch (_)` kaya generic na "Failed to assign
+      // rider" lang ang nakikita kahit malinaw naman ang server error.
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
+    // Ang refresh ay HINDI kasama sa try ng mutation: kung nabigo lang ang
+    // reload ng listahan, hindi dapat maging "failed" ang isang matagumpay na
+    // assign (dati, `await fetch()` sa loob ng parehong try ang dahilan ng
+    // "Failed to assign rider" kahit naisave na sa server).
+    await fetch(page: state.currentPage);
+    return true;
   }
 
   Future<bool> assignCI({
@@ -147,23 +155,23 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
   Future<bool> approveReport({required String ciId, String? notes}) async {
     try {
       await _ds.approveCiReport(ciId: ciId, reviewNotes: notes);
-      await fetch(page: state.currentPage);
-      return true;
     } catch (e) {
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
+    await fetch(page: state.currentPage);
+    return true;
   }
 
   Future<bool> rejectReport({required String ciId, required String reason}) async {
     try {
       await _ds.rejectCiReport(ciId: ciId, rejectionReason: reason);
-      await fetch(page: state.currentPage);
-      return true;
     } catch (e) {
       state = state.copyWith(error: ErrorHandler.handle(e).message);
       return false;
     }
+    await fetch(page: state.currentPage);
+    return true;
   }
 }
 

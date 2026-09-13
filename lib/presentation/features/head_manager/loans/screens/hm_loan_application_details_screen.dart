@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
 
@@ -395,11 +396,11 @@ class _HmLoanApplicationDetailsScreenState
     }
   }
 
+  // Top-right na toast (hindi na nasa ilalim na buong-lapad na bar).
   void _toast(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: color,
-    ));
+    context.showSnackBarAsToast(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
   }
 
   // ───────────────────────── Cards ─────────────────────────
@@ -836,7 +837,10 @@ class _HmLoanApplicationDetailsScreenState
             color: AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border)),
-          child: const Text('No schedule generated yet.',
+          // Business rule: walang payment schedule hangga't hindi pa ACTIVE ang
+          // loan — nagsisimula ang mga installment sa petsa ng release.
+          child: const Text(
+              'Payment schedule will start once the loan is active (released).',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary))));
     }
 

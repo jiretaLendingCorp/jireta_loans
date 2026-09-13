@@ -118,7 +118,9 @@ class _AssignRiderCollectionModalState
       } else {
         setState(() {
           _loading = false;
-          _error = 'Failed to assign rider. Please try again.';
+          // Ipakita ang TOTOONG dahilan mula sa server kapag mayroon.
+          _error = ref.read(hmCollectionProvider).error ??
+              'Failed to assign rider. Please try again.';
         });
       }
     } catch (e) {

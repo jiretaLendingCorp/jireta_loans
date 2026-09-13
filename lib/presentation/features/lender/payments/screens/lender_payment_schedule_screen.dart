@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -221,11 +222,10 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                           ? _NoScheduleState(
                               onRetry: _load,
                               onContactUs: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                context.showSnackBarAsToast(
                                   const SnackBar(
                                     content: Text(
                                         'Your schedule will appear as soon as your loan is released. If this loan is already active, pull down or tap Retry to reload.'),
-                                    behavior: SnackBarBehavior.floating,
                                   ),
                                 );
                               },
