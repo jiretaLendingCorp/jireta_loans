@@ -365,6 +365,14 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
             ),
           ]),
           const SizedBox(height: 16),
+          Center(
+            child: Text(
+              'Version ${AppConfig.appVersion}',
+              style: TextStyle(
+                  fontSize: 12, color: context.cTextTertiary),
+            ),
+          ),
+          const SizedBox(height: 8),
           Consumer(builder: (context, ref, _) {
             final isLoggingOut = ref.watch(
                 authStateProvider.select((s) => s.isLoggingOut));
@@ -400,14 +408,6 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
               ),
             );
           }),
-          const SizedBox(height: 16),
-          Center(
-            child: Text(
-              'Version ${AppConfig.appVersion}',
-              style: TextStyle(
-                  fontSize: 12, color: context.cTextTertiary),
-            ),
-          ),
         ],
       ),
     );

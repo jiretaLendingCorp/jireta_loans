@@ -171,8 +171,14 @@ class CollectionAssignmentModel {
     switch (status) {
       case 'pending':
         return 'Pending';
+      case 'requested':
+        return 'Requested';
+      case 'assigned':
+        return 'Assigned';
       case 'accepted':
         return 'Accepted';
+      case 'in_progress':
+        return 'In Progress — collected, awaiting proof';
       case 'declined':
         return 'Declined';
       case 'completed':

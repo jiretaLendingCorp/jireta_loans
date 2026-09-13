@@ -792,8 +792,41 @@ class _EnterpriseHeader extends StatelessWidget {
                         runSpacing: 4,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: greetingColor.withValues(alpha: 0.11), borderRadius: BorderRadius.circular(20), border: Border.all(color: greetingColor.withValues(alpha: 0.16))), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(greetingIcon, size: 11, color: greetingColor), const SizedBox(width: 3), Text(greeting.toUpperCase(), style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, letterSpacing: 0.7, color: greetingColor))])),
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: context.cBorder)), child: Text(now.formatted, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: context.cTextSecondary))),
+                          Builder(builder: (_) {
+                            // Dark mode: mas maliwanag na greeting color + mas
+                            // matapang na pill para visible (dati lubog ang
+                            // orange sa dark background).
+                            final isDark = context.isDarkMode;
+                            final pillFg = isDark
+                                ? const Color(0xFFFFC766)
+                                : greetingColor;
+                            return Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                    color: pillFg.withValues(
+                                        alpha: isDark ? 0.22 : 0.11),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                        color: pillFg.withValues(
+                                            alpha: isDark ? 0.45 : 0.16))),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  Icon(greetingIcon, size: 11, color: pillFg),
+                                  const SizedBox(width: 3),
+                                  Text(greeting.toUpperCase(),
+                                      style: TextStyle(
+                                          fontSize: 8.5,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.7,
+                                          color: pillFg))
+                                ]));
+                          }),
+                          // Plain text lang ang date — hindi na mukhang button.
+                          Text(now.formatted,
+                              style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: context.cTextSecondary)),
                         ],
                       ),
                       const SizedBox(height: 6),

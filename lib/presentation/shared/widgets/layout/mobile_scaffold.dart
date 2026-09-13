@@ -595,7 +595,7 @@ class _ContactSheetRow extends StatelessWidget {
     // mukhang pinipindot.
     if (onTap == null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         child: Row(
           children: [
             Icon(icon, size: 18, color: iconColor),
@@ -654,7 +654,7 @@ class _ContactSheetRow extends StatelessWidget {
                 children: [
                   Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.cTextTertiary, letterSpacing: 0.3)),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.deepNavy)),
+                  Text(subtitle, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.cTextPrimary)),
                 ],
               ),
             ),

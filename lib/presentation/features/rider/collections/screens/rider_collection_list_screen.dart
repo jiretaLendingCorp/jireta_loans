@@ -24,8 +24,12 @@ class _RiderCollectionListScreenState
     extends ConsumerState<RiderCollectionListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
-  final _tabs = ['assigned', 'accepted', 'completed', 'declined'];
-  final _tabLabels = ['Assigned', 'Accepted', 'Completed', 'Declined'];
+  // NOTE: `in_progress` = na-record na ang cash (may payment row na) pero
+  // hindi pa na-upload ang proof — kaya hindi pa `completed`. Kailangan ng
+  // sariling tab, kung hindi mawawala sa listahan ang na-record na item
+  // (dating bug: accepted tab lang ang meron, kaya pagka-record naglalaho).
+  final _tabs = ['assigned', 'accepted', 'in_progress', 'completed', 'declined'];
+  final _tabLabels = ['Assigned', 'Accepted', 'In Progress', 'Completed', 'Declined'];
 
   @override
   void initState() {

@@ -143,11 +143,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             // no card / ring "plate" behind the profile picture.
             flat: true,
           ),
-          if (userModel?.isWalkIn == true) ...[
-            const SizedBox(height: 12),
-            _buildWalkInNote(userModel?.inOfficeApplication,
-                isVerified: isVerified),
-          ],
           const SizedBox(height: 16),
           if (isVerified)
             Align(
@@ -176,12 +171,19 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                     context.push(RouteConstants.lenderAccountUpgradeStatus),
               ),
             ]),
+          if (userModel?.isWalkIn == true) ...[
+            const SizedBox(height: 12),
+            _buildWalkInNote(userModel?.inOfficeApplication,
+                isVerified: isVerified),
+          ],
           if (isVerified) ...[
             const SizedBox(height: 20),
             const ModernSectionLabel('Personal'),
             ModernInfoCard(
               title: 'Personal Details',
               icon: Icons.person_outline_rounded,
+              collapsible: true,
+              initiallyExpanded: false,
               rows: [
                 ModernInfoRowData(
                     icon: Icons.person_outline_rounded,
@@ -216,6 +218,31 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             // lender profile — they are declared per loan inside the Apply Loan
             // flow and stored on the loan record.
           ],
+          const SizedBox(height: 20),
+          const ModernSectionLabel('Notifications'),
+          // Push notifications ON/OFF — kapag OFF, ide-delete ang device token
+          // kaya hindi na makakatanggap ng push ang device na ito (ang in-app
+          // notification center ay hindi apektado).
+          Consumer(builder: (context, ref, _) {
+            final settings = ref.watch(appSettingsProvider);
+            final notifier = ref.read(appSettingsProvider.notifier);
+            return ModernMenuCard(items: [
+              ModernMenuItem(
+                icon: Icons.notifications_active_outlined,
+                title: 'Push Notifications',
+                subtitle: settings.pushNotificationsEnabled
+                    ? 'On — alerts are sent to this device'
+                    : 'Off — no push alerts on this device',
+                onTap: () => notifier
+                    .setPushNotifications(!settings.pushNotificationsEnabled),
+                trailing: Switch.adaptive(
+                  value: settings.pushNotificationsEnabled,
+                  activeTrackColor: _accent,
+                  onChanged: (v) => notifier.setPushNotifications(v),
+                ),
+              ),
+            ]);
+          }),
           const SizedBox(height: 20),
           const ModernSectionLabel('General'),
           ModernMenuCard(items: [
@@ -316,33 +343,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               ),
             ),
           ]),
-          const SizedBox(height: 20),
-          const ModernSectionLabel('Notifications'),
-          // Push notifications ON/OFF — kapag OFF, ide-delete ang device token
-          // kaya hindi na makakatanggap ng push ang device na ito (ang in-app
-          // notification center ay hindi apektado).
-          Consumer(builder: (context, ref, _) {
-            final settings = ref.watch(appSettingsProvider);
-            final notifier = ref.read(appSettingsProvider.notifier);
-            return ModernMenuCard(items: [
-              ModernMenuItem(
-                icon: Icons.notifications_active_outlined,
-                title: 'Push Notifications',
-                subtitle: settings.pushNotificationsEnabled
-                    ? 'On — alerts are sent to this device'
-                    : 'Off — no push alerts on this device',
-                onTap: () => notifier
-                    .setPushNotifications(!settings.pushNotificationsEnabled),
-                trailing: Switch.adaptive(
-                  value: settings.pushNotificationsEnabled,
-                  activeTrackColor: _accent,
-                  onChanged: (v) => notifier.setPushNotifications(v),
-                ),
-              ),
-            ]);
-          }),
-          const SizedBox(height: 16),
-          _buildLogoutButton(),
           const SizedBox(height: 16),
           const Center(
             child: Text(
@@ -350,6 +350,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
             ),
           ),
+          const SizedBox(height: 8),
+          _buildLogoutButton(),
         ],
       ),
     );

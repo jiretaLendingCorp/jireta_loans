@@ -602,7 +602,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                                                       .center,
                                                               children: [
                                                                 Text(
-                                                                  'Verify code',
+                                                                  'Verify OTP',
                                                                   style:
                                                                       TextStyle(
                                                                     fontSize:
@@ -788,7 +788,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                               child: const Column(
                                 children: [
                                   Text(
-                                    'Verify code',
+                                    'Verify OTP',
                                     style: TextStyle(
                                       fontSize: 24,
                                       fontWeight: FontWeight.w700,
@@ -956,6 +956,12 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
                   disabledBorder: InputBorder.none,
+                  // Naka-none na ang borders dahil ang AnimatedContainer na ang
+                  // nagda-draw ng box. Kailangang naka-off din ang fill —
+                  // kung hindi, hinihiram niya ang filled:true + white fill
+                  // mula sa global InputDecorationTheme kaya nagkakaroon ng
+                  // "box sa loob ng box".
+                  filled: false,
                   contentPadding: EdgeInsets.zero,
                   isDense: true,
                 ),

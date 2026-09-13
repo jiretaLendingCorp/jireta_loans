@@ -151,10 +151,10 @@ class _RiderCollectionDetailsScreenState
             ),
           );
         } else {
+          final errMsg =
+              ref.read(riderCollectionProvider).error ?? 'Failed to record collection';
           showDialog(
-              context: context,
-              builder: (_) =>
-                  const ErrorDialog(message: 'Failed to record collection'));
+              context: context, builder: (_) => ErrorDialog(message: errMsg));
         }
       }
     } finally {
@@ -217,8 +217,26 @@ class _RiderCollectionDetailsScreenState
 
     setState(() => _isSubmitting = true);
     try {
+      // Refresh first: the cached `col` may be stale (e.g. record succeeded
+      // in Collect step but this Review tab still sees amountCollected==null).
+      // Without this, a retry would call `record` again on an `in_progress`
+      // assignment, backend returns 400, and proof upload never runs —
+      // stuck sa "in progress" forever.
+      var fresh = col;
+      try {
+        await ref
+            .read(riderCollectionProvider.notifier)
+            .loadDetails(widget.collectionId, silent: true);
+        final updated =
+            ref.read(riderCollectionProvider).selectedCollection;
+        if (updated != null) fresh = updated;
+      } catch (_) {}
+      final freshHasAmount = fresh.amountCollected != null ||
+          fresh.status == 'in_progress' ||
+          fresh.status == 'completed';
+
       // If still need to record amount, do it first
-      if (!hasCollectedAmount && pendingAmount != null) {
+      if (!freshHasAmount && pendingAmount != null) {
         final okRecord = await ref
             .read(riderCollectionProvider.notifier)
             .recordCollection(
@@ -229,13 +247,39 @@ class _RiderCollectionDetailsScreenState
                   : _notesCtrl.text.trim(),
             );
         if (!okRecord) {
-          if (mounted) {
-            showDialog(
-                context: context,
-                builder: (_) =>
-                    const ErrorDialog(message: 'Failed to record amount'));
+          // Recovery: baka na-record na pala sa backend (race/stale cache)
+          // — reload at kung may amount na, tumuloy sa proof upload imbes
+          // na mag-abort.
+          try {
+            await ref
+                .read(riderCollectionProvider.notifier)
+                .loadDetails(widget.collectionId, silent: true);
+            final retry =
+                ref.read(riderCollectionProvider).selectedCollection;
+            final recovered = retry != null &&
+                (retry.amountCollected != null ||
+                    retry.status == 'in_progress' ||
+                    retry.status == 'completed');
+            if (!recovered) {
+              if (mounted) {
+                final errMsg = ref
+                        .read(riderCollectionProvider)
+                        .error ??
+                    'Failed to record amount';
+                showDialog(
+                    context: context, builder: (_) => ErrorDialog(message: errMsg));
+              }
+              return;
+            }
+          } catch (_) {
+            if (mounted) {
+              showDialog(
+                  context: context,
+                  builder: (_) =>
+                      const ErrorDialog(message: 'Failed to record amount'));
+            }
+            return;
           }
-          return;
         }
       }
 
@@ -258,10 +302,10 @@ class _RiderCollectionDetailsScreenState
           );
           if (mounted) context.pop();
         } else {
+          final errMsg = ref.read(riderCollectionProvider).error ??
+              'Failed to upload proof. Naka-record na ang cash (in_progress) — subukan ulit mag-upload ng proof para maging completed.';
           showDialog(
-              context: context,
-              builder: (_) =>
-                  const ErrorDialog(message: 'Failed to upload proof'));
+              context: context, builder: (_) => ErrorDialog(message: errMsg));
         }
       }
     } finally {
@@ -753,16 +797,9 @@ class _RiderCollectionDetailsScreenState
           );
         }
         return ElevatedButton(
-          onPressed: !hasAmount
+          onPressed: (!hasAmount || _isSubmitting)
               ? null
-              : () {
-                  final amount = double.tryParse(_amountCtrl.text.replaceAll(',', ''));
-                  if (amount == null || amount <= 0) {
-                    context.showSnackBarAsToast(const SnackBar(content: Text('Please enter a valid amount')));
-                    return;
-                  }
-                  _goToStep(2);
-                },
+              : () => _recordAndNext(col),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.riderGreen,
             foregroundColor: Colors.white,
@@ -770,15 +807,21 @@ class _RiderCollectionDetailsScreenState
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Continue to Proof',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-              SizedBox(width: 6),
-              Icon(Icons.arrow_forward, size: 18),
-            ],
-          ),
+          child: _isSubmitting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Record & Continue to Proof',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                    SizedBox(width: 6),
+                    Icon(Icons.arrow_forward, size: 18),
+                  ],
+                ),
         );
       case 2: // Proof
         final hasProof = _proofPhoto != null;
@@ -1810,10 +1853,13 @@ class _RiderCollectionDetailsScreenState
                   SizedBox(height: 14),
                   AppTextField(
                       controller: _amountCtrl,
-                      label: 'Amount Collected (₱) *',
+                      label: alreadyRecorded
+                          ? 'Amount Collected (₱) — recorded'
+                          : 'Amount Collected (₱) *',
                       hint: '0.00',
                       keyboardType: TextInputType.number,
-                      prefixIcon: Icons.payments_outlined),
+                      prefixIcon: Icons.payments_outlined,
+                      enabled: !alreadyRecorded),
                   SizedBox(height: 14),
                   AppTextField(
                       controller: _notesCtrl,
@@ -1852,13 +1898,15 @@ class _RiderCollectionDetailsScreenState
             ),
           ),
           SizedBox(height: 16),
-          // Quick actions
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _amountCtrl.text =
-                      amountDue.toStringAsFixed(2),
+          // Quick actions — hidden once recorded (backend has no re-record;
+          // editing the amount after record would be silently discarded).
+          if (!alreadyRecorded)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _amountCtrl.text =
+                        amountDue.toStringAsFixed(2),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.riderGreen,
                     side: BorderSide(color: AppColors.riderGreen),

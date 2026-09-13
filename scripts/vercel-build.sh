@@ -87,4 +87,14 @@ EOF
 echo "Generated assets/env/.env:"
 cat assets/env/.env | sed -E 's/(SUPABASE_ANON_KEY=).*/\1***/; s/(XENDIT_PUBLIC_KEY=).*/\1***/'
 
+# Inject the Google Maps key into web/index.html (google_maps_flutter_web
+# requires the JS API script tag or the map throws a red error box).
+# Keys are alphanumeric + - _, safe for sed replacement.
+if [ -n "${GOOGLE_MAPS_API_KEY:-}" ]; then
+  sed -i "s/YOUR_GOOGLE_MAPS_API_KEY/${GOOGLE_MAPS_API_KEY}/g" web/index.html || true
+  echo "Injected GOOGLE_MAPS_API_KEY into web/index.html"
+else
+  echo "WARNING: GOOGLE_MAPS_API_KEY not set — web map will use placeholder key"
+fi
+
 flutter build web --release

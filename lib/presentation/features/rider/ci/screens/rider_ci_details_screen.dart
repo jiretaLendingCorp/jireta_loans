@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'package:jireta_loans/core/extensions/date_extensions.dart';
 
@@ -19,7 +20,6 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/image/xfile_preview.dart';
-import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/rider_ci_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -386,7 +386,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       ),
       body: ci == null
           ? ((_isInitialLoading || state.isLoading)
-              ? const ShimmerLoader()
+              ? const _CiDetailsSkeleton()
               : Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -531,6 +531,149 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       default:
         return const SizedBox.shrink();
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SKELETON — kamukha ng wizard layout (pipeline header + info cards +
+// bottom action bar) para hindi blank/black ang screen habang naglo-load.
+// ─────────────────────────────────────────────────────────────────────────────
+class _CiDetailsSkeleton extends StatelessWidget {
+  const _CiDetailsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final base = context.isDarkMode
+        ? AppColors.darkShimmerBase
+        : AppColors.shimmerBase;
+    final highlight = context.isDarkMode
+        ? AppColors.darkShimmerHighlight
+        : AppColors.shimmerHighlight;
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Shimmer.fromColors(
+        baseColor: base,
+        highlightColor: highlight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Pipeline header: 3 step circles.
+            Row(
+              children: List.generate(
+                3,
+                (_) => Expanded(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 52,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _skelCard(base, 4),
+            const SizedBox(height: 12),
+            _skelCard(base, 3),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _skelCard(Color base, int rows) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: List.generate(
+          rows,
+          (i) => Padding(
+            padding: EdgeInsets.only(bottom: i == rows - 1 ? 0 : 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: base,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: base,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 10,
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: base,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -520,6 +520,11 @@ class _ApprovedLoanBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     // Walang card (box/border) at walang "Loan #..." title — plain na mensahe
     // lang + View Application Status button.
+    // DEBUG FIX: Kapag hindi pa nakapili si lender ng disbursement method
+    // (null/empty), hindi muna dapat lumabas ang View Application Status.
+    // Lalabas lang ito kapag may napili nang method (awaiting release).
+    final method = loan.disbursementMethod;
+    final hasChosenMethod = method != null && method.isNotEmpty;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -530,35 +535,59 @@ class _ApprovedLoanBanner extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 12.5,
-                    height: 1.45,
-                    color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 12),
-              // Diretso sa Application Status — hindi full width at naka-center.
               Center(
-                child: OutlinedButton.icon(
-                  onPressed: () => context.push(
-                    RouteConstants.lenderLoanApplicationStatus
-                        .replaceFirst(':id', loan.id),
-                  ),
-                  icon: const Icon(Icons.timeline_outlined, size: 16),
-                  label: const Text('View Application Status'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.lenderBlue,
-                    side: BorderSide(
-                        color: AppColors.lenderBlue.withValues(alpha: 0.4)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 11),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
+                child: Text(
+                  _message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.45,
+                      color: AppColors.textSecondary),
                 ),
               ),
+              if (hasChosenMethod) ...[
+                const SizedBox(height: 12),
+                // Diretso sa Application Status — hindi full width at naka-center.
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.push(
+                      RouteConstants.lenderLoanApplicationStatus
+                          .replaceFirst(':id', loan.id),
+                    ),
+                    icon: const Icon(Icons.timeline_outlined, size: 16),
+                    label: const Text('View Application Status'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.lenderBlue,
+                      side: BorderSide(
+                          color: AppColors.lenderBlue.withValues(alpha: 0.4)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 11),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 12),
+                // Hindi pa nakapili ng disbursement — explicit CTA papunta
+                // sa disbursement selection (lenderLoans route).
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () =>
+                        context.push(RouteConstants.lenderLoans),
+                    icon: const Icon(Icons.touch_app_outlined, size: 16),
+                    label: const Text('Choose'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.lenderBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 22, vertical: 11),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

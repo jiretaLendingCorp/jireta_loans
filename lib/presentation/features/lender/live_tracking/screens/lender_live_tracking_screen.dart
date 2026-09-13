@@ -236,7 +236,9 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
     ];
     if (points.isEmpty) return;
     if (points.length == 1) {
-      await ctrl.animateCamera(CameraUpdate.newLatLngZoom(points.first, 15));
+      try {
+        await ctrl.animateCamera(CameraUpdate.newLatLngZoom(points.first, 15));
+      } catch (_) {}
       return;
     }
     var minLat = points.first.latitude, maxLat = points.first.latitude;
@@ -247,8 +249,22 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
       if (p.longitude < minLng) minLng = p.longitude;
       if (p.longitude > maxLng) maxLng = p.longitude;
     }
-    await ctrl.animateCamera(CameraUpdate.newLatLngBounds(
-        LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)), 80));
+    // Degenerate bounds (rider already at the destination) — newLatLngBounds
+    // throws on zero-area bounds, so zoom to the point instead.
+    if (minLat == maxLat && minLng == maxLng) {
+      try {
+        await ctrl.animateCamera(
+            CameraUpdate.newLatLngZoom(LatLng(minLat, minLng), 15));
+      } catch (_) {}
+      return;
+    }
+    try {
+      await ctrl.animateCamera(CameraUpdate.newLatLngBounds(
+          LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)), 80));
+    } catch (_) {
+      // Map has no size yet (e.g. called from onMapCreated) — safe to skip;
+      // the initial camera position already frames the area.
+    }
   }
 
   Future<void> _fitAll(Set<Marker> markers) async {
@@ -256,7 +272,9 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
     if (ctrl == null || markers.isEmpty) return;
     final pts = markers.map((m) => m.position).toList();
     if (pts.length == 1) {
-      await ctrl.animateCamera(CameraUpdate.newLatLngZoom(pts.first, 14));
+      try {
+        await ctrl.animateCamera(CameraUpdate.newLatLngZoom(pts.first, 14));
+      } catch (_) {}
       return;
     }
     var minLat = pts.first.latitude, maxLat = pts.first.latitude;
@@ -267,8 +285,17 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
       if (p.longitude < minLng) minLng = p.longitude;
       if (p.longitude > maxLng) maxLng = p.longitude;
     }
-    await ctrl.animateCamera(CameraUpdate.newLatLngBounds(
-        LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)), 60));
+    if (minLat == maxLat && minLng == maxLng) {
+      try {
+        await ctrl.animateCamera(
+            CameraUpdate.newLatLngZoom(LatLng(minLat, minLng), 14));
+      } catch (_) {}
+      return;
+    }
+    try {
+      await ctrl.animateCamera(CameraUpdate.newLatLngBounds(
+          LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)), 60));
+    } catch (_) {}
   }
 
   double _hueFor(String type) => switch (type) {
@@ -376,10 +403,13 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
       selectedSpeedText = formatSpeedKmh(displaySpd);
     }
 
-    // Counts for controls
+    // Counts for controls — mutually exclusive buckets so they always sum
+    // to the total: active (live GPS), on break (stale GPS fix), offline
+    // (no GPS fix at all yet). Dati, ang stale + walang location ay
+    // nabibilang sa BOTH on-break at offline (All 1 pero 1+1).
     final total = riders.length;
     final active = riders.where((r) => r.hasLocation && !r.isStale).length;
-    final onBreak = riders.where((r) => r.isStale).length;
+    final onBreak = riders.where((r) => r.hasLocation && r.isStale).length;
     final offline = riders.where((r) => !r.hasLocation).length;
 
     // Build markers & circles
@@ -577,11 +607,25 @@ class _LenderLiveTrackingScreenState extends ConsumerState<LenderLiveTrackingScr
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(_displayRiderName(selected.riderName), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                                child: Text(selected.isStale ? 'Paused' : 'On Delivery', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
-                              ),
+                              Builder(builder: (_) {
+                                // Walang GPS fix = Offline (dati maling "Paused"
+                                // na green kahit hindi pa nagse-share ng location).
+                                final hasFix = selected.hasLocation;
+                                final label = !hasFix
+                                    ? 'Offline'
+                                    : (selected.isStale ? 'Paused' : 'On Delivery');
+                                final pillColor = !hasFix
+                                    ? AppColors.textTertiary
+                                    : AppColors.success;
+                                final pillBg = !hasFix
+                                    ? AppColors.surfaceVariant
+                                    : AppColors.successLight;
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: pillBg, borderRadius: BorderRadius.circular(20)),
+                                  child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: pillColor)),
+                                );
+                              }),
                             ]),
                           ),
                         ]),

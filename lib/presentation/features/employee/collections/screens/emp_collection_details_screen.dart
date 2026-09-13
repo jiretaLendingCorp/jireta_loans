@@ -218,16 +218,26 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
       _StatusRow('Requested', col.collectionSchedule != null),
       _StatusRow('Assigned', col.assignedByName.isNotEmpty),
       _StatusRow('Accepted', col.responseAt != null),
-      _StatusRow('Completed', col.completedAt != null),
+      // NOTE: huwag gamitin ang completedAt para sa Completed — sine-set na
+      // ito ng backend sa `record` step (status=in_progress). Completed lang
+      // kapag status==completed.
+      _StatusRow('Collected (payment recorded)',
+          col.amountCollected != null ||
+              col.status.toLowerCase() == 'in_progress' ||
+              col.status.toLowerCase() == 'completed'),
+      _StatusRow('Completed', col.status.toLowerCase() == 'completed'),
     ]);
   }
 
   Widget _buildTimeline(CollectionAssignmentModel col) {
+    final s = col.status.toLowerCase();
     final steps = [
       ('Requested', col.collectionSchedule != null),
       ('Assigned', col.assignedByName.isNotEmpty),
       ('Accepted', col.responseAt != null),
-      ('Completed', col.completedAt != null),
+      ('Collected (payment recorded)',
+          col.amountCollected != null || s == 'in_progress' || s == 'completed'),
+      ('Completed', s == 'completed'),
     ];
     return Column(children: [
       for (int i = 0; i < steps.length; i++) ...[
@@ -293,7 +303,7 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
       case 'accepted':
         return 'Rider accepted the collection';
       case 'in_progress':
-        return 'Rider is on the way';
+        return 'Cash collected, awaiting proof upload';
       case 'completed':
         return 'Payment collected and verified';
       case 'failed':
