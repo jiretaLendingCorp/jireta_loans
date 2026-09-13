@@ -1,21 +1,26 @@
 // supabase/functions/_shared/loan_schedules.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// BUSINESS RULE: ang payment schedule (mga installment at due date) ay
-// nagsisimula lang kapag ACTIVE na ang loan — i.e. pagkatapos ma-release /
+// BUSINESS RULE: ang PANAHON NG PAGBAYAD (due dates ng installment) ay
+// nagsisimula kapag ACTIVE na ang loan — i.e. pagkatapos ma-release /
 // ma-disburse, hindi sa oras ng application.
 //
-// Dati, ang `loan_schedules` ay ginagawa na sa oras ng APPLICATION
-// (loans-apply / kyc-view / in-office-view) gamit ang petsa ng application.
-// Kaya:
-//   • may "Payment Schedule" na nakikita sa Loan Application Details kahit
-//     hindi pa aktivado ang loan, at
-//   • kapag na-release naman (ilang araw pagkatapos), ang unang mga
-//     installment ay overdue na agad dahil sa petsa ng application naka-base
-//     ang due dates.
+// Paano ito ipinatutupad nang LIGTAS:
+//   • Ang `loan_schedules` rows ay ginagawa pa rin sa oras ng application
+//     (loans-apply / kyc-view / in-office-view) — kaya HINDI umaasa sa deploy
+//     order ang anumang payment: laging may a-allocate-an ang bayad.
+//   • Sa oras ng ACTIVATION (gcash / office cash / rider delivery / xendit
+//     webhook), ang due dates ay IN-REBASE (binabago ang `due_date`) simula sa
+//     petsa ng release. Ito ang "day 0" ng mga installment.
+//   • Ang mga pre-activation rows ay HINDI ipinapakita: ang `loans-view` ay
+//     hindi nagbabalik ng `loan_schedules`/`due_date` hangga't hindi
+//     active/overdue/completed ang loan.
 //
-// Ngayon, isang lugar lang ang gumagawa ng schedule — sa pag-activate ng loan
-// (gcash / office cash / rider delivery / xendit webhook) — at ang due dates ay
-// naka-base sa petsa ng pag-release.
+// Bakit in-place (update) at hindi delete+insert ang rebase:
+//   • Ang `collection_assignments.loan_schedule_id` at `payments` ay maaaring
+//     naka-reference na sa mga schedule row; ang pag-delete ay puwedeng
+//     mabigo (FK) o makasira ng reference.
+//   • Idempotent din ito — puwedeng tawagin muli (hal. webhook na naulit)
+//     nang walang epekto sa mga bayad.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { DbClient } from './types.ts';
@@ -29,9 +34,15 @@ interface LoanScheduleSource {
   term_periods?: number | null;
 }
 
+interface ScheduleRowLite {
+  id: string;
+  installment_number: number | null;
+  due_date: string | null;
+}
+
 const PAYABLE_STATUSES = ['active', 'overdue', 'completed'];
 
-/** Statuses kung saan dapat may payment schedule na ang loan. */
+/** Statuses kung saan dapat may visible/aktibong payment schedule ang loan. */
 export function isReleasedLoanStatus(status: string | null | undefined): boolean {
   return PAYABLE_STATUSES.includes(String(status ?? '').toLowerCase());
 }
@@ -45,9 +56,23 @@ async function loadLoan(db: DbClient, loanId: string): Promise<LoanScheduleSourc
   return (data ?? null) as LoanScheduleSource | null;
 }
 
-async function scheduleIdsOf(db: DbClient, loanId: string): Promise<string[]> {
-  const { data } = await db.from('loan_schedules').select('id').eq('loan_id', loanId);
-  return ((data ?? []) as Array<{ id: string }>).map((r) => r.id);
+function planFor(loan: LoanScheduleSource, startDate: Date): ReturnType<typeof computeSchedule> {
+  const frequency = String(loan.payment_frequency ?? 'monthly').toLowerCase();
+  return computeSchedule(
+    Number(loan.principal_amount),
+    frequency,
+    startDate,
+    loan.term_periods ?? undefined,
+  );
+}
+
+async function scheduleRowsOf(db: DbClient, loanId: string): Promise<ScheduleRowLite[]> {
+  const { data } = await db
+    .from('loan_schedules')
+    .select('id, installment_number, due_date')
+    .eq('loan_id', loanId)
+    .order('installment_number', { ascending: true });
+  return (data ?? []) as ScheduleRowLite[];
 }
 
 async function hasVerifiedPayment(db: DbClient, scheduleIds: string[]): Promise<boolean> {
@@ -65,13 +90,7 @@ async function insertScheduleRows(
   loan: LoanScheduleSource,
   startDate: Date,
 ): Promise<void> {
-  const frequency = String(loan.payment_frequency ?? 'monthly').toLowerCase();
-  const sched = computeSchedule(
-    Number(loan.principal_amount),
-    frequency,
-    startDate,
-    loan.term_periods ?? undefined,
-  );
+  const sched = planFor(loan, startDate);
   const rows = sched.dueDates.map((date, i) => ({
     loan_id: loan.id,
     installment_number: i + 1,
@@ -90,9 +109,9 @@ async function insertScheduleRows(
 }
 
 /**
- * Gumagawa ng schedule KUNG WALA PA. Ginagamit bilang safety net sa payment
- * recording (kapag na-miss ang activation hook, dapat hindi ma-stuck ang
- * koleksyon sa "No unpaid installments").
+ * Gumagawa ng schedule KUNG WALA PA. Safety net para sa payment recording:
+ * kahit na-miss ang activation hook, hindi dapat ma-stuck ang koleksyon sa
+ * "No unpaid installments to apply the payment to".
  *
  * Returns true kapag may nagawang bagong schedule.
  */
@@ -101,7 +120,7 @@ export async function ensureLoanSchedulesIfMissing(
   loanId: string,
   startDate: Date = new Date(),
 ): Promise<boolean> {
-  const existing = await scheduleIdsOf(db, loanId);
+  const existing = await scheduleRowsOf(db, loanId);
   if (existing.length > 0) return false;
   const loan = await loadLoan(db, loanId);
   if (!loan) return false;
@@ -110,11 +129,15 @@ export async function ensureLoanSchedulesIfMissing(
 }
 
 /**
- * Nagsisimula (o nagsisimula muli) ng payment schedule sa oras ng pag-activate
- * ng loan — ang `startDate` ang araw 0 ng mga installment.
+ * Itinakda ang "day 0" ng payment period sa oras ng pag-activate ng loan.
  *
- * Idempotent at ligtas: kung may VERIFIED payment nang naka-link sa mga
- * schedule, HINDI ito ginagalaw (legacy/partially-paid na loan).
+ * In-place ang pag-rebase ng `due_date` (update, hindi delete) — kaya:
+ *   • hindi masisira ang `collection_assignments.loan_schedule_id` o `payments`
+ *     na naka-link na sa schedule row,
+ *   • idempotent — puwedeng tawagin muli nang walang epekto.
+ *
+ * Kung may VERIFIED payment nang naka-link, HINDI ito ginagalaw (partially
+ * paid / legacy na loan).
  */
 export async function startLoanPaymentSchedule(
   db: DbClient,
@@ -124,13 +147,49 @@ export async function startLoanPaymentSchedule(
   const loan = await loadLoan(db, loanId);
   if (!loan) return;
 
-  const existing = await scheduleIdsOf(db, loanId);
+  const existing = await scheduleRowsOf(db, loanId);
+  if (existing.length > 0 && (await hasVerifiedPayment(db, existing.map((r) => r.id)))) {
+    return; // may bayad na — huwag galawin ang anuman
+  }
+
+  const sched = planFor(loan, startDate);
+
+  // Normal na kaso: pareho ang bilang ng installment → i-rebase lang ang dates.
+  if (existing.length === sched.installments) {
+    let changed = 0;
+    for (let i = 0; i < existing.length; i++) {
+      const nextDue = sched.dueDates[i];
+      if (!nextDue || existing[i].due_date === nextDue) continue;
+      const { error } = await db
+        .from('loan_schedules')
+        .update({ due_date: nextDue })
+        .eq('id', existing[i].id);
+      if (error) {
+        console.error('[loan_schedules] due-date rebase failed', {
+          loanId,
+          scheduleId: existing[i].id,
+          error: error.message,
+        });
+      } else {
+        changed++;
+      }
+    }
+    console.log(
+      `[loan_schedules] rebased ${changed}/${existing.length} due dates for loan ${loanId} starting ${sched.dueDates[0]}`,
+    );
+    return;
+  }
+
+  // Hindi tugma ang bilang (o wala pang rows) → gawin muli. Ligtas pa rin dahil
+  // walang verified payment (nasuri sa itaas).
   if (existing.length > 0) {
-    if (await hasVerifiedPayment(db, existing)) return; // may bayad na — huwag galawin
-    const { error: delErr } = await db.from('loan_schedules').delete().in('id', existing);
+    const { error: delErr } = await db
+      .from('loan_schedules')
+      .delete()
+      .in('id', existing.map((r) => r.id));
     if (delErr) {
       console.error('[loan_schedules] delete failed', { loanId, error: delErr.message });
-      return; // huwag mag-insert kung hindi natanggal — maiiwan ang doble
+      return; // huwag mag-insert — iiwan ang doble
     }
   }
   await insertScheduleRows(db, loan, startDate);

@@ -17,6 +17,9 @@ class CollectionAssignmentModel {
   final DateTime? collectionSchedule;
   final DateTime? responseAt;
   final DateTime? completedAt;
+  /// Kailan at sino ang nag-approve/reject ng rider submission (HM/Employee).
+  final DateTime? reviewedAt;
+  final String? rejectionReason;
   final String? proofPhoto;
   final String? borrowerSignature;
   final String? collectionPhoto;
@@ -50,6 +53,8 @@ class CollectionAssignmentModel {
     this.collectionSchedule,
     this.responseAt,
     this.completedAt,
+    this.reviewedAt,
+    this.rejectionReason,
     this.proofPhoto,
     this.borrowerSignature,
     this.collectionPhoto,
@@ -95,6 +100,10 @@ class CollectionAssignmentModel {
         completedAt: json['completed_at'] != null
             ? parseManila(json['completed_at'])
             : null,
+        reviewedAt: json['reviewed_at'] != null
+            ? parseManila(json['reviewed_at'])
+            : null,
+        rejectionReason: json['rejection_reason'],
         proofPhoto: json['proof_photo'],
         borrowerSignature: json['borrower_signature'],
         collectionPhoto: json['collection_photo'],
@@ -208,8 +217,12 @@ class CollectionAssignmentModel {
         return 'Accepted';
       case 'in_progress':
         return 'In Progress — collected, awaiting proof';
+      case 'pending_approval':
+        return 'Pending Approval — waiting for Head Manager/Employee';
       case 'declined':
         return 'Declined';
+      case 'rejected':
+        return 'Rejected';
       case 'completed':
         return 'Completed';
       case 'failed':

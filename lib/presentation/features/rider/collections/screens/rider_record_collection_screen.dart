@@ -121,6 +121,16 @@ class _RiderRecordCollectionScreenState
     final state = ref.watch(riderCollectionProvider);
     final col = state.selectedCollection;
 
+    // I-prefill ang halagang kokolektahin: ang naitala nang amount, o ang
+    // amount na hiningi/nakatakda ng staff (`requested_amount`) para sa
+    // cash-on-delivery — hindi na blangko at hindi na kailangang i-type muli.
+    if (col != null && _amountCtrl.text.isEmpty) {
+      final suggested = col.amountCollected ?? col.requestedAmount;
+      if (suggested != null) {
+        _amountCtrl.text = ThousandsSeparatorInputFormatter.format(suggested);
+      }
+    }
+
     return MobileScaffold(
       title: 'Record Collection',
       accentColor: AppColors.riderGreen,

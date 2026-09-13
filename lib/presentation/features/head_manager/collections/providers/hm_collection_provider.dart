@@ -137,6 +137,30 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
     await fetch();
     return true;
   }
+
+  /// Kinukumpirma na nakuha ang pera. Sa approve lang bumababa ang loan balance.
+  Future<bool> approveCollection(String assignmentId) async {
+    try {
+      await _ds.approveCollection(assignmentId: assignmentId);
+    } catch (e) {
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
+      return false;
+    }
+    await fetch();
+    return true;
+  }
+
+  /// Hindi nakuha ang pera — hindi binabawasan ang loan; i-reassign ang rider.
+  Future<bool> rejectCollection(String assignmentId, String reason) async {
+    try {
+      await _ds.rejectCollection(assignmentId: assignmentId, reason: reason);
+    } catch (e) {
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
+      return false;
+    }
+    await fetch();
+    return true;
+  }
 }
 
 final hmCollectionProvider =

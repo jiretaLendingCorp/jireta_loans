@@ -86,6 +86,8 @@ class StatusBadge extends StatelessWidget {
         return (AppColors.error, 'Declined');
       case 'in_progress':
         return (AppColors.warning, 'In Progress');
+      case 'pending_approval':
+        return (AppColors.warning, 'Pending Approval');
       case 'draft':
         return (AppColors.textSecondary, 'Draft');
       case 'converted':

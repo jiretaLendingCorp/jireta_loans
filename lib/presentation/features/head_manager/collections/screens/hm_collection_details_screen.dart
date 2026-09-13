@@ -10,6 +10,8 @@ import '../../../../../data/datasources/remote/collection_remote_datasource.dart
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/details/collection_proof_viewer.dart';
+import '../providers/hm_collection_provider.dart';
+import '../widgets/assign_rider_collection_modal.dart';
 
 final _collectionDetailProvider = FutureProvider.family<CollectionAssignmentModel?, String>((ref, id) async {
   final ds = sl<CollectionRemoteDataSource>();
@@ -161,7 +163,10 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.all(16),
-                      child: _buildStatusCard(col),
+                      child: Column(children: [
+                        _buildStatusCard(col),
+                        _buildReviewActions(context, ref, col),
+                      ]),
                     ),
                   ]),
                 ),
@@ -200,9 +205,198 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
       // proof na-submit). Ang `completed_at` ay sine-set lang ng upload-proof
       // ngayon, pero status pa rin ang basehan dito — hindi timestamp.
       _StatusRow('Collected (payment recorded)',
-          col.amountCollected != null || s == 'in_progress' || s == 'completed'),
-      _StatusRow('Completed', s == 'completed'),
+          col.amountCollected != null ||
+              s == 'in_progress' ||
+              s == 'pending_approval' ||
+              s == 'completed'),
+      _StatusRow('Submitted for approval', s == 'pending_approval' || s == 'completed'),
+      // Business rule: `completed` lang kapag na-approve ng HM/Employee — dito
+      // lang bumaba ang loan balance.
+      _StatusRow('Approved & completed', s == 'completed'),
+      if (s == 'rejected') const _StatusRow('Rejected (money not received)', false),
     ]);
+  }
+
+  /// Approve/Reject actions — lumalabas LANG habang `pending_approval`.
+  /// Sa approve bumababa ang loan balance; sa reject, hindi.
+  Widget _buildReviewActions(
+      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) {
+    final s = col.status.toLowerCase();
+    // Rejected = hindi nakuha ang pera → kailangang mag-assign muli ng rider.
+    if (s == 'rejected') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _reassignCollection(context, ref, col),
+            icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+            label: const Text('Reassign Rider'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.deepNavy,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ),
+      );
+    }
+    if (s != 'pending_approval') {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.warning.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+          ),
+          child: const Row(children: [
+            Icon(Icons.verified_user_outlined, size: 18, color: AppColors.warning),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Confirm that the rider actually received the cash before approving.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _rejectCollection(context, ref, col),
+              icon: const Icon(Icons.close_rounded, size: 16),
+              label: const Text('Reject'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: () => _approveCollection(context, ref, col),
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text('Approve'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Future<void> _approveCollection(
+      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
+    final fmt = NumberFormat('#,##0.00', 'en_PH');
+    final amount = col.amountCollected ?? 0;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Approve Collection'),
+        content: Text(
+            'Confirm that ₱${fmt.format(amount)} was actually received from the lender. This will reduce the loan balance.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final ok = await ref.read(hmCollectionProvider.notifier).approveCollection(col.id);
+    if (!context.mounted) return;
+    ref.invalidate(_collectionDetailProvider(col.id));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Collection approved — loan balance updated' : 'Failed to approve collection'),
+      backgroundColor: ok ? AppColors.success : AppColors.error,
+    ));
+  }
+
+  Future<void> _reassignCollection(
+      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
+    final loanId = (col.loanSchedule?['loan']?['id'] as String?) ??
+        (col.loanSchedule?['loan_id'] as String?) ??
+        '';
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AssignRiderCollectionModal(
+        loanScheduleId: col.loanScheduleId,
+        loanId: loanId,
+      ),
+    );
+    if (result != true || !context.mounted) return;
+    ref.invalidate(_collectionDetailProvider(col.id));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Rider assigned successfully'),
+      backgroundColor: AppColors.success,
+    ));
+  }
+
+  Future<void> _rejectCollection(
+      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
+    final reasonCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reject Collection'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text(
+            'The cash was not received. The loan balance will NOT be reduced and a rider must be reassigned.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: reasonCtrl,
+            maxLines: 3,
+            decoration: const InputDecoration(hintText: 'Reason (required)', border: OutlineInputBorder()),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Reject'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final reason = reasonCtrl.text.trim();
+    if (reason.length < 3) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please provide a rejection reason'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+      return;
+    }
+    final ok = await ref.read(hmCollectionProvider.notifier).rejectCollection(col.id, reason);
+    if (!context.mounted) return;
+    ref.invalidate(_collectionDetailProvider(col.id));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Collection rejected — reassign a rider' : 'Failed to reject collection'),
+      backgroundColor: ok ? AppColors.success : AppColors.error,
+    ));
   }
 
   IconData _iconForStatus(String s) {
@@ -215,8 +409,11 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
         return Icons.handshake_rounded;
       case 'in_progress':
         return Icons.directions_bike_rounded;
+      case 'pending_approval':
+        return Icons.hourglass_top_rounded;
       case 'completed':
         return Icons.verified_rounded;
+      case 'rejected':
       case 'failed':
       case 'declined':
         return Icons.cancel_rounded;
@@ -244,8 +441,12 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
         return 'Rider accepted the collection';
       case 'in_progress':
         return 'Cash collected, awaiting proof upload';
+      case 'pending_approval':
+        return 'Rider submitted — awaiting approval';
       case 'completed':
-        return 'Payment collected and verified';
+        return 'Payment collected and approved';
+      case 'rejected':
+        return 'Rejected — money not received';
       case 'failed':
       case 'declined':
         return 'Collection was not completed';
@@ -264,8 +465,11 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
         return AppColors.riderGreen;
       case 'in_progress':
         return const Color(0xFFFFA000);
+      case 'pending_approval':
+        return AppColors.warning;
       case 'completed':
         return AppColors.riderGreen;
+      case 'rejected':
       case 'failed':
       case 'declined':
         return AppColors.error;

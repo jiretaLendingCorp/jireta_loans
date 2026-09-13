@@ -28,8 +28,25 @@ class _RiderCollectionListScreenState
   // hindi pa na-upload ang proof — kaya hindi pa `completed`. Kailangan ng
   // sariling tab, kung hindi mawawala sa listahan ang na-record na item
   // (dating bug: accepted tab lang ang meron, kaya pagka-record naglalaho).
-  final _tabs = ['assigned', 'accepted', 'in_progress', 'completed', 'declined'];
-  final _tabLabels = ['Assigned', 'Accepted', 'In Progress', 'Completed', 'Declined'];
+  final _tabs = [
+    'assigned',
+    'accepted',
+    'in_progress',
+    // Na-submit na — naghihintay ng approval ng HM/Employee.
+    'pending_approval',
+    'completed',
+    'rejected',
+    'declined',
+  ];
+  final _tabLabels = [
+    'Assigned',
+    'Accepted',
+    'In Progress',
+    'Pending',
+    'Completed',
+    'Rejected',
+    'Declined',
+  ];
 
   @override
   void initState() {
@@ -95,6 +112,8 @@ class _RiderCollectionListScreenState
             color: context.headerColor(AppColors.riderGreen),
             child: TabBar(
               controller: _tabCtrl,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               indicatorColor: AppColors.gold,
               indicatorWeight: 3,
               labelColor: Colors.white,

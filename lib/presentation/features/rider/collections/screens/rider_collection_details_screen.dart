@@ -364,25 +364,29 @@ class _RiderCollectionDetailsScreenState
       if (!mounted) return;
 
       // ── Verification bago mag-claim ng success ─────────────────────────
-      // Ang `fn=upload-proof` ay nagbabalik na ng `status: 'completed'` — hindi
-      // na kailangan ng hiwalay na `get` (mabigat ito: may kasamang pag-sign ng
-      // 3 proof URL) para kumpirmahin ang completion. Ang fallback na
-      // verification ay para lang sa LUMANG deployment na hindi pa nagbabalik
-      // ng `status`; doon lang ito gagastos ng extra request.
+      // Ang `fn=upload-proof` ay nagbabalik na ng `status: 'pending_approval'`
+      // (dating `completed`) — hindi na kailangan ng hiwalay na `get` (mabigat
+      // ito: may kasamang pag-sign ng 3 proof URL) para kumpirmahin ang
+      // submission. Ang fallback na verification ay para lang sa LUMANG
+      // deployment na hindi pa nagbabalik ng `status`.
       if (proofStatus == null &&
           ref.read(riderCollectionProvider).error == null) {
-        final completed = await _verifyCompletedOnServer();
+        final submitted = await _verifyCompletedOnServer();
         if (!mounted) return;
-        if (completed) proofStatus = 'completed';
+        if (submitted) proofStatus = 'pending_approval';
       }
 
-      if (proofStatus == 'completed') {
+      // Business rule: ang rider submit ay `pending_approval`, HINDI pa
+      // `completed` — ang HM/Employee ang mag-a-approve at doon lang bumababa
+      // ang loan balance. Tanggapin ang pareho dahil ang lumang deployment ay
+      // `completed` pa rin ang isinasauli.
+      if (proofStatus == 'completed' || proofStatus == 'pending_approval') {
         // Success: 2-segundong confirmation modal, tapos deretso na sa Home
         // (rider dashboard) — hindi na bumabalik sa listahan o wizard.
         await SuccessDialog.showAutoDismiss(
           context,
           title: 'Collection Submitted',
-          message: 'The collected amount and proof were submitted.',
+          message: 'Submitted for approval. The Head Manager or Employee will verify that the cash was received.',
           buttonText: 'Done',
           duration: const Duration(seconds: 2),
         );
@@ -406,7 +410,7 @@ class _RiderCollectionDetailsScreenState
     final status = await ref
         .read(riderCollectionProvider.notifier)
         .fetchStatus(widget.collectionId);
-    return status == 'completed';
+    return status == 'completed' || status == 'pending_approval';
   }
 
   @override
@@ -416,9 +420,17 @@ class _RiderCollectionDetailsScreenState
 
     // Sync amount/notes if loaded and controllers empty
     if (col != null) {
-      if (_amountCtrl.text.isEmpty && col.amountCollected != null) {
+      // Ang halagang dapat kolektahin ay:
+      //  1) ang NAKATALANG amount (kapag in_progress/completed na ang collection), o
+      //  2) ang AMOUNT NA HININGI / nakatakda ng staff (`requested_amount`) — para sa
+      //     cash-on-delivery na ang system na ang may alam kung magkano ang dapat
+      //     kolektahin; hindi na kailangang i-type muli ng rider at hindi na blangko
+      //     (dati, ang requested amount ay hindi ipinapakita, kaya "hindi na-colect"
+      //     ang tamang halaga kapag hindi ito na-type nang eksakto).
+      final suggestedAmount = col.amountCollected ?? col.requestedAmount;
+      if (_amountCtrl.text.isEmpty && suggestedAmount != null) {
         _amountCtrl.text =
-            ThousandsSeparatorInputFormatter.format(col.amountCollected!);
+            ThousandsSeparatorInputFormatter.format(suggestedAmount);
       }
       if (_notesCtrl.text.isEmpty && col.notes != null) {
         _notesCtrl.text = col.notes!;
@@ -531,7 +543,9 @@ class _RiderCollectionDetailsScreenState
                               Expanded(
                                 child: col.status == 'completed'
                                     ? _buildCompletedBody(col)
-                                    : _buildDeclinedBody(col),
+                                    : col.status == 'pending_approval'
+                                        ? _buildPendingApprovalBody(col)
+                                        : _buildDeclinedBody(col),
                               ),
                               _buildReadOnlyFooter(col),
                             ],
@@ -609,10 +623,67 @@ class _RiderCollectionDetailsScreenState
     }
   }
 
-  /// Completed / declined / failed collections are read-only receipts — walang
-  /// 4-step wizard, kaya walang step label sa header.
+  /// Completed / pending-approval / rejected / declined / failed collections are
+  /// read-only — walang 4-step wizard, kaya walang step label sa header.
+  ///
+  /// Business rule: kapag naka-submit na ang rider (`pending_approval`), hindi
+  /// na siya dapat mag-record o mag-upload muli — naghihintay na ng approval ng
+  /// Head Manager/Employee.
   bool _isReadOnlyStatus(String status) =>
-      status == 'completed' || status == 'declined' || status == 'failed';
+      status == 'completed' ||
+      status == 'pending_approval' ||
+      status == 'rejected' ||
+      status == 'declined' ||
+      status == 'failed';
+
+  /// Read-only receipt habang nakabinbin ang approval ng HM/Employee.
+  Widget _buildPendingApprovalBody(CollectionAssignmentModel col) {
+    final amount = col.amountCollected ?? 0;
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [AppColors.warning, AppColors.warning.withValues(alpha: 0.75)]),
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.hourglass_top_rounded, size: 42, color: Colors.white),
+                SizedBox(height: 10),
+                Text('Awaiting Approval',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800)),
+                SizedBox(height: 6),
+                Text(
+                  amount.toCurrency,
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'The Head Manager or Employee will verify that the cash was received. '
+                  'The loan balance is only reduced once approved.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9), fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ── Read-only footer for completed/declined ───────────────────────────────
   Widget _buildReadOnlyFooter(CollectionAssignmentModel col) {

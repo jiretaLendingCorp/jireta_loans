@@ -140,7 +140,10 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     FilterTabDef('requested', 'Requested', Icons.hourglass_top_rounded),
     FilterTabDef('assigned', 'Assigned', Icons.assignment_ind_outlined),
     FilterTabDef('in_progress', 'In Progress', Icons.sync_rounded),
+    // Rider submitted — kailangan ng approval bago bumaba ang loan balance.
+    FilterTabDef('pending_approval', 'Pending Approval', Icons.hourglass_top_rounded),
     FilterTabDef('completed', 'Completed', Icons.check_circle_rounded),
+    FilterTabDef('rejected', 'Rejected', Icons.cancel_outlined),
   ];
 
   final _pillTabs = const [
@@ -381,6 +384,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     final status = (col.status?.toString() ?? '').toLowerCase();
     final accent = _accentForStatus(status);
     final canAssign = col.status == 'requested' && !isOffice;
+    // Rejected = hindi nakuha ang pera. Kailangang mag-assign ng rider na
+    // mangolekta muli (bagong assignment para sa parehong schedule).
+    final canReassign = status == 'rejected' && !isOffice;
     return ResponsiveRow(
       cells: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -409,6 +415,18 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white)),
           ),
         if (canAssign) const SizedBox(width: 6),
+        if (canReassign) const SizedBox(width: 6),
+        if (canReassign)
+          InkWell(
+            onTap: () async {
+              final loanScheduleId = col.loanScheduleId as String? ?? '';
+              final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
+              final result = await showDialog<bool>(context: context, builder: (_) => EmpAssignRiderModal(loanScheduleId: loanScheduleId, loanId: loanId));
+              if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
+            },
+            borderRadius: BorderRadius.circular(9),
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(9)), child: const Text('Reassign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
+          ),
         InkWell(
           onTap: () => context.go(RouteConstants.empCollectionDetails.replaceFirst(':id', col.id)),
           child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
@@ -509,8 +527,11 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
         return AppColors.riderGreen;
       case 'in_progress':
         return const Color(0xFFFFA000);
+      case 'pending_approval':
+        return AppColors.warning;
       case 'completed':
         return AppColors.riderGreen;
+      case 'rejected':
       case 'failed':
       case 'declined':
         return AppColors.error;

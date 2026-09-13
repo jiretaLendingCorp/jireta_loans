@@ -156,6 +156,27 @@ class CollectionRemoteDataSource {
     );
   }
 
+  /// Head Manager / Employee: kinukumpirma na nakuha ang pera. Dito lang
+  /// nagiging `verified` ang rider payment at bumababa ang loan balance.
+  Future<void> approveCollection({required String assignmentId}) async {
+    await _client.post(
+      ApiEndpoints.collectionsApprove,
+      data: {'assignment_id': assignmentId},
+    );
+  }
+
+  /// Head Manager / Employee: hindi nakuha ang pera. Hindi binabawasan ang
+  /// loan; kailangang mag-assign muli ng rider para mangolekta.
+  Future<void> rejectCollection({
+    required String assignmentId,
+    required String reason,
+  }) async {
+    await _client.post(
+      ApiEndpoints.collectionsReject,
+      data: {'assignment_id': assignmentId, 'reason': reason},
+    );
+  }
+
   Future<void> recordCollection({
     required String assignmentId,
     required double amountCollected,

@@ -297,11 +297,20 @@ serve(async (req) => {
       }
     }
 
-    // Business rule: WALANG payment schedule habang hindi pa ACTIVE ang loan.
-    // Ang `loan_schedules` ay ginagawa na lang sa pag-activate/disburse
-    // (`startLoanPaymentSchedule`) — kaya ang day 0 ng mga installment ay ang
-    // petsa ng release, hindi ang petsa ng application. Ang `sched` dito ay
-    // ginagamit pa rin para sa loan snapshot at sa preview sa sagot.
+    // Ang mga schedule row ay ginagawa na rito para LAGING may a-allocate-an
+    // ang bayad (hindi umaasa sa deploy order ng disbursement functions).
+    // PERO hindi ito nakikita ng staff/lender bago ma-activate ang loan
+    // (`loans-view` gate), at sa oras ng pag-release ay IN-REBASE ang mga due
+    // date nito sa petsa ng release via `startLoanPaymentSchedule` — kaya ang
+    // "day 0" ng pagbabayad ay ang pagka-active ng loan, hindi ang application.
+    const scheduleRows = sched.dueDates.map((date, i) => ({
+      loan_id: loan.id,
+      installment_number: i + 1,
+      due_date: date,
+      amount_due: sched.amounts[i],
+    }));
+
+    await db.from('loan_schedules').insert(scheduleRows);
 
     if (co_maker && co_maker.first_name && co_maker.last_name) {
       const coMakerName = String(co_maker.first_name).trim();

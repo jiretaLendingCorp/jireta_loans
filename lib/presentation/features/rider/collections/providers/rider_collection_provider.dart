@@ -151,7 +151,15 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         return;
       }
       // 4) try each status tab that rider uses
-      for (final status in ['accepted', 'in_progress', 'assigned', 'completed', 'declined']) {
+      for (final status in [
+        'accepted',
+        'in_progress',
+        'assigned',
+        'pending_approval',
+        'completed',
+        'rejected',
+        'declined',
+      ]) {
         try {
           list = await _ds.getCollectionList(status: status, page: 1, limit: 100);
           matches = list.where((c) => c.id == assignmentId);

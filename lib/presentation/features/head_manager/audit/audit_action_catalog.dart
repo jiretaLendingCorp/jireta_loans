@@ -44,6 +44,11 @@ class AuditActionCatalog {
     'collection_decline',
     'collection_record',
     'collection_upload_proof',
+    // Approval workflow: rider submit → HM/Employee approve o reject
+    'collection_submit',
+    'collection_approve',
+    'collection_reject',
+    'collection_reconcile',
     // Disbursements
     'disbursement_selected',
     'disburse_gcash',

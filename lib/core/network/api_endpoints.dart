@@ -77,6 +77,10 @@ class ApiEndpoints {
   static const String collectionsRecord = 'collections-manage?fn=record';
   static const String collectionsUploadProof =
       'collections-manage?fn=upload-proof';
+  // HM/Employee approval ng rider-submitted collection. Sa approve lang
+  // bumababa ang loan balance (payment: pending → verified).
+  static const String collectionsApprove = 'collections-manage?fn=approve';
+  static const String collectionsReject = 'collections-manage?fn=reject';
   static const String collectionsGetList = 'collections-view?fn=get-list';
   static const String collectionsGet = 'collections-view?fn=get';
 

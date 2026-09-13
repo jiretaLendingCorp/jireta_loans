@@ -93,6 +93,11 @@ export function computeInterestAmount(principal: number, totalPayable: number): 
 //
 // Ang (b) ay fallback lamang, at deduplicated sa pamamagitan ng payment id —
 // hindi maaaring mabilang nang doble ang isang bayad.
+// Mga collection na HINDI pa dapat binibilang sa loan balance: ang rider ay
+// naka-record na ng `verified` payment, pero hindi pa ito ina-approve ng Head
+// Manager/Employee. Sa `completed` lang (approved) siya nagiging epektibo.
+export const NON_COUNTING_COLLECTION_STATUSES = ['pending_approval', 'rejected'] as const;
+
 export async function sumVerifiedPaymentsByLoan(
   db: DbClient,
   scheduleRows: ScheduleRow[],
@@ -109,22 +114,28 @@ export async function sumVerifiedPaymentsByLoan(
   // (a) payment → loan_schedule (normal na allocation).
   const { data: bySchedule } = await db
     .from('payments')
-    .select('id, amount, loan_schedule_id')
+    .select('id, amount, loan_schedule_id, collection_assignment_id')
     .eq('status', 'verified')
     .in('loan_schedule_id', scheduleIds);
 
   // (b) payment → collection_assignment → loan_schedule (fallback/repair).
   const { data: assignmentRows } = await db
     .from('collection_assignments')
-    .select('id, loan_schedule_id')
+    .select('id, loan_schedule_id, status')
     .in('loan_schedule_id', scheduleIds);
   const assignmentLoan = new Map<string, string>();
-  for (const a of (assignmentRows ?? []) as Array<{ id: string; loan_schedule_id: string | null }>) {
+  // Mga koleksyong naghihintay pa ng approval (o rejected) — ang verified na
+  // bayad nila ay HINDI pa binibilang sa balance hanggang ma-approve.
+  const nonCounting = new Set<string>();
+  for (const a of (assignmentRows ?? []) as Array<{ id: string; loan_schedule_id: string | null; status: string | null }>) {
     const lid = scheduleLoan.get(String(a.loan_schedule_id));
     if (lid) assignmentLoan.set(String(a.id), lid);
+    if ((NON_COUNTING_COLLECTION_STATUSES as readonly string[]).includes(String(a.status))) {
+      nonCounting.add(String(a.id));
+    }
   }
   let byAssignment: PaymentRow[] = [];
-  const assignmentIds = [...assignmentLoan.keys()];
+  const assignmentIds = [...assignmentLoan.keys()].filter((id) => !nonCounting.has(id));
   if (assignmentIds.length > 0) {
     const { data } = await db
       .from('payments')
@@ -136,6 +147,8 @@ export async function sumVerifiedPaymentsByLoan(
 
   const counted = new Set<string>();
   for (const p of (bySchedule ?? []) as PaymentRow[]) {
+    // Bayad na naka-link sa koleksyong hindi pa approved — huwag bilangin.
+    if (p.collection_assignment_id && nonCounting.has(String(p.collection_assignment_id))) continue;
     const lid = scheduleLoan.get(String(p.loan_schedule_id));
     if (!lid) continue;
     if (p.id) counted.add(String(p.id));
@@ -190,13 +203,32 @@ export async function getLoanFinancials(db: DbClient, loanId: string): Promise<L
 export async function getSchedulePayment(db: DbClient, scheduleId: string): Promise<SchedulePaymentInfo> {
   const { data: rows } = await db
     .from('payments')
-    .select('amount, paid_at')
+    .select('amount, paid_at, collection_assignment_id')
     .eq('loan_schedule_id', scheduleId)
     .eq('status', 'verified');
+
+  // Huwag bilangin ang bayad ng koleksyong hindi pa approved ng HM/Employee.
+  const assignmentIds = [...new Set((rows ?? [])
+    .map((r) => (r as PaymentRow).collection_assignment_id)
+    .filter((v): v is string => !!v))];
+  const nonCounting = new Set<string>();
+  if (assignmentIds.length > 0) {
+    const { data: cas } = await db
+      .from('collection_assignments')
+      .select('id, status')
+      .in('id', assignmentIds);
+    for (const a of (cas ?? []) as Array<{ id: string; status: string | null }>) {
+      if ((NON_COUNTING_COLLECTION_STATUSES as readonly string[]).includes(String(a.status))) {
+        nonCounting.add(String(a.id));
+      }
+    }
+  }
 
   let amountPaid = 0;
   let paidAt: string | null = null;
   for (const p of rows ?? []) {
+    const row = p as PaymentRow;
+    if (row.collection_assignment_id && nonCounting.has(String(row.collection_assignment_id))) continue;
     amountPaid = round2(amountPaid + Number(p.amount));
     if (p.paid_at && (!paidAt || p.paid_at > paidAt)) paidAt = p.paid_at;
   }
