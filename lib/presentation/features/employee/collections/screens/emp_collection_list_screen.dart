@@ -620,7 +620,6 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Row(children: [
-        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),
         _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(empCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),
@@ -636,7 +635,6 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Row(children: [
-        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),
         _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(_empPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),

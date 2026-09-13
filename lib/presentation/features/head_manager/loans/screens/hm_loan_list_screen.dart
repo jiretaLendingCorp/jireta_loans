@@ -489,13 +489,6 @@ class _HmLoanListScreenState extends ConsumerState<HmLoanListScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(
         children: [
-          Text(
-            'Page ${state.currentPage} of ${state.totalPages}',
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary),
-          ),
           const Spacer(),
           _PageBtn(
             icon: Icons.chevron_left_rounded,

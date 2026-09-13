@@ -74,11 +74,13 @@ class SuccessDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             Container(
               width: 64,
               height: 64,
@@ -120,7 +122,8 @@ class SuccessDialog extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

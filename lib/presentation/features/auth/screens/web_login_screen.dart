@@ -436,7 +436,7 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                 child: TextFormField(
                   controller: widget.emailCtrl,
                   focusNode: widget.emailFocus,
-                  autofocus: true,
+                  autofocus: false,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
                   textInputAction: TextInputAction.next,

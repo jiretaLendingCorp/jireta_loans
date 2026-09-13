@@ -263,7 +263,6 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(children: [
-        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),
         _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(hmAccountUpgradeProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),
@@ -331,13 +330,13 @@ class _ActionButtonState extends State<_ActionButton> {
       onExit: (_) => setState(() => _hover = false),
       child: InkWell(
         onTap: widget.onPressed,
-        borderRadius: BorderRadius.zero,
+        borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.primary ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1)) : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
-            borderRadius: BorderRadius.zero,
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: widget.color.withValues(alpha: widget.primary ? 0.2 : 0.3)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

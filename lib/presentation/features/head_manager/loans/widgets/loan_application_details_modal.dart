@@ -651,14 +651,20 @@ class _LoanApplicationDetailsModalState
                             color: AppColors.textSecondary))),
                   OutlinedButton.icon(
                     onPressed: () => _showSignatureViewer(signature),
-                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    icon: const Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
-                        style: TextStyle(fontSize: 12)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy)),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 32),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -680,14 +686,20 @@ class _LoanApplicationDetailsModalState
                   OutlinedButton.icon(
                     onPressed: () => _showValidIdViewer(
                         _coMakerValidIdUrls(cm)),
-                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    icon: const Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
-                        style: TextStyle(fontSize: 12)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy)),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 32),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],

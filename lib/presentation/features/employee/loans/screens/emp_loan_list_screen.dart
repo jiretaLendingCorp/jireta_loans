@@ -225,8 +225,6 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen>
                   : null,
               icon: const Icon(Icons.chevron_left),
             ),
-            Text('Page ${state.currentPage} of ${state.totalPages}',
-                style: const TextStyle(fontSize: 14)),
             IconButton(
               onPressed: state.currentPage < state.totalPages
                   ? () => ref

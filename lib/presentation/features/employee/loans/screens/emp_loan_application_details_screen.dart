@@ -35,10 +35,11 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     return WebScaffold(
       title: 'Loan Application Details',
       actions: [
-        TextButton.icon(
+        IconButton(
           onPressed: () => context.go(RouteConstants.empLoans),
-          icon: const Icon(Icons.arrow_back_rounded, size: 18),
-          label: const Text('Back to Applications')),
+          icon: const Icon(Icons.arrow_back_rounded,
+              size: 20, color: AppColors.textSecondary),
+          tooltip: 'Back to Applications'),
         const SizedBox(width: 6),
         Container(
           decoration: BoxDecoration(

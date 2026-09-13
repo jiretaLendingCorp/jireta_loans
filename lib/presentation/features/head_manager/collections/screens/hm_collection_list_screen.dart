@@ -413,7 +413,8 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
         if (canAssign) const SizedBox(width: 6),
         InkWell(
           onTap: () => context.go(RouteConstants.hmCollectionDetails.replaceFirst(':id', col.id)),
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
         ),
       ]),
     );
@@ -472,7 +473,8 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
                     final id = p['id'] as String? ?? '';
                     if (id.isNotEmpty) context.go(RouteConstants.hmPaymentDetails.replaceFirst(':id', id));
                   },
-                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
                 ),
         );
       }).toList(),
@@ -642,7 +644,6 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Row(children: [
-        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),
         _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(hmCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),
@@ -658,7 +659,6 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Row(children: [
-        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),
         _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),

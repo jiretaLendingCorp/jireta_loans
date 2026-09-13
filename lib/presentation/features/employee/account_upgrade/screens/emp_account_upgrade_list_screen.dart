@@ -260,7 +260,6 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(children: [
-        Text('Page ${state.currentPage} of ${state.totalPages}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         const Spacer(),
         _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),

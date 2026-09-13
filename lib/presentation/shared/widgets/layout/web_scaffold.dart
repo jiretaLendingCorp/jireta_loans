@@ -13,6 +13,7 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/employee/profile/providers/emp_profile_provider.dart';
 import '../../../features/head_manager/profile/providers/hm_profile_provider.dart';
 import '../../providers/auth_state_provider.dart';
+import '../dialogs/success_dialog.dart';
 import '../notification_dropdown.dart';
 import '../profile_avatar.dart';
 
@@ -351,58 +352,81 @@ class _UserAvatar extends ConsumerWidget {
           // afterwards would run on a disposed context and can leave the
           // app on a blank /login page (URL changes, no widget builds).
           final router = GoRouter.of(context);
-          // The pressed Yes button itself shows loading while logging out —
-          // no "Logging out" modal is shown.
+          // 1) Confirm modal muna: "Are you sure to logout?"
           final confirmed = await showDialog<bool>(
             context: context,
-            builder: (ctx) {
-              var isBusy = false;
-              return StatefulBuilder(
-                builder: (ctx, setDialogState) => AlertDialog(
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.zero,
-                  ),
-                  title: const Text('Log Out'),
-                  content: const Text('Do you want to logout?'),
-                  actions: [
-                    TextButton(
-                        onPressed: isBusy
-                            ? null
-                            : () => Navigator.pop(ctx, false),
-                        child: const Text('No')),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.error),
-                      onPressed: isBusy
-                          ? null
-                          : () async {
-                              setDialogState(() => isBusy = true);
-                              try {
-                                await ref
-                                    .read(authProvider.notifier)
-                                    .logout();
-                                if (ctx.mounted) Navigator.pop(ctx, true);
-                              } catch (_) {
-                                setDialogState(() => isBusy = false);
-                              }
-                            },
-                      child: isBusy
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Text('Yes'),
-                    ),
-                  ],
+            builder: (ctx) => AlertDialog(
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.zero,
+              ),
+              title: const Text('Log Out'),
+              content: const Text('Are you sure to logout?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('No'),
                 ),
-              );
-            },
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Yes'),
+                ),
+              ],
+            ),
           );
-          if (confirmed != true) return;
-          // Fallback navigation only: the auth redirect normally lands on
-          // /login by itself. Navigate explicitly just in case it didn't
-          // (avoids double-navigation which can blank the page).
+          if (confirmed != true || !context.mounted) return;
+          // 2) Loading modal (non-dismissible) habang tumatakbo ang logout.
+          // Hold the auto-redirect while the modals are up para hindi
+          // ma-yank ang stack mid-modal (gaya sa mobile logout flow).
+          AppConstants.suppressLogoutRedirect = true;
+          // Loading modal (non-dismissible) — ito ang "loading button" state.
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => const Dialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: 28, vertical: 24),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 14),
+                      Text('Logging out…',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+          try {
+            await ref.read(authProvider.notifier).logout();
+          } catch (_) {
+            // Tuloy pa rin sa success flow — naka-clear na ang session.
+          } finally {
+            AppConstants.suppressLogoutRedirect = false;
+          }
+          if (context.mounted) Navigator.pop(context); // close loading
+          if (!context.mounted) return;
+          // Success modal — steady 2s, tapos diretso sa login.
+          try {
+            await SuccessDialog.showAutoDismiss(
+              context,
+              title: 'Successfully Logged Out',
+              message: 'You have been logged out successfully.',
+            );
+          } catch (_) {}
           if (router.routeInformationProvider.value.uri.path !=
               RouteConstants.webLogin) {
             router.go(RouteConstants.webLogin);
