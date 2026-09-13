@@ -10,11 +10,15 @@ class SignaturePad extends StatefulWidget {
   final ValueChanged<String?>? onSignatureChanged;
   final double height;
 
+  /// Kapag false, text-only ang Clear/Confirm (walang X/check icons).
+  final bool showActionIcons;
+
   const SignaturePad({
     super.key,
     this.onSigned,
     this.onSignatureChanged,
     this.height = 200,
+    this.showActionIcons = true,
   });
 
   @override
@@ -95,27 +99,55 @@ class _SignaturePadState extends State<SignaturePad> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            TextButton.icon(
-              onPressed: _onClear,
-              icon: const Icon(Icons.clear, size: 16),
-              label: const Text('Clear'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            ),
+            widget.showActionIcons
+                ? TextButton.icon(
+                    onPressed: _onClear,
+                    icon: const Icon(Icons.clear, size: 16),
+                    label: const Text('Clear'),
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppColors.error),
+                  )
+                : TextButton(
+                    onPressed: _onClear,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Clear',
+                        style: TextStyle(fontSize: 12)),
+                  ),
             const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: _onSave,
-              icon: const Icon(Icons.check, size: 16),
-              label: const Text('Confirm'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.deepNavy,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
+            widget.showActionIcons
+                ? ElevatedButton.icon(
+                    onPressed: _onSave,
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('Confirm'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepNavy,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  )
+                : ElevatedButton(
+                    onPressed: _onSave,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.deepNavy,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('Confirm'),
+                  ),
           ],
         ),
       ],

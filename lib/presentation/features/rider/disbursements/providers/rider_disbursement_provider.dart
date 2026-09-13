@@ -59,15 +59,20 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
     }
   }
 
+  /// Rider uploads proof (max 2 photos + optional signature) that the cash
+  /// was handed to the lender for a rider-delivery disbursement.
+  /// Ang unang photo ay `proof_photo`, ang pangalawa ay `proof_photo_2`.
   Future<bool> uploadProof({
     required String disbursementId,
-    required XFile proofPhoto,
+    required List<XFile> proofPhotos,
     String? signatureBase64,
   }) async {
     state = state.copyWith(isSubmitting: true);
     try {
       final proofs = <Map<String, dynamic>>[
-        await _fileToProof(proofPhoto, 'proof_photo'),
+        for (var i = 0; i < proofPhotos.length; i++)
+          await _fileToProof(
+              proofPhotos[i], i == 0 ? 'proof_photo' : 'proof_photo_2'),
         if (signatureBase64 != null)
           {'type': 'signature', 'content_base64': signatureBase64},
       ];

@@ -30,6 +30,7 @@ async function ensureProofBucket(db: ReturnType<typeof getAdminClient>): Promise
 
 const DISB_PROOF_COLUMN_BY_TYPE: Record<string, string> = {
   proof_photo: 'delivery_proof',
+  proof_photo_2: 'delivery_proof_2',
   signature: 'borrower_signature',
 };
 

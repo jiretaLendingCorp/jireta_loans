@@ -29,7 +29,8 @@ class RiderDisbursementUploadProofScreen extends ConsumerStatefulWidget {
 class _RiderDisbursementUploadProofScreenState
     extends ConsumerState<RiderDisbursementUploadProofScreen> {
   final _picker = ImagePicker();
-  XFile? _proofPhoto;
+  static const _maxPhotos = 2;
+  final List<XFile> _proofPhotos = [];
   String? _signatureBase64;
   bool _isSubmitting = false;
 
@@ -48,18 +49,26 @@ class _RiderDisbursementUploadProofScreenState
   }
 
   Future<void> _pickPhoto({bool fromCamera = true}) async {
+    if (_proofPhotos.length >= _maxPhotos) {
+      context.showSnackBarAsToast(
+        const SnackBar(
+            content: Text('Maximum 2 photos only'),
+            backgroundColor: AppColors.error),
+      );
+      return;
+    }
     final picked = await _picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
       imageQuality: 80,
       maxWidth: 1920,
     );
     if (picked != null) {
-      setState(() => _proofPhoto = picked);
+      setState(() => _proofPhotos.add(picked));
     }
   }
 
   Future<void> _submit() async {
-    if (_proofPhoto == null) {
+    if (_proofPhotos.isEmpty) {
       context.showSnackBarAsToast(
         const SnackBar(
             content: Text('Cash on Delivery proof photo is required'),
@@ -74,7 +83,7 @@ class _RiderDisbursementUploadProofScreenState
           .read(riderDisbursementProvider.notifier)
           .uploadProof(
             disbursementId: widget.disbursementId,
-            proofPhoto: _proofPhoto!,
+            proofPhotos: List.of(_proofPhotos),
             signatureBase64: _signatureBase64,
           );
 
@@ -102,7 +111,7 @@ class _RiderDisbursementUploadProofScreenState
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
-      title: 'Upload Cash on Delivery Proof',
+      title: 'Cash on Delivery',
       accentColor: AppColors.riderGreen,
       showBottomNav: false,
       navItems: const [],
@@ -118,7 +127,6 @@ class _RiderDisbursementUploadProofScreenState
             onPressed: _isSubmitting ? null : _submit,
             isLoading: _isSubmitting,
             backgroundColor: AppColors.riderGreen,
-            icon: Icons.cloud_upload_outlined,
           ),
           SizedBox(height: 12),
           OutlinedButton(
@@ -131,166 +139,262 @@ class _RiderDisbursementUploadProofScreenState
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: Text('Skip'),
+            child: Text('Cancel'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPhotoSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.camera_alt_outlined,
-                color: AppColors.riderGreen, size: 20),
-            SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Cash on Delivery Proof Photo *',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: context.cTextPrimary)),
-                  Text('Photo of the cash handed to the lender',
-                      style: TextStyle(
-                          fontSize: 12, color: context.cTextSecondary)),
-                ],
+  /// Camera / Gallery picker sheet para sa Upload button.
+  Future<void> _pickSource() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: context.cSurface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Add Photo',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: context.cTextPrimary)),
+              SizedBox(height: 12),
+              ListTile(
+                leading:
+                    Icon(Icons.camera_alt, color: AppColors.riderGreen),
+                title: Text('Camera',
+                    style: TextStyle(color: context.cTextPrimary)),
+                onTap: () => Navigator.pop(ctx, 'camera'),
               ),
-            ),
-          ],
+              ListTile(
+                leading: Icon(Icons.photo_library_outlined,
+                    color: AppColors.info),
+                title: Text('Gallery',
+                    style: TextStyle(color: context.cTextPrimary)),
+                onTap: () => Navigator.pop(ctx, 'gallery'),
+              ),
+            ],
+          ),
         ),
-        SizedBox(height: 12),
-          if (_proofPhoto != null)
-            Stack(
+      ),
+    );
+    if (choice == null) return;
+    await _pickPhoto(fromCamera: choice == 'camera');
+  }
+
+  Widget _buildPhotoSection() {
+    final missingRequired = _proofPhotos.isEmpty;
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: missingRequired
+                ? AppColors.error.withValues(alpha: 0.3)
+                : context.cBorder),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.camera_alt_outlined,
+                  color: AppColors.riderGreen, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Cash on Delivery',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: context.cTextPrimary)),
+              ),
+              // Photo counter (max 2).
+              Text('${_proofPhotos.length}/$_maxPhotos',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: context.cTextTertiary)),
+            ],
+          ),
+          SizedBox(height: 12),
+          // Photo box: previews (max 2) o empty placeholder kapag wala.
+          if (_proofPhotos.isNotEmpty)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: XFilePreview(
-                      file: _proofPhoto!, height: 180, width: double.infinity),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _proofPhoto = null),
-                    child: Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                          color: Colors.red, shape: BoxShape.circle),
-                      child: Icon(Icons.close,
-                          color: Colors.white, size: 16),
+                for (var i = 0; i < _proofPhotos.length; i++) ...[
+                  if (i > 0) SizedBox(width: 8),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: XFilePreview(
+                              file: _proofPhotos[i],
+                              height: 140,
+                              width: double.infinity),
+                        ),
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: GestureDetector(
+                            onTap: () =>
+                                setState(() => _proofPhotos.removeAt(i)),
+                            child: Container(
+                              padding: EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                  color: Colors.red, shape: BoxShape.circle),
+                              child: Icon(Icons.close,
+                                  color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                ],
               ],
             )
           else
-            Row(
-              children: [
-                Expanded(
-                  child: _PhotoPickerButton(
-                    icon: Icons.camera_alt,
-                    label: 'Camera',
-                    color: AppColors.riderGreen,
-                    onTap: _pickPhoto,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: _PhotoPickerButton(
-                    icon: Icons.photo_library_outlined,
-                    label: 'Gallery',
-                    color: AppColors.info,
-                    onTap: () => _pickPhoto(fromCamera: false),
-                  ),
-                ),
-              ],
+            Container(
+              width: double.infinity,
+              height: 180,
+              decoration: BoxDecoration(
+                color: context.cSurfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: context.cBorder),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.image_outlined,
+                      size: 40, color: context.cTextTertiary),
+                  SizedBox(height: 8),
+                  Text('No photo yet',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: context.cTextSecondary)),
+                  SizedBox(height: 2),
+                  Text('Tap Upload below to add up to 2 photos',
+                      style: TextStyle(
+                          fontSize: 12, color: context.cTextTertiary)),
+                ],
+              ),
             ),
+          SizedBox(height: 12),
+          // Maliit na Upload + Clear buttons, naka-right align.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              // Text lang ang Clear — hindi button style.
+              TextButton(
+                onPressed: _proofPhotos.isEmpty
+                    ? null
+                    : () => setState(() => _proofPhotos.clear()),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  minimumSize: const Size(0, 34),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text('Clear',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 12)),
+              ),
+              SizedBox(width: 4),
+              ElevatedButton.icon(
+                onPressed: _pickSource,
+                icon: Icon(Icons.upload_rounded, size: 14),
+                label: Text('Upload',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.riderGreen,
+                  foregroundColor: Colors.white,
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: const Size(0, 34),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
         ],
+      ),
     );
   }
 
   Widget _buildSignaturePad() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
-            SizedBox(width: 8),
-            Text('Lender Signature (Optional)',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: context.cTextPrimary)),
-          ],
-        ),
-        SizedBox(height: 4),
-        Text('Ask the lender to sign as acknowledgement of receipt',
-            style: TextStyle(fontSize: 12, color: context.cTextSecondary)),
-        SizedBox(height: 12),
-        SignaturePad(
-          height: 150,
-          onSignatureChanged: (base64) =>
-              setState(() => _signatureBase64 = base64),
-        ),
-        if (_signatureBase64 != null)
-          Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Row(
-              children: [
-                Icon(Icons.check_circle, color: AppColors.riderGreen, size: 16),
-                SizedBox(width: 6),
-                Text('Signature captured',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.riderGreen,
-                        fontWeight: FontWeight.w500)),
-              ],
-            ),
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.cBorder),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
+              SizedBox(width: 8),
+              Text('Lender Signature (Optional)',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: context.cTextPrimary)),
+            ],
           ),
-      ],
-    );
-  }
-}
-
-class _PhotoPickerButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _PhotoPickerButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    color: color, fontSize: 12, fontWeight: FontWeight.w600)),
-          ],
-        ),
+          SizedBox(height: 12),
+          SignaturePad(
+            height: 150,
+            showActionIcons: false,
+            onSignatureChanged: (base64) =>
+                setState(() => _signatureBase64 = base64),
+          ),
+          if (_signatureBase64 != null)
+            Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.riderGreen, size: 16),
+                  SizedBox(width: 6),
+                  Text('Signature captured',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.riderGreen,
+                          fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
