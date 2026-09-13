@@ -435,7 +435,33 @@ async function handleCollectionRecord(req: Request) {
     .select('id, status, rider_id, loan_schedule_id, assigned_by, loan_schedule:loan_schedules(loan_id, loans(lender_id))')
     .eq('id', assignment_id).eq('rider_id', user.id).single();
   if (!assignment) return errorResponse('Assignment not found', 404, 'NOT_FOUND');
-  if (!['accepted'].includes(assignment.status)) return errorResponse('Assignment must be accepted first', 400, 'INVALID_STATUS');
+
+  // Idempotent: kung may verified payment na para sa assignment na ito, huwag
+  // nang mag-insert muli — success (200) na agad para makatuloy ang client sa
+  // proof upload. Kailangan ito dahil laging sumusubok mag-record ang client
+  // bago mag-upload ng proof (para hindi ma-stuck ang rider kapag nag-retry).
+  const { data: alreadyRecorded } = await db.from('payments')
+    .select('id')
+    .eq('collection_assignment_id', assignment_id)
+    .eq('status', 'verified')
+    .limit(1)
+    .maybeSingle();
+  if (alreadyRecorded) {
+    if (assignment.status !== 'in_progress' && assignment.status !== 'completed') {
+      await db.from('collection_assignments')
+        .update({ status: 'in_progress', amount_collected })
+        .eq('id', assignment_id);
+    }
+    return jsonResponse({ message: 'Payment already recorded', payment_id: alreadyRecorded.id }, 200);
+  }
+
+  // `in_progress` ay pinapayagan para maka-recover ang rider kapag naiwang
+  // in_progress ang assignment pero wala nang verified payment (hal. na-reverse
+  // ang payment sa HM side). Kung may verified payment pa, nahuli na iyon sa
+  // itaas at hindi na aabot dito.
+  if (!['accepted', 'in_progress'].includes(assignment.status)) {
+    return errorResponse('Assignment must be accepted first', 400, 'INVALID_STATUS');
+  }
 
   const loanSchedule = embedAsObject(assignment?.loan_schedule);
   const loanId = loanSchedule?.loan_id;

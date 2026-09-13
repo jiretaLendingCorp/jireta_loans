@@ -72,26 +72,11 @@ class _SignaturePadState extends State<SignaturePad> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Stack(
-              children: [
-                Signature(
-                  controller: _ctrl,
-                  backgroundColor: Colors.white,
-                  width: double.infinity,
-                ),
-                const Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Text(
-                    'Sign here',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textTertiary,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              ],
+            // Walang "Sign here" placeholder — malinis na canvas.
+            child: Signature(
+              controller: _ctrl,
+              backgroundColor: Colors.white,
+              width: double.infinity,
             ),
           ),
         ),

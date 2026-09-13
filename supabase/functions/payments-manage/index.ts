@@ -186,6 +186,24 @@ async function handleReverse(req: Request) {
   if (payment.status !== 'verified') return errorResponse('Only verified payments can be reversed', 400, 'INVALID_STATUS');
   await db.from('payments').update({ status: 'reversed' }).eq('id', payment_id);
   await db.from('payment_reversals').insert({ payment_id, reversed_by: user.id, reason: sanitizeString(reason) });
+
+  // Kapag ang na-reverse na payment ay galing sa rider collection na hindi pa
+  // naka-submit ng proof, i-REOPEN ang assignment (bumalik sa `accepted`).
+  // Kung hindi ito gawin, mananatili itong `in_progress` na walang verified
+  // payment — at ang `fn=upload-proof` ay laging tatanggi ng 409
+  // PAYMENT_NOT_RECORDED, kaya hindi na matatapos ng rider ang koleksyon
+  // (naka-stuck sa "In Progress — collected, awaiting proof").
+  if (payment.collection_assignment_id) {
+    try {
+      await db
+        .from('collection_assignments')
+        .update({ status: 'accepted', amount_collected: null, completed_at: null })
+        .eq('id', payment.collection_assignment_id)
+        .eq('status', 'in_progress');
+    } catch (e) {
+      console.warn('[payments-reverse] collection reopen failed', e);
+    }
+  }
   const loanId = await getPaymentLoanId(db, payment);
   if (loanId) await db.from('loans').update({ status: 'active' }).eq('id', loanId);
   const lenderId = loanId

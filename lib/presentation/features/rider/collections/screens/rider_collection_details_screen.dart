@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/utils/input_formatters.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
@@ -39,7 +40,6 @@ class _RiderCollectionDetailsScreenState
   final _notesCtrl = TextEditingController();
   final _imagePicker = ImagePicker();
   XFile? _proofPhoto;
-  XFile? _scenePhoto;
   String? _signatureBase64;
   bool _isSubmitting = false;
 
@@ -93,84 +93,116 @@ class _RiderCollectionDetailsScreenState
     return;
   }
 
-  Future<void> _pickImage(bool isProof) async {
+  Future<void> _pickImage() async {
     final picked = await _imagePicker.pickImage(
         source: ImageSource.camera, imageQuality: 80, maxWidth: 1920);
-    if (picked != null) {
-      setState(() {
-        if (isProof) {
-          _proofPhoto = picked;
-        } else {
-          _scenePhoto = picked;
-        }
-      });
-    }
+    if (picked != null) setState(() => _proofPhoto = picked);
   }
 
-  Future<void> _pickImageGallery(bool isProof) async {
+  Future<void> _pickImageGallery() async {
     final picked = await _imagePicker.pickImage(
         source: ImageSource.gallery, imageQuality: 80, maxWidth: 1920);
-    if (picked != null) {
-      setState(() {
-        if (isProof) {
-          _proofPhoto = picked;
-        } else {
-          _scenePhoto = picked;
-        }
-      });
+    if (picked != null) setState(() => _proofPhoto = picked);
+  }
+
+  /// Preview ng na-upload na proof photo — buong screen, pwedeng i-zoom.
+  /// May back arrow sa itaas para makabalik sa Proof step.
+  void _viewProofPhoto() {
+    final file = _proofPhoto;
+    if (file == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (viewerContext) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back',
+              onPressed: () => Navigator.of(viewerContext).pop(),
+            ),
+            title: const Text('Payment Proof',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              maxScale: 5,
+              child: XFilePreview(file: file, fit: BoxFit.contain),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Pinipindot ng rider ang maliit na "Upload" button sa Payment Proof card —
+  /// dito pipiliin kung Camera o Gallery.
+  Future<void> _showProofSourceSheet() async {
+    final source = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: context.cSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading:
+                  const Icon(Icons.camera_alt, color: AppColors.riderGreen),
+              title: const Text('Take Photo'),
+              subtitle: const Text('Camera'),
+              onTap: () => Navigator.of(sheetContext).pop('camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined,
+                  color: AppColors.info),
+              title: const Text('Choose from Gallery'),
+              subtitle: const Text('Gallery'),
+              onTap: () => Navigator.of(sheetContext).pop('gallery'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || source == null) return;
+    if (source == 'camera') {
+      await _pickImage();
+    } else {
+      await _pickImageGallery();
     }
   }
 
-  Future<void> _recordAndNext(CollectionAssignmentModel col) async {
+  /// True kapag ang huling error ay ang backend guard na "wala pang verified
+  /// payment" (PAYMENT_NOT_RECORDED, 409) mula sa `fn=upload-proof`.
+  bool _isPaymentNotRecordedError() {
+    final err = (ref.read(riderCollectionProvider).error ?? '').toLowerCase();
+    return err.contains('record the collected amount');
+  }
+
+  /// Step 1 → Step 2. Validation lang ito — HINDI pa nire-record sa server ang
+  /// amount dito.
+  ///
+  /// Business rule: ang `collections-manage?fn=record` ay (a) gumagawa ng
+  /// verified `payments` row (bumababa agad ang balanse ng loan),
+  /// (b) nagpapasa ng assignment sa `in_progress` + `amount_collected`, at
+  /// (c) nagpapadala ng "Payment Received" push sa lender. Kaya kung dito pa
+  /// ito isasagawa, makikita na agad ng Head Manager / Employee ang koleksyon
+  /// kahit hindi pa na-submit ng rider. Sa Step 3 (Review → Submit) na lang
+  /// ito isinasagawa, sabay ng proof upload — nasa `_amountCtrl` lang muna ang
+  /// halaga at walang nakikitang record ang HM / Employee.
+  void _validateAmountAndNext() {
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
       context.showSnackBarAsToast(
           const SnackBar(content: Text('Please enter a valid amount')));
       return;
     }
-
-    // Confirm
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => ConfirmationDialog(
-        title: 'Confirm Collection',
-        message: 'Record ${amount.toCurrency} as collected from lender?',
-        confirmText: 'Record & Continue',
-        confirmColor: AppColors.riderGreen,
-      ),
-    );
-    if (confirmed != true) return;
-
-    setState(() => _isSubmitting = true);
-    try {
-      final ok =
-          await ref.read(riderCollectionProvider.notifier).recordCollection(
-                assignmentId: widget.collectionId,
-                amountCollected: amount,
-                notes: _notesCtrl.text.trim().isEmpty
-                    ? null
-                    : _notesCtrl.text.trim(),
-              );
-      if (mounted) {
-        if (ok) {
-          // Success — auto next to Proof (Step 2 na ngayon)
-          _goToStep(1);
-          context.showSnackBarAsToast(
-            const SnackBar(
-              content: Text('Amount recorded — upload proof next'),
-              backgroundColor: AppColors.riderGreen,
-            ),
-          );
-        } else {
-          final errMsg =
-              ref.read(riderCollectionProvider).error ?? 'Failed to record collection';
-          showDialog(
-              context: context, builder: (_) => ErrorDialog(message: errMsg));
-        }
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
+    _goToStep(1);
   }
 
   void _validateProofAndNext(CollectionAssignmentModel col) {
@@ -220,8 +252,8 @@ class _RiderCollectionDetailsScreenState
       builder: (_) => ConfirmationDialog(
         title: 'Submit Collection',
         message:
-            'Submit $amountText with proof? This will complete the collection.',
-        confirmText: 'Submit',
+            'Record $amountText as collected from lender and submit with proof?',
+        confirmText: 'Yes',
         confirmColor: AppColors.riderGreen,
       ),
     );
@@ -229,11 +261,7 @@ class _RiderCollectionDetailsScreenState
 
     setState(() => _isSubmitting = true);
     try {
-      // Refresh first: the cached `col` may be stale (e.g. record succeeded
-      // in Collect step but this Review tab still sees amountCollected==null).
-      // Without this, a retry would call `record` again on an `in_progress`
-      // assignment, backend returns 400, and proof upload never runs —
-      // stuck sa "in progress" forever.
+      // Refresh first para hindi stale ang status/amount.
       var fresh = col;
       try {
         await ref
@@ -243,76 +271,110 @@ class _RiderCollectionDetailsScreenState
             ref.read(riderCollectionProvider).selectedCollection;
         if (updated != null) fresh = updated;
       } catch (_) {}
-      final freshHasAmount = fresh.amountCollected != null ||
-          fresh.status == 'in_progress' ||
-          fresh.status == 'completed';
 
-      // If still need to record amount, do it first
-      if (!freshHasAmount && pendingAmount != null) {
+      // Business rule: kailangan may VERIFIED payment row bago ma-upload ang
+      // proof (binabantayan ito ng backend na `fn=upload-proof`).
+      //
+      // Dati, ang basehan ay ang status (`in_progress` = "na-record na") kaya
+      // ni-skip ang record at dumiretso sa proof. Pero puwedeng maiwan sa
+      // `in_progress` ang assignment kahit wala nang verified payment (hal.
+      // na-reverse ang payment sa HM side) — doon, laging "Record the collected
+      // amount first before uploading proof" ang error at stuck ang rider.
+      //
+      // Ngayon, laging sinisiguro ang record bago ang proof. Idempotent na ang
+      // backend kapag may verified payment na para sa assignment, kaya safe ito
+      // kahit i-retry ng rider ang submit.
+      final recordAmount = pendingAmount ??
+          fresh.amountCollected ??
+          double.tryParse(_amountCtrl.text.replaceAll(',', ''));
+      if (fresh.status != 'completed' && recordAmount == null) {
+        // Walang amount na maipapasa (hal. na-clear ang field at walang
+        // na-record na sa server) — huwag nang subukan ang proof, siguradong
+        // PAYMENT_NOT_RECORDED (409) lang ang aabutin nito.
+        if (mounted) {
+          context.showSnackBarAsToast(
+            const SnackBar(
+                content: Text('Amount is missing — go back to Step 1')),
+          );
+          _goToStep(0);
+        }
+        return;
+      }
+      if (fresh.status != 'completed' &&
+          recordAmount != null &&
+          recordAmount > 0) {
         final okRecord = await ref
             .read(riderCollectionProvider.notifier)
             .recordCollection(
               assignmentId: widget.collectionId,
-              amountCollected: pendingAmount,
+              amountCollected: recordAmount,
               notes: _notesCtrl.text.trim().isEmpty
                   ? null
                   : _notesCtrl.text.trim(),
             );
         if (!okRecord) {
-          // Recovery: baka na-record na pala sa backend (race/stale cache)
-          // — reload at kung may amount na, tumuloy sa proof upload imbes
-          // na mag-abort.
-          try {
-            await ref
-                .read(riderCollectionProvider.notifier)
-                .loadDetails(widget.collectionId, silent: true);
-            final retry =
-                ref.read(riderCollectionProvider).selectedCollection;
-            final recovered = retry != null &&
-                (retry.amountCollected != null ||
-                    retry.status == 'in_progress' ||
-                    retry.status == 'completed');
-            if (!recovered) {
-              if (mounted) {
-                final errMsg = ref
-                        .read(riderCollectionProvider)
-                        .error ??
-                    'Failed to record amount';
-                showDialog(
-                    context: context, builder: (_) => ErrorDialog(message: errMsg));
-              }
-              return;
-            }
-          } catch (_) {
-            if (mounted) {
-              showDialog(
-                  context: context,
-                  builder: (_) =>
-                      const ErrorDialog(message: 'Failed to record amount'));
-            }
-            return;
+          if (mounted) {
+            final errMsg = ref.read(riderCollectionProvider).error ??
+                'Failed to record amount';
+            await showDialog(
+                context: context,
+                builder: (_) => ErrorDialog(message: errMsg));
           }
+          return;
         }
       }
 
       // Now upload proof
-      final okProof = await ref
+      var okProof = await ref
           .read(riderCollectionProvider.notifier)
           .uploadProof(
             assignmentId: widget.collectionId,
             proofPhoto: _proofPhoto!,
-            scenePhoto: _scenePhoto,
             signatureBase64: _signatureBase64,
           );
 
+      // Recovery: kapag PAYMENT_NOT_RECORDED (409) ang isinagot ng backend —
+      // nawala/na-reverse ang verified payment habang in_progress pa ang
+      // assignment — i-record muna ang amount tapos i-retry ang proof nang
+      // isang beses. Kung hindi, mananatiling stuck ang rider sa parehong
+      // "Record the collected amount first before uploading proof" error.
+      if (!okProof && _isPaymentNotRecordedError()) {
+        final retryAmount =
+            recordAmount ?? double.tryParse(_amountCtrl.text.replaceAll(',', ''));
+        if (retryAmount != null && retryAmount > 0) {
+          final okRecord = await ref
+              .read(riderCollectionProvider.notifier)
+              .recordCollection(
+                assignmentId: widget.collectionId,
+                amountCollected: retryAmount,
+                notes: _notesCtrl.text.trim().isEmpty
+                    ? null
+                    : _notesCtrl.text.trim(),
+              );
+          if (okRecord) {
+            okProof = await ref
+                .read(riderCollectionProvider.notifier)
+                .uploadProof(
+                  assignmentId: widget.collectionId,
+                  proofPhoto: _proofPhoto!,
+                  signatureBase64: _signatureBase64,
+                );
+          }
+        }
+      }
+
       if (mounted) {
         if (okProof) {
-          await showDialog(
-            context: context,
-            builder: (_) => const SuccessDialog(
-                message: 'Proof uploaded and collection completed!'),
+          // Success: 2-segundong confirmation modal, tapos deretso na sa Home
+          // (rider dashboard) — hindi na bumabalik sa listahan o wizard.
+          await SuccessDialog.showAutoDismiss(
+            context,
+            title: 'Collection Submitted',
+            message: 'The collected amount and proof were submitted.',
+            buttonText: 'Done',
+            duration: const Duration(seconds: 2),
           );
-          if (mounted) context.pop();
+          if (mounted) context.go(RouteConstants.riderDashboard);
         } else {
           final errMsg = ref.read(riderCollectionProvider).error ??
               'Failed to upload proof. Naka-record na ang cash (in_progress) — subukan ulit mag-upload ng proof para maging completed.';
@@ -323,16 +385,6 @@ class _RiderCollectionDetailsScreenState
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
-  }
-
-  /// True kapag may dapat i-render na primary action sa bottom bar. Walang
-  /// bottom bar sa Details step — ang Accept / Decline at ang "Next" button ay
-  /// nasa loob ng tab mismo.
-  bool _hasPrimaryAction(CollectionAssignmentModel col) {
-    if (col.status == 'completed') return true; // "Done"
-    // Details at Collect steps: ang mga button (Accept/Decline, Back, Next) ay
-    // nasa loob na ng tab — walang bottom bar.
-    return _tabController.index >= 2;
   }
 
   @override
@@ -409,7 +461,9 @@ class _RiderCollectionDetailsScreenState
               if (col != null && !_isReadOnlyStatus(col.status))
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    // Walang left padding — para naka-usog nang bahagya sa
+                    // kaliwa ang step label (hindi gitna ng buong espasyo).
+                    padding: const EdgeInsets.only(right: 24),
                     child: Text(
                       'Step ${_tabController.index + 1} of ${_steps.length}: ${_steps[_tabController.index]}',
                       textAlign: TextAlign.center,
@@ -474,7 +528,8 @@ class _RiderCollectionDetailsScreenState
                                 ],
                               ),
                             ),
-                            _buildBottomNav(col),
+                            // Wala nang footer/bottom bar — ang Back + Submit
+                            // ay nasa loob na ng Review tab, sa ibaba ng card.
                           ],
                         );
                       } catch (e, st) {
@@ -536,125 +591,6 @@ class _RiderCollectionDetailsScreenState
   /// 4-step wizard, kaya walang step label sa header.
   bool _isReadOnlyStatus(String status) =>
       status == 'completed' || status == 'declined' || status == 'failed';
-
-  Widget _buildBottomNav(CollectionAssignmentModel col) {
-    final idx = _tabController.index;
-    final isFirst = idx == 0;
-    final isLast = idx == _steps.length - 1;
-    final isCompleted = col.status == 'completed';
-
-    // Walang bottom button kapag walang primary action (hal. status = 'assigned'
-    // sa Details step) — hindi na dapat lumabas ang bar na may "Accept to
-    // continue" row na walang laman.
-    if (!_hasPrimaryAction(col)) return const SizedBox.shrink();
-
-    // Hide bottom nav for completed? Keep but show Done.
-    return Container(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 16),
-      decoration: BoxDecoration(
-        color: context.cSurface,
-        border: Border(top: BorderSide(color: Color(0xFFF0F0F0))),
-      ),
-      child: Row(
-        children: [
-          if (!isFirst)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _goToStep(idx - 1),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: context.cTextSecondary,
-                  side: BorderSide(color: context.cBorder),
-                  minimumSize: const Size(0, 46),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text('Back'),
-              ),
-            ),
-          if (!isFirst) SizedBox(width: 12),
-          Expanded(
-            flex: 2,
-            child: _buildPrimaryAction(col, idx, isLast, isCompleted),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPrimaryAction(
-      CollectionAssignmentModel col, int idx, bool isLast, bool isCompleted) {
-    if (isCompleted) {
-      return ElevatedButton(
-        onPressed: () => context.pop(),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.riderGreen,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(0, 46),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: Text('Done',
-            style: TextStyle(fontWeight: FontWeight.w700)),
-      );
-    }
-
-    // Step-specific primary
-    switch (idx) {
-      case 0: // Details + Collect
-        // Lahat ng button (Accept / Decline / Back / Next) ay nasa loob na ng
-        // Step 1 — walang bottom bar.
-        return const SizedBox.shrink();
-      case 1: // Proof
-        final hasProof = _proofPhoto != null;
-        return ElevatedButton(
-          onPressed: hasProof ? () => _validateProofAndNext(col) : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.riderGreen,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(0, 46),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Continue to Review',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-              SizedBox(width: 6),
-              Icon(Icons.arrow_forward, size: 18),
-            ],
-          ),
-        );
-      case 2: // Review
-        return ElevatedButton(
-          onPressed: _isSubmitting ? null : () => _submitReview(col),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.riderGreen,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(0, 46),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: _isSubmitting
-              ? SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.cloud_upload_outlined, size: 18),
-                    SizedBox(width: 8),
-                    Text('Submit Collection',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
-                  ],
-                ),
-        );
-      default:
-        return const SizedBox.shrink();
-    }
-  }
 
   // ── Read-only footer for completed/declined ───────────────────────────────
   Widget _buildReadOnlyFooter(CollectionAssignmentModel col) {
@@ -1032,7 +968,7 @@ class _RiderCollectionDetailsScreenState
               ],
             ),
           ),
-          SizedBox(height: 80),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -1095,7 +1031,7 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          SizedBox(height: 80),
+          SizedBox(height: 16),
         ],
       ),
     );
@@ -1483,11 +1419,13 @@ class _RiderCollectionDetailsScreenState
                 // Pantay ang lapad ng Back at Next — gaya ng Use Due Amount
                 // at Clear row.
                 child: ElevatedButton(
+                  // Next = validation lang papuntang Proof (walang record sa
+                  // server hangga't hindi pa ni-submit sa Step 3).
                   onPressed: alreadyRecorded
                       ? () => _goToStep(1)
                       : (!hasAmount || _isSubmitting)
                           ? null
-                          : () => _recordAndNext(col),
+                          : _validateAmountAndNext,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.riderGreen,
                     foregroundColor: Colors.white,
@@ -1578,31 +1516,6 @@ class _RiderCollectionDetailsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.riderGreen.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: AppColors.riderGreen.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.camera_alt_outlined,
-                    color: AppColors.riderGreen, size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                    child: Text(
-                        'Upload payment proof & scene photo. These will be reviewed before completing.',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.riderGreen,
-                            fontWeight: FontWeight.w600,
-                            height: 1.3))),
-              ],
-            ),
-          ),
-          SizedBox(height: 14),
           if (needCollectFirst)
             Container(
               width: double.infinity,
@@ -1643,7 +1556,9 @@ class _RiderCollectionDetailsScreenState
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                // Theme-aware fill — kapag `Colors.white` ito, puti ang card
+                // sa dark mode at puti/light din ang text (hindi visible).
+                color: context.cSurface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: context.cBorder),
                 boxShadow: [
@@ -1661,24 +1576,18 @@ class _RiderCollectionDetailsScreenState
                       Icon(Icons.receipt_long_outlined,
                           color: AppColors.riderGreen, size: 18),
                       SizedBox(width: 8),
-                      Text('Payment Proof *',
+                      Text('Payment Proof',
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: context.cTextPrimary)),
                     ],
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                      'Clear photo of receipt or cash — required',
-                      style: TextStyle(
-                          fontSize: 11, color: context.cTextSecondary)),
                   SizedBox(height: 12),
                   _PhotoPicker(
                     photo: _proofPhoto,
-                    onPickCamera: () => _pickImage(true),
-                    onPickGallery: () => _pickImageGallery(true),
-                    onRemove: () => setState(() => _proofPhoto = null),
+                    onPick: _showProofSourceSheet,
+                    onView: _viewProofPhoto,
                   ),
                 ],
               ),
@@ -1688,7 +1597,9 @@ class _RiderCollectionDetailsScreenState
             Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                // Theme-aware fill — kapag `Colors.white` ito, puti ang card
+                // sa dark mode at puti/light din ang text (hindi visible).
+                color: context.cSurface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: context.cBorder),
                 boxShadow: [
@@ -1713,35 +1624,28 @@ class _RiderCollectionDetailsScreenState
                               color: context.cTextPrimary)),
                     ],
                   ),
-                  SizedBox(height: 4),
-                  Text('Ask lender to sign below',
-                      style: TextStyle(
-                          fontSize: 11, color: context.cTextSecondary)),
                   SizedBox(height: 12),
                   SignaturePad(
                     height: 140,
+                    // Text-only ang Clear / Confirm — walang ✕ at ✓ icons.
+                    showActionIcons: false,
                     onSignatureChanged: (base64) =>
                         setState(() => _signatureBase64 = base64),
                   ),
+                  // Plain status text lang — hindi pill/button ang itsura.
                   if (_signatureBase64 != null)
-                    Container(
-                      margin: EdgeInsets.only(top: 8),
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.successLight,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                    Padding(
+                      padding: EdgeInsets.only(top: 8),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check_circle,
-                              color: AppColors.riderGreen, size: 14),
+                          Icon(Icons.check,
+                              color: context.cBrandGreen, size: 14),
                           SizedBox(width: 6),
                           Text('Signature captured',
                               style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.riderGreen,
+                                  fontSize: 12,
+                                  color: context.cTextSecondary,
                                   fontWeight: FontWeight.w600)),
                         ],
                       ),
@@ -1749,133 +1653,133 @@ class _RiderCollectionDetailsScreenState
                 ],
               ),
             ),
-            SizedBox(height: 14),
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.cBorder),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.camera_outdoor_outlined,
-                          color: AppColors.riderGreen, size: 18),
-                      SizedBox(width: 8),
-                      Text('Scene Photo (optional)',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: context.cTextPrimary)),
-                    ],
+            SizedBox(height: 16),
+            // Back + Next — nasa ibaba ng Lender Signature card, pantay ang
+            // lapad (gaya ng Step 1). Dati nasa bottom bar pa ito.
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _goToStep(0),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.cTextSecondary,
+                      side: BorderSide(color: context.cBorder),
+                      minimumSize: const Size(0, 46),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Back'),
                   ),
-                  SizedBox(height: 4),
-                  Text('Photo of collection scene for verification',
-                      style: TextStyle(
-                          fontSize: 11, color: context.cTextSecondary)),
-                  SizedBox(height: 12),
-                  _PhotoPicker(
-                    photo: _scenePhoto,
-                    onPickCamera: () => _pickImage(false),
-                    onPickGallery: () => _pickImageGallery(false),
-                    onRemove: () => setState(() => _scenePhoto = null),
-                    isSmall: true,
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 14),
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.riderGreen.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: AppColors.riderGreen.withValues(alpha: 0.18)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.gps_fixed, color: AppColors.riderGreen, size: 16),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'GPS coordinates are automatically captured and attached to all uploaded photos.',
-                      style: TextStyle(
-                          fontSize: 11, color: context.cTextSecondary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    // Kailangan muna ng payment proof bago makalipat sa Step 3.
+                    onPressed: _proofPhoto != null
+                        ? () => _validateProofAndNext(col)
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.riderGreen,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 46),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Next',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.arrow_forward, size: 18),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
-          SizedBox(height: 80),
+          SizedBox(height: 16),
         ],
       ),
     );
   }
 
+  /// Step 3 (Review) — scrollable ang Review Summary card, at ang Back +
+  /// Submit ay naka-pin sa ibaba ng mobile view (plain buttons, hindi footer na
+  /// may background/border).
   Widget _buildReviewTab(CollectionAssignmentModel col) {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(16),
+            child: _reviewSummaryCard(col),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => _goToStep(1),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: context.cTextSecondary,
+                    side: BorderSide(color: context.cBorder),
+                    minimumSize: const Size(0, 46),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Back'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : () => _submitReview(col),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.riderGreen,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 46),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Text('Submit',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Review Summary card — Lender info, amounts, at proof/signature checks.
+  Widget _reviewSummaryCard(CollectionAssignmentModel col) {
     final schedule = col.loanSchedule;
     final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
     final collectedStr = col.amountCollected?.toCurrency ??
         (_amountCtrl.text.isEmpty ? '—' : '₱${_amountCtrl.text}');
     final notesStr = col.notes ?? _notesCtrl.text;
-    final isCompleted = col.status == 'completed';
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isCompleted
-                  ? AppColors.successLight
-                  : AppColors.riderGreen.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: isCompleted
-                      ? AppColors.riderGreen.withValues(alpha: 0.2)
-                      : AppColors.riderGreen.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                    isCompleted
-                        ? Icons.verified_outlined
-                        : Icons.rate_review_outlined,
-                    color: AppColors.riderGreen,
-                    size: 20),
-                SizedBox(width: 10),
-                Expanded(
-                    child: Text(
-                        isCompleted
-                            ? 'Collection completed — review your submission below.'
-                            : 'Review everything before final submit. Check amount, notes, and proofs.',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.riderGreen,
-                            fontWeight: FontWeight.w600,
-                            height: 1.3))),
-              ],
-            ),
-          ),
-          SizedBox(height: 14),
           // Summary card
           Container(
             padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              // Theme-aware fill — dating `Colors.white` (puti-sa-puti sa
+              // dark mode, kaya hindi visible ang mga label).
+              color: context.cSurface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: context.cBorder),
               boxShadow: [
@@ -1893,9 +1797,9 @@ class _RiderCollectionDetailsScreenState
                     Icon(Icons.summarize_outlined,
                         color: AppColors.riderGreen, size: 18),
                     SizedBox(width: 8),
-                    Text('Review Summary',
+                    Text('Review Details',
                         style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700)),
+                            fontSize: 14, fontWeight: FontWeight.w700)),
                   ],
                 ),
                 Divider(height: 20),
@@ -1904,237 +1808,27 @@ class _RiderCollectionDetailsScreenState
                 _ReviewRow('Due Date', schedule?['due_date'] ?? '—'),
                 _ReviewRow('Amount Due', amountDue.toCurrency,
                     valueColor: context.cTextPrimary, valueBold: true),
-                SizedBox(height: 6),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.riderGreen.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: AppColors.riderGreen.withValues(alpha: 0.15)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Amount Collected',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.riderGreen,
-                              fontWeight: FontWeight.w600)),
-                      Text(collectedStr,
-                          style: TextStyle(
-                              fontSize: 16,
-                              color: AppColors.riderGreen,
-                              fontWeight: FontWeight.w800)),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 10),
+                // Plain row na lang — hindi na green box/button ang itsura.
+                _ReviewRow('Amount Collected', collectedStr, valueBold: true),
+                // Proof at Lender Signature — check kapag meron, `N/A` kapag wala.
+                _ReviewCheckRow('Proof', present: _proofPhoto != null),
+                _ReviewCheckRow('Lender Signature',
+                    present: _signatureBase64 != null,
+                    presentLabel: 'Captured'),
                 _ReviewRow('Notes', notesStr.isEmpty ? 'No notes' : notesStr),
                 _ReviewRow('Status', col.statusLabel),
+                // `completed_at` ay nasse-set na ng record step (amount pa lang
+                // ang naitala) — kaya "Recorded" ang label habang hindi pa
+                // completed, para hindi malito ang rider na parang tapos na.
                 if (col.completedAt != null)
                   _ReviewRow(
-                      'Completed',
+                      col.status == 'completed' ? 'Completed' : 'Recorded',
                       DateFormat('MMM d, yyyy h:mm a')
                           .format(col.completedAt!)),
               ],
             ),
           ),
-          SizedBox(height: 12),
-          // Proof preview card
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: context.cBorder),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2))
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.photo_library_outlined,
-                        color: AppColors.riderGreen, size: 18),
-                    SizedBox(width: 8),
-                    Text('Proofs',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-                SizedBox(height: 12),
-                if (_proofPhoto != null) ...[
-                  Text('Payment Proof',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: context.cTextSecondary,
-                          fontWeight: FontWeight.w600)),
-                  SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: XFilePreview(
-                        file: _proofPhoto!, height: 160, width: double.infinity),
-                  ),
-                  SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(Icons.check_circle,
-                          color: AppColors.riderGreen, size: 12),
-                      SizedBox(width: 4),
-                      Text('Ready to upload — GPS tagged',
-                          style: TextStyle(
-                              fontSize: 11, color: AppColors.riderGreen)),
-                    ],
-                  ),
-                  SizedBox(height: 14),
-                ] else
-                  Container(
-                    padding: EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppColors.errorLight,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.25)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.warning_amber,
-                            color: AppColors.error, size: 18),
-                        SizedBox(width: 8),
-                        Expanded(
-                            child: Text(
-                                'Payment proof missing — go back to Proof step and capture it.',
-                                style: TextStyle(
-                                    fontSize: 12, color: AppColors.error))),
-                      ],
-                    ),
-                  ),
-                if (_scenePhoto != null) ...[
-                  SizedBox(height: 10),
-                  Text('Scene Photo',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: context.cTextSecondary,
-                          fontWeight: FontWeight.w600)),
-                  SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: XFilePreview(
-                        file: _scenePhoto!, height: 140, width: double.infinity),
-                  ),
-                ],
-                if (_signatureBase64 != null) ...[
-                  SizedBox(height: 12),
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.successLight,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.draw_outlined,
-                            color: AppColors.riderGreen, size: 14),
-                        SizedBox(width: 6),
-                        Text('Lender signature captured',
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.riderGreen,
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                ] else
-                  Padding(
-                    padding: EdgeInsets.only(top: 10),
-                    child: Text('No signature — optional',
-                        style: TextStyle(
-                            fontSize: 11, color: context.cTextTertiary)),
-                  ),
-                SizedBox(height: 10),
-                // Edit CTA
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _goToStep(1),
-                        icon: Icon(Icons.edit_outlined, size: 16),
-                        label: Text('Edit Proofs',
-                            style: TextStyle(fontSize: 12)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.riderGreen,
-                          side: BorderSide(color: AppColors.riderGreen),
-                          minimumSize: const Size(0, 40),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _goToStep(0),
-                        icon: Icon(Icons.payments_outlined, size: 16),
-                        label: Text('Edit Amount',
-                            style: TextStyle(fontSize: 12)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: context.cTextSecondary,
-                          side: BorderSide(color: context.cBorder),
-                          minimumSize: const Size(0, 40),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 14),
-          // Checklist
-          Container(
-            padding: EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9F9F9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: context.cBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Checklist before submit',
-                    style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w700)),
-                SizedBox(height: 10),
-                _CheckItem(
-                    done: (col.amountCollected != null ||
-                        _amountCtrl.text.isNotEmpty),
-                    label: 'Amount entered'),
-                _CheckItem(done: _proofPhoto != null, label: 'Payment proof captured'),
-                _CheckItem(
-                    done: _signatureBase64 != null,
-                    label: 'Signature (optional)',
-                    optional: true),
-                _CheckItem(
-                    done: _scenePhoto != null,
-                    label: 'Scene photo (optional)',
-                    optional: true),
-              ],
-            ),
-          ),
-          SizedBox(height: 80),
-        ],
-      ),
-    );
+        ]);
   }
 }
 
@@ -2169,6 +1863,54 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
+/// Review row para sa proof / signature — green check kapag meron, `N/A` kapag
+/// wala (hal. optional na lender signature).
+class _ReviewCheckRow extends StatelessWidget {
+  final String label;
+  final bool present;
+
+  /// Text sa tabi ng check kapag meron ang proof/signature.
+  final String presentLabel;
+  const _ReviewCheckRow(this.label,
+      {required this.present, this.presentLabel = 'Attached'});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+              width: 130,
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 13, color: context.cTextSecondary))),
+          Expanded(
+            child: present
+                ? Row(
+                    children: [
+                      Icon(Icons.check_circle,
+                          color: context.cBrandGreen, size: 16),
+                      SizedBox(width: 6),
+                      Text(presentLabel,
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: context.cTextPrimary)),
+                    ],
+                  )
+                : Text('N/A',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: context.cTextTertiary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ReviewRow extends StatelessWidget {
   final String label;
   final String value;
@@ -2185,14 +1927,14 @@ class _ReviewRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-              width: 110,
+              width: 130,
               child: Text(label,
                   style: TextStyle(
-                      fontSize: 11, color: context.cTextSecondary))),
+                      fontSize: 13, color: context.cTextSecondary))),
           Expanded(
             child: Text(value,
                 style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: valueBold ? FontWeight.w700 : FontWeight.w600,
                     color: valueColor ?? context.cTextPrimary)),
           ),
@@ -2202,164 +1944,99 @@ class _ReviewRow extends StatelessWidget {
   }
 }
 
-class _CheckItem extends StatelessWidget {
-  final bool done;
-  final String label;
-  final bool optional;
-  const _CheckItem(
-      {required this.done, required this.label, this.optional = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Icon(done ? Icons.check_circle : Icons.radio_button_unchecked,
-              size: 16,
-              color: done
-                  ? AppColors.riderGreen
-                  : optional
-                      ? context.cTextTertiary
-                      : AppColors.warning),
-          SizedBox(width: 8),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12,
-                  color: done
-                      ? AppColors.riderGreen
-                      : optional
-                          ? context.cTextTertiary
-                          : context.cTextSecondary,
-                  fontWeight: done ? FontWeight.w600 : FontWeight.w500)),
-          if (optional)
-            Padding(
-              padding: EdgeInsets.only(left: 6),
-              child: Text('(optional)',
-                  style: TextStyle(fontSize: 11, color: context.cTextTertiary)),
-            )
-        ],
-      ),
-    );
-  }
-}
-
 class _PhotoPicker extends StatelessWidget {
   final XFile? photo;
-  final VoidCallback onPickCamera;
-  final VoidCallback onPickGallery;
-  final VoidCallback onRemove;
-  final bool isSmall;
+
+  /// Pinipindot ng maliit na "Upload" button — dito pinipili ang Camera o
+  /// Gallery (bottom sheet), kaya wala nang dalawang malaking button.
+  final VoidCallback onPick;
+
+  /// Buksan ang na-upload na photo — "View" button sa tabi ng Upload.
+  final VoidCallback onView;
   const _PhotoPicker(
-      {required this.photo,
-      required this.onPickCamera,
-      required this.onPickGallery,
-      required this.onRemove,
-      this.isSmall = false});
+      {required this.photo, required this.onPick, required this.onView});
 
   @override
   Widget build(BuildContext context) {
-    if (photo != null) {
-      return Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: XFilePreview(
-                file: photo!, height: isSmall ? 140 : 180, width: double.infinity),
-          ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                padding: EdgeInsets.all(6),
-                decoration:
-                    BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                child: Icon(Icons.close, color: Colors.white, size: 16),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 8,
-            left: 8,
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.riderGreen,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check, color: Colors.white, size: 12),
-                  SizedBox(width: 4),
-                  Text('GPS Tagged',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _PickBtn(
-              icon: Icons.camera_alt,
-              label: 'Camera',
-              color: AppColors.riderGreen,
-              onTap: onPickCamera),
+        // Puting card box — dito nakalagay ang na-upload na photo. Kapag wala
+        // pa, placeholder lang; hindi ito nawawala kaya hindi rin nawawala ang
+        // Upload button sa ibaba.
+        Container(
+          height: 180,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: photo == null
+              ? const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add_photo_alternate_outlined,
+                          size: 30, color: AppColors.textTertiary),
+                      SizedBox(height: 6),
+                      Text('No photo uploaded yet',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                )
+              : XFilePreview(
+                  file: photo!, height: 180, width: double.infinity),
         ),
-        SizedBox(width: 8),
-        Expanded(
-          child: _PickBtn(
-              icon: Icons.photo_library_outlined,
-              label: 'Gallery',
-              color: AppColors.info,
-              onTap: onPickGallery),
+        SizedBox(height: 12),
+        // Upload (+ View kapag may na-upload na) — nasa kanan ng card, at hindi
+        // nawawala kahit may photo na para makapag-palit pa rin.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            // View muna (kaliwa), tapos Upload (kanan). Filled buttons na
+            // `cBrandGreen` — mas kitang-kita kaysa outlined sa dark mode.
+            if (photo != null) ...[
+              ElevatedButton.icon(
+                onPressed: onView,
+                icon: const Icon(Icons.visibility_outlined, size: 16),
+                label: const Text('View',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: context.cBrandGreen,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  minimumSize: const Size(0, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            ElevatedButton.icon(
+              onPressed: onPick,
+              icon: const Icon(Icons.upload_file_outlined, size: 16),
+              label: const Text('Upload',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: context.cBrandGreen,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class _PickBtn extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _PickBtn(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 22),
-            SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    color: color, fontSize: 12, fontWeight: FontWeight.w700)),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -128,6 +128,11 @@ class ConfirmationDialog extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
+                    // Theme-aware color — kung hindi, navy ang "Cancel" sa dark
+                    // mode at halos hindi ito makita.
+                    style: TextButton.styleFrom(
+                      foregroundColor: context.cTextSecondary,
+                    ),
                     child: Text(cancelLabel),
                   ),
                   const SizedBox(width: 8),
@@ -282,6 +287,11 @@ class _AsyncConfirmationDialogState extends State<AsyncConfirmationDialog> {
                     onPressed: _loading
                         ? null
                         : () => Navigator.of(context).pop(false),
+                    // Theme-aware color — kung hindi, navy ang "Cancel" sa dark
+                    // mode at halos hindi ito makita.
+                    style: TextButton.styleFrom(
+                      foregroundColor: context.cTextSecondary,
+                    ),
                     child: Text(widget.cancelLabel),
                   ),
                   const SizedBox(width: 8),

@@ -258,9 +258,22 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
         },
       );
     } else if (!anyRow) {
+      // Walang row para sa account na ito — hindi nag-persist ang claim sa
+      // login (hindi pa na-deploy ang claim RPC, nag-error ito sa login, o
+      // na-delete ng migration). Dito LANG safe ang lazy claim: dahil
+      // FIRST-LOGIN-WINS na ang rule, ang `claim_active_session` ay
+      // TUMATANGGI kapag may ibang sariwang session (hindi nito nire-revoke
+      // ang iba) — at wala ngang row ngayon, kaya walang masisirang session.
+      // Kung hindi ito gawin, mananatiling walang single-session enforcement
+      // ang account at paulit-ulit ang warning sa bawat request (ping, atbp.).
+      const claimed = await claimActiveSession(
+        supabase,
+        dbUser.id,
+        sessionIdentifier,
+      );
       console.warn(
-        '[requireAuth] validate miss with no active_sessions row — allowing (enforcement degraded, no lazy claim)',
-        { userId: dbUser.id, sessionIdentifier },
+        '[requireAuth] validate miss with no active_sessions row — lazily claimed (self-heal)',
+        { userId: dbUser.id, sessionIdentifier, claimed },
       );
     } else {
       return errorResponse(
