@@ -494,17 +494,54 @@ class _HmProfileScreenState extends ConsumerState<HmProfileScreen> {
             }
           }
 
-          return AlertDialog(
-            shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.zero),
-            title: const Text('Change Password',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            content: SizedBox(
-              width: 420,
+          return Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
               child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: _accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.lock_reset_rounded,
+                              size: 21, color: AppColors.deepNavy),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Change Password',
+                                  style: TextStyle(
+                                      fontSize: 16.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary)),
+                              SizedBox(height: 2),
+                              Text(
+                                  'Use at least 8 characters with letters and numbers.',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
                     _pwField(
                       controller: _currentPwCtrl,
                       label: 'Current password',
@@ -512,20 +549,19 @@ class _HmProfileScreenState extends ConsumerState<HmProfileScreen> {
                       onToggle: () =>
                           setDlg(() => showCurrent = !showCurrent),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     _pwField(
                       controller: _newPwCtrl,
-                      label: 'New password (min. 8)',
+                      label: 'New password',
                       visible: showNew,
-                      onToggle: () =>
-                          setDlg(() => showNew = !showNew),
+                      onToggle: () => setDlg(() => showNew = !showNew),
                       onChanged: (_) => setDlg(() {}),
                     ),
                     if (_newPwCtrl.text.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       _strengthBar(_newPwCtrl.text),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     _pwField(
                       controller: _confirmPwCtrl,
                       label: 'Confirm new password',
@@ -534,46 +570,87 @@ class _HmProfileScreenState extends ConsumerState<HmProfileScreen> {
                           setDlg(() => showConfirm = !showConfirm),
                     ),
                     if (error != null) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(Icons.error_outline_rounded,
-                              size: 14, color: AppColors.error),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(error!,
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.error)),
-                          ),
-                        ],
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: AppColors.error.withValues(alpha: 0.25)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                size: 16, color: AppColors.error),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(error!,
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      height: 1.35,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.error)),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
+                    const SizedBox(height: 22),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed:
+                                saving ? null : () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.textSecondary,
+                              side: const BorderSide(color: AppColors.border),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Cancel',
+                                style:
+                                    TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: saving ? null : submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _accent,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor:
+                                  _accent.withValues(alpha: 0.5),
+                              elevation: 0,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: saving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Text('Update Password',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w700)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ),
-            actions: [
-              TextButton(
-                  onPressed: saving ? null : () => Navigator.pop(ctx),
-                  child: const Text('Cancel')),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: _accent,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.zero)),
-                onPressed: saving ? null : submit,
-                icon: saving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.key_rounded, size: 18),
-                label: Text(saving ? 'Updating…' : 'Update Password'),
-              ),
-            ],
           );
         },
       ),
@@ -591,32 +668,39 @@ class _HmProfileScreenState extends ConsumerState<HmProfileScreen> {
       controller: controller,
       obscureText: !visible,
       onChanged: onChanged,
+      style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        hintText: label,
         floatingLabelBehavior: FloatingLabelBehavior.auto,
+        isDense: true,
         prefixIcon: const Icon(Icons.lock_outline_rounded,
-            size: 18, color: ModernProfileStyles.iconColor),
+            size: 18, color: AppColors.textTertiary),
         suffixIcon: IconButton(
+          tooltip: visible ? 'Hide password' : 'Show password',
           icon: Icon(
               visible
                   ? Icons.visibility_outlined
                   : Icons.visibility_off_outlined,
               size: 18,
-              color: ModernProfileStyles.iconColor),
+              color: AppColors.textTertiary),
           onPressed: onToggle,
         ),
-        border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
-        enabledBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: ModernProfileStyles.cardBorder),
+        filled: true,
+        fillColor: AppColors.surfaceVariant.withValues(alpha: 0.35),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
-        focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: _accent, width: 1.4),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _accent, width: 1.4),
         ),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }

@@ -136,8 +136,7 @@ class _LenderLoanDetailsScreenState
       // (device credential o app-level MPIN).
       final verified = await ref.read(submissionGuardProvider).confirm(
             context,
-            reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
-                'device PIN, o MPIN) para kanselahin ang application.',
+            reason: kSubmissionVerificationReason,
           );
       if (!verified || !context.mounted) return;
       await ref.read(lenderLoanProvider.notifier).cancelLoan(widget.loanId);

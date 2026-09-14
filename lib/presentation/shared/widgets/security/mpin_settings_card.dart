@@ -53,9 +53,9 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
       context.showSnackBarAsToast(
         SnackBar(
           content: Text(
-            'Naabot na ang limitasyon: ${MpinService.maxChangesPerWindow} '
-            'palit lang ng MPIN sa loob ng 15 araw. Puwede kang magpalit muli '
-            'sa ${resetIn == null ? 'lalong madaling panahon' : _formatReset(resetIn)}.',
+            'Limit reached: you can only change your MPIN '
+            '${MpinService.maxChangesPerWindow} times within 15 days. You can '
+            'change it again in ${resetIn == null ? 'a while' : _formatReset(resetIn)}.',
           ),
           backgroundColor: AppColors.warning,
         ),
@@ -75,9 +75,9 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
       SnackBar(
         content: Text(
           wasSet
-              ? 'Na-update ang MPIN mo.'
-              : 'Naka-set na ang MPIN mo. Ito ang gagamitin para kumpirmahin '
-                  'ang mga submission mo.',
+              ? 'Your MPIN has been updated.'
+              : 'Your MPIN is now set. You will use it to confirm your '
+                  'submissions.',
         ),
         backgroundColor: AppColors.success,
       ),
@@ -92,7 +92,7 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
         final remaining = _quota?.remaining ?? MpinService.maxChangesPerWindow;
         return 'On — 4-digit MPIN is set · $remaining change${remaining == 1 ? '' : 's'} left (15 days)';
       default:
-        return 'Off — mag-set ng 4-digit MPIN para sa submissions';
+        return 'Off — set a 4-digit MPIN for your submissions';
     }
   }
 

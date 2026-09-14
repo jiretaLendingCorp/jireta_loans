@@ -379,8 +379,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   Future<bool> _authenticateForPayment() =>
       ref.read(submissionGuardProvider).confirm(
             context,
-            reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
-                'device PIN, o MPIN) para kumpirmahin ang bayad.',
+            reason: kSubmissionVerificationReason,
           );
 
   void _showInfo(String message) {

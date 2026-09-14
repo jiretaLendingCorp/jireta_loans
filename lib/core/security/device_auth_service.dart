@@ -97,12 +97,12 @@ class DeviceAuthService {
 /// Mensaheng ipinapakita kapag hindi natuloy ang authentication dahil hindi
 /// ito available sa device (hindi kasalanan ng user).
 const String kDeviceAuthUnavailableMessage =
-    'Hindi available ang device verification sa phone na ito. Mag-set up ng '
-    'fingerprint, Face ID, o device PIN sa Settings at subukan ulit.';
+    'Device verification is not available on this phone. Set up a fingerprint, '
+    'Face ID, or device PIN in Settings and try again.';
 
 /// Mensaheng ipinapakita kapag kinansela / hindi tumugma ang verification.
 const String kDeviceAuthFailedMessage =
-    'Hindi na-verify ang iyong pagkakakilanlan. Hindi natuloy ang aksyon.';
+    'Identity verification failed. The action was cancelled.';
 
 final deviceAuthServiceProvider = Provider<DeviceAuthService>(
   (ref) => DeviceAuthService(),

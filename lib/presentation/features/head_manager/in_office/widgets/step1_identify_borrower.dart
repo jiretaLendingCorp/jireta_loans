@@ -138,7 +138,7 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
                           color: AppColors.textPrimary)),
                   const SizedBox(height: 4),
                   const Text(
-                      'Ilagay ang pangalan at phone number ng bagong account.',
+                      'Enter the name and phone number of the new account.',
                       style: TextStyle(
                           fontSize: 12.5, color: AppColors.textSecondary)),
                   const SizedBox(height: 16),

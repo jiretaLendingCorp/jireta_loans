@@ -622,8 +622,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     // tuluyang maisumite ang application.
     return ref.read(submissionGuardProvider).confirm(
           context,
-          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
-              'device PIN, o MPIN) para maisumite ang loan application.',
+          reason: kSubmissionVerificationReason,
         );
   }
 
@@ -3225,12 +3224,10 @@ class _ChooseDisbursementViewState
         // bago i-save ang method — kapareho ng ibang lender submissions.
         final verified = await ref.read(submissionGuardProvider).confirm(
               context,
-              reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / '
-                  'Face ID, device PIN, o MPIN) para kumpirmahin kung paano '
-                  'mo tatanggapin ang iyong pondo.',
+              reason: kSubmissionVerificationReason,
             );
         if (!verified) {
-          return 'Hindi na-verify ang identity mo. Subukan ulit.';
+          return 'Identity verification failed. Please try again.';
         }
         final done = await ref
             .read(lenderLoanProvider.notifier)
@@ -3503,7 +3500,7 @@ class _LoanPurposePickerState extends State<_LoanPurposePicker> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Piliin ang dahilan ng iyong loan. Ito ang unang hakbang bago ang loan details.',
+          'Choose the purpose of your loan. This is the first step before the loan details.',
           style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 16),

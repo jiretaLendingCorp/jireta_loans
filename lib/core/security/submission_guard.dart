@@ -21,12 +21,20 @@ import '../theme/app_colors.dart';
 import 'device_auth_service.dart';
 import 'mpin_service.dart';
 
+/// Ang paliwanag na ipinapakita sa device credential / MPIN prompt bago ang
+/// anumang submission.
+///
+/// English ito at walang parenthetical na listahan ng credential types — dati
+/// itong Tagalog at may "(fingerprint / Face ID, device PIN, o MPIN)".
+const String kSubmissionVerificationReason =
+    'Verify your identity to confirm this submission.';
+
 /// Paliwanag na ipinapakita sa MPIN setup kapag kailangan munang mag-set ng
 /// MPIN bago makapag-submit (walang device password ang phone).
 const String kMpinRequiredBeforeSubmitMessage =
-    'Walang password o biometrics ang phone mo, kaya kailangan mo munang '
-    'mag-set ng 4-digit MPIN. Ito ang gagamitin para kumpirmahin ang mga '
-    'submission mo. Puwede rin itong palitan anumang oras sa Profile.';
+    'Your phone has no screen lock or biometrics set up, so you need to '
+    'create a 4-digit MPIN first. You will use it to confirm your submissions. '
+    'You can change it anytime in Profile.';
 
 /// Kumpirmasyon bago ang isang submission.
 class SubmissionGuard {
@@ -91,8 +99,8 @@ class SubmissionGuard {
       context.showSnackBarAsToast(
         const SnackBar(
           content: Text(
-            'Kailangan ng MPIN bago mag-submit. Mag-set ng 4-digit MPIN sa '
-            'Profile o sa susunod na submit.',
+            'An MPIN is required before submitting. Set a 4-digit MPIN in '
+            'Profile or on your next submission.',
           ),
           backgroundColor: AppColors.warning,
         ),

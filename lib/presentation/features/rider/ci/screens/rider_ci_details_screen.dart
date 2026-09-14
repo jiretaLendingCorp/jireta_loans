@@ -234,8 +234,7 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
     // phone — at kung wala pang MPIN, hihingin munang i-set ito.
     final verified = await ref.read(submissionGuardProvider).confirm(
           context,
-          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
-              'device PIN, o MPIN) para maisumite ang CI report at evidence.',
+          reason: kSubmissionVerificationReason,
         );
     if (!verified || !mounted) return;
 

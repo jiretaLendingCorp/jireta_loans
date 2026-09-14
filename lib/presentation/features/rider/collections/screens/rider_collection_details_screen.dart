@@ -266,8 +266,7 @@ class _RiderCollectionDetailsScreenState
     // password ang phone — at kung wala pang MPIN, hihingin munang i-set ito.
     final verified = await ref.read(submissionGuardProvider).confirm(
           context,
-          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
-              'device PIN, o MPIN) para i-record at maisumite ang collection.',
+          reason: kSubmissionVerificationReason,
         );
     if (!verified || !mounted) return;
 
@@ -406,7 +405,7 @@ class _RiderCollectionDetailsScreenState
         AppLogger.w(
             '[CollectionSubmit] hindi nag-complete ang assignment — id=${widget.collectionId}');
         final errMsg = ref.read(riderCollectionProvider).error ??
-            'Failed to upload proof. Subukan muli ang Submit.';
+            'Failed to upload proof. Please tap Submit to try again.';
         await showDialog(
             context: context, builder: (_) => ErrorDialog(message: errMsg));
       }

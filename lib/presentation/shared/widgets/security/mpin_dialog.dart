@@ -285,16 +285,16 @@ class _MpinDialogState extends State<MpinDialog> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = 'Naabot na ang limitasyon: '
-            '${MpinService.maxChangesPerWindow} palit lang ng MPIN sa loob ng '
-            '15 araw. Puwede kang magpalit muli sa ${_formatRetry(e.retryAfter)}.';
+        _error = 'Limit reached: you can only change your MPIN '
+            '${MpinService.maxChangesPerWindow} times within 15 days. '
+            'You can change it again in ${_formatRetry(e.retryAfter)}.';
       });
       _clearBoxes();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = 'Hindi na-save ang MPIN. Subukan ulit.';
+        _error = 'Could not save your MPIN. Please try again.';
       });
       _clearBoxes();
     }
@@ -333,13 +333,12 @@ class _MpinDialogState extends State<MpinDialog> {
         // May `reason` sa "required" flow ng SubmissionGuard (walang device
         // password) — iyon ang ipinapakita para malinaw kung bakit kailangan.
         return widget.reason ??
-            'Gumawa ng 4-digit MPIN. Ito ang gagamitin para kumpirmahin ang '
-                'mga submission kapag walang password o biometrics ang phone mo.';
+            'Create a 4-digit MPIN. You will use it to confirm your submissions '
+                'when your phone has no screen lock or biometrics.';
       case _Step.confirm:
-        return 'I-type muli ang MPIN para makumpirma.';
+        return 'Re-enter your MPIN to confirm.';
       case _Step.current:
-        return widget.reason ??
-            'I-type ang iyong 4-digit MPIN para magpatuloy.';
+        return widget.reason ?? 'Enter your 4-digit MPIN to continue.';
     }
   }
 
@@ -438,7 +437,7 @@ class _MpinDialogState extends State<MpinDialog> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Naka-lock muna. Subukan ulit sa ${_lockSecondsLeft}s.',
+                        'Temporarily locked. Try again in ${_lockSecondsLeft}s.',
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,

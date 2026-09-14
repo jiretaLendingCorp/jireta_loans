@@ -237,8 +237,7 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     // / device PIN), o ang app-level MPIN kapag walang password ang phone.
     final verified = await ref.read(submissionGuardProvider).confirm(
           context,
-          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
-              'device PIN, o MPIN) para ipadala ang office payment request.',
+          reason: kSubmissionVerificationReason,
         );
     if (!verified || !mounted) return;
 
