@@ -9,12 +9,15 @@ import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
+import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
+import '../../lenders/providers/emp_lender_provider.dart';
 import '../providers/emp_collection_provider.dart';
 import '../widgets/emp_assign_rider_modal.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -131,6 +134,9 @@ class EmpCollectionListScreen extends ConsumerStatefulWidget {
 
 class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScreen> {
   final _searchCtrl = TextEditingController();
+  /// Assignment na kasalukuyang ini-approve/re-reject — para makita ang
+  /// spinner sa mismong button habang tumatakbo ang request.
+  String? _reviewingId;
   final _scrollCtrl = ScrollController();
   DateTimeRange? _dateRange;
   String _activeTab = 'all';
@@ -148,6 +154,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
   final _pillTabs = const [
     FilterTabDef('payments', 'Payments', Icons.payments_outlined),
+    // Early payers ay lender attribute — dating badge sa People/Lenders list.
+    // Nasa Collections na sila ngayon kasama ng Payments.
+    FilterTabDef('early_payers', 'Early Payers', Icons.bolt_rounded),
   ];
 
   final _paymentMethodTabs = const [
@@ -180,6 +189,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
     if (key == 'payments') {
       ref.read(_empPaymentsInCollectionProvider.notifier).fetch(method: 'all');
+    } else if (key == 'early_payers') {
+      // Lender list na may `is_early_payer` insight — client-side na search.
+      ref.read(empLenderProvider.notifier).load(silent: true);
     } else {
       ref.read(empCollectionProvider.notifier).setStatus(key);
     }
@@ -189,7 +201,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
   Widget build(BuildContext context) {
     final collectionState = ref.watch(empCollectionProvider);
     final paymentsState = ref.watch(_empPaymentsInCollectionProvider);
+    final lenderState = ref.watch(empLenderProvider);
     final isPayments = _activeTab == 'payments';
+    final isEarlyPayers = _activeTab == 'early_payers';
 
     return WebScaffold(
       title: 'Collections',
@@ -220,6 +234,8 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                   const SizedBox(height: 16),
                   _buildPaymentPagination(paymentsState),
                 ],
+              ] else if (isEarlyPayers) ...[
+                _buildEarlyPayers(lenderState),
               ] else ...[
                 if (collectionState.isLoading)
                   _buildLoadingShimmer()
@@ -260,6 +276,185 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     );
   }
 
+  /// Mga early payer: lender na may verified payment at LAHAT ng bayad ay bago
+  /// o eksaktong due date (galing sa `lender_payment_insights` RPC).
+  List<UserModel> _earlyPayerLenders(EmpLenderState state) {
+    final all = state.lenders.where((u) => u.isEarlyPayer).toList()
+      ..sort((a, b) => b.maxDaysEarly.compareTo(a.maxDaysEarly));
+    final q = _searchCtrl.text.toLowerCase().trim();
+    if (q.isEmpty) return all;
+    return all.where((u) {
+      final hay = '${u.firstName} ${u.lastName} ${u.phoneNumber ?? ''} '
+              '${u.email ?? ''}'
+          .toLowerCase();
+      return hay.contains(q);
+    }).toList();
+  }
+
+  Widget _buildEarlyPayers(EmpLenderState state) {
+    if (state.isLoading && state.lenders.isEmpty) return _buildLoadingShimmer();
+    final lenders = _earlyPayerLenders(state);
+    if (lenders.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.bolt_rounded,
+                size: 40, color: AppColors.textTertiary),
+            const SizedBox(height: 12),
+            Text(
+              state.lenders.isEmpty
+                  ? 'No lenders loaded yet'
+                  : 'No early payers found',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 16),
+            ),
+            if (state.lenders.isNotEmpty && _searchCtrl.text.trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: () {
+                  _searchCtrl.clear();
+                  setState(() {});
+                },
+                icon: const Icon(Icons.clear_all_rounded, size: 16),
+                label: const Text('Clear search'),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    return _Entrance(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border:
+                  Border.all(color: AppColors.success.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.bolt_rounded,
+                    size: 18, color: AppColors.success),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${lenders.length} lender(s) paid every installment on time '
+                    'or ahead of the due date.',
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Table data (gaya ng ibang Collections tabs) — naka-view at
+          // naka-scan ang mga early payer: pangalan, kontak, on-time count,
+          // at gaano karaming araw ang aga.
+          ResponsiveListCard(
+            minTableWidth: 780,
+            columns: const [
+              ResponsiveCol('Lender', icon: Icons.person_outline, flex: 3),
+              ResponsiveCol('Contact', icon: Icons.phone_outlined, flex: 2),
+              ResponsiveCol('On Time',
+                  icon: Icons.event_available_outlined, flex: 2),
+              ResponsiveCol('Early', icon: Icons.bolt_rounded, flex: 2),
+            ],
+            actionsCol: const ResponsiveActionsCol(width: 110),
+            rows: lenders.map((u) => _buildEarlyPayerRow(u)).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  ResponsiveRow _buildEarlyPayerRow(UserModel u) {
+    final fullName = '${u.firstName} ${u.lastName}'.trim();
+    return ResponsiveRow(
+      cells: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              fullName.isEmpty ? 'Unnamed lender' : fullName,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
+            if ((u.email ?? '').isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(u.email!,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textTertiary),
+                  overflow: TextOverflow.ellipsis),
+            ],
+          ],
+        ),
+        Text(
+          (u.phoneNumber ?? '').isEmpty ? 'No contact' : u.phoneNumber!,
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          '${u.onTimePaymentCount}/${u.verifiedPaymentCount} on time',
+          style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: EarlyPayerBadge(daysEarly: u.maxDaysEarly, small: true),
+        ),
+      ],
+      actions: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => context.go(
+                RouteConstants.empLenderDetails.replaceFirst(':id', u.id)),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border)),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.visibility_outlined,
+                      size: 14, color: AppColors.deepNavy),
+                  SizedBox(width: 4),
+                  Text('View',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.deepNavy)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPaymentMethodFilter(_EmpPaymentsState state) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -280,8 +475,13 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
   }
 
   Widget _buildToolbar(EmpCollectionState cState, _EmpPaymentsState pState, bool isPayments) {
+    final isEarlyPayers = _activeTab == 'early_payers';
     final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = isPayments ? pState.totalCount : cState.totalCount;
+    final resultsCount = isPayments
+        ? pState.totalCount
+        : isEarlyPayers
+            ? _earlyPayerLenders(ref.read(empLenderProvider)).length
+            : cState.totalCount;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: ResponsiveSearchToolbar(
@@ -292,9 +492,17 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             Expanded(
               child: TextField(
                 controller: _searchCtrl,
-                onChanged: (v) => isPayments
-                    ? ref.read(_empPaymentsInCollectionProvider.notifier).setSearch(v)
-                    : ref.read(empCollectionProvider.notifier).setSearch(v),
+                onChanged: (v) {
+                  if (isEarlyPayers) {
+                    setState(() {});
+                  } else if (isPayments) {
+                    ref
+                        .read(_empPaymentsInCollectionProvider.notifier)
+                        .setSearch(v);
+                  } else {
+                    ref.read(empCollectionProvider.notifier).setSearch(v);
+                  }
+                },
                 style: const TextStyle(fontSize: 13),
                 decoration: const InputDecoration(
                   hintText: 'Search',
@@ -368,7 +576,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
               ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
               ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
             ],
-            actionsCol: const ResponsiveActionsCol(width: 120),
+            actionsCol: const ResponsiveActionsCol(width: 240),
             rows: items.map((e) => _buildCollectionRow(e)).toList(),
           ),
         ],
@@ -387,6 +595,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     // Rejected = hindi nakuha ang pera. Kailangang mag-assign ng rider na
     // mangolekta muli (bagong assignment para sa parehong schedule).
     final canReassign = status == 'rejected' && !isOffice;
+    // Nag-submit na si rider ng proof — kailangang i-approve (baba ang loan
+    // balance) o i-reject (hindi nakuha ang pera).
+    final canReview = status == 'pending_approval';
     return ResponsiveRow(
       cells: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -427,11 +638,95 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             borderRadius: BorderRadius.circular(9),
             child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(9)), child: const Text('Reassign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
           ),
+        // Approve / Reject direktang sa action column kapag na-submit na ni
+        // rider ang collection. Silent ang refresh ng provider kaya HINDI
+        // nag-reloading nang buo ang table (realtime din ang listahan).
+        if (canReview) ...[
+          const SizedBox(width: 6),
+          _CollectionActionButton(
+            label: 'Approve',
+            color: AppColors.success,
+            busy: _reviewingId == col.id,
+            onTap: () => _reviewCollection(col, approve: true),
+          ),
+          const SizedBox(width: 6),
+          _CollectionActionButton(
+            label: 'Reject',
+            color: AppColors.error,
+            busy: _reviewingId == col.id,
+            onTap: () => _reviewCollection(col, approve: false),
+          ),
+        ],
         InkWell(
           onTap: () => context.go(RouteConstants.empCollectionDetails.replaceFirst(':id', col.id)),
           child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
         ),
       ]),
+    );
+  }
+
+  /// Approve o Reject ang rider-submitted collection. Hindi ito nag-shishimmer
+  /// ng buong table — silent refresh ang approve/reject sa provider.
+  Future<void> _reviewCollection(dynamic col, {required bool approve}) async {
+    final assignmentId = col.id as String? ?? '';
+    if (assignmentId.isEmpty) return;
+
+    var reason = '';
+    if (!approve) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Reject Collection'),
+          content: TextField(
+            autofocus: true,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Reason for rejection (required)',
+            ),
+            onChanged: (v) => reason = v,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (reason.trim().isEmpty) return;
+                Navigator.pop(context, true);
+              },
+              child: const Text('Reject',
+                  style: TextStyle(color: AppColors.error)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    final notifier = ref.read(empCollectionProvider.notifier);
+    setState(() => _reviewingId = assignmentId);
+    bool ok;
+    try {
+      ok = approve
+          ? await notifier.approveCollection(assignmentId)
+          : await notifier.rejectCollection(assignmentId, reason.trim());
+    } finally {
+      if (mounted) setState(() => _reviewingId = null);
+    }
+    if (!mounted) return;
+    context.showSnackBarAsToast(
+      SnackBar(
+        content: Text(ok
+            ? (approve
+                ? 'Collection approved — loan balance updated'
+                : 'Collection rejected — rider can be reassigned')
+            : (ref.read(empCollectionProvider).error ??
+                (approve
+                    ? 'Failed to approve collection'
+                    : 'Failed to reject collection'))),
+        backgroundColor: ok ? AppColors.success : AppColors.error,
+      ),
     );
   }
 
@@ -669,6 +964,50 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
 
 
+
+/// Maliit na pill-style button para sa Approve / Reject sa actions column.
+class _CollectionActionButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  /// True habang tumatakbo ang request — spinner sa halip na label.
+  final bool busy;
+  const _CollectionActionButton({
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.busy = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: busy ? null : onTap,
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: busy ? color.withValues(alpha: 0.7) : color,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: busy
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              )
+            : Text(
+                label,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white),
+              ),
+      ),
+    );
+  }
+}
 
 class _PaymentMethodInline extends StatelessWidget {
   final String method;

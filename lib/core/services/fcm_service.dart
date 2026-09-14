@@ -56,6 +56,39 @@ class FcmService {
   RemoteMessage? _pendingInitialMessage;
   bool _initialized = false;
 
+  // ── Alert channel ────────────────────────────────────────────────────────
+  // Loan / payment / collection alerts must RING, so the channel is created
+  // with an explicit ringtone sound. Android notification channels are
+  // immutable once created — the legacy `jireta_channel` may have been
+  // created silent on existing installs — so a new id (_v2) forces the
+  // platform to (re)create it with the ringtone. The backend FCM payload
+  // targets this same channel id (see supabase/functions/_shared/fcm.ts).
+  static const _channelId = 'jireta_alerts_v2';
+  static const _channelName = 'Jireta Alerts';
+  static const _channelDescription =
+      'Loan, payment, collection and assignment updates';
+  static const _ringtoneUri = 'content://settings/system/ringtone';
+
+  NotificationDetails get _alertDetails => const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDescription,
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          sound: UriAndroidNotificationSound(_ringtoneUri),
+          enableVibration: true,
+          category: AndroidNotificationCategory.message,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+          sound: 'default',
+        ),
+      );
+
   /// Injected from app.dart so taps can navigate through the app's router
   /// (its redirects enforce auth + role, so deep links stay safe).
   void attachRouter(GoRouter router) {
@@ -94,6 +127,29 @@ class FcmService {
         const InitializationSettings(android: androidInit, iOS: iosInit),
         onDidReceiveNotificationResponse: _handleLocalNotificationTap,
       );
+
+      // Explicitly (re)create the alert channel with a ringtone so both
+      // foreground local notifications and background FCM pushes ring.
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        try {
+          await _localNotifications
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
+              ?.createNotificationChannel(
+                const AndroidNotificationChannel(
+                  _channelId,
+                  _channelName,
+                  description: _channelDescription,
+                  importance: Importance.max,
+                  playSound: true,
+                  sound: UriAndroidNotificationSound(_ringtoneUri),
+                  enableVibration: true,
+                ),
+              );
+        } catch (e) {
+          AppLogger.error('[FCM] Alert channel creation failed: $e');
+        }
+      }
 
       // ── Permission ─────────────────────────────────────────────────────
       // iOS/macOS: FirebaseMessaging.requestPermission() shows the prompt.
@@ -173,16 +229,7 @@ class FcmService {
       id,
       notification.title,
       notification.body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'jireta_channel',
-          'Jireta Notifications',
-          channelDescription: 'Loan, payment, collection and assignment updates',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-        iOS: DarwinNotificationDetails(),
-      ),
+      _alertDetails,
       payload: _serializeTapPayload(data),
     );
   }

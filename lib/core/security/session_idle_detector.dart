@@ -17,7 +17,8 @@ class SessionIdleDetector extends ConsumerStatefulWidget {
   const SessionIdleDetector({super.key, required this.child});
 
   @override
-  ConsumerState<SessionIdleDetector> createState() => _SessionIdleDetectorState();
+  ConsumerState<SessionIdleDetector> createState() =>
+      _SessionIdleDetectorState();
 }
 
 class _SessionIdleDetectorState extends ConsumerState<SessionIdleDetector> {

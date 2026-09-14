@@ -336,60 +336,126 @@ class _PaymentCard extends StatelessWidget {
     final isReversed = status == 'reversed';
     final accent = isVerified ? AppColors.success : isReversed ? AppColors.error : status == 'pending' ? AppColors.warning : AppColors.lenderBlue;
 
-    final maskedRef = (referenceNum != null && referenceNum.length > 4)
-        ? '${referenceNum.substring(0, 2)}****${referenceNum.substring(referenceNum.length - 2)}'
-        : (referenceNum ?? '');
+    // Buong reference number ang ipinapakita (hindi na naka-mask) para may
+    // maipakitang patunay ng bayad kapag paid na ang transaction.
+    final refText = (referenceNum != null && referenceNum.trim().isNotEmpty)
+        ? referenceNum.trim()
+        : '—';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accent.withValues(alpha: 0.15)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: InkWell(
         onTap: () => context.push(RouteConstants.lenderPaymentReceipt.replaceAll(':id', paymentId)),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header: paraan ng bayad + status.
               Row(
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(color: accent.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10), border: Border.all(color: accent.withValues(alpha: 0.15))),
-                    child: Icon(methodIcon, color: accent, size: 21),
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(color: accent.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12), border: Border.all(color: accent.withValues(alpha: 0.15))),
+                    child: Icon(methodIcon, color: accent, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      if (maskedRef.isNotEmpty)
-                        Text(maskedRef, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary, letterSpacing: 1.0)),
-                      if (maskedRef.isNotEmpty) const SizedBox(height: 2),
-                      Text(item.lenderName.isNotEmpty ? item.lenderName : methodLabel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary)),
-                      const SizedBox(height: 3),
-                      if (loanNumber.isNotEmpty) Text('Loan: $loanNumber', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary, fontWeight: FontWeight.w500)),
-                      Text(item.createdAt.toShortDate, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
+                      Text(methodLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text(item.createdAt.toShortDate, style: const TextStyle(fontSize: 11.5, color: AppColors.textTertiary)),
                     ]),
                   ),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text(amount.toCurrency, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isReversed ? AppColors.error : AppColors.textPrimary)),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(isVerified ? Icons.check_circle_rounded : isReversed ? Icons.undo_rounded : Icons.schedule_rounded, size: 12, color: accent),
-                        const SizedBox(width: 4),
-                        Text(item.statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: accent)),
-                      ]),
-                    ),
-                  ]),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(isVerified ? Icons.check_circle_rounded : isReversed ? Icons.undo_rounded : Icons.schedule_rounded, size: 13, color: accent),
+                      const SizedBox(width: 4),
+                      Text(item.statusLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
+                    ]),
+                  ),
                 ],
               ),
+              const SizedBox(height: 14),
+              const Divider(height: 1, color: AppColors.divider),
+              const SizedBox(height: 14),
+              // Amount (malaki) + reference number.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Amount Paid',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textTertiary,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(
+                          amount.toCurrency,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 24,
+                            height: 1.1,
+                            color: isReversed ? AppColors.error : AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Reference No.',
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.textTertiary,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(
+                        refText,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                            letterSpacing: 0.4),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (loanNumber.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined,
+                        size: 13, color: AppColors.textTertiary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Loan $loanNumber',
+                        style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textTertiary,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

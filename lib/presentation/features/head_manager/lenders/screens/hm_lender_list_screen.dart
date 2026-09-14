@@ -8,7 +8,6 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
-import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -149,11 +148,8 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            // Early payer = lahat ng verified na bayad ay bago/o sa due date.
-            if (user.isEarlyPayer) ...[
-              const SizedBox(width: 6),
-              EarlyPayerBadge(small: true, daysEarly: user.maxDaysEarly),
-            ],
+            // Early-payer badge ay nasa Collections → Early Payers tab na, hindi
+            // na dito sa People/Lenders list.
           ],
         ),
         Text(

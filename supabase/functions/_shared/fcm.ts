@@ -205,8 +205,23 @@ export async function sendPushToUserDevices(
                   reference_id: params.referenceId ?? '',
                   notification_id: params.notificationId ?? '',
                 },
-                android: { priority: 'high' },
-                apns: { headers: { 'apns-priority': '10' } },
+                // Alert channel created by the app with a ringtone sound
+                // (lib/core/services/fcm_service.dart). Targeting it lets the
+                // OS ring for background/terminated pushes too.
+                android: {
+                  priority: 'high',
+                  notification: {
+                    channel_id: 'jireta_alerts_v2',
+                    sound: 'default',
+                    default_sound: true,
+                    default_vibrate_timings: true,
+                    notification_priority: 'PRIORITY_MAX',
+                  },
+                },
+                apns: {
+                  headers: { 'apns-priority': '10' },
+                  payload: { aps: { sound: 'default', badge: 1 } },
+                },
               },
             }),
             signal: AbortSignal.timeout(5000),

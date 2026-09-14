@@ -59,11 +59,19 @@ class DioClient {
     String path, {
     dynamic data,
     Map<String, String>? headers,
+    /// Mas mahabang send/receive timeout para sa mabibigat na request
+    /// (halimbawa: base64 ng 1–2 proof photos, hanggang ~10MB). Null =
+    /// gamitin ang default na timeout mula sa BaseOptions.
+    Duration? timeout,
   }) async {
     return _dio.post(
       path,
       data: data,
-      options: Options(headers: headers),
+      options: Options(
+        headers: headers,
+        sendTimeout: timeout,
+        receiveTimeout: timeout,
+      ),
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
@@ -76,6 +77,16 @@ class _RiderDisbursementUploadProofScreenState
       );
       return;
     }
+
+    // Kumpirmasyon bago ang submission: device credential (fingerprint /
+    // Face ID / device PIN), o ang app-level MPIN kapag walang password ang
+    // phone — at kung wala pang MPIN, hihingin munang i-set ito.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para maisumite ang Cash on Delivery proof.',
+        );
+    if (!verified || !mounted) return;
 
     setState(() => _isSubmitting = true);
     bool ok = false;
@@ -399,6 +410,8 @@ class _RiderDisbursementUploadProofScreenState
           SignaturePad(
             height: 150,
             showActionIcons: false,
+            // "Signature cleared" feedback: 1 segundo lang (rider flow).
+            clearedFeedbackDuration: const Duration(seconds: 1),
             onSignatureChanged: (base64) =>
                 setState(() => _signatureBase64 = base64),
           ),

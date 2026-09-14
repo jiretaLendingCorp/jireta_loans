@@ -121,13 +121,20 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       // makes accepted items appear as "not found". Try multiple statuses and
       // fallback to unfiltered fetch. Also check already-loaded lists first.
       CollectionAssignmentModel? found;
-      // 1) check already-loaded collections (assigned/accepted tabs)
-      try {
-        found = state.collections.firstWhere((c) => c.id == assignmentId);
-      } catch (_) {}
-      if (found != null) {
-        state = state.copyWith(selectedCollection: found, isLoading: false);
-        return;
+      // 1) Naka-cache na listahan — mabilis itong daanan PERO STALE ito
+      // pagkatapos ng accept/decline: ang status sa listahan ay 'assigned'
+      // pa. Iyon ang dahilan kung bakit bumabalik ang Accept button pagkatapos
+      // mag-load at tila hindi nagsave ang unang pindot. Kapag `silent == true`
+      // (action refresh pagkatapos ng accept/decline/submit), laktawan ito at
+      // dumiretso sa eksaktong server fetch sa ibaba — doon authoritative.
+      if (!silent) {
+        try {
+          found = state.collections.firstWhere((c) => c.id == assignmentId);
+        } catch (_) {}
+        if (found != null) {
+          state = state.copyWith(selectedCollection: found, isLoading: false);
+          return;
+        }
       }
       // 2) EKSAKTONG fetch by id (collections-view?fn=get). Ito ang dapat unahin:
       // isang query lang, at walang "not found" na dulot ng isang tahimik na
@@ -184,13 +191,25 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
   }
 
   Future<bool> accept(String assignmentId) async {
+    if (state.isSubmitting) return false;
     state = state.copyWith(isSubmitting: true);
     try {
       await _ds.acceptCollection(assignmentId: assignmentId);
       _ref.read(riderLocationProvider.notifier).startTracking();
+      // Autoritatibong status MUNA (exact fetch), hindi ang listahan: kung
+      // stale pa ring 'assigned' ang naka-cache, muling lalabas ang Accept
+      // button at parang hindi nag-save ang unang pindot.
+      await fetchFresh(assignmentId);
+      // Backend lag guard: kung 'assigned' pa rin ang server, subukan muli
+      // bago natin ipakita muli ang Accept button.
+      for (var i = 0; i < 3; i++) {
+        if (state.selectedCollection?.status != 'assigned') break;
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        await fetchFresh(assignmentId);
+      }
+      // SILENT na refresh ng listahan — hindi dapat mag-loading ang buong list.
+      await load(silent: true);
       state = state.copyWith(isSubmitting: false);
-      await load();
-      await loadDetails(assignmentId, silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -200,13 +219,16 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
   }
 
   Future<bool> decline(String assignmentId) async {
+    if (state.isSubmitting) return false;
     state = state.copyWith(isSubmitting: true);
     try {
       await _ds.declineCollection(assignmentId: assignmentId);
       _ref.read(riderLocationProvider.notifier).stopTracking();
+      // Kapareho ng accept: exact fetch muna para hindi stale ang status,
+      // tapos silent na list refresh (walang loading flash).
+      await fetchFresh(assignmentId);
+      await load(silent: true);
       state = state.copyWith(isSubmitting: false);
-      await load();
-      await loadDetails(assignmentId, silent: true);
       return true;
     } catch (e) {
       state = state.copyWith(
@@ -296,10 +318,56 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       unawaited(_safeRefresh(assignmentId));
       return status;
     } catch (e) {
+      // Posibleng naisave na ng server ang proof pero nag-timeout/nabigo ang
+      // response sa client (mabigat ang base64 ng 2 larawan) — ito ang dahilan
+      // kung bakit "failed to upload proof" sa rider pero natanggap naman ng
+      // Head Manager at Employee. Kumpirmahin muna sa server bago mag-report
+      // ng failure.
+      if (_isInconclusiveFailure(e)) {
+        final submitted = await _confirmSubmittedAfterFailure(assignmentId);
+        if (submitted != null) {
+          _ref.read(riderLocationProvider.notifier).stopTracking();
+          state = state.copyWith(isSubmitting: false);
+          unawaited(_safeRefresh(assignmentId));
+          return submitted;
+        }
+      }
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
       return null;
     }
+  }
+
+  /// True kapag ang failure ay HINDI katiyakan (timeout / network / 5xx) — sa
+  /// mga ganitong kaso, posibleng natuloy pa rin ang upload sa server.
+  bool _isInconclusiveFailure(Object e) {
+    final msg = e.toString().toLowerCase();
+    return msg.contains('timeout') ||
+        msg.contains('timed out') ||
+        msg.contains('connection') ||
+        msg.contains('socket') ||
+        msg.contains('network') ||
+        msg.contains('502') ||
+        msg.contains('503') ||
+        msg.contains('504') ||
+        msg.contains('server error') ||
+        msg.contains('internal server error');
+  }
+
+  /// Ilang beses sinusubukan (may palugit) ang pag-check sa server: kapag
+  /// nag-timeout ang client habang tumatakbo pa ang upload sa server, kailangan
+  /// ng maliit na oras bago lumabas ang `pending_approval`/`completed`.
+  Future<String?> _confirmSubmittedAfterFailure(String assignmentId) async {
+    for (var attempt = 0; attempt < 4; attempt++) {
+      try {
+        final status = await fetchStatus(assignmentId);
+        if (status == 'pending_approval' || status == 'completed') {
+          return status;
+        }
+      } catch (_) {}
+      await Future<void>.delayed(Duration(milliseconds: 800 * (attempt + 1)));
+    }
+    return null;
   }
 
   Future<Map<String, dynamic>> _fileToProof(XFile file, String type) async {

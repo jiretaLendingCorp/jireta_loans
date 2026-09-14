@@ -32,6 +32,11 @@ class LenderAccountUpgradeState {
         isSubmitting: isSubmitting ?? this.isSubmitting,
       );
 
+  /// True kapag na-load na ang tunay na status mula sa server. Habang `false`,
+  /// hindi pa dapat mag-claim ang UI ng "Upgrade Account" (na-dudulot ng
+  /// maling flash/splash sa button bago pa dumating ang status).
+  bool get hasStatus => accountUpgradeStatus != null;
+
   String get status =>
       accountUpgradeStatus?.accountUpgradeStatus ?? 'not_submitted';
   List<AccountUpgradeDocumentModel> get documents =>

@@ -83,6 +83,8 @@ class CollectionRemoteDataSource {
     required String loanScheduleId,
     required String riderId,
     String? collectionSchedule,
+    /// Katapusan ng rider visit window ("From – To" na iskedyul).
+    String? collectionScheduleEnd,
     String? notes,
     String? assignmentId,
   }) async {
@@ -94,6 +96,8 @@ class CollectionRemoteDataSource {
         'rider_id': riderId,
         if (collectionSchedule != null)
           'collection_schedule': collectionSchedule,
+        if (collectionScheduleEnd != null)
+          'collection_schedule_end': collectionScheduleEnd,
         if (notes != null) 'notes': notes,
       },
     );
@@ -110,6 +114,11 @@ class CollectionRemoteDataSource {
     String type = 'rider',
     double? amount,
   }) async {
+    // Mas mahabang timeout: ang server-side fan-out (audit + staff FCM push)
+    // ay puwedeng lumampas sa default na 30s sa mabagal na network/cold start
+    // at magdulot ng pekeng "Request Timed Out" kahit na-created na ang
+    // request. Ang backend ay sumasagot muna bago ang background work, kaya
+    // sapat na ang mas mahabang budget dito.
     final res = await _client.post(
       ApiEndpoints.collectionsRequest,
       data: {
@@ -117,6 +126,7 @@ class CollectionRemoteDataSource {
         'type': type,
         if (amount != null) 'amount': amount,
       },
+      timeout: const Duration(seconds: 60),
     );
     final data = res.data;
     if (data is Map<String, dynamic>) return data;
@@ -209,6 +219,10 @@ class CollectionRemoteDataSource {
   }) async {
     final res = await _client.post(
       ApiEndpoints.collectionsUploadProof,
+      // 2 larawan (proof + scene) na base64 ay mabigat — ang default 30s
+      // send/receive timeout ay masyadong maiksi sa mobile data, kaya nag-
+      // timeout (at nagmumukhang "failed") kahit natanggap naman ng server.
+      timeout: const Duration(minutes: 2),
       data: {
         'assignment_id': assignmentId,
         'proofs': proofs,

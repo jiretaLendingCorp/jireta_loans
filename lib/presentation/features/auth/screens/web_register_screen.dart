@@ -915,14 +915,22 @@ class _RegisterPanel extends StatelessWidget {
             ),
           ),
           Center(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 72),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: child,
-              ),
-            ),
+            child: Builder(builder: (context) {
+              // Mobile: mas maliit na padding para hindi masikip at hindi
+              // maputol/itago ang mga text at field sa makitid na screen.
+              final narrow = MediaQuery.sizeOf(context).width < 600;
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: EdgeInsets.symmetric(
+                  horizontal: narrow ? 16 : 32,
+                  vertical: narrow ? 28 : 72,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: child,
+                ),
+              );
+            }),
           ),
         ],
       ),
@@ -940,8 +948,12 @@ class _AuthCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Mobile: mas maliit ang loob ng card para may sapat na lapad ang mga
+    // text field at label (dati kasi siksik at parang hindi nakikita ang text).
+    final narrow = MediaQuery.sizeOf(context).width < 600;
     return Container(
-      padding: const EdgeInsets.fromLTRB(36, 36, 36, 30),
+      padding: EdgeInsets.fromLTRB(
+          narrow ? 18 : 36, narrow ? 26 : 36, narrow ? 18 : 36, 30),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
@@ -102,6 +103,15 @@ class _RiderUploadCiDocumentsScreenState
       );
       return;
     }
+
+    // Kumpirmasyon bago i-upload: device credential (fingerprint / Face ID /
+    // device PIN), o ang app-level MPIN kapag walang password ang phone.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para i-upload ang CI evidence photos.',
+        );
+    if (!verified || !mounted) return;
 
     setState(() => _isUploading = true);
     try {

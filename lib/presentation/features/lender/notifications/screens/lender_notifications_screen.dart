@@ -267,18 +267,28 @@ class _NotifTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
+                    // Buong title ang nakikita — hindi pinuputol ng "..." sa
+                    // mobile view.
+                    softWrap: true,
                     style: TextStyle(
                       fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
                       fontSize: 14,
+                      height: 1.25,
                       color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 3),
-                  Text(body,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.textSecondary),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                  Text(
+                    body,
+                    // Dating maxLines: 2 + ellipsis — napuputol ang mensahe sa
+                    // makitid na mobile view. Hayaang mag-wrap nang buo.
+                    softWrap: true,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.35,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                   if (createdAt != null) ...[
                     const SizedBox(height: 4),
                     Text(

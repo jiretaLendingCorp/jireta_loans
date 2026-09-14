@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -47,11 +48,18 @@ class LenderLoanDetailsScreen extends ConsumerStatefulWidget {
 
 class _LenderLoanDetailsScreenState
     extends ConsumerState<LenderLoanDetailsScreen> {
+  /// True hanggang matapos ang unang load. Pinipigilan nito ang "Loan not
+  /// found" na kumislap bago pa man magsimula ang fetch (halimbawa kapag
+  /// galing sa notification tap at wala pang `selectedLoan` sa provider).
+  bool _initialLoading = true;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() =>
-        ref.read(lenderLoanProvider.notifier).loadLoanDetails(widget.loanId));
+    Future.microtask(() async {
+      await ref.read(lenderLoanProvider.notifier).loadLoanDetails(widget.loanId);
+      if (mounted) setState(() => _initialLoading = false);
+    });
   }
 
   @override
@@ -64,7 +72,7 @@ class _LenderLoanDetailsScreenState
       accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
-      body: state.isLoading
+      body: state.isLoading || _initialLoading
           ? const _LoanDetailsSkeleton()
           : loan == null
               ? const Center(
@@ -87,17 +95,8 @@ class _LenderLoanDetailsScreenState
                         const SizedBox(height: 16),
                         _InfoCard(loan: loan),
                         const SizedBox(height: 16),
-                        if (loan.status == 'active') ...[
-                          Center(
-                            child: AppButton(
-                              label: 'Pay',
-                              onPressed: () => context
-                                  .push(RouteConstants.lenderPayments),
-                              color: AppColors.lenderBlue,
-                              icon: Icons.payment,
-                            ),
-                          ),
-                        ],
+                        // Walang "Pay" button dito — nasa Payments tab na ang
+                        // pagbabayad. Tinanggal para hindi doble ang pasukan.
                         if (loan.status == 'pending' ||
                             loan.status == 'under_review') ...[
                           AppButton(
@@ -132,7 +131,15 @@ class _LenderLoanDetailsScreenState
         ],
       ),
     );
-    if (ok == true && mounted) {
+    if (ok == true && context.mounted) {
+      // Ang kanselasyon ay isang submission din sa server — kumpirmasyon muna
+      // (device credential o app-level MPIN).
+      final verified = await ref.read(submissionGuardProvider).confirm(
+            context,
+            reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+                'device PIN, o MPIN) para kanselahin ang application.',
+          );
+      if (!verified || !context.mounted) return;
       await ref.read(lenderLoanProvider.notifier).cancelLoan(widget.loanId);
       if (!context.mounted) return;
       context.pop();

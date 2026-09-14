@@ -131,27 +131,7 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
                 if (await canLaunchUrl(uri)) await launchUrl(uri);
               },
             ),
-          ] else
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.warningLight,
-                borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, color: AppColors.warning, size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                      child: Text(
-                          'Receipt is being generated. Please check back shortly.',
-                          style: TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary))),
-                ],
-              ),
-            ),
+          ],
           const SizedBox(height: 24),
         ],
       ),
@@ -240,10 +220,8 @@ class _ReceiptCard extends StatelessWidget {
                                 ? 'Rider Collection'
                                 : method.replaceAll('_', ' ')),
                 const Divider(height: 16),
-                if (refNum.isNotEmpty) ...[
-                  _Row('Reference No.', refNum),
-                  const Divider(height: 16),
-                ],
+                _Row('Reference No.', refNum.isNotEmpty ? refNum : '—'),
+                const Divider(height: 16),
                 if (paidAt != null)
                   _Row('Date & Time',
                       parseManila(paidAt)?.formattedWithTime ?? '-'),

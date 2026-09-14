@@ -1,4 +1,5 @@
 // lib/presentation/shared/widgets/signature_pad.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -22,6 +23,14 @@ class SignaturePad extends StatefulWidget {
   /// ang "Signature confirmed" feedback.
   final VoidCallback? onCleared;
 
+  /// Gaano katagal manatili ang built-in na "Signature cleared" na mensahe.
+  /// Default 2s para sa lender; pinapasa ng rider screens ang 1s.
+  final Duration clearedFeedbackDuration;
+
+  /// Kapag false, hindi magpapakita ng built-in na "Signature cleared"
+  /// feedback (halimbawa kung ang screen mismo ang may sariling mensahe).
+  final bool showClearedFeedback;
+
   const SignaturePad({
     super.key,
     this.onSigned,
@@ -30,6 +39,8 @@ class SignaturePad extends StatefulWidget {
     this.showActionIcons = true,
     this.onConfirmed,
     this.onCleared,
+    this.clearedFeedbackDuration = const Duration(seconds: 2),
+    this.showClearedFeedback = true,
   });
 
   @override
@@ -43,10 +54,22 @@ class _SignaturePadState extends State<SignaturePad> {
     exportBackgroundColor: Colors.white,
   );
 
+  /// Panandaliang "Signature cleared" na mensahe (built-in).
+  bool _showCleared = false;
+  Timer? _clearedTimer;
+
   @override
   void dispose() {
+    _clearedTimer?.cancel();
     _ctrl.dispose();
     super.dispose();
+  }
+
+  /// Itago ang soft keyboard kapag humawak ang user sa signature pad habang
+  /// naka-focus ang isang text field (para hindi matakpan ang canvas).
+  void _dismissKeyboard() {
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus != null && focus.hasFocus) focus.unfocus();
   }
 
   void _notify(Uint8List? bytes) {
@@ -60,15 +83,30 @@ class _SignaturePadState extends State<SignaturePad> {
 
   Future<void> _onSave() async {
     if (_ctrl.isEmpty) return;
+    _dismissKeyboard();
     final bytes = await _ctrl.toPngBytes();
     _notify(bytes);
+    _hideCleared();
     widget.onConfirmed?.call();
   }
 
   void _onClear() {
+    _dismissKeyboard();
     _ctrl.clear();
     _notify(null);
     widget.onCleared?.call();
+    if (!widget.showClearedFeedback) return;
+    _clearedTimer?.cancel();
+    setState(() => _showCleared = true);
+    _clearedTimer = Timer(widget.clearedFeedbackDuration, () {
+      if (mounted) setState(() => _showCleared = false);
+    });
+  }
+
+  void _hideCleared() {
+    if (!_showCleared) return;
+    _clearedTimer?.cancel();
+    setState(() => _showCleared = false);
   }
 
   @override
@@ -83,13 +121,18 @@ class _SignaturePadState extends State<SignaturePad> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: AppColors.border),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            // Walang "Sign here" placeholder — malinis na canvas.
-            child: Signature(
-              controller: _ctrl,
-              backgroundColor: Colors.white,
-              width: double.infinity,
+          // Listener (hindi GestureDetector) para hindi makipag-compete sa pan
+          // gesture ng Signature canvas — laging tumatakbo ang pointer-down.
+          child: Listener(
+            onPointerDown: (_) => _dismissKeyboard(),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              // Walang "Sign here" placeholder — malinis na canvas.
+              child: Signature(
+                controller: _ctrl,
+                backgroundColor: Colors.white,
+                width: double.infinity,
+              ),
             ),
           ),
         ),
@@ -148,6 +191,23 @@ class _SignaturePadState extends State<SignaturePad> {
                   ),
           ],
         ),
+        if (_showCleared) ...[
+          const SizedBox(height: 6),
+          const Row(
+            children: [
+              Icon(Icons.check_circle_rounded,
+                  size: 16, color: AppColors.success),
+              SizedBox(width: 6),
+              Text(
+                'Signature cleared',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

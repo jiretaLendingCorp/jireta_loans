@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/logger.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -54,10 +55,16 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   /// True habang nire-resolve ang installment (galing loan_id lang ang extra).
   /// Habang true, disabled ang Pay para hindi mag-toast ng "Missing...".
   bool _resolving = false;
+  /// Keeps the (autoDispose) collection provider alive while this screen is
+  /// open so the post-submit server re-check can read its latest state
+  /// instead of a freshly-reset empty list (which caused a false
+  /// "Request Timed Out" on requests that had actually succeeded).
+  ProviderSubscription<AsyncValue<Map<String, dynamic>>>? _collectionSub;
 
   @override
   void initState() {
     super.initState();
+    _collectionSub = ref.listenManual(lenderCollectionProvider, (_, __) {});
     _scheduleId = widget.extra['schedule_id'] as String? ?? '';
     _amount = (widget.extra['amount'] as num?)?.toDouble() ?? 0.0;
     _dueDate = widget.extra['due_date'] as String? ?? '';
@@ -74,6 +81,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
 
   @override
   void dispose() {
+    _collectionSub?.close();
     super.dispose();
   }
 
@@ -138,6 +146,35 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context), child: const Text('OK')),
+        ],
+      ),
+    );
+  }
+
+  /// Shared positive modal para sa matagumpay (o malamang naipadala) na
+  /// request — malinaw na confirmation imbes na error/tongue-twister text.
+  Future<void> _showSubmittedDialog({
+    required String title,
+    required String message,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        icon: const Icon(Icons.check_circle_rounded,
+            color: AppColors.success, size: 46),
+        title: Text(title, textAlign: TextAlign.center),
+        content: Text(message, textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close')),
+          TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                context.push(RouteConstants.lenderCollections);
+              },
+              child: const Text('View Collections')),
         ],
       ),
     );
@@ -209,6 +246,11 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    // Bago ang final na COD request: device credential authentication
+    // (fingerprint / Face ID, o device PIN/password fallback).
+    final verified = await _authenticateForPayment();
+    if (!verified || !mounted) return;
+
     AppLogger.d('[PaymentMethod] User confirmed rider collection schedule=$_scheduleId loan=${widget.extra['loan_id']} amount=$_amount');
     setState(() => _requesting = true);
     bool ok = false;
@@ -248,34 +290,19 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
 
     if (ok) {
       AppLogger.i('[PaymentMethod] rider request OK schedule=$_scheduleId');
-      await showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Collection Requested'),
-          content: const Text(
-            'Your rider collection request has been submitted. '
-            'Our office will assign a rider and notify you. '
+      await _showSubmittedDialog(
+        title: 'Successfully Submitted',
+        message: 'Your Cash on Delivery request has been submitted '
+            'successfully. Our office will assign a rider and notify you. '
             'You can track the collection under Collection History.',
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close')),
-            TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.push(RouteConstants.lenderCollections);
-                },
-                child: const Text('View Collections')),
-          ],
-        ),
       );
     } else {
       final err = ref.read(lenderPaymentProvider).error;
       AppLogger.w('[PaymentMethod] rider request FAILED schedule=$_scheduleId error=$err');
       if (kDebugMode) debugPrint('[PaymentMethod] failure dialog error: $err');
-      // Kapag walang error (o timeout/network ang ayaw) huwag ibalita ang
-      // maling "Request Not Sent" — posibleng natanggap na ito ng server.
+      // A lost/timed-out response is NOT proof of failure — the request was
+      // already re-checked against the server above. Huwag magpakita ng
+      // nakalilitong "Request Timed Out" kapag walang tunay na error.
       final low = (err ?? '').toLowerCase();
       final inconclusive = err == null ||
           err.trim().isEmpty ||
@@ -287,27 +314,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
           low.contains('internal server error') ||
           low.contains('an error occurred');
       if (inconclusive) {
-        await showDialog<void>(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Request Timed Out'),
-            content: const Text(
-              'We could not confirm the server response in time. '
-              'Your request may still have been sent — please check '
-              'Collection History before trying again.',
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK')),
-              TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    context.push(RouteConstants.lenderCollections);
-                  },
-                  child: const Text('View Collections')),
-            ],
-          ),
+        await _showSubmittedDialog(
+          title: 'Submission Received',
+          message: 'Your request was sent and is being processed. '
+              'Please check Collection History to confirm the update.',
         );
         return;
       }
@@ -362,6 +372,17 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     return false;
   }
 
+  /// Device credential authentication bago ang Cash on Delivery request —
+  /// fingerprint / Face ID / device PIN, at ang app-level MPIN kapag walang
+  /// password ang phone. Success/failure lang ang natatanggap ng app — hindi
+  /// nito binabasa ni ipinapadala ang device PIN/password.
+  Future<bool> _authenticateForPayment() =>
+      ref.read(submissionGuardProvider).confirm(
+            context,
+            reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+                'device PIN, o MPIN) para kumpirmahin ang bayad.',
+          );
+
   void _showInfo(String message) {
     context.showSnackBarAsToast(
         SnackBar(content: Text(message)));
@@ -398,89 +419,102 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      body: Column(
         children: [
-          const Text('Choose how you want to pay this installment:',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 12),
-          _MethodCard(
-            value: 'rider',
-            groupValue: _selected,
-            onSelect: _requesting
-                ? null
-                : (v) => setState(() => _selected = v),
-            icon: Icons.delivery_dining_outlined,
-            assetPath: 'assets/icons/paywithrider.jpg',
-            color: AppColors.riderGreen,
-            title: 'Cash on Delivery',
-            badge: null,
-          ),
-          const SizedBox(height: 12),
-          _MethodCard(
-            value: 'office',
-            groupValue: _selected,
-            onSelect: _requesting
-                ? null
-                : (v) => setState(() => _selected = v),
-            icon: Icons.storefront_outlined,
-            assetPath: 'assets/icons/pay_with_office.jpg',
-            color: AppColors.info,
-            title: 'Office',
-            badge: null,
-          ),
-          const SizedBox(height: 12),
-          const _MethodCard(
-            value: 'gcash',
-            groupValue: 'rider',
-            onSelect: null,
-            icon: Icons.account_balance_wallet,
-            color: Color(0xFF007DFF),
-            title: 'GCash',
-            badge: null,
-            disabled: true,
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: payDisabled ? null : _onPay,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.lenderBlue,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor:
-                    AppColors.lenderBlue.withValues(alpha: 0.5),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+              children: [
+                const Text('Choose how you want to pay this installment:',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 26),
+                _MethodCard(
+                  value: 'rider',
+                  groupValue: _selected,
+                  onSelect: _requesting
+                      ? null
+                      : (v) => setState(() => _selected = v),
+                  icon: Icons.delivery_dining_outlined,
+                  assetPath: 'assets/icons/paywithrider.jpg',
+                  color: AppColors.riderGreen,
+                  title: 'Cash on Delivery',
+                  badge: null,
                 ),
-              ),
-              child: (_requesting || _resolving)
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text(
-                      _selected == 'office'
-                          ? 'Pay via Office'
-                          : 'Pay via Cash on Delivery',
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 14),
+                _MethodCard(
+                  value: 'office',
+                  groupValue: _selected,
+                  onSelect: _requesting
+                      ? null
+                      : (v) => setState(() => _selected = v),
+                  icon: Icons.storefront_outlined,
+                  assetPath: 'assets/icons/pay_with_office.jpg',
+                  color: AppColors.info,
+                  title: 'Office',
+                  badge: null,
+                ),
+                const SizedBox(height: 14),
+                const _MethodCard(
+                  value: 'gcash',
+                  groupValue: 'rider',
+                  onSelect: null,
+                  icon: Icons.account_balance_wallet,
+                  color: Color(0xFF007DFF),
+                  title: 'GCash',
+                  badge: null,
+                  disabled: true,
+                ),
+                if (!_resolving && _scheduleId.isEmpty) ...[
+                  const SizedBox(height: 20),
+                  const Text(
+                    'No payable installment found. Please return to Payment Schedule and tap Pay again.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (!_resolving && _scheduleId.isEmpty) ...[
-            const SizedBox(height: 12),
-            const Text(
-              'No payable installment found. Please return to Payment Schedule and tap Pay again.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 12, color: AppColors.textSecondary),
+          // Naka-pin sa baba ng mobile view — hindi na kailangang mag-scroll
+          // para makita ang Pay button.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: payDisabled ? null : _onPay,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.lenderBlue,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor:
+                      AppColors.lenderBlue.withValues(alpha: 0.5),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: (_requesting || _resolving)
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(
+                        _selected == 'office'
+                            ? 'Pay via Office'
+                            : 'Pay via Cash on Delivery',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );

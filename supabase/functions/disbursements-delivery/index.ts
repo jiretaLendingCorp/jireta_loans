@@ -311,6 +311,17 @@ async function handleUploadProof(req: Request) {
   if (disbursement.method !== 'rider_delivery') {
     return errorResponse('Only rider delivery disbursements accept delivery proof', 400, 'INVALID_METHOD');
   }
+  // IDEMPOTENT: kung na-submit na pala ang proof at na-release na ang loan
+  // (hal. nag-timeout o nawala lang ang unang response sa client), SUCCESS pa
+  // rin ito — huwag nang mag-error. Ito ang dahilan ng maling "failed to
+  // upload" kahit matagumpay naman ang cash-on-delivery submit.
+  if (disbursement.status === 'completed' || disbursement.delivery_proof) {
+    return jsonResponse({
+      success: true,
+      already_completed: true,
+      message: 'Delivery proof already submitted and loan released',
+    });
+  }
   if (disbursement.status !== 'pending') {
     return errorResponse('Disbursement is not in pending status', 400, 'INVALID_STATUS');
   }
@@ -339,9 +350,18 @@ async function handleUploadProof(req: Request) {
     const path = `${disbursement_id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const bytes = decodeBase64(proof.content_base64);
 
-    const { error: uploadError } = await db.storage
+    // Isang beses na retry para sa transient storage failures — hindi dapat
+    // maging "failed" ang isang submit dahil lang sa isang bigong upload.
+    let uploadError = (await db.storage
       .from(PROOF_BUCKET)
-      .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true });
+      .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true })).error;
+
+    if (uploadError) {
+      await new Promise((r) => setTimeout(r, 400));
+      uploadError = (await db.storage
+        .from(PROOF_BUCKET)
+        .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true })).error;
+    }
 
     if (uploadError) {
       // Never fall back to inline data URIs: a base64 image can exceed the

@@ -77,7 +77,8 @@ class FakeDioClient implements DioClient {
   }
 
   @override
-  Future<Response> post(String path, {dynamic data, Map<String, String>? headers}) async {
+  Future<Response> post(String path,
+      {dynamic data, Map<String, String>? headers, Duration? timeout}) async {
     lastPath = path;
     lastMethod = 'POST';
     lastData = data;

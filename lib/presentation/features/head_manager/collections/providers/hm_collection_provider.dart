@@ -118,6 +118,7 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
     required String riderId,
     String? assignmentId,
     DateTime? collectionSchedule,
+    DateTime? collectionScheduleEnd,
     String notes = '',
   }) async {
     try {
@@ -126,6 +127,7 @@ class HmCollectionNotifier extends StateNotifier<HmCollectionState>
         riderId: riderId,
         assignmentId: assignmentId,
         collectionSchedule: collectionSchedule?.toIso8601String(),
+        collectionScheduleEnd: collectionScheduleEnd?.toIso8601String(),
         notes: notes,
       );
     } catch (e) {

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
@@ -60,6 +61,16 @@ class _RiderUploadProofScreenState
       return;
     }
 
+    // Kumpirmasyon bago ang submission: device credential (fingerprint /
+    // Face ID / device PIN), o ang app-level MPIN kapag walang password ang
+    // phone — at kung wala pang MPIN, hihingin munang i-set ito.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para maisumite ang collection at proof.',
+        );
+    if (!verified || !mounted) return;
+
     setState(() => _isSubmitting = true);
     try {
       final status =
@@ -71,7 +82,12 @@ class _RiderUploadProofScreenState
               );
       // Ang `fn=upload-proof` ay nagbabalik na ng `status` — hindi na kailangan
       // ng hiwalay na `get` para kumpirmahin ang completion.
+      // `pending_approval` ang normal na isinasagot ng `fn=upload-proof`
+      // (HM/Employee pa ang mag-a-approve). Dati ay `completed` lang ang
+      // tinatanggap kaya kahit matagumpay ang upload ay "Failed to upload
+      // proof" pa rin ang lumalabas.
       final ok = status == 'completed' ||
+          status == 'pending_approval' ||
           (status == null &&
               ref.read(riderCollectionProvider).error == null);
 
@@ -343,6 +359,8 @@ class _RiderUploadProofScreenState
           SizedBox(height: 12),
           SignaturePad(
             height: 150,
+            // "Signature cleared" feedback: 1 segundo lang (rider flow).
+            clearedFeedbackDuration: const Duration(seconds: 1),
             onSignatureChanged: (base64) =>
                 setState(() => _signatureBase64 = base64),
           ),

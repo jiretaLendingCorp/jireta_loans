@@ -38,26 +38,22 @@ class AskAiFab extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => showAskAiDialog(context, month: month),
-        child: SizedBox(
+        child: const SizedBox(
           height: 40,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: EdgeInsets.symmetric(horizontal: 14),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  AssetConstants.askAiIcon,
-                  width: 18,
-                  height: 18,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 14,
-                    color: AppColors.goldLight,
-                  ),
+                // Icon lang (walang image asset) — mas malinis at hindi
+                // masisira kung mawala ang asset.
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 16,
+                  color: AppColors.goldLight,
                 ),
-                const SizedBox(width: 7),
-                const Text(
+                SizedBox(width: 7),
+                Text(
                   'Ask AI',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,

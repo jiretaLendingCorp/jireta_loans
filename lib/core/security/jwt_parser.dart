@@ -66,7 +66,8 @@ class JwtParser {
   /// exp claim or is malformed, returns false so we don't incorrectly trigger
   /// a refresh loop — the server will be the source of truth and return 401
   /// if the token is truly invalid.
-  static bool isExpired(String? token, {Duration leeway = const Duration(seconds: 30)}) {
+  static bool isExpired(String? token,
+      {Duration leeway = const Duration(seconds: 30)}) {
     final exp = expiry(token);
     if (exp == null) return false;
     // Consider expired only if now is past exp + leeway (allows 30s skew).
@@ -76,7 +77,8 @@ class JwtParser {
 
   /// True if the token will expire within [within] (default 60s). Used for
   /// proactive refresh before the token actually expires.
-  static bool isExpiringSoon(String? token, {Duration within = const Duration(seconds: 60)}) {
+  static bool isExpiringSoon(String? token,
+      {Duration within = const Duration(seconds: 60)}) {
     final secs = secondsUntilExpiry(token);
     if (secs == null) return false;
     return secs <= within.inSeconds;

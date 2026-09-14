@@ -44,6 +44,7 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   ];
   final _pillTabs = const [
     FilterTabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
+    FilterTabDef('completed', 'Completed', Icons.verified_rounded),
     FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
   ];
 
@@ -540,8 +541,18 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
       'ci_completed'
     ].contains(status);
 
+    // ORANGE indicator sa 3-dot: kapag nakapili na ang lender ng disbursement
+    // method pero hindi pa na-release — may kailangang aksyon ang staff
+    // (i-assign ang rider para sa Cash on Delivery, o ihanda ang cash para sa
+    // office pickup). Realtime ito dahil naka-subscribe ang provider sa
+    // `loan_disbursement_preferences` / `disbursements`.
+    final disbursementChosen = status == 'approved' &&
+        loan.disbursedAt == null &&
+        (loan.disbursementMethod ?? '').isNotEmpty;
+
     // Identical sa Head Manager: View icon + 3 dots (PopupMenu)
-    final needsRiderDot = canAssignRider || canAssignDeliveryRider;
+    final needsRiderDot =
+        canAssignRider || canAssignDeliveryRider || disbursementChosen;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

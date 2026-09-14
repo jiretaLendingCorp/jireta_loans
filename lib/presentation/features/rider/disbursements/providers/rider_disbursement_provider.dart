@@ -123,7 +123,9 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
         final d = await _ds.getDisbursementDetail(disbursementId);
         if (d != null &&
             (d.status == 'completed' ||
-                (d.deliveryProof != null && d.deliveryProof!.isNotEmpty))) {
+                d.disbursedAt != null ||
+                (d.deliveryProof != null && d.deliveryProof!.isNotEmpty) ||
+                (d.deliveryProof2 != null && d.deliveryProof2!.isNotEmpty))) {
           return true;
         }
       } catch (_) {}

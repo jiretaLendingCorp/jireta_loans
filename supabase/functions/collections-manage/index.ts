@@ -552,7 +552,7 @@ async function handleCollectionAssign(req: Request) {
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
-  const { loan_schedule_id, rider_id, collection_schedule, notes, assignment_id } = await req.json();
+  const { loan_schedule_id, rider_id, collection_schedule, collection_schedule_end, notes, assignment_id } = await req.json();
   if ((!loan_schedule_id && !assignment_id) || !rider_id) {
     return errorResponse('loan_schedule_id (or assignment_id) and rider_id are required', 400, 'VALIDATION_ERROR');
   }
@@ -595,6 +595,7 @@ async function handleCollectionAssign(req: Request) {
       assigned_by: user.id,
       assigned_at: nowManilaISO(),
       collection_schedule: collection_schedule ?? null,
+      collection_schedule_end: collection_schedule_end ?? null,
       collection_notes: notes ?? null,
       requested_amount: requestedAmountForAssignment,
       status: 'assigned',
@@ -623,6 +624,7 @@ async function handleCollectionAssign(req: Request) {
     assigned_by: user.id,
     assigned_at: nowManilaISO(),
     collection_schedule: collection_schedule ?? null,
+    collection_schedule_end: collection_schedule_end ?? null,
     collection_notes: notes ?? null,
     requested_amount: remainingDue > 0 ? remainingDue : null,
     status: 'assigned',

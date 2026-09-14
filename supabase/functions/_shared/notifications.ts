@@ -20,6 +20,57 @@ import { getAdminClient } from './db.ts';
 import { rowsWithObjectEmbeds } from './types.ts';
 import { sendPushToUserDevices } from './fcm.ts';
 
+// ── Emoji decoration ─────────────────────────────────────────────────────
+// Every notification title gets an emoji so both the FCM push and the
+// in-app notification list are instantly scannable.
+const NOTIFICATION_EMOJI: Record<string, string> = {
+  loan_approved: '🎉',
+  loan_rejected: '❌',
+  penalty_applied: '⚠️',
+  ci_required: '🔍',
+  ci_completed: '📋',
+  ci_accepted: '✅',
+  ci_declined: '🚫',
+  ci_approved: '✅',
+  ci_rejected: '⚠️',
+  payment_verified: '💰',
+  payment_received: '💰',
+  payment_recorded: '🧾',
+  payment_reversed: '↩️',
+  collection_assigned: '🚚',
+  collection_accepted: '✅',
+  collection_declined: '🚫',
+  collection_approved: '✅',
+  collection_rejected: '❌',
+  collection_overdue: '⏰',
+  assignment_expired: '⌛',
+  disbursement: '🏦',
+  disbursement_overdue: '⏰',
+  account_upgrade: '⭐',
+  user_created: '👤',
+  general: '🔔',
+};
+
+/** Best-effort emoji for a notification type (exact → prefix → default). */
+export function notificationEmoji(type: string): string {
+  const t = (type ?? '').trim();
+  if (NOTIFICATION_EMOJI[t]) return NOTIFICATION_EMOJI[t];
+  if (t.startsWith('ci_')) return '🔍';
+  if (t.startsWith('collection')) return '🚚';
+  if (t.startsWith('payment')) return '💰';
+  if (t.startsWith('disbursement')) return '🏦';
+  if (t.startsWith('loan')) return '📄';
+  if (t.startsWith('account_upgrade')) return '⭐';
+  return '🔔';
+}
+
+/** Prefixes a title with its type emoji. Idempotent. */
+export function decorateNotificationTitle(type: string, title: string): string {
+  if (!title) return title;
+  const emoji = notificationEmoji(type);
+  return title.startsWith(emoji) ? title : `${emoji} ${title}`;
+}
+
 /** Fields needed to compose a push from an existing notification row. */
 export interface NotificationRowForPush {
   id: string;
@@ -91,7 +142,7 @@ export async function claimAndSendPush(notificationId: string): Promise<void> {
   if (!row) return; // not found or already claimed elsewhere
   await sendPushToUserDevices({
     userId: row.user_id,
-    title: row.title,
+    title: decorateNotificationTitle(row.type, row.title),
     body: row.body,
     type: row.type,
     referenceId: row.reference_id ?? undefined,
@@ -112,7 +163,7 @@ export async function dispatchPendingPushNotifications(
     rows.map((row) =>
       sendPushToUserDevices({
         userId: row.user_id,
-        title: row.title,
+        title: decorateNotificationTitle(row.type, row.title),
         body: row.body,
         type: row.type,
         referenceId: row.reference_id ?? undefined,
@@ -136,11 +187,12 @@ export async function sendPushNotification(params: {
     const db = getAdminClient();
 
     // 1) Source of truth: store the notification (in-app/Realtime delivery).
+    const title = decorateNotificationTitle(params.type, params.title);
     const { data: inserted, error } = await db
       .from('notifications')
       .insert({
         user_id: params.userId,
-        title: params.title,
+        title,
         body: params.body,
         type: params.type,
         reference_id: params.referenceId ?? null,
@@ -163,7 +215,7 @@ export async function sendPushNotification(params: {
     // 3) Additional delivery channel: FCM push to every active device.
     await sendPushToUserDevices({
       userId: params.userId,
-      title: params.title,
+      title,
       body: params.body,
       type: params.type,
       referenceId: params.referenceId ?? undefined,

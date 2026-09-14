@@ -601,9 +601,25 @@ class _QuickActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final upgradeStatus = ref.watch(lenderAccountUpgradeProvider).status;
-    final isVerified =
-        upgradeStatus == 'verified' || upgradeStatus == 'approved';
+    final upgradeState = ref.watch(lenderAccountUpgradeProvider);
+    final upgradeVerified = upgradeState.status == 'verified' ||
+        upgradeState.status == 'approved';
+    // Ang KPI ng lender ang may huling salita kapag may naunang loan na siya:
+    // kapag natapos na niya ang isang loan (fully paid / approved / active),
+    // hindi na dapat mag-claim ng "Upgrade Account" — halatang "Apply Loan" na
+    // ito. Dati, nag-fla-flash pa ang "Upgrade Account" sa button kahit paid
+    // na lahat ng loan term niya.
+    final kpi = ref.watch(lenderDashboardProvider).kpi;
+    final hadPriorLoan = kpi.totalCompleted > 0 ||
+        kpi.totalApproved > 0 ||
+        kpi.totalActive > 0;
+    final kpiVerified = kpi.accountUpgradeStatus == 'verified' ||
+        kpi.accountUpgradeStatus == 'approved';
+    final isVerified = upgradeVerified || kpiVerified || hadPriorLoan;
+    // Huwag mag-claim ng "Upgrade Account" habang hindi pa na-load ang tunay
+    // na status — dati itong nag-fla-flash/splash sa button bago pa dumating
+    // ang server status kahit verified na (at kaya pa mag-apply ng loan).
+    final ready = upgradeState.hasStatus || hadPriorLoan;
     // Account must be upgraded before a loan can be applied: show
     // "Upgrade Account" until verification, then "Apply Loan".
     final label = isVerified ? 'Apply Loan' : 'Upgrade Account';
@@ -616,7 +632,7 @@ class _QuickActions extends ConsumerWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => context.push(route),
+          onTap: ready ? () => context.push(route) : null,
           borderRadius: BorderRadius.circular(14),
           child: Ink(
             decoration: BoxDecoration(
@@ -639,17 +655,35 @@ class _QuickActions extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.arrow_forward,
-                      color: Colors.white, size: 22),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                  if (!ready) ...[
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    const Text(
+                      'Loading…',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ] else ...[
+                    const Icon(Icons.arrow_forward,
+                        color: Colors.white, size: 22),
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

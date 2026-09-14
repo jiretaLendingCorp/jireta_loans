@@ -1124,52 +1124,39 @@ class _PremiumTemplateCardState extends State<_PremiumTemplateCard> {
                               color: AppColors.textPrimary));
                     }),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: widget.generating
-                              ? null
-                              : () => widget.onGenerate('pdf'),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                                color: AppColors.error.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: AppColors.error
-                                        .withValues(alpha: 0.18))),
-                            child: const Text('PDF',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.error)),
+                    // Isang "Generate" button lang — ang format (PDF/Excel)
+                    // ay pipiliin na lang sa download dialog pagkatapos.
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: widget.generating
+                            ? null
+                            : () => widget.onGenerate('pdf'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: [
+                              accent,
+                              accent.withValues(alpha: 0.85)
+                            ]),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bolt_rounded,
+                                  size: 14, color: Colors.white),
+                              SizedBox(width: 4),
+                              Text('Generate',
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.white)),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: widget.generating
-                              ? null
-                              : () => widget.onGenerate('xlsx'),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                                color: AppColors.riderGreen
-                                    .withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: AppColors.riderGreen
-                                        .withValues(alpha: 0.18))),
-                            child: const Text('Excel',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.riderGreen)),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/utils/input_formatters.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
@@ -258,7 +259,17 @@ class _RiderCollectionDetailsScreenState
         confirmColor: AppColors.riderGreen,
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
+
+    // Kumpirmasyon bago i-record/submit ang collection: device credential
+    // (fingerprint / Face ID / device PIN), o ang app-level MPIN kapag walang
+    // password ang phone — at kung wala pang MPIN, hihingin munang i-set ito.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para i-record at maisumite ang collection.',
+        );
+    if (!verified || !mounted) return;
 
     setState(() => _isSubmitting = true);
     try {
@@ -564,8 +575,11 @@ class _RiderCollectionDetailsScreenState
                                 ],
                               ),
                             ),
-                            // Wala nang footer/bottom bar — ang Back + Submit
-                            // ay nasa loob na ng Review tab, sa ibaba ng card.
+                            // Accept/Decline — naka-pin sa baba ng mobile view
+                            // habang 'assigned' pa (bago i-accept).
+                            if (col.status == 'assigned')
+                              _buildAcceptDeclineBar(col),
+                            // Ang Back + Submit ay nasa loob ng Review tab.
                           ],
                         );
                       } catch (e, st) {
@@ -1236,7 +1250,8 @@ class _RiderCollectionDetailsScreenState
     ];
   }
 
-  /// Lender Information card.
+  /// Lender Information card. (Ang Accept/Decline ay naka-pin na sa baba ng
+  /// screen — tingnan ang `_buildAcceptDeclineBar`.)
   List<Widget> _lenderInfoCards(CollectionAssignmentModel col) {
     return [
           Card(
@@ -1310,48 +1325,81 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          if (col.status == 'assigned') ...[
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      final ok = await ref
-                          .read(riderCollectionProvider.notifier)
-                          .decline(widget.collectionId);
-                      if (mounted && ok) context.pop();
-                    },
-                    style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.error,
-                        side: BorderSide(color: AppColors.error),
-                        minimumSize: const Size(0, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12))),
-                    child: Text('Decline'),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    // Walang lilipatang step — nasa Step 1 na ang Details at
-                    // Collect; ang provider reload ang magpapakita ng fields.
-                    onPressed: () =>
-                        ref.read(riderCollectionProvider.notifier).accept(widget.collectionId),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.riderGreen,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(0, 48),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12))),
-                    child: Text('Accept'),
-                  ),
-                ),
-              ],
-            ),
-          ],
           SizedBox(height: 8),
     ];
+  }
+
+  /// Accept / Decline action bar — naka-pin sa BABA ng mobile view (hindi na
+  /// kailangang mag-scroll) kapag 'assigned' pa ang collection.
+  Widget _buildAcceptDeclineBar(CollectionAssignmentModel col) {
+    final busy = ref.read(riderCollectionProvider).isSubmitting;
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: context.cSurface,
+        border: Border(top: BorderSide(color: context.cBorder)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, -2)),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final ok = await ref
+                            .read(riderCollectionProvider.notifier)
+                            .decline(widget.collectionId);
+                        if (mounted && ok) context.pop();
+                      },
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: BorderSide(color: AppColors.error),
+                    minimumSize: const Size(0, 50),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12))),
+                child: Text('Decline'),
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                // Walang lilipatang step — nasa Step 1 na ang Details at
+                // Collect; ang provider reload ang magpapakita ng fields.
+                onPressed: busy
+                    ? null
+                    : () => ref
+                        .read(riderCollectionProvider.notifier)
+                        .accept(widget.collectionId),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.riderGreen,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        AppColors.riderGreen.withValues(alpha: 0.6),
+                    minimumSize: const Size(0, 50),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12))),
+                child: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text('Accept'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Dating Step 2 (Collect) content — ngayon ay nasa loob na ng Step 1.
@@ -1722,6 +1770,8 @@ class _RiderCollectionDetailsScreenState
                     height: 140,
                     // Text-only ang Clear / Confirm — walang ✕ at ✓ icons.
                     showActionIcons: false,
+                    // "Signature cleared" feedback: 1 segundo lang (rider flow).
+                    clearedFeedbackDuration: const Duration(seconds: 1),
                     onSignatureChanged: (base64) =>
                         setState(() => _signatureBase64 = base64),
                   ),

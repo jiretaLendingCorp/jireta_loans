@@ -13,6 +13,7 @@ import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
+import '../../../../shared/widgets/security/mpin_settings_card.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../../shared/providers/app_settings_provider.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
@@ -22,8 +23,7 @@ class RiderProfileScreen extends ConsumerStatefulWidget {
   const RiderProfileScreen({super.key});
 
   @override
-  ConsumerState<RiderProfileScreen> createState() =>
-      _RiderProfileScreenState();
+  ConsumerState<RiderProfileScreen> createState() => _RiderProfileScreenState();
 }
 
 class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
@@ -57,8 +57,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
 
   static const _accent = AppColors.riderGreen;
 
-  void _openEditProfile() =>
-      context.push(RouteConstants.riderEditProfile);
+  void _openEditProfile() => context.push(RouteConstants.riderEditProfile);
 
   Future<void> _logout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
@@ -150,8 +149,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
               ),
               alignment: Alignment.center,
               child: Icon(Icons.person_off_outlined,
-                  size: 24,
-                  color: ModernProfileStyles.iconColorOf(context)),
+                  size: 24, color: ModernProfileStyles.iconColorOf(context)),
             ),
             const SizedBox(height: 12),
             Text(message,
@@ -162,9 +160,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
               label: 'Retry',
               icon: Icons.refresh_rounded,
               color: _accent,
-              onPressed: () => ref
-                  .read(riderProfileProvider.notifier)
-                  .loadProfile(),
+              onPressed: () =>
+                  ref.read(riderProfileProvider.notifier).loadProfile(),
             ),
           ],
         ),
@@ -174,9 +171,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
 
   Widget _buildBody(RiderProfileState state) {
     final user = state.user;
-    final name = user != null
-        ? '${user.firstName} ${user.lastName}'.trim()
-        : 'Rider';
+    final name =
+        user != null ? '${user.firstName} ${user.lastName}'.trim() : 'Rider';
     final status = _statusStyle(context, user?.accountStatus);
 
     return SingleChildScrollView(
@@ -266,6 +262,11 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
               ),
             ]);
           }),
+          const SizedBox(height: 20),
+          // MPIN — 4-digit na pang-kumpirma sa lahat ng submission kapag
+          // walang password o biometrics ang phone.
+          const ModernSectionLabel('Security'),
+          const MpinSettingsCard(),
           const SizedBox(height: 20),
           const ModernSectionLabel('General'),
           ModernMenuCard(items: [
@@ -368,14 +369,13 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
           Center(
             child: Text(
               'Version ${AppConfig.appVersion}',
-              style: TextStyle(
-                  fontSize: 12, color: context.cTextTertiary),
+              style: TextStyle(fontSize: 12, color: context.cTextTertiary),
             ),
           ),
           const SizedBox(height: 8),
           Consumer(builder: (context, ref, _) {
-            final isLoggingOut = ref.watch(
-                authStateProvider.select((s) => s.isLoggingOut));
+            final isLoggingOut =
+                ref.watch(authStateProvider.select((s) => s.isLoggingOut));
             return SizedBox(
               width: double.infinity,
               height: 48,
@@ -385,8 +385,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2))
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.logout_rounded,
                         size: 18, color: AppColors.error),
                 label: Text(
@@ -422,8 +421,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ModernInfoSheet(
-          title: title, icon: icon, sections: sections),
+      builder: (_) =>
+          ModernInfoSheet(title: title, icon: icon, sections: sections),
     );
   }
 
@@ -432,12 +431,12 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
   _StatusStyle _statusStyle(BuildContext context, String? status) {
     final s = (status ?? 'active').toLowerCase();
     return switch (s) {
-      'active' => _StatusStyle(
-          'Active', context.cBrandGreen, AppColors.successLight),
+      'active' =>
+        _StatusStyle('Active', context.cBrandGreen, AppColors.successLight),
       'whitelisted' => _StatusStyle(
           'Whitelisted', context.cBrandGreen, AppColors.successLight),
-      'suspended' => const _StatusStyle('Suspended', AppColors.warning,
-          AppColors.warningLight),
+      'suspended' => const _StatusStyle(
+          'Suspended', AppColors.warning, AppColors.warningLight),
       'blacklisted' || 'deactivated' => _StatusStyle(
           s[0].toUpperCase() + s.substring(1),
           AppColors.error,
@@ -550,9 +549,8 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     final s = value.toString();
     return s
         .split('_')
-        .map((w) => w.isEmpty
-            ? w
-            : w[0].toUpperCase() + w.substring(1).toLowerCase())
+        .map((w) =>
+            w.isEmpty ? w : w[0].toUpperCase() + w.substring(1).toLowerCase())
         .join(' ');
   }
 }

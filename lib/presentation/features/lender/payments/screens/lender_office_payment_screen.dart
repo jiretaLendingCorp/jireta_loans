@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/logger.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -53,10 +54,15 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
   late String _scheduleId;
   late double _amount;
   late String _dueDate;
+  /// Keeps the (autoDispose) collection provider alive while this screen is
+  /// open so the post-submit server re-check sees the latest state instead of
+  /// a freshly-reset empty list (false "Request Timed Out").
+  ProviderSubscription<AsyncValue<Map<String, dynamic>>>? _collectionSub;
 
   @override
   void initState() {
     super.initState();
+    _collectionSub = ref.listenManual(lenderCollectionProvider, (_, __) {});
     _scheduleId = widget.extra['schedule_id'] as String? ?? '';
     _amount = (widget.extra['amount'] as num?)?.toDouble() ?? 0.0;
     _dueDate = widget.extra['due_date'] as String? ?? '';
@@ -65,6 +71,7 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
 
   @override
   void dispose() {
+    _collectionSub?.close();
     super.dispose();
   }
 
@@ -113,6 +120,36 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
       }
     }
     return false;
+  }
+
+  /// Shared positive modal para sa matagumpay (o malamang naipadala) na
+  /// request — malinaw na confirmation na may check icon.
+  Future<void> _showSubmittedDialog({
+    required String title,
+    required String message,
+    String actionLabel = 'View Requests',
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        icon: const Icon(Icons.check_circle_rounded,
+            color: AppColors.success, size: 46),
+        title: Text(title, textAlign: TextAlign.center),
+        content: Text(message, textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close')),
+          TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                context.push(RouteConstants.lenderCollections);
+              },
+              child: Text(actionLabel)),
+        ],
+      ),
+    );
   }
 
   Future<void> _showPendingDialog() async {
@@ -196,6 +233,15 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    // Kumpirmasyon bago ang request: device credential (fingerprint / Face ID
+    // / device PIN), o ang app-level MPIN kapag walang password ang phone.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para ipadala ang office payment request.',
+        );
+    if (!verified || !mounted) return;
+
     AppLogger.d('[OfficePayment] User confirmed office visit schedule=$_scheduleId loan=${widget.extra['loan_id']} amount=$_amount');
     setState(() => _requesting = true);
     bool ok = false;
@@ -233,33 +279,36 @@ class _State extends ConsumerState<LenderOfficePaymentScreen> {
 
     if (ok) {
       AppLogger.i('[OfficePayment] office request OK schedule=$_scheduleId');
-      await showDialog<void>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Request Sent'),
-          content: const Text(
-            'Our office has been notified of your visit. '
-            'Pay at the office during business hours and our staff will '
-            'record your payment and issue an official receipt.',
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close')),
-            TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.push(RouteConstants.lenderCollections);
-                },
-                child: const Text('View Requests')),
-          ],
-        ),
+      await _showSubmittedDialog(
+        title: 'Successfully Submitted',
+        message: 'Our office has been notified of your visit. Pay at the '
+            'office during business hours and our staff will record your '
+            'payment and issue an official receipt.',
       );
     } else {
       final err = ref.read(lenderPaymentProvider).error ??
           'Failed to submit your request. Please try again.';
       AppLogger.w('[OfficePayment] office request FAILED schedule=$_scheduleId error=$err');
       if (kDebugMode) debugPrint('[OfficePayment] failure dialog error: $err');
+      // A lost/timed-out response is NOT proof of failure — the request was
+      // already re-checked against the server above. Huwag magpakita ng
+      // nakalilitong "Request Timed Out".
+      final low = err.toLowerCase();
+      final inconclusive = low.contains('timed out') ||
+          low.contains('timeout') ||
+          low.contains('unable to reach') ||
+          low.contains('no internet') ||
+          low.contains('server error') ||
+          low.contains('internal server error') ||
+          low.contains('an error occurred');
+      if (inconclusive) {
+        await _showSubmittedDialog(
+          title: 'Submission Received',
+          message: 'Your request was sent and is being processed. '
+              'Please check Collection History to confirm the update.',
+        );
+        return;
+      }
       final title = _titleForError(err);
       final isPending = title == 'Already Pending';
       await showDialog<void>(

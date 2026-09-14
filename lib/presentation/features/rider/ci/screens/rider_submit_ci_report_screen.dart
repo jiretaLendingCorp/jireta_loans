@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
@@ -85,7 +86,17 @@ class _RiderSubmitCiReportScreenState
       confirmLabel: 'Submit',
       confirmColor: AppColors.riderGreen,
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
+
+    // Kumpirmasyon bago ang submission: device credential (fingerprint /
+    // Face ID / device PIN), o ang app-level MPIN kapag walang password ang
+    // phone — at kung wala pang MPIN, hihingin munang i-set ito.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para maisumite ang CI report.',
+        );
+    if (!verified || !mounted) return;
 
     setState(() {
       _submitting = true;

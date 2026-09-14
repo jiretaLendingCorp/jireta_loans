@@ -40,11 +40,17 @@ class LenderLoanApplicationStatusScreen extends ConsumerStatefulWidget {
 }
 
 class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
+  /// True hanggang matapos ang unang load — pinipigilan ang "Loan not found"
+  /// na kumislap bago pa man magsimula ang fetch.
+  bool _initialLoading = true;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() =>
-        ref.read(lenderLoanProvider.notifier).loadLoanDetails(widget.loanId));
+    Future.microtask(() async {
+      await ref.read(lenderLoanProvider.notifier).loadLoanDetails(widget.loanId);
+      if (mounted) setState(() => _initialLoading = false);
+    });
   }
 
   @override
@@ -57,7 +63,7 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
       accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
-      body: state.isLoading
+      body: state.isLoading || _initialLoading
           ? const ShimmerLoader()
           : loan == null
               ? const Center(child: Text('Loan not found'))
@@ -96,6 +102,11 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
     final ciDone = ['in_progress', 'completed', 'approved'].contains(ciStatus) ||
         ['ci_completed', 'approved', 'active', 'completed', 'rejected']
             .contains(status);
+    // Naipasa na ni rider ang CI investigation — nasa management na ang
+    // desisyon kaya dapat may "CI Completed" na hakbang sa timeline.
+    final ciSubmitted = ciStatus == 'completed' ||
+        ciStatus == 'approved' ||
+        ['ci_completed', 'approved', 'active', 'completed'].contains(status);
     final awaitingRelease = loanApproved &&
         !isActive &&
         disbursedAt == null &&
@@ -138,6 +149,14 @@ class _State extends ConsumerState<LenderLoanApplicationStatusScreen> {
           Icons.pin_drop),
       _Step('CI In Progress', 'Rider is conducting field investigation.', ciDone,
           Icons.timelapse),
+      _Step(
+        'CI Completed',
+        loanApproved
+            ? 'Credit investigation approved by the management.'
+            : 'Credit investigation submitted. Need to be approved by the management.',
+        ciSubmitted,
+        Icons.fact_check_outlined,
+      ),
       if (isRejected)
         const _Step('Rejected', 'Your application has been rejected.', true,
             Icons.cancel, isError: true)

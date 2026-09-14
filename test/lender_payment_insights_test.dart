@@ -282,9 +282,28 @@ void main() {
       for (final src in [hm, emp]) {
         expect(src, isNot(contains("ResponsiveCol('Outstanding Balance'")));
         expect(src, isNot(contains('outstandingBalance')));
-        // Badge pa rin ng early-payer detection — lender attribute ito.
+        // Early-payer badge ay nasa Collections → Early Payers tab na — hindi na
+        // sa People/Lenders list.
+        expect(src, isNot(contains('EarlyPayerBadge')));
+        expect(src, isNot(contains('user.isEarlyPayer')));
+      }
+    });
+
+    test(
+        'Collections ay may Early Payers tab (HM + Employee) na naglilista ng mga early payer',
+        () async {
+      final hm = readNormalized(
+          'lib/presentation/features/head_manager/collections/screens/hm_collection_list_screen.dart');
+      final emp = readNormalized(
+          'lib/presentation/features/employee/collections/screens/emp_collection_list_screen.dart');
+
+      for (final src in [hm, emp]) {
+        // Pill tab sa tabi ng Payments.
+        expect(src, contains("FilterTabDef('early_payers', 'Early Payers'"));
+        // Listahan galing sa lender insights (isEarlyPayer) at badge.
+        expect(src, contains('isEarlyPayer'));
         expect(src, contains('EarlyPayerBadge'));
-        expect(src, contains('user.isEarlyPayer'));
+        expect(src, contains('_buildEarlyPayers'));
       }
     });
   });

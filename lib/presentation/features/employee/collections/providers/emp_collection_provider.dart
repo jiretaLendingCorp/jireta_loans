@@ -129,6 +129,7 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
     required String riderId,
     String? assignmentId,
     DateTime? collectionSchedule,
+    DateTime? collectionScheduleEnd,
     String notes = '',
   }) async {
     try {
@@ -137,6 +138,7 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
         riderId: riderId,
         assignmentId: assignmentId,
         collectionSchedule: collectionSchedule?.toIso8601String(),
+        collectionScheduleEnd: collectionScheduleEnd?.toIso8601String(),
         notes: notes,
       );
     } catch (e) {

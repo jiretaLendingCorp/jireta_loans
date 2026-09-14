@@ -48,6 +48,11 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app connects to a local development server over your network.</string>
+	<!-- local_auth: kailangan ng Face ID usage description bago payagan ng iOS
+	     ang device credential authentication (Face ID / device passcode
+	     fallback) sa loan submission at Cash on Delivery payment. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID is used to verify your identity before submitting a loan application or confirming a payment.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is used to scan your government-issued ID and capture document photos during account verification.</string>
 	<key>NSMicrophoneUsageDescription</key>

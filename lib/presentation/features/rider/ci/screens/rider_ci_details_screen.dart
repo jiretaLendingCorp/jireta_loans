@@ -13,6 +13,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'package:jireta_loans/core/extensions/date_extensions.dart';
 
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
@@ -227,6 +228,16 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       }
       return;
     }
+
+    // Kumpirmasyon bago ang final submit: device credential (fingerprint /
+    // Face ID / device PIN), o ang app-level MPIN kapag walang password ang
+    // phone — at kung wala pang MPIN, hihingin munang i-set ito.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para maisumite ang CI report at evidence.',
+        );
+    if (!verified || !mounted) return;
 
     // Walang "Are you sure…" modal — deretso submit na. Ang Submit button
     // mismo sa footer ang maglo-loading (spinner) habang tumatakbo ang

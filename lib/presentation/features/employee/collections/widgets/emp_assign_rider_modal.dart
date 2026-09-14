@@ -43,6 +43,8 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
   String? _selectedRiderId;
   final _notesCtrl = TextEditingController();
   DateTime? _collectionSchedule;
+  /// Katapusan ng rider visit window ("From – To" na iskedyul).
+  DateTime? _collectionScheduleEnd;
   bool _loading = false;
   bool _loadingRiders = true;
   List<Map<String, dynamic>> _riders = [];
@@ -82,25 +84,49 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
       lastDate: DateTime.now().add(const Duration(days: 30)),
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(
+
+    final from = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      helpText: 'Rider visit — FROM',
+      initialTime: _collectionSchedule != null
+          ? TimeOfDay.fromDateTime(_collectionSchedule!)
+          : TimeOfDay.now(),
     );
-    if (time == null) return;
+    if (from == null || !mounted) return;
+    final start =
+        DateTime(date.year, date.month, date.day, from.hour, from.minute);
+
+    final to = await showTimePicker(
+      context: context,
+      helpText: 'Rider visit — TO',
+      initialTime: _collectionScheduleEnd != null
+          ? TimeOfDay.fromDateTime(_collectionScheduleEnd!)
+          : TimeOfDay(hour: (from.hour + 2) % 24, minute: from.minute),
+    );
+    if (to == null || !mounted) return;
+    final end = DateTime(date.year, date.month, date.day, to.hour, to.minute);
+    if (!end.isAfter(start)) {
+      setState(() =>
+          _error = 'The "To" time must be later than the "From" time');
+      return;
+    }
     setState(() {
-      _collectionSchedule = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
+      _collectionSchedule = start;
+      _collectionScheduleEnd = end;
+      _error = null;
     });
   }
 
   Future<void> _submit() async {
     if (_selectedRiderId == null) {
       setState(() => _error = 'Please select a rider');
+      return;
+    }
+    // REQUIRED ang date + FROM/TO time — kailangang malaman ng lender kung
+    // anong ORAS (mula- hanggang) pupunta si rider sa kanya.
+    if (_collectionSchedule == null || _collectionScheduleEnd == null) {
+      setState(() =>
+          _error = 'Please select the rider visit time (from and to)');
       return;
     }
     setState(() {
@@ -114,6 +140,7 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
             riderId: _selectedRiderId!,
             assignmentId: widget.assignmentId,
             collectionSchedule: _collectionSchedule,
+            collectionScheduleEnd: _collectionScheduleEnd,
             notes: _notesCtrl.text.trim(),
           );
       if (!mounted) return;
@@ -226,8 +253,10 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
                           const SizedBox(width: 10),
                           Text(
                             _collectionSchedule != null
-                                ? '${_collectionSchedule!.day}/${_collectionSchedule!.month}/${_collectionSchedule!.year} ${_collectionSchedule!.hour.toString().padLeft(2, '0')}:${_collectionSchedule!.minute.toString().padLeft(2, '0')}'
-                                : 'Collection Schedule (optional)',
+                                ? '${_collectionSchedule!.day}/${_collectionSchedule!.month}/${_collectionSchedule!.year}  '
+                                    '${_collectionSchedule!.hour.toString().padLeft(2, '0')}:${_collectionSchedule!.minute.toString().padLeft(2, '0')}'
+                                    '${_collectionScheduleEnd != null ? ' – ${_collectionScheduleEnd!.hour.toString().padLeft(2, '0')}:${_collectionScheduleEnd!.minute.toString().padLeft(2, '0')}' : ''}'
+                                : 'Rider Visit Time (From – To) *',
                             style: TextStyle(
                                 color: _collectionSchedule != null ? AppColors.textPrimary : AppColors.textTertiary,
                                 fontSize: 14),

@@ -108,6 +108,117 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
     widget.onDataChanged({'is_new_lender': true});
   }
 
+  /// Bagong account: mag-modal muna para i-fill in ang INFORMATION
+  /// (pangalan, tapos phone number) bago ipakita ang buong walk-in form.
+  Future<void> _openNewLenderModal() async {
+    final formKey = GlobalKey<FormState>();
+    final firstName = TextEditingController(text: _firstNameCtrl.text);
+    final lastName = TextEditingController(text: _lastNameCtrl.text);
+    final phone = TextEditingController(text: _phoneCtrl.text);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Fill in Information',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  const Text(
+                      'Ilagay ang pangalan at phone number ng bagong account.',
+                      style: TextStyle(
+                          fontSize: 12.5, color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: firstName,
+                    maxLength: 100,
+                    decoration: const InputDecoration(
+                        labelText: 'First Name *',
+                        counterText: '',
+                        prefixIcon: Icon(Icons.person_outline, size: 18)),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Required'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: lastName,
+                    maxLength: 100,
+                    decoration: const InputDecoration(
+                        labelText: 'Last Name *',
+                        counterText: '',
+                        prefixIcon: Icon(Icons.person_outline, size: 18)),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Required'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: phone,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 11,
+                    decoration: const InputDecoration(
+                        labelText: 'Phone Number (09XXXXXXXXX) *',
+                        counterText: '',
+                        prefixIcon: Icon(Icons.phone_outlined, size: 18)),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Required'
+                        : null,
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (formKey.currentState?.validate() != true) return;
+                          Navigator.pop(ctx, true);
+                        },
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.lenderBlue,
+                            foregroundColor: Colors.white),
+                        child: const Text('Continue'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (saved == true) {
+      _firstNameCtrl.text = firstName.text.trim();
+      _lastNameCtrl.text = lastName.text.trim();
+      _phoneCtrl.text = phone.text.trim();
+      _startNewLender();
+      _updateNewLenderData();
+    }
+    firstName.dispose();
+    lastName.dispose();
+    phone.dispose();
+  }
+
   void _updateNewLenderData() {
     widget.onDataChanged({
       'is_new_lender': true,
@@ -212,7 +323,7 @@ class _Step1IdentifyLenderState extends ConsumerState<Step1IdentifyLender> {
             const SizedBox(height: 16),
             AppButton(
               label: 'Create New Walk-in Applicant',
-              onPressed: _startNewLender,
+              onPressed: _openNewLenderModal,
               variant: AppButtonVariant.secondary,
               icon: Icons.person_add_outlined,
             ),

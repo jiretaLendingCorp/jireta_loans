@@ -318,12 +318,20 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
   Future<Map<String, dynamic>> getReceiptData(String paymentId) async {
     try {
       final p = await _ds.getPaymentDetail(paymentId);
+      // Cash (rider/office) payments have no Xendit reference — derive a
+      // stable, human-readable reference from the payment id so the receipt
+      // always shows one instead of a blank/"---" value.
+      final rawRef = (p.referenceNumber ?? '').trim();
+      final compactId = p.id.replaceAll('-', '').toUpperCase();
+      final fallbackRef = compactId.isEmpty
+          ? ''
+          : 'JR-${compactId.length >= 12 ? compactId.substring(0, 12) : compactId}';
       return {
         'receipt_url': p.receiptUrl,
         'amount': p.amount,
         'payment_method': p.method,
         'status': p.status,
-        'reference_number': p.referenceNumber ?? '',
+        'reference_number': rawRef.isNotEmpty ? rawRef : fallbackRef,
         'created_at': p.createdAt.toIso8601String(),
         'loan_number': p.loanNumber,
       };

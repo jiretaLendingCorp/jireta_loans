@@ -342,7 +342,6 @@ class HmAiInsightsPanel extends ConsumerWidget {
           child: _BulletList(
             items: insights.trends,
             color: AppColors.lenderBlue,
-            icon: Icons.trending_up_rounded,
           ),
         ),
         const SizedBox(height: 16),
@@ -359,7 +358,6 @@ class HmAiInsightsPanel extends ConsumerWidget {
               : _BulletList(
                   items: insights.attention,
                   color: AppColors.statusOverdue,
-                  icon: Icons.warning_amber_rounded,
                 ),
         ),
         const SizedBox(height: 16),
@@ -376,7 +374,6 @@ class HmAiInsightsPanel extends ConsumerWidget {
               : _BulletList(
                   items: insights.recommendations,
                   color: AppColors.goldDark,
-                  icon: Icons.lightbulb_outline_rounded,
                 ),
         ),
         const SizedBox(height: 16),
@@ -475,9 +472,14 @@ class _Section extends StatelessWidget {
               child: Icon(icon, size: 15, color: color),
             ),
             const SizedBox(width: 9),
-            Expanded(
+            // Flexible (hindi Expanded) para hindi mahati sa 50/50 ang row: ang
+            // title ay sumusunod sa haba ng text at ang divider ang kumukuha ng
+            // natitirang espasyo — pantay/align ang mga heading.
+            Flexible(
               child: Text(
                 title,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -485,6 +487,7 @@ class _Section extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(width: 10),
             const Expanded(
               child: Divider(color: AppColors.divider, height: 1),
             ),
@@ -501,11 +504,9 @@ class _Section extends StatelessWidget {
 class _BulletList extends StatelessWidget {
   final List<String> items;
   final Color color;
-  final IconData icon;
   const _BulletList({
     required this.items,
     required this.color,
-    required this.icon,
   });
 
   @override
@@ -523,11 +524,20 @@ class _BulletList extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Simpleng bilog na bullet — hindi na icon kada linya para
+              // malinis ang generated insight at hindi sagabal sa text.
               Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Icon(icon, size: 14, color: color),
+                padding: const EdgeInsets.only(top: 6),
+                child: Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 9),
               Expanded(
                 child: Text(
                   items[i],

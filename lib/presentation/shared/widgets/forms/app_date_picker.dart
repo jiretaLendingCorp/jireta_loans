@@ -13,6 +13,10 @@ class AppDatePicker extends StatelessWidget {
   final DateTime? lastDate;
   final bool enabled;
 
+  /// Kapag true, may kasunod na TIME picker pagkatapos pumili ng petsa — ang
+  /// ibabalik na DateTime ay may oras na (para sa "anong oras pupunta si rider").
+  final bool withTime;
+
   const AppDatePicker({
     super.key,
     required this.label,
@@ -23,6 +27,7 @@ class AppDatePicker extends StatelessWidget {
     this.firstDate,
     this.lastDate,
     this.enabled = true,
+    this.withTime = false,
   });
 
   DateTime? get _date => value ?? selectedDate;
@@ -48,12 +53,35 @@ class AppDatePicker extends StatelessWidget {
         child: child!,
       ),
     );
-    if (picked != null) (onChanged ?? onDateSelected)?.call(picked);
+    if (picked == null) return;
+    var result = picked;
+    if (withTime) {
+      if (!context.mounted) return;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(_date ?? DateTime.now()),
+      );
+      // Kinansela ang oras → huwag i-report ang petsa. Kailangan may oras
+      // (required ito sa mga assign-rider flow), kaya hayaan ang validation na
+      // humingi muli ng buong petsa at oras.
+      if (time == null) return;
+      result = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        time.hour,
+        time.minute,
+      );
+    }
+    (onChanged ?? onDateSelected)?.call(result);
   }
 
   @override
   Widget build(BuildContext context) {
-    final fmt = DateFormat('MMM d, y', 'en_PH');
+    final fmt = DateFormat(
+      withTime ? 'MMM d, y h:mm a' : 'MMM d, y',
+      'en_PH',
+    );
     return GestureDetector(
       onTap: enabled ? () => _pick(context) : null,
       child: AbsorbPointer(
@@ -65,8 +93,8 @@ class AppDatePicker extends StatelessWidget {
           ),
           decoration: InputDecoration(
             labelText: label,
-            suffixIcon: const Icon(
-              Icons.calendar_today_outlined,
+            suffixIcon: Icon(
+              withTime ? Icons.event_available_outlined : Icons.calendar_today_outlined,
               size: 18,
               color: AppColors.textSecondary,
             ),

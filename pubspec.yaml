@@ -38,6 +38,14 @@ dependencies:
   # Secure Storage
   flutter_secure_storage: ^9.2.2
 
+  # Device credential authentication (fingerprint / Face ID, with device
+  # PIN/password fallback) bago ang final loan submission at COD payment.
+  local_auth: ^2.3.0
+
+  # SHA-256 hashing ng app-level 4-digit MPIN (rider / lender) — ang MPIN
+  # mismo ay hindi kailanman iniimbak nang plain sa device.
+  crypto: ^3.0.7
+
   # Get_it for DI
   get_it: ^7.7.0
 

@@ -137,6 +137,9 @@ class DisbursementRemoteDataSource {
   }) async {
     await _client.post(
       ApiEndpoints.disbursementsUploadProof,
+      // 2 larawan na base64 ay mabigat — bigyan ng mas mahabang timeout para
+      // hindi magmukhang "failed" ang isang matagumpay na upload.
+      timeout: const Duration(minutes: 2),
       data: {'disbursement_id': disbursementId, 'proofs': proofs},
     );
   }

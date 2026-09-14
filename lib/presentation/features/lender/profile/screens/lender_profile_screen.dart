@@ -13,6 +13,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
+import '../../../../shared/widgets/security/mpin_settings_card.dart';
 import '../../../../shared/providers/app_settings_provider.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
@@ -243,6 +244,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               ),
             ]);
           }),
+          const SizedBox(height: 20),
+          // MPIN — 4-digit na pang-kumpirmasyon sa lahat ng submission kapag
+          // walang password o biometrics ang phone.
+          const ModernSectionLabel('Security'),
+          const MpinSettingsCard(),
           const SizedBox(height: 20),
           const ModernSectionLabel('General'),
           ModernMenuCard(items: [

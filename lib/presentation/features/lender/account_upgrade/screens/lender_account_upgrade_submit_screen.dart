@@ -15,6 +15,7 @@ import 'package:jireta_loans/core/extensions/context_extensions.dart';
 import 'package:philippines_rpcmb/philippines_rpcmb.dart';
 
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
@@ -614,6 +615,16 @@ class _LenderAccountUpgradeSubmitScreenState
       _scrollToTop();
       return;
     }
+
+    // Kumpirmasyon bago ang submission: device credential (fingerprint /
+    // Face ID / device PIN), o ang app-level MPIN kapag walang password ang
+    // phone — at kung wala pang MPIN, hihingin munang i-set ito.
+    final verified = await ref.read(submissionGuardProvider).confirm(
+          context,
+          reason: 'I-verify ang iyong pagkakakilanlan (fingerprint / Face ID, '
+              'device PIN, o MPIN) para maisumite ang account upgrade.',
+        );
+    if (!verified || !mounted) return;
 
     setState(() => _isSubmitting = true);
     try {

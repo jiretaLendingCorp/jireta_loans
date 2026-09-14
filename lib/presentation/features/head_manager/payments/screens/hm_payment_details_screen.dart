@@ -1,8 +1,10 @@
 // lib/presentation/features/head_manager/payments/screens/hm_payment_details_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -69,143 +71,182 @@ class _HmPaymentDetailsScreenState
     );
   }
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(RouteConstants.hmPayments);
+    }
+  }
+
   Widget _buildBody(BuildContext context, Map<String, dynamic> d) {
-    final status = d['status'] ?? '';
-    final method = d['method'] ?? '';
+    final status = (d['status'] ?? '').toString();
+    final method = (d['method'] ?? '').toString();
     final amount = (d['amount'] as num?)?.toDouble() ?? 0;
     final createdAt = parseManila(d['created_at']);
     final loan = d['loan'] as Map<String, dynamic>?;
     final recordedByUser = d['recorded_by_user'] as Map<String, dynamic>?;
+    final refNumber = d['reference_number']?.toString();
+    final displayRef = (refNumber == null || refNumber.isEmpty)
+        ? (d['id']?.toString() ?? '')
+        : refNumber;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Back arrow + title ──────────────────────────────────────────
           Row(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              _BackArrow(onTap: _goBack),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Payment Details',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Hero card: amount, ref, status ──────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'AMOUNT PAID',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                    color: Colors.white60,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  amount.toCurrency,
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      'Payment #${d['reference_number'] ?? d['id']?.toString().substring(0, 8) ?? ''}',
-                      style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.deepNavy),
-                    ),
-                    const SizedBox(height: 4),
+                    StatusBadge(status: status),
+                    _Chip(label: _methodLabel(method)),
                     if (createdAt != null)
-                      Text(
-                        DateFormat('MMM dd, yyyy hh:mm a').format(createdAt),
-                        style: const TextStyle(color: AppColors.textSecondary),
+                      _Chip(
+                        label: DateFormat('MMM dd, yyyy • hh:mm a')
+                            .format(createdAt),
                       ),
                   ],
                 ),
-              ),
-              StatusBadge(status: status),
-              if (status == 'verified')
-                Padding(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: ElevatedButton.icon(
-                    onPressed: _reversing
-                        ? null
-                        : () => _reversePayment(context, d['id']),
-                    icon: _reversing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.undo, size: 16),
-                    label: const Text('Reverse'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Payment info ────────────────────────────────────────────────
+          _InfoCard(
+            title: 'Payment Information',
+            rows: [
+              _InfoRow('Amount', amount.toCurrency),
+              _InfoRow('Method', _methodLabel(method)),
+              _InfoRow('Status', status.toUpperCase()),
+              _InfoRow('Reference #', displayRef.isEmpty ? '—' : displayRef),
+              if (d['xendit_payment_id'] != null)
+                _InfoRow('Xendit ID', d['xendit_payment_id'].toString()),
+              if (d['notes'] != null && d['notes'].toString().isNotEmpty)
+                _InfoRow('Notes', d['notes'].toString()),
+              if (createdAt != null)
+                _InfoRow('Date',
+                    DateFormat('MMM dd, yyyy hh:mm a').format(createdAt)),
             ],
           ),
-          const SizedBox(height: 20),
-          AppCard(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Payment Information',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                          color: AppColors.deepNavy)),
-                  const Divider(height: 24),
-                  _row('Amount', amount.toCurrency),
-                  _row('Method', _methodLabel(method)),
-                  _row('Status', status.toUpperCase()),
-                  if (d['reference_number'] != null)
-                    _row('Reference #', d['reference_number']),
-                  if (d['xendit_payment_id'] != null)
-                    _row('Xendit ID', d['xendit_payment_id']),
-                  if (d['notes'] != null) _row('Notes', d['notes']),
-                  if (createdAt != null)
-                    _row('Date',
-                        DateFormat('MMM dd, yyyy hh:mm a').format(createdAt)),
-                ],
-              ),
+
+          // ── Loan info ───────────────────────────────────────────────────
+          if (loan != null) ...[
+            const SizedBox(height: 16),
+            _InfoCard(
+              title: 'Loan Information',
+              rows: [
+                _InfoRow('Loan #', (loan['loan_number'] ?? '—').toString()),
+                _InfoRow(
+                    'Total Payable',
+                    ((loan['total_payable'] as num?)?.toDouble() ?? 0)
+                        .toCurrency),
+                _InfoRow(
+                    'Outstanding Balance',
+                    ((loan['outstanding_balance'] as num?)?.toDouble() ?? 0)
+                        .toCurrency),
+                _InfoRow('Status', (loan['status'] ?? '—').toString()),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          if (loan != null)
-            AppCard(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Loan Information',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: AppColors.deepNavy)),
-                    const Divider(height: 24),
-                    _row('Loan #', loan['loan_number'] ?? ''),
-                    _row(
-                        'Total Payable',
-                        ((loan['total_payable'] as num?)?.toDouble() ?? 0)
-                            .toCurrency),
-                    _row(
-                        'Outstanding Balance',
-                        ((loan['outstanding_balance'] as num?)?.toDouble() ?? 0)
-                            .toCurrency),
-                    _row('Status', loan['status'] ?? ''),
-                  ],
+          ],
+
+          // ── Recorded by ─────────────────────────────────────────────────
+          if (recordedByUser != null) ...[
+            const SizedBox(height: 16),
+            _InfoCard(
+              title: 'Recorded By',
+              rows: [
+                _InfoRow(
+                    'Name',
+                    '${recordedByUser['first_name'] ?? ''} ${recordedByUser['last_name'] ?? ''}'
+                        .trim()),
+                _InfoRow('Role', (recordedByUser['role'] ?? '—').toString()),
+              ],
+            ),
+          ],
+
+          // ── Reverse action ──────────────────────────────────────────────
+          if (status == 'verified') ...[
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed:
+                    _reversing ? null : () => _reversePayment(context, d['id']),
+                icon: _reversing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.error,
+                        ),
+                      )
+                    : const Icon(Icons.undo_rounded, size: 18),
+                label: Text(_reversing ? 'Reversing…' : 'Reverse Payment'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
-          const SizedBox(height: 16),
-          if (recordedByUser != null)
-            AppCard(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Recorded By',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: AppColors.deepNavy)),
-                    const Divider(height: 24),
-                    _row(
-                        'Name',
-                        '${recordedByUser['first_name'] ?? ''} ${recordedByUser['last_name'] ?? ''}'
-                            .trim()),
-                    _row('Role', recordedByUser['role'] ?? ''),
-                  ],
-                ),
-              ),
-            ),
+          ],
         ],
       ),
     );
@@ -255,30 +296,138 @@ class _HmPaymentDetailsScreenState
         return 'GCash';
       case 'office_cash':
       case 'cash':
-        return 'Office';
+        return 'Office Cash';
       case 'rider_collection':
         return 'Rider Collection';
       default:
-        return method;
+        return method.isEmpty ? '—' : method;
     }
   }
+}
 
-  Widget _row(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
+// ─────────────────────────────────────────────────────────────────────────────
+// Support widgets
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BackArrow extends StatelessWidget {
+  final VoidCallback onTap;
+  const _BackArrow({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Back',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Icon(Icons.arrow_back_rounded,
+              size: 20, color: AppColors.deepNavy),
+        ),
+      ),
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  final String label;
+  const _Chip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  final String title;
+  final List<_InfoRow> rows;
+  const _InfoCard({required this.title, required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-                width: 180,
-                child: Text(label,
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 13))),
-            Expanded(
-                child: Text(value,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary))),
+            Text(
+              title,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: AppColors.deepNavy,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...rows.map((r) => r),
           ],
         ),
-      );
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 4,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 5,
+            child: Text(
+              value.isEmpty ? '—' : value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

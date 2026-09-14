@@ -31,6 +31,11 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     mask: '#### ### ####',
     filter: {'#': RegExp(r'[0-9]')},
   );
+
+  /// TEMP: hidden for now — flip back to `true` to restore the
+  /// "or continue with" divider and the "Continue with Google" button.
+  static const bool _showGoogleSignIn = false;
+
   bool _loading = false;
   bool _googleLoading = false;
   bool _googleFlowCancelled = false;
@@ -848,114 +853,120 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                     ),
                                                   ),
                                                 ),
-                                                const SizedBox(height: 18),
+                                                if (_showGoogleSignIn) ...[
+                                                  const SizedBox(height: 18),
 
-                                                // Divider (short centered lines)
-                                                const Row(
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    SizedBox(
-                                                        width: 40,
-                                                        child: Divider(
+                                                  // Divider (short centered lines)
+                                                  const Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment
+                                                            .center,
+                                                    children: [
+                                                      SizedBox(
+                                                          width: 40,
+                                                          child: Divider(
+                                                              color: Color(
+                                                                  0xFFE8E8EE),
+                                                              thickness: 1)),
+                                                      Padding(
+                                                        padding: EdgeInsets
+                                                            .symmetric(
+                                                                horizontal: 12),
+                                                        child: Text(
+                                                          'or continue with',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: AppColors
+                                                                .textTertiary,
+                                                            letterSpacing: 0.3,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      SizedBox(
+                                                          width: 40,
+                                                          child: Divider(
+                                                              color: Color(
+                                                                  0xFFE8E8EE),
+                                                              thickness: 1)),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 18),
+
+                                                  // Google button
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    height: 52,
+                                                    child: OutlinedButton.icon(
+                                                      onPressed: (_loading ||
+                                                              _googleLoading ||
+                                                              !isOnline)
+                                                          ? null
+                                                          : _signInWithGoogle,
+                                                      style: OutlinedButton
+                                                          .styleFrom(
+                                                        backgroundColor:
+                                                            Colors.white,
+                                                        foregroundColor:
+                                                            AppColors.deepNavy,
+                                                        side: const BorderSide(
                                                             color: Color(
                                                                 0xFFE8E8EE),
-                                                            thickness: 1)),
-                                                    Padding(
-                                                      padding:
-                                                          EdgeInsets.symmetric(
-                                                              horizontal: 12),
-                                                      child: Text(
-                                                        'or continue with',
+                                                            width: 1.2),
+                                                        shape:
+                                                            RoundedRectangleBorder(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(14),
+                                                        ),
+                                                        elevation: 0,
+                                                      ),
+                                                      icon: _googleLoading
+                                                          ? const SizedBox(
+                                                              height: 20,
+                                                              width: 20,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                                color: AppColors
+                                                                    .deepNavy,
+                                                              ),
+                                                            )
+                                                          : Image.asset(
+                                                              'assets/images/continue_with_google.jpg',
+                                                              width: 22,
+                                                              height: 22,
+                                                              fit: BoxFit
+                                                                  .contain,
+                                                              // Never render the raw "Unable to
+                                                              // load asset" error box in the
+                                                              // button if the asset is missing.
+                                                              errorBuilder: (_,
+                                                                      __,
+                                                                      ___) =>
+                                                                  const Icon(
+                                                                Icons
+                                                                    .g_mobiledata_rounded,
+                                                                size: 22,
+                                                                color: AppColors
+                                                                    .deepNavy,
+                                                              ),
+                                                            ),
+                                                      label: const Text(
+                                                        'Continue with Google',
                                                         style: TextStyle(
-                                                          fontSize: 11,
+                                                          fontSize: 14,
                                                           fontWeight:
                                                               FontWeight.w600,
                                                           color: AppColors
-                                                              .textTertiary,
-                                                          letterSpacing: 0.3,
+                                                              .deepNavy,
+                                                          letterSpacing: 0.1,
                                                         ),
                                                       ),
                                                     ),
-                                                    SizedBox(
-                                                        width: 40,
-                                                        child: Divider(
-                                                            color: Color(
-                                                                0xFFE8E8EE),
-                                                            thickness: 1)),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 18),
-
-                                                // Google button
-                                                SizedBox(
-                                                  width: double.infinity,
-                                                  height: 52,
-                                                  child: OutlinedButton.icon(
-                                                    onPressed: (_loading ||
-                                                            _googleLoading ||
-                                                            !isOnline)
-                                                        ? null
-                                                        : _signInWithGoogle,
-                                                    style: OutlinedButton
-                                                        .styleFrom(
-                                                      backgroundColor:
-                                                          Colors.white,
-                                                      foregroundColor:
-                                                          AppColors.deepNavy,
-                                                      side: const BorderSide(
-                                                          color:
-                                                              Color(0xFFE8E8EE),
-                                                          width: 1.2),
-                                                      shape:
-                                                          RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(14),
-                                                      ),
-                                                      elevation: 0,
-                                                    ),
-                                                    icon: _googleLoading
-                                                        ? const SizedBox(
-                                                            height: 20,
-                                                            width: 20,
-                                                            child:
-                                                                CircularProgressIndicator(
-                                                              strokeWidth: 2,
-                                                              color: AppColors
-                                                                  .deepNavy,
-                                                            ),
-                                                          )
-                                                        : Image.asset(
-                                                            'assets/images/continue_with_google.jpg',
-                                                            width: 22,
-                                                            height: 22,
-                                                            fit: BoxFit.contain,
-                                                            // Never render the raw "Unable to
-                                                            // load asset" error box in the
-                                                            // button if the asset is missing.
-                                                            errorBuilder: (_, __, ___) =>
-                                                                const Icon(
-                                                              Icons
-                                                                  .g_mobiledata_rounded,
-                                                              size: 22,
-                                                              color: AppColors
-                                                                  .deepNavy,
-                                                            ),
-                                                          ),
-                                                    label: const Text(
-                                                      'Continue with Google',
-                                                      style: TextStyle(
-                                                        fontSize: 14,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color:
-                                                            AppColors.deepNavy,
-                                                        letterSpacing: 0.1,
-                                                      ),
-                                                    ),
                                                   ),
-                                                ),
+                                                ],
                                               ],
                                             ),
                                           ),

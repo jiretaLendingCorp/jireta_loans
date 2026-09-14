@@ -34,6 +34,9 @@ class _AssignRiderCollectionModalState
   String? _selectedRiderId;
   final _notesCtrl = TextEditingController();
   DateTime? _collectionSchedule;
+  /// Katapusan ng rider visit window — ipinapadala kasama ng start time para
+  /// "From – To" ang nakalagay sa assignment (hindi lang isang oras).
+  DateTime? _collectionScheduleEnd;
   bool _loading = false;
   bool _loadingRiders = true;
   List<Map<String, dynamic>> _riders = [];
@@ -78,25 +81,53 @@ class _AssignRiderCollectionModalState
       lastDate: DateTime.now().add(const Duration(days: 30)),
     );
     if (date == null || !mounted) return;
-    final time = await showTimePicker(
+
+    // FROM time
+    final from = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.now(),
+      helpText: 'Rider visit — FROM',
+      initialTime: _collectionSchedule != null
+          ? TimeOfDay.fromDateTime(_collectionSchedule!)
+          : TimeOfDay.now(),
     );
-    if (time == null) return;
+    if (from == null || !mounted) return;
+    final start =
+        DateTime(date.year, date.month, date.day, from.hour, from.minute);
+
+    // TO time
+    final defaultTo = TimeOfDay(hour: (from.hour + 2) % 24, minute: from.minute);
+    final to = await showTimePicker(
+      context: context,
+      helpText: 'Rider visit — TO',
+      initialTime: _collectionScheduleEnd != null
+          ? TimeOfDay.fromDateTime(_collectionScheduleEnd!)
+          : defaultTo,
+    );
+    if (to == null || !mounted) return;
+    final end = DateTime(date.year, date.month, date.day, to.hour, to.minute);
+
+    if (!end.isAfter(start)) {
+      setState(() =>
+          _error = 'The "To" time must be later than the "From" time');
+      return;
+    }
     setState(() {
-      _collectionSchedule = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
+      _collectionSchedule = start;
+      _collectionScheduleEnd = end;
+      _error = null;
     });
   }
 
   Future<void> _submit() async {
     if (_selectedRiderId == null) {
       setState(() => _error = 'Please select a rider');
+      return;
+    }
+    // REQUIRED ang date + FROM/TO time — kailangang malaman ng lender kung
+    // anong ORAS (mula- hanggang) pupunta si rider sa kanya.
+    if (_collectionSchedule == null || _collectionScheduleEnd == null) {
+      setState(() =>
+          _error = 'Please select the rider visit time (from and to)');
       return;
     }
     setState(() {
@@ -110,6 +141,7 @@ class _AssignRiderCollectionModalState
             riderId: _selectedRiderId!,
             assignmentId: widget.assignmentId,
             collectionSchedule: _collectionSchedule,
+            collectionScheduleEnd: _collectionScheduleEnd,
             notes: _notesCtrl.text.trim(),
           );
       if (!mounted) return;
@@ -393,9 +425,15 @@ class _AssignRiderCollectionModalState
   }
 
   Widget _buildSchedulePicker() {
-    final label = _collectionSchedule != null
-        ? DateFormat('MMM d, y h:mm a', 'en_PH').format(_collectionSchedule!)
-        : '';
+    String label = '';
+    if (_collectionSchedule != null) {
+      final dateFmt = DateFormat('MMM d, y', 'en_PH');
+      final timeFmt = DateFormat('h:mm a', 'en_PH');
+      final from = timeFmt.format(_collectionSchedule!);
+      label = _collectionScheduleEnd != null
+          ? '${dateFmt.format(_collectionSchedule!)} · $from – ${timeFmt.format(_collectionScheduleEnd!)}'
+          : '${dateFmt.format(_collectionSchedule!)} · $from';
+    }
     return GestureDetector(
       onTap: _pickDateTime,
       child: AbsorbPointer(
@@ -403,7 +441,7 @@ class _AssignRiderCollectionModalState
           readOnly: true,
           controller: TextEditingController(text: label),
           decoration: const InputDecoration(
-            labelText: 'Collection Schedule (optional)',
+            labelText: 'Rider Visit Time (From – To) *',
             suffixIcon: Icon(
               Icons.event_outlined,
               size: 18,

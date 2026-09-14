@@ -963,10 +963,9 @@ class _EnterpriseAmountHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kpi = state.kpi;
-    final ratio = kpi.totalAssignedCollections > 0
-        ? (kpi.totalCompletedCollections / kpi.totalAssignedCollections)
-            .clamp(0.0, 1.0)
-        : 0.0;
+    // Ratio / progress indicators (ang "4/5 done" chip at ang horizontal
+    // progress line) ay sadyang hindi na ipinapakita — ang halaga lang ang
+    // pokus ng Total Collected card.
     return Container(
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(18),
@@ -1069,29 +1068,6 @@ class _EnterpriseAmountHero extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x1A000000),
-                          blurRadius: 6,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      '${kpi.totalCompletedCollections}/${kpi.totalAssignedCollections} done',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.riderGreen,
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -1116,54 +1092,27 @@ class _EnterpriseAmountHero extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: ratio,
-                  minHeight: 7,
-                  backgroundColor: Colors.white.withValues(alpha: 0.22),
-                  valueColor: const AlwaysStoppedAnimation(AppColors.gold),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.trending_up_rounded,
-                      size: 13, color: Colors.white70),
-                  const SizedBox(width: 6),
-                  Expanded(
+              if (kpi.totalFailedCollections > 0) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                     child: Text(
-                      ratio == 1 && kpi.totalAssignedCollections > 0
-                          ? 'All collections completed — excellent field work!'
-                          : '${(ratio * 100).toStringAsFixed(0)}% of assigned collections completed',
+                      '${kpi.totalFailedCollections} failed',
                       style: TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white),
                     ),
                   ),
-                  if (kpi.totalFailedCollections > 0) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${kpi.totalFailedCollections} failed',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ],

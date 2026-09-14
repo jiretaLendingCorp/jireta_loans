@@ -79,7 +79,8 @@ class _RiderDisburseAssignModalState
       return;
     }
     if (_deliveryDate == null) {
-      setState(() => _error = 'Please pick a delivery date');
+      setState(() =>
+          _error = 'Please pick the delivery date and time');
       return;
     }
     setState(() {
@@ -149,12 +150,14 @@ class _RiderDisburseAssignModalState
                     children: [
                       _buildRiderPicker(),
                       const SizedBox(height: 16),
+                      // REQUIRED ang ORAS — anong oras maghahatid si rider.
                       AppDatePicker(
-                        label: 'Delivery Date *',
+                        label: 'Delivery Date & Time *',
                         value: _deliveryDate,
                         onChanged: (d) => setState(() => _deliveryDate = d),
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 30)),
+                        withTime: true,
                       ),
                       const SizedBox(height: 16),
                       AppTextField(
