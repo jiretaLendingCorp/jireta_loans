@@ -25,7 +25,7 @@ class AppConfig {
   // jireta-loans.apk`) para maging available ito sa parehong domain ng site.
   static const String apkDownloadUrl = String.fromEnvironment(
     'APK_DOWNLOAD_URL',
-    defaultValue: 'https://your-domain.com/downloads/jireta-loans.apk',
+    defaultValue: 'https://jireta.vercel.app/downloads/jireta-loans.apk',
   );
 
   /// Pangalan ng file kapag nag-download ang browser.
