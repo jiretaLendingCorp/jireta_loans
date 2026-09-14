@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
@@ -19,15 +18,23 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../shared/widgets/legal_links.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/philippines_address_field.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../account_upgrade/screens/valid_id_scanner_screen.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_loan_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+
+/// Maliit na pagitan ng Back/Next row ng loan-apply wizard sa TAAS ng floating
+/// bottom nav pill kapag fully scrolled na ang step — ipinapantay ang ilalim ng
+/// mga button sa itaas na gilid ng bottom nav bar (8px lang ang gap, hindi na
+/// dikit at hindi rin masyadong mataas).
+const double kStepNavGapAbovePill = 8;
 
 class LenderApplyLoanScreen extends ConsumerStatefulWidget {
   const LenderApplyLoanScreen({super.key});
@@ -56,8 +63,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   String? _signatureError;
   // 00147: co-maker Valid ID captured with the signature (uploaded to
   // co_maker_documents so HM/employee reviewers can view it).
+  // Gaya sa Account Upgrade: Front + Back scan.
   PlatformFile? _coMakerValidId;
+  PlatformFile? _coMakerValidIdBack;
   String? _validIdError;
+
+  bool get _hasCoMakerValidIdFront => _coMakerValidId != null;
+  bool get _hasCoMakerValidIdBack => _coMakerValidIdBack != null;
+  bool get _hasCoMakerValidIdComplete =>
+      _hasCoMakerValidIdFront && _hasCoMakerValidIdBack;
   // Panandaliang "Signature confirmed" feedback para sa co-maker signature:
   // lumalabas kapag pinindot ang Confirm (3s bago mawala) at agad ding
   // nawawala kapag Clear.
@@ -100,6 +114,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// makakapag-submit ng loan application.
   bool _termsAccepted = false;
   String? _termsError;
+
+  /// Ang "Please accept the Terms and Conditions…" na validation message ay
+  /// 2 segundo lang nakikita tapos awtomatikong nawawala.
+  Timer? _termsErrorTimer;
+  static const Duration _termsErrorVisibleFor = Duration(seconds: 2);
 
   /// False habang hindi pa pumipili ng loan purpose: ito ang unang full-screen
   /// na nakikita pagkapindot ng Apply Loan, bago ang Loan Details step.
@@ -228,6 +247,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   void dispose() {
     _previewDebounce?.cancel();
     _coMakerSignatureTimer?.cancel();
+    _termsErrorTimer?.cancel();
     _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
     _amountCtrl.dispose();
@@ -482,22 +502,23 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       _focusOn(_coMakerSignatureKey);
       return;
     }
-    // 00147: co-maker Valid ID is required alongside the signature.
-    if (_coMakerValidId == null) {
+    // 00147: co-maker Valid ID Front + Back required alongside signature.
+    if (!_hasCoMakerValidIdComplete) {
       setState(() {
         _step = 3;
-        _validIdError = 'Co-maker Valid ID is required';
+        if (!_hasCoMakerValidIdFront) {
+          _validIdError = 'Co-maker Valid ID is required';
+        } else {
+          _validIdError = 'Back side of Co-maker Valid ID is required';
+        }
       });
       _focusOn(_coMakerValidIdKey);
       return;
     }
     // ── Step 4: Terms & Conditions (required) ────────────────────────────
     if (!_termsAccepted) {
-      setState(() {
-        _step = 4;
-        _termsError =
-            'Please accept the Terms and Conditions to submit your application.';
-      });
+      setState(() => _step = 4);
+      _showTermsErrorBriefly();
       _focusOn(_termsKey);
       return;
     }
@@ -517,12 +538,30 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         : validIdExt == 'jpg' || validIdExt == 'jpeg'
             ? 'image/jpeg'
             : 'application/octet-stream';
+    Uint8List? validIdBackBytes = _coMakerValidIdBack!.bytes;
+    if (validIdBackBytes == null) {
+      final path = _coMakerValidIdBack!.path;
+      if (path != null) validIdBackBytes = await File(path).readAsBytes();
+    }
+    final validIdBackExt =
+        (_coMakerValidIdBack!.name.split('.').lastOrNull ?? '').toLowerCase();
+    final validIdBackMime = validIdBackExt == 'png'
+        ? 'image/png'
+        : validIdBackExt == 'jpg' || validIdBackExt == 'jpeg'
+            ? 'image/jpeg'
+            : 'application/octet-stream';
     final coMaker = Map<String, dynamic>.from(_coMaker ?? {})
       ..['signature'] = _coMakerSignature
       ..['valid_id_document'] = {
         if (validIdBytes != null) 'content_base64': base64Encode(validIdBytes),
         'file_name': _coMakerValidId!.name,
         'mime_type': validIdMime,
+      }
+      ..['valid_id_back_document'] = {
+        if (validIdBackBytes != null)
+          'content_base64': base64Encode(validIdBackBytes),
+        'file_name': _coMakerValidIdBack!.name,
+        'mime_type': validIdBackMime,
       };
     // 00128: per-loan declaration captured inside this wizard.
     final employment = {
@@ -666,9 +705,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         _focusOn(_coMakerSignatureKey);
         return;
       }
-      // 00147: co-maker Valid ID is required before moving on.
-      if (_coMakerValidId == null) {
-        setState(() => _validIdError = 'Co-maker Valid ID is required');
+      // 00147: co-maker Valid ID Front + Back required before moving on.
+      if (!_hasCoMakerValidIdComplete) {
+        setState(() => _validIdError = !_hasCoMakerValidIdFront
+            ? 'Co-maker Valid ID is required'
+            : 'Back side of Co-maker Valid ID is required');
         _focusOn(_coMakerValidIdKey);
         return;
       }
@@ -737,59 +778,84 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: options.map((value) {
-            final isMax = value == maxPeriods;
-            final selected =
-                isMax ? _termPeriods == null : _termPeriods == value;
-            return InkWell(
-              onTap: () {
-                setState(() => _termPeriods = isMax ? null : value);
-                _refreshPreview();
-              },
-              borderRadius: BorderRadius.circular(10),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.lenderBlue : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: selected ? AppColors.lenderBlue : AppColors.border,
+        // Pantay-pantay na lapad ang bawat card (3 kada row) para malinis ang
+        // grid — dating `Wrap` na kanya-kanyang lapad ayon sa haba ng label
+        // kaya "kalat kalat" ang ayos.
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const spacing = 8.0;
+            const perRow = 3;
+            final cardWidth =
+                (constraints.maxWidth - spacing * (perRow - 1)) / perRow;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: options.map((value) {
+                final isMax = value == maxPeriods;
+                final selected =
+                    isMax ? _termPeriods == null : _termPeriods == value;
+                final label =
+                    '$value ${value == 1 && unit.endsWith('s') ? unit.substring(0, unit.length - 1) : unit}';
+                return SizedBox(
+                  width: cardWidth,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() => _termPeriods = isMax ? null : value);
+                      _refreshPreview();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.lenderBlue : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color:
+                              selected ? AppColors.lenderBlue : AppColors.border,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color:
+                                selected ? Colors.white : AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                child: Text(
-                  '$value ${value == 1 && unit.endsWith('s') ? unit.substring(0, unit.length - 1) : unit}',
-                  style: TextStyle(
-                    color: selected ? Colors.white : AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
+                );
+              }).toList(),
             );
-          }).toList(),
+          },
         ),
       ],
     );
   }
 
+  /// Bottom padding ng naka-PIN na Back/Next row: nakapatong ito sa TAAS ng
+  /// floating bottom nav bar — safe area + float gap (36) + pill height (74) +
+  /// [kStepNavGapAbovePill] na maliit na pagitan — kaya hindi dikit sa pill at
+  /// hindi rin masyadong mataas.
+  double get _stepNavBottomPadding =>
+      MediaQuery.paddingOf(context).bottom +
+      kFloatingNavFloatGap +
+      kFloatingNavPillHeight +
+      kStepNavGapAbovePill;
+
   Widget _buildLoanDetailsStep(
       NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      // Bottom clearance sized so the last element (the inline Next button)
-      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
-      // area above the screen bottom) when fully scrolled — no big gap.
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
-      ),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -977,7 +1043,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           ),
           const SizedBox(height: 20),
           _SchedulePreview(preview: preview, loading: _previewLoading),
-          _buildStepNav(isSubmitting),
         ],
       ),
     );
@@ -986,15 +1051,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   Widget _buildCoMakerStep(bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      // Bottom clearance sized so the last element (the inline Next button)
-      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
-      // area above the screen bottom) when fully scrolled — no big gap.
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
-      ),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1012,7 +1069,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               setState(() => _coMaker = value);
             },
           ),
-          _buildStepNav(isSubmitting),
         ],
       ),
     );
@@ -1021,15 +1077,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   Widget _buildSignatureStep(bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      // Bottom clearance sized so the last element (the inline Next button)
-      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
-      // area above the screen bottom) when fully scrolled — no big gap.
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
-      ),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1082,11 +1130,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   },
                   height: 200,
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'The co-maker signature above serves as consent for this loan.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
-                ),
                 if (_showCoMakerSignatureConfirmed) ...[
                   const SizedBox(height: 8),
                   const Row(
@@ -1116,105 +1159,84 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          // 00147: co-maker Valid ID — required alongside the signature and
-          // visible to head manager / employee reviewers after submission.
+          // 00147: co-maker Valid ID Front + Back — gaya sa Account Upgrade
+          // scanner. Card lang ito (tap para mag-scan/upload) — walang
+          // filename row, View buttons o Upload button sa ilalim.
           Container(
             key: _coMakerValidIdKey,
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: _hasCoMakerValidIdComplete
+                  ? AppColors.lenderBlue.withValues(alpha: 0.04)
+                  : Colors.white,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _validIdError != null
                     ? AppColors.error
-                    : AppColors.border,
+                    : _hasCoMakerValidIdComplete
+                        ? AppColors.lenderBlue.withValues(alpha: 0.3)
+                        : AppColors.border,
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Co-Maker Valid ID *',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            "A clear photo of the co-maker's government-issued ID.",
-                            style: TextStyle(
-                                fontSize: 11, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_coMakerValidId != null)
-                      const Icon(Icons.check_circle,
-                          color: AppColors.success, size: 20),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Preview ng na-upload na Valid ID — ang litrato mismo ang
-                // ipinapakita sa card, hindi lang ang pangalan ng file.
-                if (_coMakerValidId?.bytes != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: double.infinity,
-                      height: 170,
-                      color: AppColors.surfaceVariant,
-                      child: Image.memory(
-                        _coMakerValidId!.bytes!,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Center(
-                          child: Icon(Icons.broken_image_outlined,
+                InkWell(
+                  onTap: isSubmitting ? null : _pickCoMakerValidId,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Image.asset(
+                          'assets/icons/id_card.png',
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                          errorBuilder: (_, __, ___) => const Icon(
+                              Icons.contact_page_rounded,
+                              size: 32,
                               color: AppColors.textTertiary),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                // Upload button sa right-bottom side ng card.
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _coMakerValidId?.name ?? 'No file selected',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: _coMakerValidId != null
-                                ? AppColors.textPrimary
-                                : AppColors.textTertiary),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    OutlinedButton.icon(
-                      onPressed: isSubmitting ? null : _pickCoMakerValidId,
-                      icon: const Icon(Icons.upload_file_outlined, size: 18),
-                      label:
-                          Text(_coMakerValidId == null ? 'Upload' : 'Change'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.lenderBlue,
-                        side: const BorderSide(color: AppColors.lenderBlue),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Co-Maker Valid ID *',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary)),
+                            const SizedBox(height: 2),
+                            Text(
+                              _hasCoMakerValidIdComplete
+                                  ? 'Front ✓  •  Back ✓'
+                                  : _hasCoMakerValidIdFront
+                                      ? 'Front ✓  •  Back missing — tap to add'
+                                      : "Front + Back of co-maker's government-issued ID",
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: _hasCoMakerValidIdComplete
+                                      ? AppColors.lenderBlue
+                                      : AppColors.textSecondary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      Icon(
+                          _hasCoMakerValidIdComplete
+                              ? Icons.check_circle
+                              : Icons.upload_file_outlined,
+                          color: _hasCoMakerValidIdComplete
+                              ? AppColors.success
+                              : AppColors.textTertiary),
+                    ],
+                  ),
                 ),
                 if (_validIdError != null) ...[
                   const SizedBox(height: 8),
@@ -1227,13 +1249,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               ],
             ),
           ),
-          _buildStepNav(isSubmitting),
         ],
       ),
     );
   }
 
-  /// 00147: capture the co-maker's Valid ID (camera or gallery).
+  /// 00147: Co-maker Valid ID Front + Back — gaya sa Account Upgrade.
+  /// Camera = ValidIdScannerScreen (front + back scan), gallery = up to 2 files.
   Future<void> _pickCoMakerValidId() async {
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -1258,7 +1280,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined,
                   color: AppColors.lenderBlue),
-              title: const Text('Take photo'),
+              title: const Text('Scan Front & Back'),
               onTap: () => Navigator.of(context).pop('camera'),
             ),
             ListTile(
@@ -1273,30 +1295,48 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
     if (!mounted) return;
     if (action == 'camera') {
-      final img = await ImagePicker().pickImage(
-        source: ImageSource.camera,
-        imageQuality: 85,
+      final result = await Navigator.of(context).push<IdScanResult>(
+        MaterialPageRoute(builder: (_) => const ValidIdScannerScreen()),
       );
-      if (img == null || !mounted) return;
-      final bytes = await img.readAsBytes();
-      if (!mounted) return;
-      setState(() {
-        _coMakerValidId = PlatformFile(
-          name: img.name,
-          size: bytes.length,
-          bytes: bytes,
-        );
-        _validIdError = null;
-      });
+      if (result != null && mounted) {
+        final stamp = DateTime.now().millisecondsSinceEpoch;
+        setState(() {
+          _coMakerValidId = PlatformFile(
+            name: 'comaker_valid_id_front_$stamp.jpg',
+            size: result.frontBytes.length,
+            bytes: result.frontBytes,
+          );
+          _coMakerValidIdBack = PlatformFile(
+            name: 'comaker_valid_id_back_$stamp.jpg',
+            size: result.backBytes.length,
+            bytes: result.backBytes,
+          );
+          _validIdError = null;
+        });
+      }
+      return;
     } else if (action == 'gallery') {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png'],
+        allowMultiple: true,
         withData: true,
       );
       if (result == null || result.files.isEmpty || !mounted) return;
       setState(() {
-        _coMakerValidId = result.files.first;
+        final files = result.files;
+        if (_hasCoMakerValidIdFront &&
+            !_hasCoMakerValidIdBack &&
+            files.length == 1) {
+          _coMakerValidIdBack = files.first;
+        } else {
+          _coMakerValidId = files.first;
+          if (files.length > 1) {
+            _coMakerValidIdBack = files[1];
+          } else {
+            _coMakerValidIdBack = null;
+          }
+        }
         _validIdError = null;
       });
     }
@@ -1307,14 +1347,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   Widget _buildFinancialEmergencyStep(bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
-      // Bottom clearance sized so the last element (the inline Next button)
-      // rests just above the floating bottom nav pill when fully scrolled.
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
-      ),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1509,7 +1542,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
               ],
             ),
           ),
-          _buildStepNav(isSubmitting),
         ],
       ),
     );
@@ -1552,15 +1584,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final installment =
         preview == null ? null : (preview['installment_amount'] ?? 0);
     return SingleChildScrollView(
-      // Bottom clearance sized so the last element (the inline Next button)
-      // rests just above the floating bottom nav pill (pill ≈ 93px + safe
-      // area above the screen bottom) when fully scrolled — no big gap.
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
-      ),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1585,12 +1609,20 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             totalPayable: totalPayable,
             installment: installment,
           ),
-          const SizedBox(height: 12),
-          _buildTermsCheckbox(),
-          _buildStepNav(isSubmitting),
         ],
       ),
     );
+  }
+
+  /// Terms & Conditions validation: pinapakita ang mensahe nang 2 segundo lang
+  /// tapos awtomatikong nawawala — hindi nananatiling nakabalandra ang red card.
+  void _showTermsErrorBriefly() {
+    _termsErrorTimer?.cancel();
+    setState(() => _termsError =
+        'Please accept the Terms and Conditions to submit your application.');
+    _termsErrorTimer = Timer(_termsErrorVisibleFor, () {
+      if (mounted) setState(() => _termsError = null);
+    });
   }
 
   /// Terms & Conditions checkbox — REQUIRED bago maka-submit ng application.
@@ -1621,17 +1653,42 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                 activeColor: AppColors.lenderBlue,
                 onChanged: (v) => setState(() {
                   _termsAccepted = v ?? false;
-                  if (_termsAccepted) _termsError = null;
+                  if (_termsAccepted) {
+                    _termsErrorTimer?.cancel();
+                    _termsError = null;
+                  }
                 }),
               ),
-              const Expanded(
+              Expanded(
+                // Buong text ay tappable — bubukas ang Terms & Conditions sa
+                // bottom sheet. Ang checkbox pa rin ang nag-a-accept.
                 child: Padding(
-                  padding: EdgeInsets.only(top: 12),
-                  child: Text(
-                    'I have read and agree to the Terms and Conditions, and I '
-                    'certify that all information I provided is true and correct.',
-                    style: TextStyle(
-                        fontSize: 12.5, color: AppColors.textSecondary),
+                  padding: const EdgeInsets.only(top: 12),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => showTermsAndConditionsSheet(context),
+                    child: const Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: 'I have read and agree to the '),
+                          TextSpan(
+                            text: 'Terms and Conditions',
+                            style: TextStyle(
+                              color: AppColors.lenderBlue,
+                              fontWeight: FontWeight.w700,
+                              decoration: TextDecoration.underline,
+                              decorationColor: AppColors.lenderBlue,
+                            ),
+                          ),
+                          TextSpan(
+                            text:
+                                ', and I certify that all information I provided is true and correct.',
+                          ),
+                        ],
+                      ),
+                      style: TextStyle(
+                          fontSize: 12.5, color: AppColors.textSecondary),
+                    ),
                   ),
                 ),
               ),
@@ -1651,18 +1708,21 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
   }
 
-  /// Inline nav row at the end of each step's scrollable content — on the
-  /// Loan Details step the Next button sits right below the payment schedule
-  /// preview card, scrolling with the content.
+  /// Naka-PIN na nav row (Back/Next o Submit) sa ibaba ng wizard — nakapatong
+  /// mismo sa ibabaw ng floating bottom nav bar, kaya hindi na kailangang
+  /// mag-scroll ng user para makita ang mga button.
   Widget _buildStepNav(bool isSubmitting) {
     final isLast = _step == 4;
     // Next/Submit stay tappable so the step validators can run and surface
     // inline errors; the individual step handlers perform the real checks.
     final canProceed = !isSubmitting;
     return Padding(
-      padding: const EdgeInsets.only(top: 24),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, _stepNavBottomPadding),
       child: Row(
         children: [
+          // BACK at NEXT ay magkatabi sa kanan (dati, nasa kabilang dulo ang
+          // Back kaya may malaking bakanteng gitna).
+          const Spacer(),
           if (_step > 0) ...[
             _NavTextButton(
               icon: Icons.arrow_back_rounded,
@@ -1671,7 +1731,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ),
             const SizedBox(width: 12),
           ],
-          const Spacer(),
           if (isLast)
             AppButton(
               label: 'Submit Application',
@@ -1684,6 +1743,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             _NavTextButton(
               icon: Icons.arrow_forward_rounded,
               label: 'Next',
+              // Arrow pagkatapos ng label: "Next →".
+              iconAfterLabel: true,
               onTap: canProceed ? _goNext : null,
             ),
         ],
@@ -1830,6 +1891,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ],
           ),
         ),
+        // Review step: ang Terms & Conditions checkbox card ay NAKA-PIN din —
+        // nasa ibaba, sa ibabaw mismo ng Back/Submit button — kaya laging
+        // nakikita bago mag-submit.
+        if (_step == 4)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: _buildTermsCheckbox(),
+          ),
+        // Back/Next (o Submit) na naka-pin sa TAAS ng floating bottom nav bar —
+        // hindi na ito kasama sa scroll ng step, kaya laging nakikita.
+        _buildStepNav(isSubmitting),
       ],
     );
   }
@@ -1950,6 +2022,11 @@ class _CoMakerFormState extends State<_CoMakerForm> {
   }
 
   Future<void> _pickDob() async {
+    // Isara ang keyboard bago buksan ang date picker. Kung may naka-focus pa
+    // (hal. Street / House No. ng address), ibinabalik ito ng Flutter pagkatapos
+    // magsara ng picker — kaya "nagiging active" ulit ang street field at
+    // natatakpan ng keyboard ang form/Next kahit may date of birth na.
+    FocusScope.of(context).unfocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime(1990, 1, 1),
@@ -1971,6 +2048,13 @@ class _CoMakerFormState extends State<_CoMakerForm> {
       });
       _emit();
     }
+    // Ang focus restoration ng dialog ay nangyayari pagkatapos ng pop
+    // animation (~200ms), kaya dito pa lang siguradong hindi na nagiging active
+    // muli ang street field.
+    if (mounted) FocusScope.of(context).unfocus();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) FocusScope.of(context).unfocus();
+    });
   }
 
   @override
@@ -2139,14 +2223,18 @@ class _CoMakerFormState extends State<_CoMakerForm> {
 
 /// Plain text nav button used in the wizard bar — an arrow followed by its
 /// label (e.g. "→ Next"), with no box or background around it.
+///
+/// Kapag [iconAfterLabel] (hal. "Next →"), pagkatapos ng label ang arrow.
 class _NavTextButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final bool iconAfterLabel;
   const _NavTextButton({
     required this.icon,
     required this.label,
     this.onTap,
+    this.iconAfterLabel = false,
   });
 
   @override
@@ -2163,8 +2251,10 @@ class _NavTextButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(width: 6),
+              if (!iconAfterLabel) ...[
+                Icon(icon, color: color, size: 22),
+                const SizedBox(width: 6),
+              ],
               Text(
                 label,
                 style: TextStyle(
@@ -2173,6 +2263,10 @@ class _NavTextButton extends StatelessWidget {
                   color: color,
                 ),
               ),
+              if (iconAfterLabel) ...[
+                const SizedBox(width: 6),
+                Icon(icon, color: color, size: 22),
+              ],
             ],
           ),
         ),
@@ -2393,86 +2487,127 @@ class _StepIndicator extends StatelessWidget {
     'Review',
   ];
 
+  /// Pantay na lapad para sa bawat step. Dating nakasentro ang mga bilog sa
+  /// lapad ng kani-kanilang label ("Financial & Emergency" ang pinakamahaba),
+  /// kaya hindi pantay ang espasyo ng 1, 2, 3...
+  static const double _stepWidth = 62;
+
+  /// Taas ng kahon ng bilog — pareho para sa lahat kaya pantay ang linya.
+  static const double _dotBoxHeight = 32;
+
   @override
   Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (int i = 0; i < _labels.length; i++) ...[
-            if (i > 0)
-              Expanded(
-                child: Container(
-                  height: 2,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  color: i <= current ? AppColors.lenderBlue : AppColors.border,
+          // Bilog + connecting line. Nakasentro ang bilog sa fixed-width na
+          // kahon, at nakasentro din ang line sa taas ng kahon — kaya pantay.
+          Row(
+            children: [
+              for (int i = 0; i < _labels.length; i++) ...[
+                if (i > 0)
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: i <= current
+                          ? AppColors.lenderBlue
+                          : AppColors.border,
+                    ),
+                  ),
+                SizedBox(
+                  width: _stepWidth,
+                  height: _dotBoxHeight,
+                  child: Center(
+                    child: _StepDot(
+                      index: i,
+                      isActive: i == current,
+                      isDone: i < current,
+                    ),
+                  ),
                 ),
-              ),
-            _StepDot(
-              index: i,
-              isActive: i == current,
-              isDone: i < current,
-              label: _labels[i],
-            ),
-          ],
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Labels sa ilalim — KAPAREHONG layout (fixed width + Expanded
+          // spacer) para eksaktong nakasentro sa ilalim ng kani-kanilang bilog.
+          // `FittedBox` ang humahawak sa mahahabang label (lumiit, hindi putol).
+          Row(
+            children: [
+              for (int i = 0; i < _labels.length; i++) ...[
+                if (i > 0) const Expanded(child: SizedBox()),
+                SizedBox(
+                  width: _stepWidth,
+                  height: 14,
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        _labels[i],
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: i == current
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: i <= current
+                              ? AppColors.lenderBlue
+                              : AppColors.textTertiary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
+/// Bilog na may numero (o check kapag tapos na). Walang label dito — nasa
+/// [_StepIndicator] na hiwalay na row ang mga label para pantay ang alignment.
 class _StepDot extends StatelessWidget {
   final int index;
   final bool isActive;
   final bool isDone;
-  final String label;
   const _StepDot({
     required this.index,
     required this.isActive,
     required this.isDone,
-    required this.label,
   });
 
   @override
   Widget build(BuildContext context) {
     final highlighted = isActive || isDone;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: isActive ? 32 : 24,
-          height: isActive ? 32 : 24,
-          decoration: BoxDecoration(
-            color: highlighted ? AppColors.lenderBlue : Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: highlighted ? AppColors.lenderBlue : AppColors.border,
-              width: 1.5,
+    final size = isActive ? 30.0 : 24.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: highlighted ? AppColors.lenderBlue : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: highlighted ? AppColors.lenderBlue : AppColors.border,
+          width: 1.5,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: isDone
+          ? const Icon(Icons.check, color: Colors.white, size: 14)
+          : Text(
+              '${index + 1}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: isActive ? Colors.white : AppColors.textSecondary,
+              ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: isDone
-              ? const Icon(Icons.check, color: Colors.white, size: 14)
-              : Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isActive ? Colors.white : AppColors.textSecondary,
-                  ),
-                ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-            color: highlighted ? AppColors.lenderBlue : AppColors.textTertiary,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -2499,6 +2634,8 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Naka-card para malinis at hindi nakakalat ang review details sa page.
+    // Kapareho ng style ng terms card sa ibaba (puti + border + radius 12).
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -2538,24 +2675,24 @@ class _ReviewCard extends StatelessWidget {
   }
 
   Widget _row(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 118,
+              width: 146,
               child: Text(
                 label,
                 style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary),
+                    fontSize: 15, color: AppColors.textSecondary),
               ),
             ),
             Expanded(
               child: Text(
                 value,
                 style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
@@ -3453,7 +3590,29 @@ class _LoanPurposePickerState extends State<_LoanPurposePicker> {
 
   String? _selected;
   final _otherCtrl = TextEditingController();
+  final _otherFieldKey = GlobalKey();
   bool _showError = false;
+
+  /// Pinipili ang purpose. Kapag 'Other', i-scroll papasok sa viewport ang
+  /// text field — kung hindi, lumalabas ito sa ilalim ng listahan at natatakpan
+  /// ng naka-pin na Continue button.
+  void _select(String label) {
+    setState(() {
+      _selected = label;
+      _showError = false;
+    });
+    if (label != _otherLabel) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final fieldCtx = _otherFieldKey.currentContext;
+      if (fieldCtx == null) return;
+      Scrollable.ensureVisible(
+        fieldCtx,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        alignment: 1,
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -3480,133 +3639,147 @@ class _LoanPurposePickerState extends State<_LoanPurposePicker> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        16 + bottomInset + MediaQuery.of(context).padding.bottom + 84,
-      ),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+    return Column(
       children: [
-        const Text(
-          'What is this loan for?',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Choose the purpose of your loan. This is the first step before the loan details.',
-          style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 16),
-        ...widget.suggestions.map((option) {
-          final label = option.$1;
-          final icon = option.$2;
-          final selected = _selected == label;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: InkWell(
-              onTap: () => setState(() {
-                _selected = label;
-                _showError = false;
-              }),
-              borderRadius: BorderRadius.circular(12),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                decoration: BoxDecoration(
-                  color:
-                      selected ? AppColors.lenderBlueLight : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: selected
-                        ? AppColors.lenderBlue
-                        : AppColors.border,
-                    width: selected ? 1.6 : 1,
+        Expanded(
+          child: SingleChildScrollView(
+            // Kapag kasya ang laman, hindi na mahihila ang page; tuloy pa rin
+            // ang scroll kapag talagang umaapaw.
+            physics: const ClampingScrollPhysics(),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Walang "What is this loan for?" na header — ang subtitle na
+                // lang ang nagpapaliwanag, at naka-center ito.
+                const Text(
+                  'Choose the purpose of your loan. This is the first step before the loan details.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                    color: AppColors.textSecondary,
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Icon(icon,
-                        size: 20,
-                        color: selected
-                            ? Colors.white
-                            : AppColors.textSecondary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                const SizedBox(height: 16),
+                ...widget.suggestions.map((option) {
+                  final label = option.$1;
+                  final icon = option.$2;
+                  final selected = _selected == label;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: InkWell(
+                      onTap: () => _select(label),
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 14),
+                        decoration: BoxDecoration(
                           color: selected
-                              ? Colors.white
-                              : AppColors.textPrimary,
+                              ? AppColors.lenderBlueLight
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selected
+                                ? AppColors.lenderBlue
+                                : AppColors.border,
+                            width: selected ? 1.6 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(icon,
+                                size: 20,
+                                color: selected
+                                    ? Colors.white
+                                    : AppColors.textSecondary),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: selected
+                                      ? Colors.white
+                                      : AppColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              selected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              size: 20,
+                              color: selected
+                                  ? Colors.white
+                                  : AppColors.textTertiary,
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    Icon(
-                      selected
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                      size: 20,
-                      color: selected
-                          ? Colors.white
-                          : AppColors.textTertiary,
+                  );
+                }),
+                if (_isOther) ...[
+                  const SizedBox(height: 2),
+                  TextField(
+                    key: _otherFieldKey,
+                    controller: _otherCtrl,
+                    maxLines: 3,
+                    maxLength: 255,
+                    onChanged: (_) => setState(() => _showError = false),
+                    decoration: InputDecoration(
+                      hintText: 'Write the reason for your loan...',
+                      counterText: '',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: AppColors.lenderBlue),
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }),
-        if (_isOther) ...[
-          const SizedBox(height: 2),
-          TextField(
-            controller: _otherCtrl,
-            maxLines: 3,
-            maxLength: 255,
-            onChanged: (_) => setState(() => _showError = false),
-            decoration: InputDecoration(
-              hintText: 'Isulat ang dahilan ng loan...',
-              counterText: '',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.lenderBlue),
-              ),
+                  ),
+                ],
+                if (_showError)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: Text(
+                      'Please choose a loan purpose to continue.',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              ],
             ),
           ),
-        ],
-        if (_showError)
-          const Padding(
-            padding: EdgeInsets.only(top: 10),
-            child: Text(
-              'Pumili ng loan purpose para magpatuloy.',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w600),
-            ),
+        ),
+        // Naka-pin sa itaas ng floating bottom nav — eksaktong clearance mula
+        // sa [mobileBottomNavInset] (kasama na ang safe area + float + pill).
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            mobileBottomNavInset(context),
           ),
-        const SizedBox(height: 18),
-        AppButton(
-          label: 'Continue to Loan Details',
-          icon: Icons.arrow_forward_rounded,
-          color: AppColors.lenderBlue,
-          isExpanded: true,
-          onTap: _continue,
+          child: AppButton(
+            label: 'Continue',
+            icon: Icons.arrow_forward_rounded,
+            color: AppColors.lenderBlue,
+            isExpanded: true,
+            onTap: _continue,
+          ),
         ),
       ],
     );

@@ -186,7 +186,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     final showLoanLoader = loanState.isLoading && loanState.loans.isEmpty;
 
     return MobileScaffold(
-      title: 'My Account',
+      title: 'Account',
       accentColor: AppColors.lenderBlue,
       navItems: _riderNavItems,
       body: state.isLoading || showLoanLoader
@@ -201,9 +201,16 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                 opacity: _fadeCtrl,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  // Pantay sa taas ng floating bottom nav pill pag fully
-                  // scrolled — walang overlap, walang labis na gap.
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+                  // Eksaktong dikit sa itaas ng floating bottom nav pill.
+                  // [mobileBottomNavHeight] ang tama dito dahil ang context ng
+                  // screen build ay nasa LABAS ng body (safe area lang ang
+                  // nasa MediaQuery padding doon).
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    mobileBottomNavHeight(context),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -254,8 +261,12 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         activeLoanId: activeLoan?.id ?? '',
                       ),
                       const LenderRiderTrackingCard(),
-                      const SizedBox(height: 20),
-                      if (state.error != null) _ErrorBanner(state.error!),
+                      // Walang trailing na spacing dito — dapat dikit ang huling
+                      // nilalaman sa itaas ng floating bottom nav.
+                      if (state.error != null) ...[
+                        const SizedBox(height: 20),
+                        _ErrorBanner(state.error!),
+                      ],
                     ],
                   ),
                 ),
@@ -1364,7 +1375,12 @@ class _LenderDashboardSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        mobileBottomNavInset(context),
+      ),
       child: Shimmer.fromColors(
         baseColor: AppColors.shimmerBase,
         highlightColor: AppColors.shimmerHighlight,

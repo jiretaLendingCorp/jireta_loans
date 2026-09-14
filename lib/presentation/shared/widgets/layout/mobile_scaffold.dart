@@ -11,6 +11,49 @@ import '../../../features/lender/notifications/providers/lender_notification_pro
 import '../../../features/rider/notifications/providers/rider_notification_provider.dart';
 import '../notification_badge.dart';
 
+/// Distansya ng floating bottom nav pill mula sa ilalim ng SafeArea.
+const double kFloatingNavFloatGap = 36;
+
+/// Taas ng pill mismo — 16px container padding (taas+baba) + 4px border
+/// (2px × 2) + 54px item (12px padding + 26px icon circle + 3px gap +
+/// 13px label line box). Sinusukat ito ng widget test, huwag baguhin nang
+/// hindi tumutugma sa aktwal na pill.
+const double kFloatingNavPillHeight = 74;
+
+/// Taas ng floating bottom nav mula sa ilalim ng screen (safe area + 36px float
+/// + 74px pill) — GAMITIN ITO SA `build()` NG SCREEN, kung saan ang `context` ay
+/// nasa LABAS pa ng body. Halimbawa: ang bottom padding ng scrollable body.
+///
+/// ```dart
+/// // sa screen (labas ng body)
+/// padding: EdgeInsets.fromLTRB(16, 16, 16, mobileBottomNavHeight(context)),
+/// ```
+///
+/// Sa loob ng body, gamitin ang [mobileBottomNavInset] — nagdodoble ang
+/// clearance kapag naipagpalit ang dalawa.
+double mobileBottomNavHeight(BuildContext context) =>
+    MediaQuery.paddingOf(context).bottom +
+    kFloatingNavFloatGap +
+    kFloatingNavPillHeight;
+
+/// Espasyong sakop na ng floating bottom nav para sa mga widget SA LOOB ng body
+/// ng [MobileScaffold].
+///
+/// MAHALAGA: kapag `extendBody: true` at may bottom nav, ang
+/// `MediaQuery.padding.bottom` ng body ay hindi na safe area lang —
+/// `max(safe area, taas ng nav)` na ito (tingnan ang `_BodyBuilder` sa
+/// Scaffold), kaya kasama na ang float gap at pill. Halimbawa: 34px home
+/// indicator → 144px. Kaya HUWAG nang dagdagan pa nito ang
+/// [mobileBottomNavHeight] o ang mga constant sa itaas — doble ang lalabas
+/// (sobrang haba ng scroll, puro blangkong espasyo sa ilalim ng huling card).
+///
+/// ```dart
+/// // sa loob ng body (hal. widget na ipinasa bilang `body:`)
+/// padding: EdgeInsets.fromLTRB(16, 16, 16, mobileBottomNavInset(context)),
+/// ```
+double mobileBottomNavInset(BuildContext context) =>
+    MediaQuery.paddingOf(context).bottom;
+
 class MobileScaffold extends ConsumerWidget {
   final String title;
   final Widget body;
@@ -196,9 +239,18 @@ class _FloatingBottomNav extends StatelessWidget {
       minimum: const EdgeInsets.only(bottom: 0),
       child: Align(
         alignment: Alignment.bottomCenter,
+        // KRITIKAL: kung walang `heightFactor`, umaabot ang Align sa LAHAT ng
+        // available na taas (buong screen). Dahil dito, ang bottom nav ang
+        // itinuturing na `bottomWidgetsHeight` ng Scaffold — at dahil
+        // `extendBody: true`, ang `MediaQuery.padding.bottom` ng BODY ay
+        // nagiging buong taas ng screen. Nagdudulot ito ng sobrang laking
+        // bottom padding sa mga screen na gumagamit ng `padding.bottom`
+        // (sobrang haba ng scroll, puro blangkong espasyo).
+        heightFactor: 1,
         child: Padding(
-          // Raised a bit more + vibrant per request — 36px above SafeArea
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 36),
+          // Raised a bit more + vibrant per request — 36px above SafeArea.
+          // Panatilihing tugma sa [mobileBottomNavInset] ang gap na ito.
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, kFloatingNavFloatGap),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: compact ? 404 : 336),
             child: Container(

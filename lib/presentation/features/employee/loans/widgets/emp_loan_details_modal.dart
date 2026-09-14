@@ -659,7 +659,9 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
   List<String> _coMakerValidIdUrls(Map<String, dynamic> cm) {
     final docs = (cm['co_maker_documents'] as List? ?? [])
         .whereType<Map<String, dynamic>>()
-        .where((d) => d['document_type'] == 'valid_id')
+        .where((d) =>
+            d['document_type'] == 'valid_id' ||
+            d['document_type'] == 'valid_id_back')
         .toList();
     return docs
         .map((d) =>

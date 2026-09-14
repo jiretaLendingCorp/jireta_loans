@@ -338,37 +338,98 @@ class _EmpActionCell extends ConsumerWidget {
     // Lender side stays "in progress". Only the LATEST record for a loan may
     // be reassigned — older rows are superseded audit history (View only).
     final status = (ci.status ?? '').toString().toLowerCase();
+    final loanId = (ci.loanId ?? '').toString();
+    final hasRider = ci.riderName?.toString().isNotEmpty == true;
+    // Bawat CI na hindi pa superseded audit history ay pwedeng bigyan ng rider
+    // dito mismo sa Actions: "Assign Rider" kapag wala pa, "Reassign Rider"
+    // kapag may naka-assign nang rider.
+    final canAssign = isLatest && loanId.isNotEmpty;
+    final assignLabel = hasRider ? 'Reassign Rider' : 'Assign Rider';
+
+    /// Assign/Reassign Rider — parehong flow ng dating Reassign button.
+    Future<void> assignRider() async {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (_) => EmpCiAssignModal(loanId: loanId, ciId: ''),
+      );
+      if (ok == true) {
+        // Silent refresh — hindi dapat mag-loading nang buo ang data table
+        // pagkatapos mag-assign/mag-reassign.
+        ref.read(empCiProvider.notifier).fetch(silent: true);
+        if (context.mounted) {
+          context.showSnackBarAsToast(
+            SnackBar(
+              content: Text(hasRider
+                  ? 'Rider reassigned for credit investigation'
+                  : 'Rider assigned for credit investigation'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      }
+    }
+
+    /// Actions menu ng bawat row: Assign/Reassign Rider + View.
+    Widget actionsMenu() => PopupMenuButton<String>(
+          tooltip: 'Actions',
+          offset: const Offset(0, 36),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          itemBuilder: (_) => [
+            if (canAssign)
+              PopupMenuItem(
+                value: 'assign',
+                child: Row(children: [
+                  Icon(
+                      hasRider
+                          ? Icons.swap_horiz_rounded
+                          : Icons.person_add_alt_1_outlined,
+                      size: 16,
+                      color: AppColors.deepNavy),
+                  const SizedBox(width: 8),
+                  Text(assignLabel),
+                ]),
+              ),
+            const PopupMenuItem(
+                value: 'view',
+                child: Row(children: [
+                  Icon(Icons.visibility_outlined,
+                      size: 16, color: AppColors.deepNavy),
+                  SizedBox(width: 8),
+                  Text('View'),
+                ])),
+          ],
+          onSelected: (v) {
+            if (v == 'assign') {
+              assignRider();
+              return;
+            }
+            if (v == 'view') {
+              context.go(
+                  RouteConstants.empCiDetails.replaceFirst(':id', ci.id));
+            }
+          },
+          child: Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border)),
+            child: const Icon(Icons.more_horiz_rounded,
+                size: 16, color: AppColors.textSecondary),
+          ),
+        );
+
     if (isLatest &&
         (status == 'failed' || status == 'expired' || status == 'declined')) {
-      final loanId = (ci.loanId ?? '').toString();
       // Compact width (gaya ng dating View) + parehong size ang dalawa.
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ElevatedButton(
-            onPressed: loanId.isEmpty
-                ? null
-                : () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (_) =>
-                          EmpCiAssignModal(loanId: loanId, ciId: ''),
-                    );
-                    if (ok == true) {
-                      // Silent refresh — hindi dapat mag-loading nang buo ang
-                      // data table pagkatapos mag-assign/mag-reassign.
-                      ref.read(empCiProvider.notifier).fetch(silent: true);
-                      if (context.mounted) {
-                        context.showSnackBarAsToast(
-                          const SnackBar(
-                            content: Text('Rider reassigned for credit investigation'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                      }
-                    }
-                  },
+            onPressed: canAssign ? assignRider : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
@@ -409,14 +470,24 @@ class _EmpActionCell extends ConsumerWidget {
     if (!isPending) {
       return Align(
         alignment: Alignment.centerLeft,
-        child: InkWell(
-          onTap: () => context.go(RouteConstants.empCiDetails.replaceFirst(':id', ci.id)),
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))]),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: () => context.go(RouteConstants.empCiDetails.replaceFirst(':id', ci.id)),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))]),
+              ),
+            ),
+            // Assign/Reassign Rider — available din sa mga aktibong CI.
+            if (canAssign) ...[
+              const SizedBox(width: 6),
+              actionsMenu(),
+            ],
+          ],
         ),
       );
     }
@@ -427,23 +498,7 @@ class _EmpActionCell extends ConsumerWidget {
       children: [
         _TableApproveButton(ci: ci, isHm: false, label: 'Reject', icon: Icons.close_rounded, color: AppColors.error),
         _TableApproveButton(ci: ci, isHm: false, label: 'Approve', icon: Icons.check_rounded, color: AppColors.success),
-        PopupMenuButton<String>(
-          tooltip: 'Actions',
-          offset: const Offset(0, 36),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: 'view', child: Row(children: [Icon(Icons.visibility_outlined, size: 16, color: AppColors.deepNavy), SizedBox(width: 8), Text('View')])),
-          ],
-          onSelected: (v) {
-            if (v == 'view') context.go(RouteConstants.empCiDetails.replaceFirst(':id', ci.id));
-          },
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
-            child: const Icon(Icons.more_horiz_rounded, size: 16, color: AppColors.textSecondary),
-          ),
-        ),
+        actionsMenu(),
       ],
     );
   }

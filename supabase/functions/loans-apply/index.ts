@@ -348,7 +348,8 @@ serve(async (req) => {
         return errorResponse('Failed to save co-maker relationship', 500, 'SERVER_ERROR');
       }
 
-      // 00147: co-maker Valid ID — upload to storage, link via co_maker_documents.
+      // 00147: co-maker Valid ID Front + Back — upload to storage, link via
+      // co_maker_documents (valid_id + valid_id_back, gaya sa Account Upgrade).
       const validIdDoc = (co_maker as any).valid_id_document;
       if (validIdDoc && validIdDoc.content_base64) {
         const vExt =
@@ -386,6 +387,48 @@ serve(async (req) => {
           console.error('co_maker_documents insert error:', vDocErr.message);
           return errorResponse(
             'Failed to save co-maker valid ID document',
+            500,
+            'SERVER_ERROR',
+          );
+        }
+      }
+      const validIdBackDoc = (co_maker as any).valid_id_back_document;
+      if (validIdBackDoc && validIdBackDoc.content_base64) {
+        const bExt =
+          (validIdBackDoc.file_name ?? 'valid_id_back.jpg').split('.').pop()?.toLowerCase() ?? 'jpg';
+        const bSafeExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(bExt)
+          ? bExt
+          : 'jpg';
+        const bObjectPath =
+          `co-maker/${coMakerRow.id}/${crypto.randomUUID()}.${bSafeExt}`;
+        const bMime = validIdBackDoc.mime_type ?? mimeFromExt(bSafeExt);
+
+        const { error: bUpErr } = await db.storage
+          .from('co-maker-documents')
+          .upload(bObjectPath, base64ToBytes(String(validIdBackDoc.content_base64)), {
+            contentType: bMime,
+            upsert: false,
+          });
+        if (bUpErr) {
+          console.error('co_maker valid ID back upload error:', bUpErr.message);
+          return errorResponse(
+            `Failed to upload co-maker valid ID (back): ${bUpErr.message}`,
+            500,
+            'STORAGE_ERROR',
+          );
+        }
+
+        const { error: bDocErr } = await db.from('co_maker_documents').insert({
+          co_maker_id: coMakerRow.id,
+          document_type: 'valid_id_back',
+          file_path: bObjectPath,
+          file_name: validIdBackDoc.file_name ?? 'valid_id_back.jpg',
+          mime_type: bMime,
+        });
+        if (bDocErr) {
+          console.error('co_maker_documents back insert error:', bDocErr.message);
+          return errorResponse(
+            'Failed to save co-maker valid ID (back) document',
             500,
             'SERVER_ERROR',
           );

@@ -196,13 +196,13 @@ class _SignaturePadState extends State<SignaturePad> {
           const Row(
             children: [
               Icon(Icons.check_circle_rounded,
-                  size: 16, color: AppColors.success),
+                  size: 16, color: AppColors.error),
               SizedBox(width: 6),
               Text(
                 'Signature cleared',
                 style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.success,
+                    color: AppColors.error,
                     fontWeight: FontWeight.w600),
               ),
             ],
