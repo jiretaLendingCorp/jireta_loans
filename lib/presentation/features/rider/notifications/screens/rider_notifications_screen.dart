@@ -73,21 +73,54 @@ class RiderNotificationsScreen extends ConsumerWidget {
                   ref.read(riderNotificationProvider.notifier).refresh(),
               child: state.notifications.isEmpty
                   ? const EmptyStateWidget(message: 'No notifications yet')
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
-                      itemCount: state.notifications.length,
-                      separatorBuilder: (_, __) =>
-                          const Divider(height: 1, indent: 16, endIndent: 16),
-                      itemBuilder: (ctx, i) => _NotificationTile(
-                        key: ValueKey(state.notifications[i].id),
-                        notification: state.notifications[i],
-                        onTap: () {
-                          if (!state.notifications[i].isRead) {
-                            ref
-                                .read(riderNotificationProvider.notifier)
-                                .markRead(state.notifications[i].id);
+                  // Malapit na sa dulo → kunin ang SUSUNOD na page, para
+                  // lumabas din ang mas lumang notifications (dating page 1
+                  // lang ang kinukuha, kaya 20 items lang ang nakikita).
+                  : NotificationListener<ScrollNotification>(
+                      onNotification: (n) {
+                        if (n.metrics.extentAfter < 300) {
+                          ref
+                              .read(riderNotificationProvider.notifier)
+                              .loadMore();
+                        }
+                        return false;
+                      },
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
+                        itemCount: state.notifications.length +
+                            (state.isLoadingMore ? 1 : 0),
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, indent: 16, endIndent: 16),
+                        itemBuilder: (ctx, i) {
+                          // Huling row: footer spinner habang naglo-load ng
+                          // susunod na page.
+                          if (i >= state.notifications.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 18),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.riderGreen),
+                                ),
+                              ),
+                            );
                           }
+                          final notification = state.notifications[i];
+                          return _NotificationTile(
+                            key: ValueKey(notification.id),
+                            notification: notification,
+                            onTap: () {
+                              if (!notification.isRead) {
+                                ref
+                                    .read(riderNotificationProvider.notifier)
+                                    .markRead(notification.id);
+                              }
+                            },
+                          );
                         },
                       ),
                     ),
@@ -151,10 +184,13 @@ class _NotificationTile extends StatelessWidget {
     }
   }
 
-  Color _colorFor(String type) {
+  Color _colorFor(BuildContext context, String type) {
     switch (type) {
       case 'ci_assigned':
-        return AppColors.lenderBlue;
+        // Sa dark mode, halos itim ang lenderBlue (#0D1B2A) kaya hindi
+        // nakikita ang CI icon sa dark surface — maliwanag na brand blue
+        // (`context.cBrandBlue`) ang gamitin.
+        return context.cBrandBlue;
       case 'collection_assigned':
         return AppColors.riderGreen;
       case 'assignment_accepted':
@@ -168,14 +204,18 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(notification.type);
+    final color = _colorFor(context, notification.type);
+    final isDark = context.isDarkMode;
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         color: notification.isRead
             ? Colors.transparent
-            : AppColors.riderGreen.withValues(alpha: 0.04),
+            // Sa dark mode, maliwanag na green tint ang unread background para
+            // hindi ito naglalaho sa dark page.
+            : (isDark ? AppColors.riderGreenLight : AppColors.riderGreen)
+                .withValues(alpha: isDark ? 0.10 : 0.04),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -183,7 +223,9 @@ class _NotificationTile extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+                  // Mas malinaw ang tint ng circle sa dark mode.
+                  color: color.withValues(alpha: isDark ? 0.20 : 0.12),
+                  shape: BoxShape.circle),
               child: Icon(_iconFor(notification.type), color: color, size: 20),
             ),
             const SizedBox(width: 12),
@@ -214,11 +256,12 @@ class _NotificationTile extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
+                  // Buong mensahe ang ipinapakita — dating `maxLines: 2` +…
+                  // ellipsis kaya putol ang mababasa kapag mahaba ang
+                  // notification.
                   Text(notification.body,
                       style: TextStyle(
-                          fontSize: 13, color: context.cTextSecondary),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                          fontSize: 13, color: context.cTextSecondary)),
                   const SizedBox(height: 4),
                   Text(timeago.format(notification.createdAt),
                       style: TextStyle(

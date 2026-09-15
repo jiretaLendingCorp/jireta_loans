@@ -541,14 +541,22 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
       'ci_completed'
     ].contains(status);
 
-    // ORANGE indicator sa 3-dot: kapag nakapili na ang lender ng disbursement
-    // method pero hindi pa na-release — may kailangang aksyon ang staff
-    // (i-assign ang rider para sa Cash on Delivery, o ihanda ang cash para sa
-    // office pickup). Realtime ito dahil naka-subscribe ang provider sa
-    // `loan_disbursement_preferences` / `disbursements`.
+    // ORANGE indicator sa 3-dot: may KULANG pang aksyon ang staff.
+    //  • Cash on Delivery: kailangan pang i-assign ang delivery rider — kaya
+    //    DAPAT NAWAWALA na ang dot kapag may rider na
+    //    (`rider_delivery_assigned` / `delivery_rider_name`). Dati, nananatili
+    //    ang dot pagkatapos ng assignment dahil ang tanging basehan ay "may
+    //    piniling method at hindi pa released".
+    //  • Office pickup: nananatili hanggang ma-release ang cash
+    //    (`disbursed_at`).
+    // Realtime: naka-subscribe ang provider sa `loan_disbursement_preferences`
+    // / `disbursements`, kaya agad itong nagre-refresh.
+    final deliveryRiderAssigned = loan.riderDeliveryAssigned ||
+        (loan.deliveryRiderName ?? '').trim().isNotEmpty;
     final disbursementChosen = status == 'approved' &&
         loan.disbursedAt == null &&
-        (loan.disbursementMethod ?? '').isNotEmpty;
+        (loan.disbursementMethod ?? '').isNotEmpty &&
+        !(loan.disbursementMethod == 'rider_delivery' && deliveryRiderAssigned);
 
     // Identical sa Head Manager: View icon + 3 dots (PopupMenu)
     final needsRiderDot =

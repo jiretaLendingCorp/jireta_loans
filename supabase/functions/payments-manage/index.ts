@@ -141,11 +141,14 @@ async function handleRecordOffice(req: Request) {
   const payment = insertedPayments[0];
 
   // If this payment settles a lender-initiated office visit request, complete it.
+  // Sinasakop ang LAHAT ng bukas pa na status (hindi lang `requested`) — may mga
+  // office request na na-assign o nasa in_progress na bago pa mabayaran nang
+  // walk-in, at dapat pareho silang magsara kapag naitala na ang bayad.
   if (assignment_id) {
     await db.from('collection_assignments')
       .update({ status: 'completed', completed_at: new Date().toISOString(), amount_collected: Number(amount) })
       .eq('id', assignment_id)
-      .eq('status', 'requested');
+      .in('status', ['requested', 'assigned', 'accepted', 'in_progress', 'pending_approval']);
   }
 
   const newBalance = Math.max(0, Math.round((financials.outstanding_balance - Number(amount)) * 100) / 100);

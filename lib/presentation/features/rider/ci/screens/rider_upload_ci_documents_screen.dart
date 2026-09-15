@@ -114,16 +114,20 @@ class _RiderUploadCiDocumentsScreenState
 
     setState(() => _isUploading = true);
     try {
-      int successCount = 0;
-      for (final photo in _photos) {
-        final ok = await ref.read(riderCiProvider.notifier).uploadDocument(
-              ciId: widget.ciId,
-              file: photo.file,
-              documentType: photo.type,
-              caption: photo.caption.isEmpty ? null : photo.caption,
-            );
-        if (ok) successCount++;
-      }
+      // ISANG batch request para sa lahat ng photo (dati: per-photo na request
+      // na may kasama pang buong list reload kada isa — napakabagal).
+      final successCount =
+          await ref.read(riderCiProvider.notifier).uploadPhotoBatch(
+                ciId: widget.ciId,
+                photos: [
+                  for (final p in _photos)
+                    (
+                      file: p.file,
+                      type: p.type,
+                      caption: p.caption.isEmpty ? null : p.caption,
+                    ),
+                ],
+              );
 
       if (mounted) {
         if (successCount > 0) {

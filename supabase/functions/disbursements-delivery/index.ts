@@ -21,6 +21,24 @@ import { startLoanPaymentSchedule } from '../_shared/loan_schedules.ts';
 
 const PROOF_BUCKET = 'disbursement-proofs';
 
+// ── Background side effects ─────────────────────────────────────────────────
+// `EdgeRuntime.waitUntil` keeps the isolate alive AFTER the HTTP response is
+// sent, kaya ang mabagal na gawain (audit log + FCM push) ay hindi na
+// nagpapahintay sa REPLY na hinihintay ng rider app. Ito ang dating dahilan
+// kung bakit nag-timeout ang client ("Failed to upload proof") kahit matagumpay
+// nang naisave ang proof at na-release ang loan.
+function runInBackground(task: Promise<unknown>): void {
+  const runtime = (globalThis as {
+    EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(task);
+    return;
+  }
+  // No waitUntil hook (plain `deno run` / older runtime) — still never await it.
+  task.catch((err) => console.error('background task failed:', err));
+}
+
 // The proof bucket may not exist in a fresh project. Without this guard every
 // upload fails and the rider is stuck at the upload screen.
 async function ensureProofBucket(db: ReturnType<typeof getAdminClient>): Promise<void> {
@@ -406,23 +424,28 @@ async function handleUploadProof(req: Request) {
   // day 0 ng payment schedule.
   await startLoanPaymentSchedule(db, disbursement.loan_id, new Date());
 
-  await writeAuditLog({
-    performedBy: user.id,
-    action: 'disbursement_delivery_proof',
-    tableName: 'disbursements',
-    recordId: disbursement_id,
-    newValues: { status: 'completed', loan_status: 'active' },
-    ipAddress: ip,
-  });
+  // Hindi kritikal (audit + push sa lender, kasama ang FCM round-trip):
+  // patakbuhin sa BACKGROUND — hindi nito dapat pahabain ang oras ng Submit
+  // para sa rider (dito nag-timeout ang lumang flow).
+  runInBackground((async () => {
+    await writeAuditLog({
+      performedBy: user.id,
+      action: 'disbursement_delivery_proof',
+      tableName: 'disbursements',
+      recordId: disbursement_id,
+      newValues: { status: 'completed', loan_status: 'active' },
+      ipAddress: ip,
+    });
 
-  await sendPushNotification({
-    userId: loan.lender_id,
-    title: 'Loan Delivered — Cash via Rider',
-    body: `Your loan of ₱${Number(disbursement.amount).toLocaleString()} has been delivered to you.`,
-    type: 'disbursement',
-    referenceId: disbursement.loan_id,
-    sentBy: user.id,
-  });
+    await sendPushNotification({
+      userId: loan.lender_id,
+      title: 'Loan Delivered — Cash via Rider',
+      body: `Your loan of ₱${Number(disbursement.amount).toLocaleString()} has been delivered to you.`,
+      type: 'disbursement',
+      referenceId: disbursement.loan_id,
+      sentBy: user.id,
+    });
+  })());
 
   return jsonResponse({ success: true, message: 'Delivery proof uploaded and loan released' });
 }

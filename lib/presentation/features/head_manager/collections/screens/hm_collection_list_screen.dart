@@ -13,6 +13,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/pending_payments_table.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
@@ -170,7 +171,15 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
     FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
     FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
+    // Lahat ng HINDI pa bayad/na-kolekta na installment (kasama ang office) —
+    // dito pwedeng i-mark na "Paid in Office" ang mga office request.
+    FilterTabDef('pending_payments', 'All Pending Payment',
+        Icons.pending_actions_rounded),
   ];
+
+  /// True kapag "All Pending Payment" ang naka-select sa payment pills — ang
+  /// table na ipinapakita ay galing sa collections (hindi sa payments list).
+  bool _pendingPayments = false;
 
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
@@ -189,7 +198,10 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
 
   void _onTabTap(String key) {
     if (key == _activeTab) return;
-    setState(() => _activeTab = key);
+    setState(() {
+      _activeTab = key;
+      _pendingPayments = false;
+    });
     _searchCtrl.clear();
     if (key == 'payments') {
       ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(method: 'all');
@@ -227,17 +239,52 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
               if (isPayments) ...[
                 _buildPaymentMethodFilter(paymentsState),
                 const SizedBox(height: 12),
-                if (paymentsState.isLoading)
-                  _buildLoadingShimmer()
-                else if (paymentsState.error != null && paymentsState.payments.isEmpty)
-                  _buildPaymentError(paymentsState.error!)
-                else if (_filteredPayments(paymentsState.payments).isEmpty)
-                  _buildPaymentEmpty(paymentsState)
-                else
-                  _Entrance(child: _buildPaymentsTable(_filteredPayments(paymentsState.payments))),
-                if (paymentsState.totalPages > 1) ...[
-                  const SizedBox(height: 16),
-                  _buildPaymentPagination(paymentsState),
+                if (_pendingPayments) ...[
+                  if (collectionState.isLoading)
+                    _buildLoadingShimmer()
+                  else if (collectionState.error != null &&
+                      collectionState.items.isEmpty)
+                    _buildError(collectionState.error!)
+                  else if (collectionState.items.isEmpty)
+                    _buildPendingEmpty()
+                  else
+                    _Entrance(
+                      child: PendingPaymentsTable(
+                        items: collectionState.items,
+                        onView: (c) => context.go(RouteConstants
+                            .hmCollectionDetails
+                            .replaceFirst(':id', c.id)),
+                        onRefresh: () async {
+                          await ref
+                              .read(hmCollectionProvider.notifier)
+                              .fetch(silent: true);
+                          await ref
+                              .read(_hmPaymentsInCollectionProvider.notifier)
+                              .fetch(silent: true);
+                        },
+                      ),
+                    ),
+                  if (!collectionState.isLoading &&
+                      collectionState.totalPages > 1) ...[
+                    const SizedBox(height: 16),
+                    _buildCollectionPagination(collectionState),
+                  ],
+                ] else ...[
+                  if (paymentsState.isLoading)
+                    _buildLoadingShimmer()
+                  else if (paymentsState.error != null &&
+                      paymentsState.payments.isEmpty)
+                    _buildPaymentError(paymentsState.error!)
+                  else if (_filteredPayments(paymentsState.payments).isEmpty)
+                    _buildPaymentEmpty(paymentsState)
+                  else
+                    _Entrance(
+                        child: _buildPaymentsTable(
+                            _filteredPayments(paymentsState.payments))),
+                  if (paymentsState.totalPages > 1) ...[
+                    const SizedBox(height: 16),
+                    _buildPaymentPagination(paymentsState),
+                  ],
                 ],
               ] else if (isEarlyPayers) ...[
                 _buildEarlyPayers(lenderState),
@@ -467,13 +514,27 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
       scrollDirection: Axis.horizontal,
       child: Row(
         children: _paymentMethodTabs.map((t) {
-          final isActive = t.key == state.methodFilter;
+          final isPendingPill = t.key == 'pending_payments';
+          final isActive = isPendingPill
+              ? _pendingPayments
+              : (!_pendingPayments && t.key == state.methodFilter);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterPillTab(
               def: t,
               active: isActive,
-              onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod(t.key),
+              onTap: () {
+                if (isPendingPill) {
+                  setState(() => _pendingPayments = true);
+                  // `status=pending` → lahat ng hindi pa bayad (server-side).
+                  ref.read(hmCollectionProvider.notifier).setStatus('pending');
+                } else {
+                  setState(() => _pendingPayments = false);
+                  ref
+                      .read(_hmPaymentsInCollectionProvider.notifier)
+                      .setMethod(t.key);
+                }
+              },
             ),
           );
         }).toList(),
@@ -488,11 +549,13 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           searchField: TextField(
             controller: _searchCtrl,
             decoration: InputDecoration(
-              hintText: isPayments
+              hintText: isPayments && !_pendingPayments
                 ? 'Search payments...'
                 : _activeTab == 'early_payers'
                     ? 'Search early payers...'
-                    : 'Search collections...',
+                    : _pendingPayments
+                        ? 'Search pending payments...'
+                        : 'Search collections...',
               prefixIcon: const Icon(Icons.search, size: 20),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -501,7 +564,8 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
             onChanged: (v) {
-              if (isPayments || _activeTab == 'early_payers') {
+              if ((isPayments && !_pendingPayments) ||
+                  _activeTab == 'early_payers') {
                 setState(() {});
               } else {
                 ref.read(hmCollectionProvider.notifier).setSearch(v);
@@ -511,7 +575,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(
-              count: isPayments
+              count: isPayments && !_pendingPayments
                   // No search text -> true server total; while searching the
                   // box filters client-side so the chip matches what is shown.
                   ? (_searchCtrl.text.trim().isEmpty
@@ -891,6 +955,41 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           const SizedBox(height: 16),
           ElevatedButton.icon(onPressed: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
         ]),
+      ),
+    );
+  }
+
+  /// Walang pending na babayaran — lahat ng koleksyon ay tapos na.
+  Widget _buildPendingEmpty() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.task_alt_rounded,
+              size: 64, color: AppColors.textTertiary),
+          const SizedBox(height: 16),
+          const Text(
+            'No pending payments',
+            style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Lahat ng installment ay bayad na, o walang bukas na collection request.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+          ),
+          const SizedBox(height: 18),
+          OutlinedButton.icon(
+            onPressed: () => ref
+                .read(hmCollectionProvider.notifier)
+                .fetch(),
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Refresh'),
+          ),
+        ],
       ),
     );
   }

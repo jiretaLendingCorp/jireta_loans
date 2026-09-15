@@ -1,4 +1,5 @@
 // lib/presentation/features/rider/ci/providers/rider_ci_provider.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
@@ -86,9 +87,13 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final list = await _ds.getCiList(status: query, page: 1);
+      // Guard: maaaring na-dispose na ang notifier habang tumatakbo ang
+      // background refresh (hal. umalis na sa screen ang rider) — huwag nang
+      // mag-set ng state pagkatapos ng dispose.
+      if (!mounted) return;
       state = state.copyWith(ciList: list, isLoading: false);
     } catch (e) {
-      if (silent) return;
+      if (silent || !mounted) return;
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
@@ -199,10 +204,15 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
     try {
       await _ds.submitCiReport(ciId: ciId, reportSummary: reportSummary);
       _ref.read(riderLocationProvider.notifier).stopTracking();
+      if (!mounted) return true;
       state = state.copyWith(isSubmitting: false);
-      await load(silent: true);
+      // HINDI na hinihintay ang list reload — ang server confirmation na ang
+      // nagtatapos sa loading ng Submit. Dating `await load(silent: true)` ito
+      // kaya dagdag na 2-5s na paghihintay sa spinner bago mag-success dialog.
+      unawaited(load(silent: true));
       return true;
     } catch (e) {
+      if (!mounted) return false;
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
       await _restoreAfterFailure(ciId);
@@ -251,6 +261,49 @@ class RiderCiNotifier extends StateNotifier<RiderCiState>
       state = state.copyWith(
           isSubmitting: false, error: ErrorHandler.handle(e).message);
       return false;
+    }
+  }
+
+  /// ISANG request para sa LAHAT ng photo — may sariling document type at
+  /// caption kada isa.
+  ///
+  /// Dating per-photo ang upload sa "Upload CI Documents" screen (N request),
+  /// at KADA photo ay may kasamang buong list reload — kaya napakabagal
+  /// (N × [upload + heavy `ci-view` refetch]). Ngayon: isang batch request +
+  /// isang background refresh na lang.
+  /// Returns ang bilang ng na-upload (0 kapag may error).
+  Future<int> uploadPhotoBatch({
+    required String ciId,
+    required List<({XFile file, String type, String? caption})> photos,
+  }) async {
+    if (photos.isEmpty) return 0;
+    state = state.copyWith(isSubmitting: true);
+    try {
+      final docs = <Map<String, dynamic>>[];
+      for (final photo in photos) {
+        final bytes = await photo.file.readAsBytes();
+        docs.add({
+          'file_name': photo.file.name,
+          'mime_type': 'image/jpeg',
+          'content_base64': base64Encode(bytes),
+          'document_type': photo.type,
+          if (photo.caption != null && photo.caption!.isNotEmpty)
+            'caption': photo.caption,
+        });
+      }
+      await _ds.uploadDocuments(ciId: ciId, docs: docs);
+      if (!mounted) return docs.length;
+      state = state.copyWith(isSubmitting: false);
+      // Isang background refresh lang (hindi hinihintay) para hindi na
+      // humaba pa ang loading ng Upload button.
+      unawaited(load(silent: true));
+      return docs.length;
+    } catch (e) {
+      if (mounted) {
+        state = state.copyWith(
+            isSubmitting: false, error: ErrorHandler.handle(e).message);
+      }
+      return 0;
     }
   }
 

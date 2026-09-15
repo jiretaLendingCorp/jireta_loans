@@ -83,6 +83,10 @@ class AppColors {
   static const Color darkTextSecondary = Color(0xFFA9B2BF);
   static const Color darkTextTertiary = Color(0xFF7C8798);
 
+  /// Malinaw na brand blue para sa dark surfaces — ang [lenderBlue]
+  /// (#0D1B2A) ay halos itim kaya hindi ito makikita sa dark page/surface.
+  static const Color darkAccentBlue = Color(0xFF6FA8FF);
+
   /// Header/AppBar sa dark mode — itim.
   static const Color darkAppBar = Color(0xFF000000);
 
@@ -135,4 +139,9 @@ extension AppThemeColors on BuildContext {
   /// Rider green na nababasa sa dark surfaces (mas maliwanag sa dark mode).
   Color get cBrandGreen =>
       isDarkMode ? AppColors.riderGreenLight : AppColors.riderGreen;
+
+  /// Brand blue (CI / lender) na nababasa sa dark surfaces — mas maliwanag sa
+  /// dark mode dahil halos itim ang [AppColors.lenderBlue] (#0D1B2A).
+  Color get cBrandBlue =>
+      isDarkMode ? AppColors.darkAccentBlue : AppColors.lenderBlue;
 }

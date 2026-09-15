@@ -88,19 +88,31 @@ class _RiderDisbursementUploadProofScreenState
     if (!verified || !mounted) return;
 
     setState(() => _isSubmitting = true);
-    bool ok = false;
-    String? backendError;
+    // Ang outcome (hindi ang provider state) ang pinagkakatiwalaan ng screen:
+    // kung na-dispose ang autoDispose provider habang tumatakbo ang mabigat na
+    // upload, ang muling `ref.read(...).error` ay bagong (null) state ang
+    // ibabalik — kaya generic na "Failed to upload proof" ang dating lumalabas.
+    ProofUploadOutcome outcome;
     try {
-      ok = await ref
+      outcome = await ref
           .read(riderDisbursementProvider.notifier)
           .uploadProof(
             disbursementId: widget.disbursementId,
             proofPhotos: List.of(_proofPhotos),
             signatureBase64: _signatureBase64,
           );
-      backendError = ref.read(riderDisbursementProvider).error;
     } catch (_) {
-      ok = false;
+      // Hindi inaasahang error — kumpirmahin pa rin sa server bago sabihing
+      // failed, dahil ang upload ay maaaring natuloy doon (lost response).
+      final submitted = await ref
+          .read(riderDisbursementProvider.notifier)
+          .verifyProofSubmitted(widget.disbursementId);
+      outcome = submitted
+          ? const ProofUploadOutcome(success: true, alreadySubmitted: true)
+          : const ProofUploadOutcome(
+              success: false,
+              error: 'Failed to upload proof. Please try again.',
+            );
     }
     if (!mounted) return;
     // I-reset AGAD ang spinner bago mag-modal — kahit mag-fail ang dialog,
@@ -108,7 +120,7 @@ class _RiderDisbursementUploadProofScreenState
     setState(() => _isSubmitting = false);
     if (!mounted) return;
 
-    if (ok) {
+    if (outcome.success) {
       // Auto-dismiss pattern (gaya sa CI submit): steady 2s modal, tapos
       // diretso sa list. Naka-try/catch para kahit mag-error ang dialog,
       // makakaalis pa rin si rider sa screen (naka-submit na sa backend).
@@ -123,9 +135,9 @@ class _RiderDisbursementUploadProofScreenState
       if (!mounted) return;
       context.go(RouteConstants.riderDisbursements);
     } else {
-      final msg = (backendError == null || backendError.isEmpty)
+      final msg = (outcome.error == null || outcome.error!.isEmpty)
           ? 'Failed to upload proof. Please try again.'
-          : backendError;
+          : outcome.error!;
       await showDialog(
         context: context,
         builder: (_) => ErrorDialog(message: msg),
@@ -135,6 +147,11 @@ class _RiderDisbursementUploadProofScreenState
 
   @override
   Widget build(BuildContext context) {
+    // Pinapanatili itong buhay habang nakabukas ang screen. Kapag galing sa
+    // Dashboard (walang ibang nagmamatyag sa provider), ang autoDispose na
+    // provider ay agad na dini-dispose pagkatapos ng `ref.read` — nawawala ang
+    // realtime refresh at ang error/submitting state ng submit.
+    ref.watch(riderDisbursementProvider);
     return MobileScaffold(
       title: 'Cash on Delivery',
       accentColor: AppColors.riderGreen,

@@ -17,13 +17,14 @@ import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
-import '../../../../shared/widgets/status_badge.dart';
+import '../../../../../data/models/payment_model.dart';
 import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
+import '../../collections/providers/lender_collection_provider.dart';
 import '../../loans/providers/lender_loan_provider.dart';
+import '../../payments/providers/lender_payment_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
 import 'widgets/lender_promo_carousel.dart';
-import 'widgets/lender_rider_tracking_card.dart';
 
 final lenderAmountObscuredProvider =
     StateNotifierProvider<LenderAmountObscuredNotifier, bool>(
@@ -178,6 +179,23 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     final state = ref.watch(lenderDashboardProvider);
     final loanState = ref.watch(lenderLoanProvider);
     final profileState = ref.watch(lenderProfileProvider);
+    // Recent Activity sources — payments (Transaction) at collections (rider /
+    // office pickup requests) kasama ng loans. Hindi hinihintay ang pag-load
+    // nila: agad lumalabas ang Home, pagkatapos lang dumadagdag ang aktibidad.
+    final paymentState = ref.watch(lenderPaymentProvider);
+    final collectionState = ref.watch(lenderCollectionProvider);
+    final collectionItems = <Map<String, dynamic>>[];
+    final collectionRaw = collectionState.valueOrNull;
+    if (collectionRaw != null) {
+      final list = (collectionRaw['items'] as List?) ??
+          (collectionRaw['data'] as List?) ??
+          const [];
+      for (final item in list) {
+        if (item is Map) {
+          collectionItems.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
     final activeLoan = loanState.activeLoan;
     final approvedLoan = _approvedUnreleased(loanState.loans);
     final inReviewLoan = _inReviewLoan(loanState.loans);
@@ -235,9 +253,12 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                           onCtaTap: (index, _) =>
                               _handlePromoTap(context, index, activeLoan),
                         ),
-                        // Pay with + lahat ng kasama sa baba — dikit sa
-                        // carousel, walang gap.
-                        const _PayWithSection(loan: null, topSpacing: 0),
+                        // HIDDEN: "Pay with" section (Cash on Delivery / Office
+                        // cards) — hindi na ipinapakita sa lender Home. Nasa code
+                        // pa rin ang `_PayWithSection` at ang mga route
+                        // (`/lender/payment-method`, `/lender/pay-office`) kung
+                        // ibabalik ito.
+                        // const _PayWithSection(loan: null),
                         const SizedBox(height: 20),
                       ],
                       if (activeLoan != null) ...[
@@ -246,21 +267,30 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                           child: _MyLoanCard(loan: activeLoan),
                         ),
                         const SizedBox(height: 6),
+                        // May active loan na → walang "Apply Loan" na button sa
+                        // promo banner (hindi na siya maaaring mag-apply ulit).
                         LenderPromoCarousel(
+                          hideApplyLoanCta: true,
                           onCtaTap: (index, _) =>
                               _handlePromoTap(context, index, activeLoan),
                         ),
                         const SizedBox(height: 20),
                       ] else
                         _MyLoansOverview(kpi: state.kpi),
-                      // Loan History renders with or without an active loan —
-                      // a lender whose only loan is already completed must
-                      // still see it here.
-                      _LoanHistorySection(
+                      // Recent Activity renders with or without an active loan:
+                      // loans + payments + collections, pinakabago muna. Kaya
+                      // kahit active pa lang ang loan, may nakikitang aktibidad
+                      // ang lender (payment, collection request, atbp.).
+                      _RecentActivitySection(
                         loans: loanState.loans,
                         activeLoanId: activeLoan?.id ?? '',
+                        payments: paymentState.payments,
+                        collections: collectionItems,
                       ),
-                      const LenderRiderTrackingCard(),
+                      // HIDDEN: live rider tracking card — hindi na ipinapakita
+                      // sa lender (request). Nasa code pa rin ang widget /
+                      // route (`/lender/live-tracking`) kung ibabalik ito.
+                      // const LenderRiderTrackingCard(),
                       // Walang trailing na spacing dito — dapat dikit ang huling
                       // nilalaman sa itaas ng floating bottom nav.
                       if (state.error != null) ...[
@@ -748,23 +778,6 @@ class _PendingLoanCard extends StatelessWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textPrimary,
-      ),
-    );
-  }
-}
-
 class _MyLoanCard extends ConsumerStatefulWidget {
   final LoanModel loan;
   const _MyLoanCard({required this.loan});
@@ -806,13 +819,24 @@ class _MyLoanCardState extends ConsumerState<_MyLoanCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  loan.status == 'overdue' ? 'Overdue Loan' : 'Active Loan',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        loan.status == 'overdue'
+                            ? 'Overdue Loan'
+                            : 'Active Loan',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    // Pay button sa kanang bahagi ng card — deretso sa Payment
+                    // Method (rider o office) para sa active loan.
+                    _PayNowButton(loan: loan),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -863,8 +887,51 @@ class _MyLoanCardState extends ConsumerState<_MyLoanCard> {
             ),
           ),
         ),
-        _PayWithSection(loan: loan),
+        // HIDDEN: "Pay with" section sa ilalim ng Active Loan card.
+        // _PayWithSection(loan: loan),
       ],
+    );
+  }
+}
+
+/// Maliit na "Pay" button sa kanang bahagi ng Active Loan card.
+/// Pumupunta sa Payment Method screen (Cash on Delivery) at awtomatikong
+/// nire-resolve ang susunod na babayarang installment.
+class _PayNowButton extends StatelessWidget {
+  final LoanModel loan;
+  const _PayNowButton({required this.loan});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push(
+          RouteConstants.lenderPaymentMethod,
+          extra: {'loan_id': loan.id},
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.payments_outlined,
+                  size: 15, color: AppColors.lenderBlue),
+              SizedBox(width: 6),
+              Text(
+                'Pay',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.lenderBlue,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -918,10 +985,12 @@ class _PayWithBubbleState extends State<_PayWithBubble>
   }
 }
 
+// HIDDEN sa lender Home (hindi na naka-mount) — napanatili para madaling
+// ibalik kasama ang mga `_PayWithCard` / `_PayWithBubble`.
+// ignore: unused_element
 class _PayWithSection extends StatelessWidget {
   final LoanModel? loan;
-  final double topSpacing;
-  const _PayWithSection({required this.loan, this.topSpacing = 16});
+  const _PayWithSection({required this.loan});
 
   void _showNoActiveLoan(BuildContext context) {
     showDialog<void>(
@@ -953,7 +1022,7 @@ class _PayWithSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: topSpacing),
+        const SizedBox(height: 16),
         const _PayWithBubble(text: 'Pay with'),
         const SizedBox(height: 10),
         Row(
@@ -1075,159 +1144,427 @@ class _PayWithCard extends StatelessWidget {
   }
 }
 
-class _LoanHistorySection extends StatelessWidget {
+/// "Recent Activity" — pinagsama-samang timeline ng lender: loans, bayad
+/// (payments) at collection requests, pinakabago muna.
+///
+/// Dati, past loans lang ang nasa seksyong ito ("Recent Transactions") kaya
+/// kapag active pa lang ang loan (walang natapos/dismissed na application),
+/// walang aktibidad na lumalabas dito.
+class _RecentActivitySection extends StatelessWidget {
   final List<LoanModel> loans;
   final String activeLoanId;
+  final List<PaymentModel> payments;
+  final List<Map<String, dynamic>> collections;
 
-  const _LoanHistorySection({
+  const _RecentActivitySection({
     required this.loans,
     required this.activeLoanId,
+    this.payments = const [],
+    this.collections = const [],
   });
 
   @override
   Widget build(BuildContext context) {
-    final pastLoans = loans.where((l) => l.id != activeLoanId).toList();
+    final entries = _buildEntries(context);
+    final shown = entries.take(5).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header: icon chip + label + bilang ng aktibidad + "View all" —
+        // kaparehong estilo ng Recent Activity sa rider dashboard.
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const _SectionLabel('Recent Transactions'),
-            GestureDetector(
-              onTap: () => context.push(RouteConstants.lenderLoanHistory),
-              child: const Row(
-                children: [
-                  Text(
-                    'View All',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.lenderBlue,
-                    ),
-                  ),
-                  Icon(Icons.chevron_right,
-                      size: 16, color: AppColors.lenderBlue),
-                ],
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: AppColors.lenderBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(Icons.history_rounded,
+                  color: AppColors.lenderBlue, size: 17),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                'Recent Activity',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.2,
+                  color: context.cTextPrimary,
+                ),
               ),
             ),
+            if (shown.isNotEmpty) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.lenderBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${shown.length}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.lenderBlue,
+                  ),
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => context.push(RouteConstants.lenderLoanHistory),
+                  borderRadius: BorderRadius.circular(8),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'View all',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.lenderBlue,
+                          ),
+                        ),
+                        SizedBox(width: 2),
+                        Icon(Icons.chevron_right,
+                            size: 16, color: AppColors.lenderBlue),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 10),
-        if (pastLoans.isEmpty)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.receipt_long_outlined,
-                    color: AppColors.textTertiary, size: 20),
-                SizedBox(width: 10),
-                Text(
-                  'No transactions yet',
-                  style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                ),
-              ],
-            ),
-          )
+        if (shown.isEmpty)
+          _emptyActivityCard(context)
         else
-          ...pastLoans.take(3).map(
-                (loan) => _LoanHistoryTile(
-                  loan: loan,
-                  onTap: () => context.push(
-                    RouteConstants.lenderLoanDetails
-                        .replaceFirst(':id', loan.id),
-                  ),
-                ),
-              ),
+          ...shown.map((e) => _ActivityTile(entry: e)),
       ],
     );
   }
+
+  /// Kapareho ng empty card ng rider dashboard. Theme-aware ang kulay para
+  /// tama rin sa dark mode.
+  Widget _emptyActivityCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.cBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.history_toggle_off_rounded,
+              color: context.cTextTertiary, size: 36),
+          const SizedBox(height: 8),
+          Text(
+            'No recent activity yet',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: context.cTextSecondary, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Pinagdugtong ang lahat ng pinagmumulan (loans, payments, collections) at
+  /// inayos ayon sa petsa — pinakabago muna.
+  List<_ActivityEntry> _buildEntries(BuildContext context) {
+    final entries = <_ActivityEntry>[];
+
+    // ── Payments (bawat bayad na naitala / na-verify) ─────────────────────
+    for (final p in payments) {
+      final verified = p.status == 'verified';
+      final reversed = p.status == 'reversed';
+      entries.add(_ActivityEntry(
+        at: p.createdAt,
+        icon: verified
+            ? Icons.check_circle_rounded
+            : reversed
+                ? Icons.undo_rounded
+                : Icons.schedule_rounded,
+        accent: verified
+            ? AppColors.success
+            : reversed
+                ? AppColors.error
+                : AppColors.warning,
+        title: 'Payment ${p.statusLabel.toLowerCase()}',
+        body: '${p.methodLabel} • ${p.amount.toCurrency}',
+        onTap: p.id.isEmpty
+            ? null
+            : () => context.push(
+                RouteConstants.lenderPaymentReceipt.replaceAll(':id', p.id)),
+      ));
+    }
+
+    // ── Collections (rider / office pickup requests) ──────────────────────
+    for (final c in collections) {
+      final status = (c['status'] as String? ?? '').toLowerCase();
+      final at = _parseActivityDate(c['updated_at'] ??
+          c['created_at'] ??
+          c['collection_schedule'] ??
+          c['completed_at']);
+      if (at == null) continue;
+      final amount = (c['amount_collected'] as num?)?.toDouble() ??
+          (c['amount'] as num?)?.toDouble() ??
+          0;
+      final rider = (c['rider_name'] as String? ?? '').trim();
+      final id = c['id'] as String? ?? '';
+      final done = status == 'completed';
+      final failed = const ['cancelled', 'declined', 'expired', 'failed']
+          .contains(status);
+      entries.add(_ActivityEntry(
+        at: at,
+        icon: Icons.delivery_dining_rounded,
+        accent: done
+            ? AppColors.success
+            : failed
+                ? AppColors.error
+                : AppColors.lenderBlue,
+        title: 'Collection ${_collectionStatusLabel(status)}',
+        body: [
+          rider.isNotEmpty ? rider : 'Payment pickup request',
+          if (amount > 0) amount.toCurrency,
+        ].join(' • '),
+        onTap: id.isEmpty
+            ? null
+            : () => context.push('${RouteConstants.lenderCollections}/$id'),
+      ));
+    }
+
+    // ── Loans (application, approval, release, tapos) ─────────────────────
+    for (final loan in loans) {
+      final status = loan.status.toLowerCase();
+      entries.add(_ActivityEntry(
+        at: loan.disbursedAt ??
+            (status == 'active' ? loan.updatedAt : loan.createdAt),
+        icon: _loanActivityIcon(status),
+        accent: _loanActivityAccent(status),
+        title: _loanActivityTitle(status),
+        body: '${loan.loanNumber} • ${loan.principalAmount.toCurrency}',
+        onTap: () => context.push(
+            RouteConstants.lenderLoanDetails.replaceFirst(':id', loan.id)),
+      ));
+    }
+
+    entries.sort((a, b) => b.at.compareTo(a.at));
+    return entries;
+  }
+
+  static DateTime? _parseActivityDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String && value.trim().isNotEmpty) {
+      return parseManila(value) ?? DateTime.tryParse(value);
+    }
+    return null;
+  }
+
+  static String _collectionStatusLabel(String status) {
+    switch (status) {
+      case 'completed':
+        return 'completed';
+      case 'in_progress':
+        return 'in progress';
+      case 'accepted':
+        return 'accepted by rider';
+      case 'assigned':
+        return 'rider assigned';
+      case 'requested':
+      case 'pending':
+        return 'requested';
+      case 'cancelled':
+        return 'cancelled';
+      case 'declined':
+        return 'declined';
+      case 'expired':
+        return 'expired';
+      default:
+        return status.isEmpty ? 'update' : status;
+    }
+  }
+
+  static IconData _loanActivityIcon(String status) {
+    if (status == 'active') return Icons.account_balance_wallet_rounded;
+    if (status == 'overdue') return Icons.warning_amber_rounded;
+    if (status == 'completed') return Icons.verified_rounded;
+    if (status == 'approved') return Icons.check_circle_rounded;
+    if (['rejected', 'cancelled'].contains(status)) {
+      return Icons.cancel_rounded;
+    }
+    if (_inProgressStatuses.contains(status)) {
+      return Icons.hourglass_top_rounded;
+    }
+    return Icons.receipt_long_rounded;
+  }
+
+  static Color _loanActivityAccent(String status) {
+    if (status == 'active') return AppColors.lenderBlue;
+    if (status == 'overdue') return AppColors.warning;
+    if (status == 'completed' || status == 'approved') {
+      return AppColors.success;
+    }
+    if (['rejected', 'cancelled'].contains(status)) return AppColors.error;
+    if (_inProgressStatuses.contains(status)) return AppColors.warning;
+    return AppColors.textTertiary;
+  }
+
+  static String _loanActivityTitle(String status) {
+    switch (status) {
+      case 'pending':
+      case 'under_review':
+        return 'Loan application submitted';
+      case 'ci_required':
+      case 'ci_assigned':
+      case 'ci_completed':
+      case 'ci_approved':
+        return 'Loan under review';
+      case 'approved':
+        return 'Loan approved — choose how to receive';
+      case 'active':
+        return 'Loan released';
+      case 'overdue':
+        return 'Loan overdue';
+      case 'completed':
+        return 'Loan fully paid';
+      case 'rejected':
+        return 'Loan rejected';
+      case 'cancelled':
+        return 'Loan cancelled';
+      default:
+        return 'Loan updated';
+    }
+  }
 }
 
-class _LoanHistoryTile extends StatelessWidget {
-  final LoanModel loan;
-  final VoidCallback onTap;
+/// Statuses na hindi pa tapos (nasa pipeline pa) — pareho ang tint.
+const Set<String> _inProgressStatuses = {
+  'pending',
+  'under_review',
+  'ci_required',
+  'ci_assigned',
+  'ci_completed',
+  'ci_approved',
+};
 
-  const _LoanHistoryTile({required this.loan, required this.onTap});
+class _ActivityEntry {
+  final DateTime at;
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String body;
+  final VoidCallback? onTap;
+
+  const _ActivityEntry({
+    required this.at,
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.body,
+    this.onTap,
+  });
+}
+
+/// Tile na kapareho ng Recent Activity tile ng rider dashboard: icon chip sa
+/// kaliwa, title + detalye + "time ago" sa gitna, chevron sa kanan.
+class _ActivityTile extends StatelessWidget {
+  final _ActivityEntry entry;
+  const _ActivityTile({required this.entry});
 
   @override
   Widget build(BuildContext context) {
-    final status = loan.status.toLowerCase();
-    final Color accent;
-    final IconData icon;
-    if (status == 'active') {
-      accent = AppColors.lenderBlue;
-      icon = Icons.account_balance_wallet_rounded;
-    } else if (status == 'approved') {
-      accent = AppColors.success;
-      icon = Icons.check_circle_rounded;
-    } else if (status == 'rejected') {
-      accent = AppColors.error;
-      icon = Icons.cancel_rounded;
-    } else if (['pending', 'under_review', 'ci_required', 'ci_assigned', 'ci_completed'].contains(status)) {
-      accent = AppColors.warning;
-      icon = Icons.hourglass_top_rounded;
-    } else {
-      accent = AppColors.textTertiary;
-      icon = Icons.receipt_long_rounded;
-    }
-
+    final color = entry.accent;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.12)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.cBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(14),
+          onTap: entry.onTap,
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(13),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: accent.withValues(alpha: 0.15)),
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: accent, size: 20),
+                  child: Icon(entry.icon, color: color, size: 19),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(loan.loanNumber, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.textPrimary)),
+                      Text(
+                        entry.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13.5,
+                          color: context.cTextPrimary,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(loan.createdAt.formattedWithTime, style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
-                      const SizedBox(height: 2),
-                      Text(loan.paymentFrequency.toUpperCase(), style: const TextStyle(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
+                      Text(
+                        entry.body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.cTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        // "5m ago" / "2d ago" — parehong helper ng app
+                        // (`DateExtensions.timeAgo`).
+                        entry.at.timeAgo,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: context.cTextTertiary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(loan.principalAmount.toCurrency, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.textPrimary)),
-                    const SizedBox(height: 4),
-                    StatusBadge(status: loan.status, small: true),
-                  ],
-                ),
+                if (entry.onTap != null) ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_right,
+                      color: context.cTextTertiary, size: 18),
+                ],
               ],
             ),
           ),
@@ -1235,6 +1572,7 @@ class _LoanHistoryTile extends StatelessWidget {
       ),
     );
   }
+
 }
 
 class _MyLoansOverview extends StatelessWidget {

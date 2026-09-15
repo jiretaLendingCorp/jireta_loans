@@ -161,7 +161,11 @@ class HmCiNotifier extends StateNotifier<HmCiState> with RealtimeRefreshMixin {
       loanId: loanId,
       riderId: riderId,
       notes: notes,
-      deadline: deadline?.toIso8601String() ?? '',
+      // `.toUtc()` — kailangan ng `Z`/UTC marker. Ang `toIso8601String()` ng
+      // LOCAL DateTime ay walang timezone marker, kaya itinuturing itong UTC
+      // ng Postgres → 8 oras ang pagka-mali ng "Rider Visit Date & Time"
+      // (2:00 PM Manila → 10:00 PM sa lender notification at deadline display).
+      deadline: deadline?.toUtc().toIso8601String() ?? '',
     );
   }
 

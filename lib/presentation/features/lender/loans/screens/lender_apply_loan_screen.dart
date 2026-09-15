@@ -30,11 +30,10 @@ import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_loan_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
-/// Maliit na pagitan ng Back/Next row ng loan-apply wizard sa TAAS ng floating
-/// bottom nav pill kapag fully scrolled na ang step — ipinapantay ang ilalim ng
-/// mga button sa itaas na gilid ng bottom nav bar (8px lang ang gap, hindi na
-/// dikit at hindi rin masyadong mataas).
-const double kStepNavGapAbovePill = 8;
+/// Maliit na pagitan ng naka-pin na button/row (Back/Next ng wizard, Confirm
+/// ng disbursement) sa TAAS ng floating bottom nav pill — 8px lang ang gap,
+/// hindi dikit at hindi rin masyadong mataas.
+const double kGapAboveFloatingNav = 8;
 
 class LenderApplyLoanScreen extends ConsumerStatefulWidget {
   const LenderApplyLoanScreen({super.key});
@@ -843,13 +842,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   /// Bottom padding ng naka-PIN na Back/Next row: nakapatong ito sa TAAS ng
   /// floating bottom nav bar — safe area + float gap (36) + pill height (74) +
-  /// [kStepNavGapAbovePill] na maliit na pagitan — kaya hindi dikit sa pill at
+  /// [kGapAboveFloatingNav] na maliit na pagitan — kaya hindi dikit sa pill at
   /// hindi rin masyadong mataas.
   double get _stepNavBottomPadding =>
       MediaQuery.paddingOf(context).bottom +
       kFloatingNavFloatGap +
       kFloatingNavPillHeight +
-      kStepNavGapAbovePill;
+      kGapAboveFloatingNav;
 
   Widget _buildLoanDetailsStep(
       NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
@@ -3348,12 +3347,18 @@ class _ChooseDisbursementViewState
     // Ang CONFIRM BUTTON mismo sa loob ng modal ang nag-loading habang
     // tumatakbo ang save — hindi ang button ng method sa ilalim. Nananatili
     // nakabukas ang modal para makita ang spinner ng confirm button.
+    // Capture ang router BAGO ang async gap — hindi na kailangan ng `context`
+    // para makapag-navigate kahit ma-unmount ang widget na ito.
+    final router = GoRouter.of(context);
     final ok = await showAsyncConfirmationDialog(
       context,
       title: 'Confirm Disbursement Method',
+      // "Are you sure…" na tanong (dati: nagpapaliwanag lang kung paano
+      // deliver ang cash) — ang detalye ng susunod na mangyayari ay nasa
+      // success dialog na.
       message: _method == 'rider_delivery'
-          ? 'A rider will deliver the cash to your registered address. You will be notified once the rider is scheduled for delivery.'
-          : 'You may pick up the cash at the Jireta Loans office. We will notify you once it is ready for pickup.',
+          ? 'Are you sure to receive the funds via Cash on Delivery?'
+          : 'Are you sure to pick up the funds at the Jireta Loans office?',
       confirmLabel: 'Confirm',
       confirmColor: AppColors.lenderBlue,
       onConfirm: () async {
@@ -3377,15 +3382,29 @@ class _ChooseDisbursementViewState
             'Failed to save your disbursement method.';
       },
     );
-    if (ok != true || !mounted) return;
+    if (ok != true) return;
+    if (!mounted) {
+      // Na-unmount habang nakabukas ang confirm modal — deretso pa rin sa Home.
+      router.go(RouteConstants.lenderDashboard);
+      return;
+    }
 
     // Nakapili na: huwag nang ipakita ang "Awaiting Release"/status view sa
     // ilalim ng success modal — inert na ang screen hanggang mag-Home.
+    //
+    // MAHALAGA: pinapalitan nit ng "Finalizing your request…" placeholder ang
+    // BUONG `_ChooseDisbursementView` (kaya na-u-unmount ang widget na ito).
+    // Dating `await` muna bago ang `context.go`, kaya pagkatapos mag-fade ng
+    // success modal ay naka-display na ang placeholder at hindi na tumuloy ang
+    // `if (mounted) context.go(...)` — doon natigil ang screen sa
+    // "Finalizing your request…" kahit successful naman.
     widget.onConfirmed?.call();
 
-    // Pagkatapos ng loading ng confirm button: 2-segundong success modal,
-    // tapos DERETSO sa Home — walang status/shimmer na sasabit.
-    await SuccessDialog.showAutoDismiss(
+    // Kaya: ipakita ang 2-segundong success modal at SIMULAN NA AGAD ang
+    // navigation sa parehong synchronous na hakbang. Nasa root navigator ang
+    // modal, kaya nananatili itong nakapatong sa ibabaw ng Home at hindi na
+    // kailanman sumisilip ang placeholder.
+    final dialogDone = SuccessDialog.showAutoDismiss(
       context,
       title: _method == 'rider_delivery'
           ? 'Cash on Delivery Confirmed'
@@ -3396,7 +3415,8 @@ class _ChooseDisbursementViewState
       buttonText: 'Done',
       duration: const Duration(seconds: 2),
     );
-    if (mounted) context.go(RouteConstants.lenderDashboard);
+    router.go(RouteConstants.lenderDashboard);
+    await dialogDone;
   }
 
   @override
@@ -3449,9 +3469,16 @@ class _ChooseDisbursementViewState
             ),
           ),
         ),
-        // Naka-pin sa baba ng mobile view.
+        // Naka-pin sa baba ng mobile view — nakataas sa floating bottom nav
+        // bar. Dating hardcoded na 104 lang kaya natatakpan ng pill ang
+        // Confirm button (kulang ng ~40px sa may home indicator na device).
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            mobileBottomNavInset(context) + kGapAboveFloatingNav,
+          ),
           child: AppButton(
             label:
                 'Confirm ${_method == 'rider_delivery' ? 'COD' : 'Office Pickup'}',

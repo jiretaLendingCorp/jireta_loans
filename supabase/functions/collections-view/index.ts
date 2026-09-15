@@ -51,6 +51,18 @@ serve(async (req) => {
   }
 });
 
+// "All Pending Payment": lahat ng koleksyon na HINDI pa bayad/na-kolekta. Ang
+// `status=pending` sa query ay hindi isang tunay na status ng assignment, kaya
+// hindi ito sumasagasa sa `status` filter — ginagamit ito ng Collections screen
+// (HM/Employee) para sa "All Pending Payment" pill.
+const OPEN_COLLECTION_STATUSES = [
+  'requested',
+  'assigned',
+  'accepted',
+  'in_progress',
+  'pending_approval',
+];
+
 function scopeQueryToUser(query: any, user: AuthUser, riderId?: string | null) {
   if (user.role === ROLES.RIDER) return query.eq('rider_id', user.id);
   if (user.role === ROLES.LENDER) return query.eq('loan_schedule.loan.lender_id', user.id);
@@ -134,7 +146,11 @@ async function handleCollectionGetList(req: Request) {
   let query = db.from('collection_assignments')
     .select(COLLECTION_SELECT, { count: 'exact' });
   query = scopeQueryToUser(query, user, riderId);
-  if (status) query = query.eq('status', status);
+  if (status === 'pending') {
+    query = query.in('status', OPEN_COLLECTION_STATUSES);
+  } else if (status) {
+    query = query.eq('status', status);
+  }
   if (search) {
     // PostgREST's `.or()` cannot parse embedded paths like
     // `loan_schedule.loan.lender_profiles.users.first_name.ilike` (throws

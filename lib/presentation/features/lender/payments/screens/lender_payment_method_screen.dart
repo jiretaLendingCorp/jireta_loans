@@ -7,6 +7,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/logger.dart';
+import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../../collections/providers/lender_collection_provider.dart';
@@ -153,32 +154,20 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
 
   /// Shared positive modal para sa matagumpay (o malamang naipadala) na
   /// request — malinaw na confirmation imbes na error/tongue-twister text.
+  ///
+  /// AUTO-CLOSE pagkatapos ng 3 segundo (isang "Close" button lang; walang
+  /// "View Collections" — nasa Payments tab pa rin naman ang collections).
   Future<void> _showSubmittedDialog({
     required String title,
     required String message,
-  }) async {
-    await showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        icon: const Icon(Icons.check_circle_rounded,
-            color: AppColors.success, size: 46),
-        title: Text(title, textAlign: TextAlign.center),
-        content: Text(message, textAlign: TextAlign.center),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close')),
-          TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                context.push(RouteConstants.lenderCollections);
-              },
-              child: const Text('View Collections')),
-        ],
-      ),
-    );
-  }
+  }) =>
+      SuccessDialog.showAutoDismiss(
+        context,
+        title: title,
+        message: message,
+        buttonText: 'Close',
+        duration: const Duration(seconds: 3),
+      );
 
   String _titleForError(String err) {
     final low = err.toLowerCase();
@@ -292,9 +281,12 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       AppLogger.i('[PaymentMethod] rider request OK schedule=$_scheduleId');
       await _showSubmittedDialog(
         title: 'Successfully Submitted',
-        message: 'Your Cash on Delivery request has been submitted '
-            'successfully. Our office will assign a rider and notify you. '
-            'You can track the collection under Collection History.',
+        // Business process: ang pag-assign ng rider at paghahatid ng cash ay
+        // inaasahang matapos sa loob ng 1–2 business days.
+        message: 'Your Cash on Delivery request has been submitted. '
+            'Our office will assign a rider and deliver the cash within '
+            '1–2 business days. You will be notified once the cash is on '
+            'the way.',
       );
     } else {
       final err = ref.read(lenderPaymentProvider).error;
@@ -316,8 +308,9 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       if (inconclusive) {
         await _showSubmittedDialog(
           title: 'Submission Received',
-          message: 'Your request was sent and is being processed. '
-              'Please check Collection History to confirm the update.',
+          message: 'Your request was sent and is now being processed. '
+              'It usually takes 1–2 business days before the rider delivers '
+              'the cash. You will be notified once it is on the way.',
         );
         return;
       }
@@ -424,7 +417,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
               children: [
-                const Text('Choose how you want to pay this installment:',
+                const Text('Pay this installment via Cash on Delivery:',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: 15,
@@ -443,19 +436,9 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
                   title: 'Cash on Delivery',
                   badge: null,
                 ),
-                const SizedBox(height: 14),
-                _MethodCard(
-                  value: 'office',
-                  groupValue: _selected,
-                  onSelect: _requesting
-                      ? null
-                      : (v) => setState(() => _selected = v),
-                  icon: Icons.storefront_outlined,
-                  assetPath: 'assets/icons/pay_with_office.jpg',
-                  color: AppColors.info,
-                  title: 'Office',
-                  badge: null,
-                ),
+                // HIDDEN: "Office" option — Cash on Delivery lang ang
+                // ipinapakita ngayon. Nasa code pa rin ang handler
+                // (`_onPay` → `/lender/pay-office`) kung ibabalik ito.
                 const SizedBox(height: 14),
                 const _MethodCard(
                   value: 'gcash',
@@ -480,9 +463,22 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
             ),
           ),
           // Naka-pin sa baba ng mobile view — hindi na kailangang mag-scroll
-          // para makita ang Pay button.
+          // para makita ang Pay button. Nakaangat sa TAAS ng floating bottom
+          // nav.
+          //
+          // GAMIT DITO: `mobileBottomNavHeight` (hindi `mobileBottomNavInset`)
+          // dahil ang `context` na ito ay ang context ng SCREEN — nasa LABAS
+          // ito ng body ng MobileScaffold, kaya `MediaQuery.padding.bottom` ay
+          // safe area lang (0 pa nga sa mga Android na walang home indicator).
+          // Ang `mobileBottomNavHeight` ang nagdadagdag ng float gap + pill
+          // height, kaya eksaktong nasa itaas ng pill ang button.
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              mobileBottomNavHeight(context) + 8,
+            ),
             child: SizedBox(
               width: double.infinity,
               height: 52,

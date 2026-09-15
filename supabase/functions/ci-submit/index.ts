@@ -22,6 +22,24 @@ import { nowManilaISO } from '../_shared/timezone.ts';
 // ── [moved from ci-upload-documents] ────────────────────────────────────────
 const BUCKET = 'ci-documents';
 
+// ── Background side effects ─────────────────────────────────────────────────
+// EdgeRuntime.waitUntil keeps the isolate alive AFTER the HTTP response is
+// sent, kaya ang mabagal na gawain (audit log + FCM fan-out sa lahat ng staff)
+// ay hindi na nagpapahintay sa REPLY na hinihintay ng rider app. Ito ang dating
+// dahilan kung bakit matagal bago matapos ang "loading" ng Submit button sa
+// CI report: hinihintay pa ang push notification sa bawat staff device.
+function runInBackground(task: Promise<unknown>): void {
+  const runtime = (globalThis as {
+    EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(task);
+    return;
+  }
+  // No waitUntil hook (plain `deno run` / older runtime) — still never await it.
+  task.catch((err) => console.error('background task failed:', err));
+}
+
 // ── [moved from ci-upload-documents] ────────────────────────────────────────
 // Decode a base64 string into a Uint8Array without relying on atob.
 function base64ToBytes(base64: string): Uint8Array {
@@ -93,11 +111,21 @@ async function handleCiSubmitReport(req: Request) {
   // The loan becomes ci_completed but still requires explicit CI approval
   // (ci -> approved) before loans-manage approve allows it to become 'approved'
   // and lender can select disbursement method.
-  await db.from('credit_investigations').update({ status: 'completed', report_summary: sanitizeString(report_summary), completed_at: nowManilaISO() }).eq('id', ci_id);
-  await db.from('loans').update({ status: 'ci_completed' }).eq('id', ci.loan_id);
-  await db.from('rider_profiles').update({ is_available: true }).eq('id', user.id);
-  await writeAuditLog({ performedBy: user.id, action: 'ci_submit_report', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
-  await notifyStaff({ title: 'CI Report Submitted — Awaiting Review', body: 'A rider has submitted a credit investigation report. Please review and approve/reject it before loan disbursement. Lender will choose disbursement method only after CI approval.', type: 'ci_completed', referenceId: ci.loan_id });
+  // Kritikal na state changes — PARALLEL (dating sunod-sunod na await) para
+  // hindi maipon ang bawat round trip sa oras ng Submit button.
+  await Promise.all([
+    db.from('credit_investigations').update({ status: 'completed', report_summary: sanitizeString(report_summary), completed_at: nowManilaISO() }).eq('id', ci_id),
+    db.from('loans').update({ status: 'ci_completed' }).eq('id', ci.loan_id),
+    db.from('rider_profiles').update({ is_available: true }).eq('id', user.id),
+  ]);
+
+  // Hindi kritikal (audit + notification sa staff kasama ang FCM push):
+  // patakbuhin sa BACKGROUND — hindi ito dapat magpahintay sa rider.
+  runInBackground((async () => {
+    await writeAuditLog({ performedBy: user.id, action: 'ci_submit_report', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
+    await notifyStaff({ title: 'CI Report Submitted — Awaiting Review', body: 'A rider has submitted a credit investigation report. Please review and approve/reject it before loan disbursement. Lender will choose disbursement method only after CI approval.', type: 'ci_completed', referenceId: ci.loan_id });
+  })());
+
   return jsonResponse({ message: 'CI report submitted. Awaiting manager approval before disbursement.' });
 }
 

@@ -14,6 +14,7 @@ import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/pending_payments_table.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
@@ -164,7 +165,14 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
     FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
     FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
+    // Lahat ng HINDI pa bayad/na-kolekta na installment (kasama ang office) —
+    // dito pwedeng i-mark na "Paid in Office" ang mga office request.
+    FilterTabDef('pending_payments', 'All Pending Payment',
+        Icons.pending_actions_rounded),
   ];
+
+  /// True kapag "All Pending Payment" ang naka-select sa payment pills.
+  bool _pendingPayments = false;
 
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
@@ -183,7 +191,10 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
   void _onTabTap(String key) {
     if (key == _activeTab) return;
-    setState(() => _activeTab = key);
+    setState(() {
+      _activeTab = key;
+      _pendingPayments = false;
+    });
     _searchCtrl.clear();
     ref.read(empCollectionProvider.notifier).setSearch('');
     ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
@@ -222,17 +233,51 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
               if (isPayments) ...[
                 _buildPaymentMethodFilter(paymentsState),
                 const SizedBox(height: 12),
-                if (paymentsState.isLoading)
-                  _buildLoadingShimmer()
-                else if (paymentsState.error != null && paymentsState.payments.isEmpty)
-                  _buildPaymentError(paymentsState.error!)
-                else if (paymentsState.payments.isEmpty)
-                  _buildPaymentEmpty(paymentsState)
-                else
-                  _Entrance(child: _buildPaymentsTable(paymentsState.payments)),
-                if (paymentsState.totalPages > 1) ...[
-                  const SizedBox(height: 16),
-                  _buildPaymentPagination(paymentsState),
+                if (_pendingPayments) ...[
+                  if (collectionState.isLoading)
+                    _buildLoadingShimmer()
+                  else if (collectionState.error != null &&
+                      collectionState.items.isEmpty)
+                    _buildError(collectionState.error!)
+                  else if (collectionState.items.isEmpty)
+                    _buildPendingEmpty()
+                  else
+                    _Entrance(
+                      child: PendingPaymentsTable(
+                        items: collectionState.items,
+                        onView: (c) => context.go(RouteConstants
+                            .empCollectionDetails
+                            .replaceFirst(':id', c.id)),
+                        onRefresh: () async {
+                          await ref
+                              .read(empCollectionProvider.notifier)
+                              .fetch(silent: true);
+                          await ref
+                              .read(_empPaymentsInCollectionProvider.notifier)
+                              .fetch(silent: true);
+                        },
+                      ),
+                    ),
+                  if (!collectionState.isLoading &&
+                      collectionState.totalPages > 1) ...[
+                    const SizedBox(height: 16),
+                    _buildCollectionPagination(collectionState),
+                  ],
+                ] else ...[
+                  if (paymentsState.isLoading)
+                    _buildLoadingShimmer()
+                  else if (paymentsState.error != null &&
+                      paymentsState.payments.isEmpty)
+                    _buildPaymentError(paymentsState.error!)
+                  else if (paymentsState.payments.isEmpty)
+                    _buildPaymentEmpty(paymentsState)
+                  else
+                    _Entrance(
+                        child: _buildPaymentsTable(paymentsState.payments)),
+                  if (paymentsState.totalPages > 1) ...[
+                    const SizedBox(height: 16),
+                    _buildPaymentPagination(paymentsState),
+                  ],
                 ],
               ] else if (isEarlyPayers) ...[
                 _buildEarlyPayers(lenderState),
@@ -460,13 +505,27 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
       scrollDirection: Axis.horizontal,
       child: Row(
         children: _paymentMethodTabs.map((t) {
-          final isActive = t.key == state.methodFilter;
+          final isPendingPill = t.key == 'pending_payments';
+          final isActive = isPendingPill
+              ? _pendingPayments
+              : (!_pendingPayments && t.key == state.methodFilter);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterPillTab(
               def: t,
               active: isActive,
-              onTap: () => ref.read(_empPaymentsInCollectionProvider.notifier).setMethod(t.key),
+              onTap: () {
+                if (isPendingPill) {
+                  setState(() => _pendingPayments = true);
+                  // `status=pending` → lahat ng hindi pa bayad (server-side).
+                  ref.read(empCollectionProvider.notifier).setStatus('pending');
+                } else {
+                  setState(() => _pendingPayments = false);
+                  ref
+                      .read(_empPaymentsInCollectionProvider.notifier)
+                      .setMethod(t.key);
+                }
+              },
             ),
           );
         }).toList(),
@@ -477,7 +536,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
   Widget _buildToolbar(EmpCollectionState cState, _EmpPaymentsState pState, bool isPayments) {
     final isEarlyPayers = _activeTab == 'early_payers';
     final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = isPayments
+    final resultsCount = (isPayments && !_pendingPayments)
         ? pState.totalCount
         : isEarlyPayers
             ? _earlyPayerLenders(ref.read(empLenderProvider)).length
@@ -495,7 +554,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                 onChanged: (v) {
                   if (isEarlyPayers) {
                     setState(() {});
-                  } else if (isPayments) {
+                  } else if (isPayments && !_pendingPayments) {
                     ref
                         .read(_empPaymentsInCollectionProvider.notifier)
                         .setSearch(v);
@@ -531,7 +590,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             _ToolbarIcon(
               icon: Icons.refresh_rounded,
               tooltip: 'Refresh',
-              onTap: () => isPayments
+              onTap: () => (isPayments && !_pendingPayments)
                   ? ref.read(_empPaymentsInCollectionProvider.notifier).fetch()
                   : ref.read(empCollectionProvider.notifier).fetch(),
             ),
@@ -893,6 +952,51 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
           ElevatedButton.icon(onPressed: () => ref.read(_empPaymentsInCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
         ]),
       ),
+    );
+  }
+
+  /// Walang pending na babayaran — lahat ng koleksyon ay tapos na.
+  Widget _buildPendingEmpty() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x08000000),
+                blurRadius: 12,
+                offset: Offset(0, 4))
+          ]),
+      child: Column(children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border)),
+          child: const Icon(Icons.task_alt_rounded,
+              size: 34, color: AppColors.success),
+        ),
+        const SizedBox(height: 16),
+        const Text('No pending payments',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        const Text(
+          'Lahat ng installment ay bayad na, o walang bukas na collection request.',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 18),
+        OutlinedButton.icon(
+          onPressed: () => ref.read(empCollectionProvider.notifier).fetch(),
+          icon: const Icon(Icons.refresh_rounded, size: 16),
+          label: const Text('Refresh'),
+        ),
+      ]),
     );
   }
 

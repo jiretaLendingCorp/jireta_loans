@@ -35,6 +35,29 @@ export function manilaTimestamp(): number {
 }
 
 /**
+ * Normalize a client-sent timestamp to a true UTC ISO string.
+ *
+ * Ang Flutter date/time picker ay nagpapadala ng ISO string na WALANG
+ * timezone marker (hal. "2026-09-16T14:00:00.000" = 2:00 PM Manila wall
+ * clock). Kapag ganoon ang isinulat sa TIMESTAMPTZ column, UTC ang gagamitin
+ * ng Postgres — kaya 8 oras ang pagka-mali (2:00 PM Manila → 10:00 PM sa
+ * lender notification at sa deadline display).
+ *
+ * Dito, ang walang marker ay itinuturing na Manila (+08:00); ang may `Z` o
+ * offset ay pinapanatili ang instant. `null` kapag blangko o hindi mabasa.
+ */
+export function normalizeManilaInput(value: unknown): string | null {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const hasZone = /(?:z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const hasTime = /\d{1,2}:\d{2}/.test(raw);
+  const candidate = hasZone ? raw : `${raw}${hasTime ? '' : 'T00:00:00'}+08:00`;
+  const dt = new Date(candidate);
+  return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
+}
+
+/**
  * Convert a Manila calendar date (y, m, d) to the UTC instant of that
  * Manila midnight. Manila is UTC+8, so 00:00 Manila = 16:00 UTC on the
  * PREVIOUS day. Used for exact-day filters — without the shift, a day filter

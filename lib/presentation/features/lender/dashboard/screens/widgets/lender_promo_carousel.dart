@@ -18,6 +18,11 @@ class LenderPromoItem {
   final List<Color> gradient;
   final IconData icon;
 
+  /// True kapag "Apply Loan" ang CTA ng banner na ito — hindi ito ipinapakita
+  /// kapag may active loan na ang lender (see [LenderPromoCarousel
+  /// .hideApplyLoanCta]).
+  final bool applyLoanCta;
+
   const LenderPromoItem({
     this.imageAsset,
     required this.badge,
@@ -26,6 +31,7 @@ class LenderPromoItem {
     required this.ctaLabel,
     required this.gradient,
     required this.icon,
+    this.applyLoanCta = false,
   });
 }
 
@@ -37,6 +43,7 @@ const defaultLenderPromos = <LenderPromoItem>[
     title: 'Get up to ₱500,000',
     subtitle: 'Fast · Secure · Flexible',
     ctaLabel: 'Apply Loan',
+    applyLoanCta: true,
     gradient: [Color(0xFF0D1B2A), Color(0xFF1A3658)],
     icon: Icons.account_balance_wallet_rounded,
   ),
@@ -65,6 +72,10 @@ class LenderPromoCarousel extends StatefulWidget {
   final double mobileHeight;
   final double webHeight;
 
+  /// Itago ang "Apply Loan" na CTA — `true` kapag may active loan na ang
+  /// lender (hindi na siya maaaring mag-apply ng panibagong loan).
+  final bool hideApplyLoanCta;
+
   const LenderPromoCarousel({
     super.key,
     this.banners = defaultLenderPromos,
@@ -72,6 +83,7 @@ class LenderPromoCarousel extends StatefulWidget {
     this.autoPlayInterval = const Duration(seconds: 4),
     this.mobileHeight = 170,
     this.webHeight = 200,
+    this.hideApplyLoanCta = false,
   });
 
   @override
@@ -192,6 +204,7 @@ class _LenderPromoCarouselState extends State<LenderPromoCarousel> {
                           child: _PromoCard(
                             item: item,
                             isWeb: isWeb,
+                            hideApplyLoanCta: widget.hideApplyLoanCta,
                             onCtaTap: () =>
                                 widget.onCtaTap?.call(index, item),
                           ),
@@ -236,11 +249,13 @@ class _PromoCard extends StatelessWidget {
   final LenderPromoItem item;
   final bool isWeb;
   final VoidCallback? onCtaTap;
+  final bool hideApplyLoanCta;
 
   const _PromoCard({
     required this.item,
     required this.isWeb,
     this.onCtaTap,
+    this.hideApplyLoanCta = false,
   });
 
   @override
@@ -264,8 +279,18 @@ class _PromoCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: item.imageAsset != null
-          ? _ImageBanner(item: item, isWeb: isWeb, onCtaTap: onCtaTap)
-          : _GradientBanner(item: item, isWeb: isWeb, onCtaTap: onCtaTap),
+          ? _ImageBanner(
+              item: item,
+              isWeb: isWeb,
+              onCtaTap: onCtaTap,
+              hideApplyLoanCta: hideApplyLoanCta,
+            )
+          : _GradientBanner(
+              item: item,
+              isWeb: isWeb,
+              onCtaTap: onCtaTap,
+              hideApplyLoanCta: hideApplyLoanCta,
+            ),
     );
   }
 }
@@ -276,8 +301,17 @@ class _ImageBanner extends StatelessWidget {
   final LenderPromoItem item;
   final bool isWeb;
   final VoidCallback? onCtaTap;
+  final bool hideApplyLoanCta;
 
-  const _ImageBanner({required this.item, required this.isWeb, this.onCtaTap});
+  const _ImageBanner({
+    required this.item,
+    required this.isWeb,
+    this.onCtaTap,
+    this.hideApplyLoanCta = false,
+  });
+
+  /// Hindi na ipinapakita ang "Apply Loan" na CTA kapag may active loan na.
+  bool get _showCta => !(item.applyLoanCta && hideApplyLoanCta);
 
   @override
   Widget build(BuildContext context) {
@@ -308,17 +342,18 @@ class _ImageBanner extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          left: 12,
-          right: 12,
-          bottom: 10,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _CtaButton(label: item.ctaLabel, onTap: onCtaTap),
-            ],
+        if (_showCta)
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 10,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _CtaButton(label: item.ctaLabel, onTap: onCtaTap),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -329,8 +364,17 @@ class _GradientBanner extends StatelessWidget {
   final LenderPromoItem item;
   final bool isWeb;
   final VoidCallback? onCtaTap;
+  final bool hideApplyLoanCta;
 
-  const _GradientBanner({required this.item, required this.isWeb, this.onCtaTap});
+  const _GradientBanner({
+    required this.item,
+    required this.isWeb,
+    this.onCtaTap,
+    this.hideApplyLoanCta = false,
+  });
+
+  /// Hindi na ipinapakita ang "Apply Loan" na CTA kapag may active loan na.
+  bool get _showCta => !(item.applyLoanCta && hideApplyLoanCta);
 
   @override
   Widget build(BuildContext context) {
@@ -415,8 +459,10 @@ class _GradientBanner extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.85),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    _CtaButton(label: item.ctaLabel, onTap: onCtaTap),
+                    if (_showCta) ...[
+                      const SizedBox(height: 10),
+                      _CtaButton(label: item.ctaLabel, onTap: onCtaTap),
+                    ],
                   ],
                 ),
               ),

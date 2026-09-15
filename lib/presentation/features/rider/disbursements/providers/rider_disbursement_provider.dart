@@ -38,6 +38,31 @@ class RiderDisbursementState {
       );
 }
 
+/// Resulta ng `uploadProof`.
+///
+/// Hindi na umaasa sa provider state ang mensahe: kapag galing sa Dashboard
+/// ang rider (walang widget na nagmamatyag sa provider), ang autoDispose
+/// provider ay maaaring ma-dispose HABANG tumatakbo ang mabigat na upload — at
+/// kapag ini-read muli ang state, bagong notifier ang nabubuo (null ang error)
+/// kaya generic na "Failed to upload proof" ang lumalabas kahit may tunay na
+/// dahilan. Sa pamamagitan ng outcome, ang SAME object na nagsagawa ng submit
+/// ang nagbabalik ng tamang success/error.
+class ProofUploadOutcome {
+  final bool success;
+
+  /// True kapag natanggap na ng server ang proof (idempotent replay) — success
+  /// pa rin ito, hindi dapat mag-error ang modal.
+  final bool alreadySubmitted;
+
+  final String? error;
+
+  const ProofUploadOutcome({
+    required this.success,
+    this.alreadySubmitted = false,
+    this.error,
+  });
+}
+
 class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
     with RealtimeRefreshMixin {
   final DisbursementRemoteDataSource _ds;
@@ -63,12 +88,17 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
   /// Rider uploads proof (max 2 photos + optional signature) that the cash
   /// was handed to the lender for a rider-delivery disbursement.
   /// Ang unang photo ay `proof_photo`, ang pangalawa ay `proof_photo_2`.
-  Future<bool> uploadProof({
+  ///
+  /// HINDI ito nag-t-throw kahit ma-dispose ang provider habang tumatakbo —
+  /// ang lahat ng state write ay dumadaan sa `if (mounted)`.
+  Future<ProofUploadOutcome> uploadProof({
     required String disbursementId,
     required List<XFile> proofPhotos,
     String? signatureBase64,
   }) async {
-    state = state.copyWith(isSubmitting: true);
+    if (mounted) {
+      state = state.copyWith(isSubmitting: true, error: null);
+    }
     try {
       final proofs = <Map<String, dynamic>>[
         for (var i = 0; i < proofPhotos.length; i++)
@@ -79,31 +109,40 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
       ];
       await _ds.uploadDeliveryProof(
           disbursementId: disbursementId, proofs: proofs);
-      state = state.copyWith(isSubmitting: false);
+      if (mounted) state = state.copyWith(isSubmitting: false, error: null);
       // Best-effort lang ang reload ng listahan — hindi ito hinihintay at
       // hindi kasama sa try, para hindi maging "failed" ang isang matagumpay
       // na upload kahit mabagal/nabigo ang refresh.
       _safeRefresh();
-      return true;
+      return const ProofUploadOutcome(success: true);
     } catch (e) {
+      final message = ErrorHandler.handle(e).message;
       // Posibleng naisave na ng server ang proof pero nag-timeout/nabigo ang
       // response sa client (mabigat ang base64 ng 1–2 larawan). Kumpirmahin
       // muna sa server bago mag-report ng failure — kaya valid pa rin ang 1
       // o 2 na na-upload na proof.
       if (await _isAlreadySubmitted(disbursementId)) {
-        state = state.copyWith(isSubmitting: false);
+        if (mounted) state = state.copyWith(isSubmitting: false, error: null);
         _safeRefresh();
-        return true;
+        return const ProofUploadOutcome(
+            success: true, alreadySubmitted: true);
       }
-      state = state.copyWith(
-          isSubmitting: false, error: ErrorHandler.handle(e).message);
-      return false;
+      if (mounted) {
+        state = state.copyWith(isSubmitting: false, error: message);
+      }
+      return ProofUploadOutcome(success: false, error: message);
     }
   }
+
+  /// Pampublikong verification (ginagamit ng upload screen kapag may hindi
+  /// inaasahang error bago mag-report ng failure).
+  Future<bool> verifyProofSubmitted(String disbursementId) =>
+      _isAlreadySubmitted(disbursementId);
 
   /// Hindi hinihintay ang reload ng listahan (background) — hindi nito dapat
   /// pahabain o gawing "failed" ang submit.
   void _safeRefresh() {
+    if (!mounted) return;
     unawaited(() async {
       try {
         await load();
@@ -114,9 +153,11 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
   /// Sinuri sa server kung completed na ang disbursement kahit "failed" ang
   /// response na natanggap ng client (lost response / timeout).
   ///
-  /// Ilang beses itong sinusubukan (may pagitan): kapag nag-timeout ang client
-  /// habang tumatakbo pa ang upload sa server, kailangan ng maliit na palugit
-  /// bago lumabas ang `completed` na status.
+  /// Apat na beses itong sinusubukan (may 1.5s pagitan): kapag nag-timeout ang
+  /// client habang tumatakbo PA ang upload sa server (hal. ang default na 30s
+  /// na timeout ay hindi naipasa sa 401-refresh retry), saka pa lang lumalabas
+  /// ang `completed` na status — kung maikli ang window, mali ang "Failed to
+  /// upload proof" na lumalabas kahit matagumpay naman ang submit.
   Future<bool> _isAlreadySubmitted(String disbursementId) async {
     for (var attempt = 0; attempt < 4; attempt++) {
       try {
@@ -129,7 +170,8 @@ class RiderDisbursementNotifier extends StateNotifier<RiderDisbursementState>
           return true;
         }
       } catch (_) {}
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      if (attempt == 3) break;
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
     }
     return false;
   }

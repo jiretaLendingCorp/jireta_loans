@@ -25,7 +25,12 @@ class NotificationRemoteDataSource {
   /// Returns the notification list along with the server-authoritative
   /// unread count. The server counts unread across ALL pages, so relying on it
   /// (instead of counting the first page only) keeps the bell badge accurate.
-  Future<({List<NotificationModel> items, int unreadCount})> getListWithUnread({
+  ///
+  /// `totalPages` (galing sa `meta`) ang ginagamit para malaman kung may
+  /// karagdagang page pa — dati, page 1 lang ang kinukuha ng mga screen kaya
+  /// hindi na nakikita ang mas lumang notifications.
+  Future<({List<NotificationModel> items, int unreadCount, int totalPages})>
+      getListWithUnread({
     bool? isRead,
     int page = 1,
   }) async {
@@ -39,11 +44,14 @@ class NotificationRemoteDataSource {
     );
     final list = (res.data['data'] as List?) ?? [];
     final unread = (res.data['unread_count'] as num?)?.toInt() ?? 0;
+    final meta = res.data['meta'];
+    final totalPages = meta is Map ? ((meta['total_pages'] as num?)?.toInt() ?? page) : page;
     return (
       items: list
           .map((e) => NotificationModel.fromJson(e as Map<String, dynamic>))
           .toList(),
       unreadCount: unread,
+      totalPages: totalPages,
     );
   }
 

@@ -251,11 +251,21 @@ class AuthInterceptor extends Interceptor {
           err.requestOptions.headers['Authorization'] =
               'Bearer $newAccessToken';
           try {
+            // IMPORTANTE: dalhin ang ORIGINAL na timeouts sa retry. Ang
+            // mabibigat na request (hal. base64 ng 1–2 proof photos na may
+            // `timeout: Duration(minutes: 2)` override) ay bumabalik sa 30s
+            // default kapag `Options(...)` lang ang ipinasa — kaya nag-timeout
+            // ang client habang tumatakbo PA ang upload sa server, at nag-error
+            // ang rider kahit matagumpay naman ang submit.
             final retryResponse = await _dio.request(
               err.requestOptions.path,
               options: Options(
                 method: err.requestOptions.method,
                 headers: err.requestOptions.headers,
+                sendTimeout: err.requestOptions.sendTimeout,
+                receiveTimeout: err.requestOptions.receiveTimeout,
+                connectTimeout: err.requestOptions.connectTimeout,
+                contentType: err.requestOptions.contentType,
               ),
               data: err.requestOptions.data,
               queryParameters: err.requestOptions.queryParameters,

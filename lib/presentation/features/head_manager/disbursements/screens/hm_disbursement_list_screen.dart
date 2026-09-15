@@ -130,10 +130,10 @@ class _HmDisbursementListScreenState
         columns: const [
           ResponsiveCol('Loan #', flex: 2),
           ResponsiveCol('Lender', flex: 3),
-          ResponsiveCol('Method', flex: 2),
           ResponsiveCol('Amount', flex: 2),
           ResponsiveCol('Status', flex: 2),
           ResponsiveCol('Date', flex: 2),
+          ResponsiveCol('Method', flex: 2),
         ],
         actionsCol: const ResponsiveActionsCol(
             label: 'Actions', width: 80, alignment: Alignment.centerRight, alignEnd: true),
@@ -152,12 +152,12 @@ class _HmDisbursementListScreenState
                 fontSize: 13,
                 color: AppColors.deepNavy)),
         Text(d.lenderName, style: const TextStyle(fontSize: 13)),
-        _methodChip(d.disbursementMethod),
         Text(d.amount.toCurrency,
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
         StatusBadge(status: d.status),
         Text(DateFormat('MMM d, y h:mm a').format(d.createdAt),
             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        _methodChip(d.disbursementMethod),
       ],
       actions: Tooltip(
         message: 'View',

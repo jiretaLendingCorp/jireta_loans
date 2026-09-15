@@ -18,7 +18,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID, sanitizeString } from '../_shared/validators.ts';
-import { nowManilaISO } from '../_shared/timezone.ts';
+import { nowManilaISO, normalizeManilaInput } from '../_shared/timezone.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'assign';
@@ -65,6 +65,12 @@ async function handleCiAssign(req: Request) {
 
   if (!loan_id || !rider_id) return errorResponse('loan_id and rider_id are required', 400, 'VALIDATION_ERROR');
   if (!validateUUID(loan_id) || !validateUUID(rider_id)) return errorResponse('Invalid UUID format', 400, 'VALIDATION_ERROR');
+
+  // TIMESTAMPTZ: ang "Rider Visit Date & Time" na pinili ng HM/employee ay
+  // Manila wall time. Kapag walang timezone marker ang pinadala ng app
+  // (lumang build), i-interpret ito bilang +08:00 — kung UTC ang gagamitin ng
+  // Postgres, 8 oras ang pagka-mali ng deadline at ng lender notification.
+  const deadlineIso = normalizeManilaInput(deadline);
 
   const db = getAdminClient();
 
@@ -136,7 +142,7 @@ async function handleCiAssign(req: Request) {
     rider_id,
     assigned_by: authResult.id,
     investigation_notes: investigation_notes ? sanitizeString(investigation_notes) : null,
-    deadline: deadline ?? null,
+    deadline: deadlineIso,
     status: 'assigned',
   }).select().single();
 
@@ -169,7 +175,9 @@ async function handleCiAssign(req: Request) {
     const { data: riderUser } = await db.from('users').select('first_name, last_name').eq('id', rider_id).single();
     const { data: loanRow } = await db.from('loans').select('lender_id').eq('id', loan_id).single();
     const riderName = riderUser ? `${(riderUser as any).first_name ?? ''} ${(riderUser as any).last_name ?? ''}`.trim() : 'Our rider';
-    const visitDate = deadline ? new Date(deadline).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'soon';
+    // Ang `deadlineIso` (normalized UTC) ang gamitin — hindi ang hilaw na
+    // request value — para tugma ang oras sa notification sa piniling oras.
+    const visitDate = deadlineIso ? new Date(deadlineIso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'soon';
     if ((loanRow as any)?.lender_id) {
       await sendPushNotification({
         userId: (loanRow as any).lender_id,
