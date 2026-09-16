@@ -63,7 +63,21 @@ Future<void> pumpTable(WidgetTester tester, double width) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> pumpToolbar(WidgetTester tester, double width) async {
+/// Fixed-width na pill na katulad ng totoong laki (Filter Date ~132px,
+/// results chip ~104px, dropdowns ~132px). Widget tests render text with the
+/// Ahem font where every glyph is 1em wide, kaya ang content-sized samples ay
+/// ~2x na mas lapad kaysa sa totoong device.
+Widget pill(double width, String label) => Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Text(label),
+    );
+
+Future<void> pumpToolbar(
+  WidgetTester tester,
+  double width, {
+  List<Widget>? trailing,
+}) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -74,23 +88,11 @@ Future<void> pumpToolbar(WidgetTester tester, double width) async {
         padding: const EdgeInsets.all(24),
         child: ResponsiveSearchToolbar(
           searchField: const TextField(decoration: InputDecoration(hintText: 'Search...')),
-          // Fixed widths mirror the real pill sizes (Filter Date ~132px,
-          // results chip ~104px). Widget tests render text with the Ahem
-          // font where every glyph is 1em wide, so content-sized samples
-          // would be ~2x wider than on a real device and can never share
-          // one phone row.
-          trailing: [
-            Container(
-              width: 132,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: const Text('Filter Date'),
-            ),
-            Container(
-              width: 104,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: const Text('8 results'),
-            ),
-          ],
+          trailing: trailing ??
+              [
+                pill(132, 'Filter Date'),
+                pill(104, '8 results'),
+              ],
         ),
       ),
     ),
@@ -310,19 +312,45 @@ void main() {
       });
     }
 
-    testWidgets('mobile toolbar stays on one row at width 360.0', (tester) async {
+    testWidgets('mobile toolbar: search sa sariling linya, filters sa ibaba',
+        (tester) async {
       await pumpToolbar(tester, 360.0);
       expect(tester.takeException(), isNull);
-      // Search field and both pills share the same row: their vertical
-      // centers must line up (a wrapped two-row layout would offset them
-      // by a full row height).
-      final searchDy = tester.getCenter(find.byType(TextField)).dy;
-      final filterDy = tester.getCenter(find.text('Filter Date')).dy;
-      final resultsDy = tester.getCenter(find.text('8 results')).dy;
-      expect((filterDy - searchDy).abs(), lessThan(20),
-          reason: 'Filter Date is not on the search row');
-      expect((resultsDy - searchDy).abs(), lessThan(20),
-          reason: 'Results chip is not on the search row');
+      // Ang search ay buong lapad sa unang linya (hindi na pinipiga sa ~60px
+      // para lamang magkasya ang mga filter sa isang linya) at nasa ilalim
+      // ang mga filter.
+      final searchRect = tester.getRect(find.byType(TextField));
+      final filterRect = tester.getRect(find.text('Filter Date'));
+      expect(searchRect.width, greaterThan(250),
+          reason: 'Nakakapasok pa rin sa isang linya ang search (masyadong maliit)');
+      expect(searchRect.bottom, lessThanOrEqualTo(filterRect.top),
+          reason: 'Nasa ibaba ng search ang mga filter');
+    });
+
+    testWidgets('mobile: walang "RIGHT OVERFLOWED" kahit apat ang filter',
+        (tester) async {
+      // Gaya ng /hm/all-users: Filter Date + results chip + All Roles +
+      // All Status. Dati: isang Row kaya 319px ang overflow sa kanan.
+      await pumpToolbar(tester, 420.0, trailing: [
+        pill(132, 'Filter Date'),
+        pill(104, '20 results'),
+        pill(132, 'All Roles'),
+        pill(132, 'All Status'),
+      ]);
+      expect(tester.takeException(), isNull);
+
+      for (final label in [
+        'Filter Date',
+        '20 results',
+        'All Roles',
+        'All Status',
+      ]) {
+        final rect = tester.getRect(find.text(label));
+        expect(rect.left, greaterThanOrEqualTo(0),
+            reason: '$label is cut at the left edge');
+        expect(rect.right, lessThanOrEqualTo(420),
+            reason: '$label overflows the right edge');
+      }
     });
   });
 }

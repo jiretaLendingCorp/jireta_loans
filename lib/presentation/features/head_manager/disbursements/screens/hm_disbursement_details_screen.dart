@@ -29,7 +29,7 @@ Future<void> showHmDisbursementDetailsModal(
       backgroundColor: Colors.white,
       insetPadding:
           const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: const RoundedRectangleBorder(),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760, maxHeight: 680),
         child: Column(
@@ -102,111 +102,76 @@ class HmDisbursementDetailsContent extends ConsumerWidget {
 
   Widget _buildBody(BuildContext context, DisbursementModel d) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildInfoCard(d),
-          const SizedBox(height: 12),
-          _buildMethodCard(context, d),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard(DisbursementModel d) => AppCard(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Disbursement Information',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: AppColors.deepNavy)),
-              const Divider(height: 24),
-              _row('Amount', d.amount.toCurrency,
-                  valueStyle: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                      color: AppColors.deepNavy)),
-              _row('Method', d.methodLabel),
-              _row('Status', _prettyStatus(d.status)),
-              if (d.reference.isNotEmpty) _row('Reference', d.reference),
-              _row('Date',
-                  DateFormat('MMM dd, yyyy hh:mm a').format(d.createdAt)),
-            ],
-          ),
-        ),
-      );
-
-  Widget _buildMethodCard(BuildContext context, DisbursementModel d) {
-    if (d.method == 'gcash') {
-      return AppCard(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('GCash Details',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: AppColors.deepNavy)),
-              const Divider(height: 24),
-              _row('Xendit Disbursement ID', d.xenditDisbursementId ?? 'N/A'),
-              _row('Xendit Status', d.xenditStatus ?? 'N/A'),
-              if (d.disbursedAt != null)
-                _row('Disbursed At',
-                    DateFormat('MMM dd, yyyy hh:mm a').format(d.disbursedAt!)),
-            ],
-          ),
-        ),
-      );
-    }
-    if (d.method == 'office_cash') {
-      return AppCard(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Office Cash Release',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: AppColors.deepNavy)),
-              const Divider(height: 24),
-              _row('Disbursed By', d.disbursedBy ?? 'N/A'),
-              if (d.disbursedAt != null)
-                _row('Release Date',
-                    DateFormat('MMM dd, yyyy hh:mm a').format(d.disbursedAt!)),
-            ],
-          ),
-        ),
-      );
-    }
-    return AppCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      // Isang card na lang ang buong modal — naka-section sa loob.
+      child: AppCard(
+        borderRadius: BorderRadius.zero,
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Cash on Delivery Details',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: AppColors.deepNavy)),
-            const Divider(height: 24),
-            _row('Assigned Rider',
-                d.riderName.isEmpty ? 'N/A' : d.riderName),
-            // Proof photos na in-upload ni rider (Cash on Delivery).
-            _buildDeliveryProof(context, d),
+            _title('Disbursement Information'),
+            const SizedBox(height: 14),
+            _row('Amount', d.amount.toCurrency, valueStyle: _amountStyle),
+            _row('Method', d.methodLabel),
+            _row('Status', _prettyStatus(d.status)),
+            if (d.reference.isNotEmpty) _row('Reference', d.reference),
+            _row('Date',
+                DateFormat('MMM dd, yyyy hh:mm a').format(d.createdAt)),
+            _sectionBreak(),
+            ..._methodSection(context, d),
           ],
         ),
       ),
     );
+  }
+
+  static const _amountStyle = TextStyle(
+      fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.deepNavy);
+
+  Widget _title(String text) => Text(text,
+      style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+          color: AppColors.deepNavy));
+
+  /// Manipis na hati lang sa pagitan ng dalawang section sa iisang card.
+  Widget _sectionBreak() => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 18),
+        child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+      );
+
+  /// Method-specific na section — nasa loob pa rin ng parehong card.
+  List<Widget> _methodSection(BuildContext context, DisbursementModel d) {
+    if (d.method == 'gcash') {
+      return [
+        _title('GCash Details'),
+        const SizedBox(height: 14),
+        _row('Xendit Disbursement ID', d.xenditDisbursementId ?? 'N/A'),
+        _row('Xendit Status', d.xenditStatus ?? 'N/A'),
+        if (d.disbursedAt != null)
+          _row('Disbursed At',
+              DateFormat('MMM dd, yyyy hh:mm a').format(d.disbursedAt!)),
+      ];
+    }
+    if (d.method == 'office_cash') {
+      return [
+        _title('Office Cash Release'),
+        const SizedBox(height: 14),
+        _row('Disbursed By', d.disbursedBy ?? 'N/A'),
+        if (d.disbursedAt != null)
+          _row('Release Date',
+              DateFormat('MMM dd, yyyy hh:mm a').format(d.disbursedAt!)),
+      ];
+    }
+    return [
+      _title('Cash on Delivery Details'),
+      const SizedBox(height: 14),
+      _row('Assigned Rider', d.riderName.isEmpty ? 'N/A' : d.riderName),
+      const SizedBox(height: 14),
+      // Proof photos na in-upload ni rider (Cash on Delivery).
+      _buildDeliveryProof(context, d),
+    ];
   }
 
   /// Thumbnails ng COD proof (max 2) + signature — tap para i-fullscreen.
@@ -221,57 +186,51 @@ class HmDisbursementDetailsContent extends ConsumerWidget {
         CollectionProofItem(
             label: 'Lender Signature', url: d.borrowerSignature!),
     ];
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Cash on Delivery Proof',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          const SizedBox(height: 8),
-          if (items.isEmpty)
-            const Text('No proof uploaded yet',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontStyle: FontStyle.italic,
-                    color: AppColors.textTertiary))
-          else
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                for (final item in items)
-                  InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => showCollectionProofDialog(
-                      context,
-                      items,
-                      title: 'Cash on Delivery Proof',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Cash on Delivery Proof',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 10),
+        if (items.isEmpty)
+          const Text('No proof uploaded yet',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.textTertiary))
+        else
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (var i = 0; i < items.length; i++)
+                InkWell(
+                  // Direkta sa fullscreen — walang maliit na dialog sa
+                  // pagitan. Pwedeng mag-swipe sa iba pang proof doon.
+                  onTap: () => showCollectionProofFullscreen(
+                    context,
+                    items,
+                    initialIndex: i,
+                  ),
+                  child: Container(
+                    width: 108,
+                    height: 108,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.border),
+                      color: AppColors.surfaceVariant,
                     ),
-                    child: Container(
-                      width: 112,
-                      height: 112,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.border),
-                        color: AppColors.surfaceVariant,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          item.url,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(
-                              Icons.broken_image_outlined,
-                              color: AppColors.textTertiary),
-                        ),
-                      ),
+                    child: Image.network(
+                      items[i].url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                          Icons.broken_image_outlined,
+                          color: AppColors.textTertiary),
                     ),
                   ),
-              ],
-            ),
-        ],
-      ),
+                ),
+            ],
+          ),
+      ],
     );
   }
 
@@ -282,22 +241,26 @@ class HmDisbursementDetailsContent extends ConsumerWidget {
     return v[0].toUpperCase() + v.substring(1);
   }
 
+  /// Label sa fixed-width na column para isang linya lang lahat ng value —
+  /// pareho ng `Payment Details` modal.
   Widget _row(String label, String value, {TextStyle? valueStyle}) =>
       Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(vertical: 7),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-                width: 132,
+                width: 150,
                 child: Text(label,
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 13))),
+            const SizedBox(width: 12),
             Expanded(
                 child: Text(value,
                     style: valueStyle ??
                         const TextStyle(
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
                             color: AppColors.textPrimary))),
           ],
         ),

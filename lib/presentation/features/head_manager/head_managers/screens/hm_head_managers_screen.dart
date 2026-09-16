@@ -11,6 +11,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_head_managers_provider.dart';
 import '../widgets/create_head_manager_modal.dart';
@@ -100,7 +101,7 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(count: state.users.length),
-            DropdownButton<String>(
+            FilterDropdown<String>(
               value: state.statusFilter,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All Status')),

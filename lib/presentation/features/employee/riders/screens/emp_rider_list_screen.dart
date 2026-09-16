@@ -9,6 +9,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_rider_provider.dart';
 import '../widgets/emp_create_rider_modal.dart';
@@ -92,7 +93,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
         trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
           SearchResultsChip(count: state.riders.length),
-          DropdownButton<String>(
+          FilterDropdown<String>(
             value: state.statusFilter,
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Status')),

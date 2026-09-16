@@ -49,3 +49,13 @@ DateTime? parseManila(dynamic value) {
   if (dt == null) return null;
   return dt.isUtc ? dt.add(const Duration(hours: _manilaOffsetHours)) : dt;
 }
+
+/// Katulad ng [parseManila] pero tumatanggap din ng [DateTime].
+///
+/// Kapag [DateTime] na ang value (hal. galing app-side provider na dumaan na sa
+/// `parseManila`), ibinabalik ito as-is — hindi na maidadagdag muli ang +8h.
+/// Ito ang gamitin sa mga screen na parehong tumatanggap ng raw backend string
+/// at ng DateTime mula sa model/provider — kapag ni-encode pa ang DateTime sa
+/// ISO string na may `Z` at dumaan ulit sa `parseManila`, made-doble ang shift.
+DateTime? parseManilaValue(dynamic value) =>
+    value is DateTime ? value : parseManila(value);

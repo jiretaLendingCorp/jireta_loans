@@ -332,7 +332,10 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
         'payment_method': p.method,
         'status': p.status,
         'reference_number': rawRef.isNotEmpty ? rawRef : fallbackRef,
-        'created_at': p.createdAt.toIso8601String(),
+        // DateTime mismo ang ipinapasa — Manila wall time na ang `p.createdAt`
+        // (parseManila sa PaymentModel). Kung i-e-encode pa ito pabalik sa ISO
+        // string na may `Z` at i-parse ulit ng parseManila, made-doble ang +8h.
+        'created_at': p.createdAt,
         'loan_number': p.loanNumber,
       };
     } catch (_) {

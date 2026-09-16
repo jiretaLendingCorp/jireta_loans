@@ -14,6 +14,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../providers/hm_lender_provider.dart';
 import '../widgets/create_lender_modal.dart';
 
@@ -98,7 +99,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(count: state.lenders.length),
-          DropdownButton<String>(
+          FilterDropdown<String>(
             value: state.statusFilter,
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Status')),

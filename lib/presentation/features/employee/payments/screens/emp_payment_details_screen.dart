@@ -27,7 +27,10 @@ final _empPaymentDetailFutureProvider =
       'status': p.status,
       'method': p.method,
       'amount': p.amount,
-      'created_at': p.createdAt.toIso8601String(),
+      // Ipinapasa ang DateTime mismo — Manila wall time na ang `p.createdAt`
+      // (parseManila sa PaymentModel), kaya hindi na dapat i-encode pabalik sa
+      // ISO string na may `Z` at i-parse ulit (made-doble ang +8h).
+      'created_at': p.createdAt,
       'reference_number': p.referenceNumber,
       'xendit_payment_id': p.xenditPaymentId,
       'notes': p.notes,
@@ -67,7 +70,7 @@ class _EmpPaymentDetailsScreenState extends ConsumerState<EmpPaymentDetailsScree
     final status = d['status'] ?? '';
     final method = d['method'] ?? '';
     final amount = (d['amount'] as num?)?.toDouble() ?? 0;
-    final createdAt = parseManila(d['created_at']);
+    final createdAt = parseManilaValue(d['created_at']);
     final loan = d['loan'] as Map<String, dynamic>?;
     final recordedByUser = d['recorded_by_user'] as Map<String, dynamic>?;
 

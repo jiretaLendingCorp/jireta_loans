@@ -52,29 +52,31 @@ class ResponsiveTableScroll extends StatelessWidget {
 /// so it never overflows on narrow screens.
 ///
 /// On wide screens it renders `Expanded(search) + trailing` exactly like the
-/// previous inline Row. Below [breakpoint] it stays one row: the search
-/// shrinks (Expanded) and the trailing filters keep their compact size at
-/// the end, so nothing wraps to a second line and nothing is cut off.
+/// previous inline Row.
+///
+/// Below [breakpoint] it switches to the stacked layout: the search takes the
+/// first line at full width and the trailing filters sit below it, wrapping on
+/// as many lines as they need. A single Row cannot hold them all on a phone —
+/// with four filters (Filter Date + results chip + 2 dropdowns ≈ 490px) the
+/// old `Expanded(search) + trailing` row squeezed the search to zero and still
+/// overflowed the viewport by 300+px ("RIGHT OVERFLOWED BY 319 PIXELS" on
+/// `/hm/all-users`).
 class ResponsiveSearchToolbar extends StatelessWidget {
   final Widget searchField;
 
   /// Fixed-width widgets shown after the search field (date filter, results
-  /// chip, action dropdown, …). A 12px gap is inserted between them.
+  /// chip, action dropdown, …). A 12px gap is inserted between them on wide
+  /// screens, 8px in the compact layout.
   final List<Widget> trailing;
 
-  /// Below this available width the toolbar switches to the compact,
-  /// horizontally scrollable layout.
+  /// Below this available width the toolbar switches to the stacked layout.
   final double breakpoint;
-
-  /// Width given to the search field in the compact layout.
-  final double compactSearchWidth;
 
   const ResponsiveSearchToolbar({
     super.key,
     required this.searchField,
     this.trailing = const [],
     this.breakpoint = 640,
-    this.compactSearchWidth = 240,
   });
 
   List<Widget> _trailingWithGaps({double gap = 12}) {
@@ -92,12 +94,22 @@ class ResponsiveSearchToolbar extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < breakpoint) {
-          // Mobile: ISANG ROW LANG — search flexible, filters compact sa dulo.
-          return Row(
+          // Mobile: search sa sariling linya, at ang mga filter sa ilalim —
+          // umaakyat sila sa susunod na linya kapag kulang ang lapad (Wrap)
+          // imbis na maputol o umapaw sa gilid ng viewport.
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: searchField),
-              const SizedBox(width: 8),
-              ..._trailingWithGaps(gap: 8),
+              searchField,
+              if (trailing.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: trailing,
+                ),
+              ],
             ],
           );
         }

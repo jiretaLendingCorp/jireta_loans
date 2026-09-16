@@ -11,6 +11,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_disbursement_provider.dart';
@@ -88,7 +89,7 @@ class _HmDisbursementListScreenState
         trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
           SearchResultsChip(count: state.disbursements.length),
-          DropdownButton<String>(
+          FilterDropdown<String>(
             value: state.methodFilter,
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Methods')),
@@ -101,7 +102,7 @@ class _HmDisbursementListScreenState
             onChanged: (v) =>
                 ref.read(hmDisbursementProvider.notifier).setMethod(v!),
           ),
-          DropdownButton<String>(
+          FilterDropdown<String>(
             value: state.statusFilter,
             items: const [
               DropdownMenuItem(value: 'all', child: Text('All Status')),

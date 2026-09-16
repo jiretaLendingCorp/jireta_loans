@@ -11,6 +11,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_archived_provider.dart';
 
@@ -83,7 +84,7 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(count: state.users.length),
-            DropdownButton<String>(
+            FilterDropdown<String>(
               value: state.roleFilter,
               items: const [
                 DropdownMenuItem(value: 'all', child: Text('All Roles')),

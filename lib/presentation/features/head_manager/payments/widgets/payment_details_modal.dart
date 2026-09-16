@@ -26,7 +26,11 @@ final paymentDetailFutureProvider =
       'status': p.status,
       'method': p.method,
       'amount': p.amount,
-      'created_at': p.createdAt.toIso8601String(),
+      // Ipinapasa ang DateTime mismo — `p.createdAt` ay Manila wall time na
+      // (parseManila sa PaymentModel). Kapag ni-encode pa ito pabalik sa ISO
+      // string na may `Z` at ni-parse ulit ng parseManila, made-doble ang +8h
+      // (Sep 16 21:06 → Sep 17 05:06 AM).
+      'created_at': p.createdAt,
       'reference_number': p.referenceNumber,
       'xendit_payment_id': p.xenditPaymentId,
       'notes': p.notes,
@@ -52,7 +56,8 @@ Future<void> showPaymentDetailsModal(
     builder: (ctx) => Dialog(
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      // Square corners ang modal — walang border radius.
+      shape: const RoundedRectangleBorder(),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760, maxHeight: 680),
         child: Column(
@@ -124,13 +129,16 @@ class _HmPaymentDetailsContentState
     final status = (d['status'] ?? '').toString();
     final method = (d['method'] ?? '').toString();
     final amount = (d['amount'] as num?)?.toDouble() ?? 0;
-    final createdAt = parseManila(d['created_at']);
+    final createdAt = parseManilaValue(d['created_at']);
     final loan = d['loan'] as Map<String, dynamic>?;
     final recordedByUser = d['recorded_by_user'] as Map<String, dynamic>?;
-    final refNumber = d['reference_number']?.toString();
-    final displayRef = (refNumber == null || refNumber.isEmpty)
-        ? (d['id']?.toString() ?? '')
-        : refNumber;
+    final refNumber = d['reference_number']?.toString().trim() ?? '';
+    // Kapag cash (office/rider) ang bayad, walang Xendit reference — dati
+    // buong payment UUID ang ipinapakita sa "Reference #". Gumawa na lang ng
+    // stable, readable reference mula sa payment id (pareho ng convention ng
+    // lender receipt screen) para hindi nagmumukhang bug ang UUID.
+    final displayRef =
+        refNumber.isNotEmpty ? refNumber : _deriveReference(d['id']?.toString());
     final onBack = widget.onBack;
 
     return SingleChildScrollView(
@@ -190,7 +198,7 @@ class _HmPaymentDetailsContentState
                 ),
                 const SizedBox(height: 14),
                 Wrap(
-                  spacing: 8,
+                  spacing: 10,
                   runSpacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
@@ -198,12 +206,17 @@ class _HmPaymentDetailsContentState
                     // hindi mabasa ang status na walang sariling mapping
                     // (hal. "reversed") kapag semantic/gray ang label color.
                     StatusBadge(status: status, onDark: true),
-                    _Chip(label: _methodLabel(method)),
-                    if (createdAt != null)
-                      _Chip(
-                        label: DateFormat('MMM dd, yyyy • hh:mm a')
-                            .format(createdAt),
+                    // Ang method at date ay plain metadata text lang (may dot
+                    // separator) — hindi pill/chip, para malinaw na hindi ito
+                    // clickable at hindi mukhang button.
+                    const _MetaDot(),
+                    _MetaText(_methodLabel(method)),
+                    if (createdAt != null) ...[
+                      const _MetaDot(),
+                      _MetaText(
+                        DateFormat('MMM dd, yyyy • hh:mm a').format(createdAt),
                       ),
+                    ],
                   ],
                 ),
               ],
@@ -215,17 +228,21 @@ class _HmPaymentDetailsContentState
           _InfoCard(
             title: 'Payment Information',
             rows: [
-              _InfoRow('Amount', amount.toCurrency),
-              _InfoRow('Method', _methodLabel(method)),
-              _InfoRow('Status', status.toUpperCase()),
-              _InfoRow('Reference #', displayRef.isEmpty ? '—' : displayRef),
+              _InfoRow('Amount', amount.toCurrency, valueBesideLabel: true),
+              _InfoRow('Method', _methodLabel(method), valueBesideLabel: true),
+              _InfoRow('Status', status.toUpperCase(), valueBesideLabel: true),
+              _InfoRow('Reference #', displayRef.isEmpty ? '—' : displayRef,
+                  valueBesideLabel: true),
               if (d['xendit_payment_id'] != null)
-                _InfoRow('Xendit ID', d['xendit_payment_id'].toString()),
+                _InfoRow('Xendit ID', d['xendit_payment_id'].toString(),
+                    valueBesideLabel: true),
               if (d['notes'] != null && d['notes'].toString().isNotEmpty)
-                _InfoRow('Notes', d['notes'].toString()),
+                _InfoRow('Notes', d['notes'].toString(),
+                    valueBesideLabel: true),
               if (createdAt != null)
                 _InfoRow('Date',
-                    DateFormat('MMM dd, yyyy hh:mm a').format(createdAt)),
+                    DateFormat('MMM dd, yyyy hh:mm a').format(createdAt),
+                    valueBesideLabel: true),
             ],
           ),
 
@@ -235,16 +252,16 @@ class _HmPaymentDetailsContentState
             _InfoCard(
               title: 'Loan Information',
               rows: [
-                _InfoRow('Loan #', (loan['loan_number'] ?? '—').toString()),
-                _InfoRow(
-                    'Total Payable',
-                    ((loan['total_payable'] as num?)?.toDouble() ?? 0)
-                        .toCurrency),
+                _InfoRow('Loan #', (loan['loan_number'] ?? '—').toString(),
+                    valueBesideLabel: true),
+                _InfoRow('Total Payable', _moneyLabel(loan['total_payable']),
+                    valueBesideLabel: true),
                 _InfoRow(
                     'Outstanding Balance',
-                    ((loan['outstanding_balance'] as num?)?.toDouble() ?? 0)
-                        .toCurrency),
-                _InfoRow('Status', (loan['status'] ?? '—').toString()),
+                    _moneyLabel(loan['outstanding_balance']),
+                    valueBesideLabel: true),
+                _InfoRow('Status', _titleLabel(loan['status']),
+                    valueBesideLabel: true),
               ],
             ),
           ],
@@ -258,8 +275,10 @@ class _HmPaymentDetailsContentState
                 _InfoRow(
                     'Name',
                     '${recordedByUser['first_name'] ?? ''} ${recordedByUser['last_name'] ?? ''}'
-                        .trim()),
-                _InfoRow('Role', (recordedByUser['role'] ?? '—').toString()),
+                        .trim(),
+                    valueBesideLabel: true),
+                _InfoRow('Role', _roleLabel(recordedByUser['role']),
+                    valueBesideLabel: true),
               ],
             ),
           ],
@@ -350,6 +369,48 @@ class _HmPaymentDetailsContentState
         return method.isEmpty ? '—' : method;
     }
   }
+
+  /// Stable na reference para sa mga bayad na walang Xendit reference
+  /// (office cash / rider collection): `JR-<12 hex chars>` mula sa payment id.
+  String _deriveReference(String? paymentId) {
+    final compact = (paymentId ?? '').replaceAll('-', '').toUpperCase();
+    if (compact.isEmpty) return '';
+    return 'JR-${compact.length >= 12 ? compact.substring(0, 12) : compact}';
+  }
+
+  /// `null` ang derived financial fields kapag hindi available — mas malinaw
+  /// ang '—' kaysa maling ₱0.00.
+  String _moneyLabel(Object? value) =>
+      value is num ? value.toDouble().toCurrency : '—';
+
+  String _titleLabel(Object? value) {
+    final raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) return '—';
+    return raw
+        .split('_')
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+
+  /// `role` comes back as the roles.name string (o { name } embed kapag iba
+  /// ang source) — hindi na '—' ang "Recorded By → Role".
+  String _roleLabel(Object? role) {
+    final raw = role is Map ? (role['name'] ?? role['label'] ?? role['code']) : role;
+    final value = raw?.toString().trim() ?? '';
+    switch (value) {
+      case 'head_manager':
+        return 'Head Manager';
+      case 'employee':
+        return 'Employee';
+      case 'rider':
+        return 'Rider';
+      case 'lender':
+        return 'Lender';
+      default:
+        return _titleLabel(value);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -383,26 +444,37 @@ class _BackArrow extends StatelessWidget {
   }
 }
 
-class _Chip extends StatelessWidget {
+/// Plain metadata text sa loob ng dark hero card — walang pill background at
+/// border, kaya hindi ito nagmumukhang button.
+class _MetaText extends StatelessWidget {
   final String label;
-  const _Chip({required this.label});
+  const _MetaText(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w600,
+        color: Colors.white70,
+      ),
+    );
+  }
+}
+
+/// Maliit na dot separator sa pagitan ng status / method / date.
+class _MetaDot extends StatelessWidget {
+  const _MetaDot();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      width: 4,
+      height: 4,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
+        color: Colors.white.withValues(alpha: 0.4),
+        shape: BoxShape.circle,
       ),
     );
   }
@@ -441,10 +513,51 @@ class _InfoCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  const _InfoRow(this.label, this.value);
+
+  /// `true` → katabi agad ng label ang value (fixed-width label column),
+  /// hindi naka-push sa dulong kanan ng card. Default: right-aligned.
+  final bool valueBesideLabel;
+
+  const _InfoRow(this.label, this.value, {this.valueBesideLabel = false});
 
   @override
   Widget build(BuildContext context) {
+    const labelStyle = TextStyle(
+      color: AppColors.textSecondary,
+      fontSize: 13,
+    );
+    const valueStyle = TextStyle(
+      fontWeight: FontWeight.w600,
+      fontSize: 13,
+      color: AppColors.textPrimary,
+    );
+
+    if (valueBesideLabel) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Fixed-width label column — sa tabi mismo nito nakaupo ang value.
+            SizedBox(
+              width: 150,
+              child: Text(
+                label,
+                style: labelStyle,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value.isEmpty ? '—' : value,
+                style: valueStyle,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
@@ -454,10 +567,7 @@ class _InfoRow extends StatelessWidget {
             flex: 4,
             child: Text(
               label,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
+              style: labelStyle,
             ),
           ),
           const SizedBox(width: 12),
@@ -466,11 +576,7 @@ class _InfoRow extends StatelessWidget {
             child: Text(
               value.isEmpty ? '—' : value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: AppColors.textPrimary,
-              ),
+              style: valueStyle,
             ),
           ),
         ],

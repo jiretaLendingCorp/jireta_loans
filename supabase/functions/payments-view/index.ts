@@ -17,6 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { searchScheduleIds, NO_MATCH_ID } from '../_shared/search.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -61,8 +62,8 @@ async function handleGetList(req: Request) {
   const db = getAdminClient();
   let query = db.from('payments')
     .select(`id, loan_schedule_id, payment_method, amount, status, xendit_payment_id, xendit_reference, idempotency_key, recorded_by, collection_assignment_id, receipt_path, notes, paid_at, created_at,
-      loan_schedules!inner(id, loan_id, loans!inner(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name)))),
-      recorded_by_user:users!payments_recorded_by_fkey(id, first_name, last_name),
+      loan_schedules!inner(id, loan_id, loans!inner(id, loan_number, status, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name)))),
+      recorded_by_user:users!payments_recorded_by_fkey(id, first_name, last_name, roles!users_role_id_fkey(name)),
       reversal:payment_reversals(id, reason, reversed_by, reversed_at, reversed_by_user:users!payment_reversals_reversed_by_fkey(id, first_name, last_name))`, { count: 'exact' });
   if (user.role === ROLES.LENDER) query = query.eq('loan_schedules.loans.lender_id', user.id);
   if (paymentId) query = query.eq('id', paymentId);
@@ -86,12 +87,27 @@ async function handleGetList(req: Request) {
   query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   const { data, error, count } = await query;
   if (error) return errorResponse('Failed to fetch payments', 500, 'SERVER_ERROR');
-  const mapped = (data ?? []).map((p) => {
+  const rows = data ?? [];
+  // Ang `loans.total_payable` / `loans.outstanding_balance` ay DERIVED fields —
+  // wala sila sa loans table (00021 normalization), kaya kailangang i-compute
+  // dito. Kapag hindi, `null` ang binabasa ng Payment Details modal at ₱0.00
+  // ang lumalabas. Pareho ito ng ginagawa ng collections-view.
+  const loanIds = rows
+    .map((p) => embedAsObject(embedAsObject(p.loan_schedules)?.loans)?.id)
+    .filter(Boolean) as string[];
+  const financials = await getLoanFinancialsBatch(db, loanIds);
+  const mapped = rows.map((p) => {
     const schedule = embedAsObject(p.loan_schedules);
     const loanEmbed = schedule ? embedAsObject(schedule.loans) : null;
     const lp = loanEmbed ? embedAsObject(loanEmbed.lender_profiles) : null;
     const lender = lp ? embedAsObject(lp.users) : null;
     const recordedByUser = embedAsObject(p.recorded_by_user);
+    // `users` has no `role` column — role_id → roles(name) ang source ng role
+    // na ipinapakita ng "Recorded By" card.
+    const recordedByRole = recordedByUser
+      ? embedAsObject(recordedByUser.roles)?.name ?? null
+      : null;
+    const fin = loanEmbed ? financials[loanEmbed.id] : undefined;
     const reversal = Array.isArray(p.reversal)
       ? (p.reversal[0] ?? null)
       : (embedAsObject(p.reversal) ?? null);
@@ -105,7 +121,10 @@ async function handleGetList(req: Request) {
       payment_method: p.payment_method,
       status: p.status,
       recorded_by: p.recorded_by,
-      recorded_by_user: recordedByUser ?? null,
+      recorded_by_user: recordedByUser
+        ? { ...recordedByUser, role: recordedByRole }
+        : null,
+      recorded_by_role: recordedByRole,
       recorded_by_name: recordedByUser
         ? `${recordedByUser.first_name ?? ''} ${recordedByUser.last_name ?? ''}`.trim()
         : null,
@@ -119,7 +138,13 @@ async function handleGetList(req: Request) {
       created_at: p.created_at,
       paid_at: p.paid_at,
       loan: loanEmbed
-        ? { ...loanEmbed, lender, loan_number: loanEmbed.loan_number }
+        ? {
+            ...loanEmbed,
+            lender,
+            loan_number: loanEmbed.loan_number,
+            total_payable: fin?.total_payable ?? null,
+            outstanding_balance: fin?.outstanding_balance ?? null,
+          }
         : null,
       // Flat convenience fields so every consumer (employee/HM/lender screens)
       // can render correctly regardless of which nested keys it reads.

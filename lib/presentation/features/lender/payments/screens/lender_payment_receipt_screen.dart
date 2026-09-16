@@ -91,7 +91,9 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
     final method = data['payment_method'] as String? ?? '';
     final status = data['status'] as String? ?? '';
     final refNum = data['reference_number'] as String? ?? '';
-    final paidAt = data['created_at'] as String?;
+    // `created_at` ay DateTime na (Manila wall time) mula sa provider — kung
+    // raw string naman, doon lang dinadaan ang +8h shift.
+    final paidAt = parseManilaValue(data['created_at']);
     final loanNum = data['loan_number'] as String? ?? '';
 
     return SingleChildScrollView(
@@ -142,7 +144,7 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
 class _ReceiptCard extends StatelessWidget {
   final double amount;
   final String method, status, refNum, loanNum;
-  final String? paidAt;
+  final DateTime? paidAt;
 
   const _ReceiptCard(
       {required this.amount,
@@ -228,8 +230,7 @@ class _ReceiptCard extends StatelessWidget {
                 _Row('Reference No.', refNum.isNotEmpty ? refNum : '—'),
                 const Divider(height: 16),
                 if (paidAt != null)
-                  _Row('Date & Time',
-                      parseManila(paidAt)?.formattedWithTime ?? '-'),
+                  _Row('Date & Time', paidAt!.formattedWithTime),
               ],
             ),
           ),
