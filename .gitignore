@@ -52,4 +52,6 @@ assets/env/.env
 # Release APKs (~141 MB — lampas sa 100 MB na file limit ng GitHub, at sa
 # 50 MB na file limit ng Supabase Storage free plan). Naka-host ang APK sa
 # GitHub Releases — tingnan ang web/downloads/README.md.
-/web/downloads/*.apk
+# Tumatama ito sa LAHAT ng folder (root, web/downloads/, atbp.) — ang
+# pattern na may leading slash lang ang naka-pin sa isang folder.
+*.apk
