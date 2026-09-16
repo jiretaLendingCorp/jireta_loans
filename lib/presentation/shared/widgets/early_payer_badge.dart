@@ -19,32 +19,23 @@ class EarlyPayerBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final ahead = daysEarly ?? 0;
     final label = ahead > 0 ? 'Early Payer · ${ahead}d ahead' : 'Early Payer';
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: small ? 8 : 10,
-        vertical: small ? 3 : 5,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.success.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.success.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.bolt_rounded,
-              size: small ? 12 : 14, color: AppColors.success),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: small ? 10 : 11.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.success,
-            ),
+    // Plain text lang — hindi button, kaya walang background/border/pill.
+    // Ang bolt icon + berdeng bold na teksto ang nagdadala ng kahulugan.
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.bolt_rounded,
+            size: small ? 12 : 14, color: AppColors.success),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: small ? 10 : 11.5,
+            fontWeight: FontWeight.w700,
+            color: AppColors.success,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

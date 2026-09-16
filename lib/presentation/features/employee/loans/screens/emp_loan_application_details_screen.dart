@@ -250,7 +250,14 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        StatusBadge(status: status),
+        // Dark header — ang default na statusOverdue (#B71C1C) ay 1.7:1 lang
+        // ang contrast kaya hindi mabasa. Light red para visible pa rin at
+        // hindi nawawala ang warning color.
+        StatusBadge(
+            status: status,
+            colorOverride: status.toLowerCase() == 'overdue'
+                ? AppColors.statusOverdueBg
+                : null),
         if (canApprove || canAssignCi) ...[
           const SizedBox(width: 6),
           PopupMenuButton<String>(
@@ -875,17 +882,14 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     return _PremiumCard(
       title: 'Payment Schedule',
       subtitle: subtitle,
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(20)),
-        child: Text(
+      // Plain text lang — hindi pill/button. Impormasyon ang bilang ng
+      // periods, hindi action, kaya dapat hindi ito mukhang mapipindot.
+      trailing: Text(
           '${loan['term_periods'] ?? allSchedules.length} total',
           style: const TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: Colors.white))),
+              color: Colors.white70)),
       child: Column(
         children: [
           if (freqLabel.isNotEmpty)

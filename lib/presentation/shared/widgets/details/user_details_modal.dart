@@ -68,7 +68,7 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
     final displayName =
         '${user.firstName}${user.middleName != null && user.middleName!.isNotEmpty ? ' ${user.middleName}' : ''} ${user.lastName}'.trim();
     final subtitle = _subtitleForRole(user);
-    final subtitleIcon = _subtitleIconForRole(role);
+    final subtitleIcon = _subtitleIconFor(user);
 
     final size = MediaQuery.of(context).size;
     final maxW = size.width > 640 ? 560.0 : size.width * 0.94;
@@ -167,17 +167,15 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
     }
   }
 
-  IconData _subtitleIconForRole(String role) {
-    switch (role) {
-      case 'rider':
-        return Icons.phone_outlined;
-      case 'lender':
-        return Icons.contact_phone_outlined;
-      case 'employee':
-      case 'head_manager':
-      default:
-        return Icons.email_outlined;
-    }
+  /// Ang icon ay dapat tumugma sa AKTWAL na nilalaman ng subtitle, hindi sa
+  /// role. Dati itong fixed per role — kaya ang lender ay email ang teksto
+  /// (`_subtitleForRole`) pero `contact_phone` ang icon, mismatch ang hitsura.
+  IconData _subtitleIconFor(UserModel u) {
+    final shown = _subtitleForRole(u);
+    if (shown.contains('@')) return Icons.email_outlined;
+    // Walang email/phone sa profile — huwag magpanggap na contact number ito.
+    if (shown == 'N/A') return Icons.info_outline;
+    return Icons.phone_outlined;
   }
 
   List<Widget> _sectionsForRole(UserModel u, Color accent) {

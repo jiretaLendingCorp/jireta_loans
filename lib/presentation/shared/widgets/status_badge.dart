@@ -13,12 +13,18 @@ class StatusBadge extends StatelessWidget {
   /// become unreadable on top of the colored bar.
   final bool onDark;
 
+  /// Override ng label color kapag hindi visible ang default na semantic color
+  /// sa ilalim nito — hal. ang `overdue` (#B71C1C) sa dark header (#5C6370)
+  /// ay 1.7:1 lang ang contrast. `null` = gamitin ang normal na status color.
+  final Color? colorOverride;
+
   const StatusBadge({
     super.key,
     required this.status,
     this.small = false,
     this.large = false,
     this.onDark = false,
+    this.colorOverride,
   });
 
   @override
@@ -32,7 +38,7 @@ class StatusBadge extends StatelessWidget {
       style: TextStyle(
         fontSize: fs,
         fontWeight: onDark ? FontWeight.w700 : FontWeight.w600,
-        color: onDark ? Colors.white : cfg.$1,
+        color: onDark ? Colors.white : (colorOverride ?? cfg.$1),
         letterSpacing: onDark ? 0.4 : 0.2,
       ),
     );

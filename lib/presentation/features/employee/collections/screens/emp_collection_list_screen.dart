@@ -11,6 +11,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
+import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -378,34 +379,6 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     return _Entrance(
       child: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border:
-                  Border.all(color: AppColors.success.withValues(alpha: 0.25)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.bolt_rounded,
-                    size: 18, color: AppColors.success),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${lenders.length} lender(s) paid every installment on time '
-                    'or ahead of the due date.',
-                    style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
           // Table data (gaya ng ibang Collections tabs) — naka-view at
           // naka-scan ang mga early payer: pangalan, kontak, on-time count,
           // at gaano karaming araw ang aga.
@@ -471,8 +444,10 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            onTap: () => context.go(
-                RouteConstants.empLenderDetails.replaceFirst(':id', u.id)),
+            // Modal (tulad ng People → Lenders) — hindi na lumilipat ng module
+            // sa Lender Details page. Nasa modal na ang Payment Profile at ang
+            // Early Payer badge, kaya hindi na kailangan umalis sa Collections.
+            onTap: () => showUserDetailsModal(context, u),
             borderRadius: BorderRadius.circular(8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),

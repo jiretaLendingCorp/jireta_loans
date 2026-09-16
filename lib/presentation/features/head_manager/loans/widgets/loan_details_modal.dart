@@ -243,7 +243,13 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          StatusBadge(status: status),
+          // Dark header — light red ang Overdue para mabasa (1.7:1 lang ang
+          // default na #B71C1C sa #5C6370).
+          StatusBadge(
+              status: status,
+              colorOverride: status.toLowerCase() == 'overdue'
+                  ? AppColors.statusOverdueBg
+                  : null),
           if (loan['penalty_applied'] == true) ...[ const SizedBox(width: 6), Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               decoration: BoxDecoration(
