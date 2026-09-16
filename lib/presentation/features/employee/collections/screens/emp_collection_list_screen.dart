@@ -163,13 +163,13 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
   final _paymentMethodTabs = const [
     FilterTabDef('all', 'All', Icons.layers_outlined),
-    FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
-    FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
-    FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
     // Lahat ng HINDI pa bayad/na-kolekta na installment (kasama ang office) —
     // dito pwedeng i-mark na "Paid in Office" ang mga office request.
     FilterTabDef('pending_payments', 'All Pending Payment',
         Icons.pending_actions_rounded),
+    FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
+    FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
+    FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
   ];
 
   /// True kapag "All Pending Payment" ang naka-select sa payment pills.

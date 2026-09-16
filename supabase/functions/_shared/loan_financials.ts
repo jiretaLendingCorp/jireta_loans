@@ -245,10 +245,28 @@ export interface AllocatedPayment {
   amount: number;
 }
 
+/**
+ * Nag-aallocate ng bayad sa mga unpaid na installment.
+ *
+ * Default: oldest installment first (waterfall) — ito ang tama para sa
+ * koleksyon at sa mga bayad na walang partikular na installment.
+ *
+ * Kapag may `preferScheduleId` (hal. ang row na pinindot ng staff sa Payment
+ * Schedule), iyon ang UNAHANG babayaran — kung hindi, mapupunta ang bayad sa
+ * PINAKA-LUMANG unpaid na installment at mananatiling `pending` ang
+ * installment na talagang binabayaran kahit naka-record na ang pera.
+ *
+ * Ang natitirang halaga ay tuloy-tuloy sa pinaka-lumang unpaid pa
+ * (oldest-first waterfall) — kaya hindi mananatiling overdue ang lumang
+ * installment habang may bayad na ang mas bago. Kapag bayad na ang mga luma
+ * (normal na kaso), ang sobra ay natural na umaabot sa mga susunod pang
+ * installment (advance payment).
+ */
 export async function allocatePayment(
   db: DbClient,
   loanId: string,
   amount: number,
+  preferScheduleId?: string,
 ): Promise<AllocatedPayment[]> {
   const { data: schedules } = await db
     .from('v_loan_schedules')
@@ -256,9 +274,19 @@ export async function allocatePayment(
     .eq('loan_id', loanId)
     .order('installment_number', { ascending: true });
 
+  const all = schedules ?? [];
+  // Ang pinindot na installment ay nauuna; ang natitira ay mananatili sa
+  // installment-number order (oldest first).
+  const ordered = preferScheduleId
+    ? [
+        ...all.filter((s) => s.id === preferScheduleId),
+        ...all.filter((s) => s.id !== preferScheduleId),
+      ]
+    : all;
+
   const allocations: AllocatedPayment[] = [];
   let left = round2(amount);
-  for (const s of schedules ?? []) {
+  for (const s of ordered) {
     if (left <= 0) break;
     const remaining = round2(Number(s.amount_due) - Number(s.amount_paid ?? 0));
     if (remaining <= 0) continue;
@@ -271,10 +299,10 @@ export async function allocatePayment(
     // dust — fold it into the last allocation rather than losing it.
     const last = allocations[allocations.length - 1];
     last.amount = round2(last.amount + left);
-  } else if (left > 0 && (schedules ?? []).length > 0) {
+  } else if (left > 0 && ordered.length > 0) {
     // Defensive fallback (everything unexpectedly paid): keep the money on the
     // last schedule instead of silently dropping it.
-    const lastSchedule = (schedules ?? [])[(schedules ?? []).length - 1];
+    const lastSchedule = ordered[ordered.length - 1];
     allocations.push({ loan_schedule_id: lastSchedule.id, amount: left });
   }
   return allocations;

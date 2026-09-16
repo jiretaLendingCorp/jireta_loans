@@ -11,24 +11,66 @@ class EmpPaymentState {
   final String? error;
   final int currentPage;
   final int totalPages;
-  const EmpPaymentState(
-      {this.payments = const [],
-      this.isLoading = false,
-      this.error,
-      this.currentPage = 1,
-      this.totalPages = 1});
-  EmpPaymentState copyWith(
-          {List<Map<String, dynamic>>? payments,
-          bool? isLoading,
-          String? error,
-          int? currentPage,
-          int? totalPages}) =>
+  final int totalCount;
+
+  /// Uri ng payment na naka-select (all · gcash · office_cash ·
+  /// rider_collection).
+  final String methodFilter;
+  final String search;
+  final String? dateFrom;
+  final String? dateTo;
+
+  const EmpPaymentState({
+    this.payments = const [],
+    this.isLoading = false,
+    this.error,
+    this.currentPage = 1,
+    this.totalPages = 1,
+    this.totalCount = 0,
+    this.methodFilter = 'all',
+    this.search = '',
+    this.dateFrom,
+    this.dateTo,
+  });
+
+  EmpPaymentState copyWith({
+    List<Map<String, dynamic>>? payments,
+    bool? isLoading,
+    String? error,
+    int? currentPage,
+    int? totalPages,
+    int? totalCount,
+    String? methodFilter,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
+  }) =>
       EmpPaymentState(
           payments: payments ?? this.payments,
           isLoading: isLoading ?? this.isLoading,
           error: error,
           currentPage: currentPage ?? this.currentPage,
-          totalPages: totalPages ?? this.totalPages);
+          totalPages: totalPages ?? this.totalPages,
+          totalCount: totalCount ?? this.totalCount,
+          methodFilter: methodFilter ?? this.methodFilter,
+          search: search ?? this.search,
+          dateFrom: dateFrom ?? this.dateFrom,
+          dateTo: dateTo ?? this.dateTo);
+
+  /// Kopya na may bagong date range — hindi `copyWith` dahil pinapanatili
+  /// nito ang lumang value kapag `null` (kailangang mai-clear ang filter).
+  EmpPaymentState withDateRange(String? from, String? to) => EmpPaymentState(
+        payments: payments,
+        isLoading: isLoading,
+        error: error,
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        methodFilter: methodFilter,
+        search: search,
+        dateFrom: from,
+        dateTo: to,
+      );
 }
 
 class EmpPaymentNotifier extends StateNotifier<EmpPaymentState>
@@ -39,12 +81,16 @@ class EmpPaymentNotifier extends StateNotifier<EmpPaymentState>
     fetch();
   }
 
-  Future<void> fetch(
-      {int page = 1, String? method, String? status, bool silent = false}) async {
+  Future<void> fetch({int page = 1, bool silent = false}) async {
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.getPaymentListPage(
-          page: page, method: method, status: status);
+        page: page,
+        method: state.methodFilter == 'all' ? null : state.methodFilter,
+        search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
+      );
       final payments =
           (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
       final meta = res['meta'] as Map<String, dynamic>? ?? {};
@@ -52,7 +98,8 @@ class EmpPaymentNotifier extends StateNotifier<EmpPaymentState>
           payments: payments,
           isLoading: false,
           currentPage: meta['page'] as int? ?? 1,
-          totalPages: meta['total_pages'] as int? ?? 1);
+          totalPages: meta['total_pages'] as int? ?? 1,
+          totalCount: (meta['total'] as num?)?.toInt() ?? payments.length);
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
@@ -60,10 +107,27 @@ class EmpPaymentNotifier extends StateNotifier<EmpPaymentState>
     }
   }
 
+  /// Uri ng payment at/o search — ISANG fetch lang kapag sabay na nagbago
+  /// (hal. nag-search bago lumipat ng uri ng payment).
+  void setFilters({String? method, String? search}) {
+    state = state.copyWith(
+      methodFilter: method ?? state.methodFilter,
+      search: search ?? state.search,
+    );
+    fetch();
+  }
+
+  void setDateRange(String? from, String? to) {
+    state = state.withDateRange(from, to);
+    fetch();
+  }
+
   // Legacy alias for older callers
   Future<void> loadList(
-      {String? method, String? status, int page = 1, bool silent = false}) =>
-      fetch(page: page, method: method, status: status, silent: silent);
+      {String? method, int page = 1, bool silent = false}) async {
+    if (method != null) state = state.copyWith(methodFilter: method);
+    await fetch(page: page, silent: silent);
+  }
 
   Future<bool> reversePayment(String paymentId) async {
     try {

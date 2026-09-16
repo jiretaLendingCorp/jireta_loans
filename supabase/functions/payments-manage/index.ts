@@ -98,20 +98,31 @@ async function handleRecordOffice(req: Request) {
 
   if (!schedule) return errorResponse('Schedule not found', 404, 'NOT_FOUND');
 
-  // The recorded cash is allocated across unpaid installments in due order:
-  // the chosen installment is settled first, then any excess rolls forward to
-  // later installments. This lets staff take advance payments (one payment
-  // covering several upcoming installments) in a single transaction, and makes
-  // double-recording on an already-paid installment impossible — excess can
-  // only ever land on still-unpaid installments.
-  let allocations = await allocatePayment(db, loan_id, Number(amount));
+  // The recorded cash is allocated across unpaid installments: ang installment
+  // na PININDOT ng staff (`loan_schedule_id`) ang UNANG binabayaran, tapos ang
+  // natitirang halaga ay sa pinaka-lumang unpaid pa (oldest-first). Ito ang
+  // nagpapa-PAID sa mismong row na binayaran — kung basta oldest-first, ang
+  // pera ay mapupunta sa pinaka-lumang unpaid na installment at mananatiling
+  // `pending` ang row na pinindot. Ang labis na halaga ay hindi kailanman
+  // mapupunta sa bayad nang installment, kaya imposible ang doble.
+  let allocations = await allocatePayment(
+    db,
+    loan_id,
+    Number(amount),
+    loan_schedule_id,
+  );
   if (allocations.length === 0) {
     // Safety net: ang payment schedule ay ginagawa sa pag-activate ng loan.
     // Kung wala pa ito (hal. lumang data o na-miss na activation path), gawin
     // na rito base sa ngayon bago sumuko — hindi dapat harangan ng "No unpaid
     // installments" ang isang lehitimong bayad.
     if (await ensureLoanSchedulesIfMissing(db, loan_id)) {
-      allocations = await allocatePayment(db, loan_id, Number(amount));
+      allocations = await allocatePayment(
+        db,
+        loan_id,
+        Number(amount),
+        loan_schedule_id,
+      );
     }
   }
   if (allocations.length === 0) {
@@ -123,6 +134,16 @@ async function handleRecordOffice(req: Request) {
     amount: a.amount,
     payment_method: 'office_cash',
     status: 'verified',
+    // Explicit NULL — KRITIKAL: ang `payments.status_id` ay may DEFAULT na
+    // PENDING status, at ang `sync_payments_lookup_ids` trigger ay nag-o-
+    // overwrite ng `status` mula sa `status_id` kapag `status_id IS DISTINCT
+    // FROM OLD.status_id` (NULL ito sa INSERT). Kung hindi ito ipapasa, ang
+    // `verified` ay nagiging `pending` — kaya HINDI ito binibilang sa
+    // `v_loan_schedules.amount_paid` (verified lang ang binibilang), hindi
+    // bumababa ang balance, at mananatiling Pending ang installment.
+    // Sa pagpasa ng NULL, ang `status` ('verified') ang pinagmumulan ng
+    // `status_id` (parehong behavior sa alinmang bersyon ng trigger).
+    status_id: null,
     recorded_by: authResult.id,
     idempotency_key: allocations.length > 1 ? `${idempotencyKey}-${i + 1}` : idempotencyKey,
     notes: notes ?? null,
@@ -140,15 +161,87 @@ async function handleRecordOffice(req: Request) {
   }
   const payment = insertedPayments[0];
 
-  // If this payment settles a lender-initiated office visit request, complete it.
-  // Sinasakop ang LAHAT ng bukas pa na status (hindi lang `requested`) — may mga
-  // office request na na-assign o nasa in_progress na bago pa mabayaran nang
-  // walk-in, at dapat pareho silang magsara kapag naitala na ang bayad.
-  if (assignment_id) {
-    await db.from('collection_assignments')
-      .update({ status: 'completed', completed_at: new Date().toISOString(), amount_collected: Number(amount) })
+  // ── Isara ang collection request/assignment na natugunan na ng bayad ───────
+  // Bayad na ang pera sa office, kaya dapat COLLECTED na ito: hindi na
+  // kailangang mag-assign ng rider at hindi na dapat manatiling Requested ang
+  // row sa Collections. Kung hindi isasara, mananatiling pending ang request
+  // kahit PAID na ang installment.
+  //
+  // MAHALAGA — CHECK constraint
+  // `collection_assignments_rider_required_unless_unassigned_request`:
+  //   status IN ('requested','declined') OR (rider_id IS NOT NULL AND assigned_by IS NOT NULL)
+  // Kaya imposibleng gawing 'completed' ang row na WALANG rider — tahimik itong
+  // nabibigo. Ang tamang pang-sara ay:
+  //   • may rider    → 'completed' (+ completed_at, required ng
+  //                    `collection_assignments_completed_requires_completed_at`)
+  //   • walang rider → 'declined' (+ response_at, tulad ng rider decline sa
+  //                    collections-manage) — "turned down before assignment".
+  // Ang 'declined' ay wala sa OPEN_COLLECTION_STATUSES ng collections-view,
+  // kaya tuluyang nawawala ang row sa pending list.
+  //
+  // Ang PARTIAL na bayad ay HINDI nagpapasara — bukas pa ang natitirang utang
+  // ng installment, kaya dapat pa ring makita ng staff ang request. (Maliban sa
+  // partikular na request na pinindot ng staff, na natugunan na.)
+  const OPEN_ASSIGNMENT_STATUSES = ['requested', 'assigned', 'accepted', 'in_progress', 'pending_approval'];
+  const closedAt = new Date().toISOString();
+  const scheduleIds = allocations.map((a) => a.loan_schedule_id);
+
+  const { data: settledRows } = await db
+    .from('v_loan_schedules')
+    .select('id, amount_due, amount_paid')
+    .in('id', scheduleIds);
+  const collectedBySchedule = new Map<string, number>();
+  for (const s of settledRows ?? []) {
+    const collected = Number(s.amount_paid ?? 0);
+    if (collected < Number(s.amount_due)) continue;
+    collectedBySchedule.set(s.id, collected);
+  }
+
+  const { data: openAssignments } = await db
+    .from('collection_assignments')
+    .select('id, rider_id, assigned_by, loan_schedule_id')
+    .in('status', OPEN_ASSIGNMENT_STATUSES)
+    .in('loan_schedule_id', scheduleIds);
+
+  type Closable = { rider_id: string | null; assigned_by: string | null; collected: number };
+  const toClose = new Map<string, Closable>();
+  for (const a of openAssignments ?? []) {
+    const settled = collectedBySchedule.get(a.loan_schedule_id);
+    if (settled === undefined && a.id !== assignment_id) continue;
+    toClose.set(a.id, {
+      rider_id: a.rider_id,
+      assigned_by: a.assigned_by,
+      collected: settled ?? Number(amount),
+    });
+  }
+  // Ang partikular na request na pinindot ng staff ay natugunan na kahit partial.
+  if (assignment_id && !toClose.has(assignment_id)) {
+    const { data: chosen } = await db
+      .from('collection_assignments')
+      .select('id, rider_id, assigned_by, loan_schedule_id')
       .eq('id', assignment_id)
-      .in('status', ['requested', 'assigned', 'accepted', 'in_progress', 'pending_approval']);
+      .in('status', OPEN_ASSIGNMENT_STATUSES)
+      .maybeSingle();
+    if (chosen) {
+      toClose.set(chosen.id, {
+        rider_id: chosen.rider_id,
+        assigned_by: chosen.assigned_by,
+        collected: collectedBySchedule.get(chosen.loan_schedule_id) ?? Number(amount),
+      });
+    }
+  }
+
+  for (const [id, a] of toClose) {
+    const patch = a.rider_id && a.assigned_by
+      ? { status: 'completed', completed_at: closedAt, amount_collected: a.collected }
+      : {
+        status: 'declined',
+        response_at: closedAt,
+        amount_collected: a.collected,
+        collection_notes: 'Paid in office — rider pickup no longer needed',
+      };
+    const { error: closeErr } = await db.from('collection_assignments').update(patch).eq('id', id);
+    if (closeErr) console.error('failed to close collection assignment:', id, closeErr);
   }
 
   const newBalance = Math.max(0, Math.round((financials.outstanding_balance - Number(amount)) * 100) / 100);
@@ -167,10 +260,14 @@ async function handleRecordOffice(req: Request) {
     ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
   });
 
+  // Ang office payment ay dapat MALINAW sa lender na SA OFFICE siya nagbayad
+  // (hindi rider collection, hindi GCash) — kaya binabanggit ang channel sa
+  // title at body, tulad ng 'Office' na label ng `payment_method = office_cash`
+  // sa app (`PaymentModel.methodLabel`).
   await sendPushNotification({
     userId: loan.lender_id,
-    title: 'Payment Recorded',
-    body: `Your payment of ₱${Number(amount).toLocaleString()} has been recorded. Remaining balance: ₱${newBalance.toLocaleString()}`,
+    title: 'Paid in Office',
+    body: `Your payment of ₱${Number(amount).toLocaleString()} was recorded at the office. Remaining balance: ₱${newBalance.toLocaleString()}`,
     type: 'payment_recorded',
     referenceId: payment.id,
   });
@@ -180,6 +277,7 @@ async function handleRecordOffice(req: Request) {
     amount: Number(amount),
     outstanding_balance: newBalance,
     loan_status: loanStatus,
+    closed_assignments: toClose.size,
   }, 201);
 }
 

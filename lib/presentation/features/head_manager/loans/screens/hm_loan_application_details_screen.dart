@@ -11,6 +11,7 @@ import '../../../../../core/utils/loan_frequency.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/pay_in_office_button.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
@@ -822,6 +823,12 @@ class _HmLoanApplicationDetailsScreenState
     final status = (loan['status'] as String? ?? '').toLowerCase();
     final isFinal = ['approved', 'active', 'overdue', 'completed', 'rejected']
         .contains(status);
+    // Walk-in (office) payment: pwede lang kapag na-release na ang loan —
+    // ang pre-release loans ay wala pang installment na binabayaran.
+    final canPayInOffice = const {'active', 'overdue'}.contains(status);
+    final lender = loan['lender'] as Map<String, dynamic>? ?? {};
+    final lenderName =
+        '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim();
     final schedules =
         (isFinal ? allSchedules : allSchedules.take(5)).toList();
     // Frequency (Daily / Weekly / Monthly) — nakalagay sa subtitle at
@@ -892,12 +899,15 @@ class _HmLoanApplicationDetailsScreenState
                 1: FlexColumnWidth(2),
                 2: FlexColumnWidth(2),
                 3: FlexColumnWidth(1.2),
+                // Saktong lapad lang sa button — hindi dapat lumaki nang
+                // walang dahilan ang Action column.
+                4: IntrinsicColumnWidth(),
               },
               children: [
                 TableRow(
                   decoration:
                       const BoxDecoration(color: Color(0xFFF8F9FB)),
-                  children: ['#', 'Due Date', 'Amount Due', 'Status']
+                  children: ['#', 'Due Date', 'Amount Due', 'Status', 'Action']
                       .map((h) => Padding(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 10),
@@ -927,6 +937,27 @@ class _HmLoanApplicationDetailsScreenState
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 8),
                         child: _ScheduleStatusPill(status: st)),
+                      // Walk-in payment — bumababa ang balance at naka-record
+                      // bilang "Paid in Office" para sa lender.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 8),
+                        child: canPayInOffice && isPayableScheduleRow(s)
+                            ? PayInOfficeButton(
+                                loanId: widget.loanId,
+                                scheduleId: (s['id'] as String?) ?? '',
+                                amount: scheduleOutstanding(s),
+                                lenderName: lenderName,
+                                loanNumber:
+                                    loan['loan_number'] as String? ?? '',
+                                installmentLabel:
+                                    'Installment #${s['installment_number'] ?? s['period_number'] ?? '-'}',
+                                onRecorded: _load,
+                              )
+                            : const Text('—',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textTertiary))),
                     ]);
                 }),
               ])),

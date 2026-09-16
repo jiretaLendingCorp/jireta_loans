@@ -200,7 +200,12 @@ class _ReceiptCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5)),
                 const SizedBox(height: 8),
-                StatusBadge(status: status),
+                // `onDark: true` — ang header ng receipt ay dark navy gradient
+                // (lenderBlue → lenderBlueLight). Kung wala ito, ang semantic
+                // na status color ay ginagamit as-is at ang default na gray
+                // (#555568) ay ~1.6:1 lang sa #0D1B2A — hindi mabasa ang
+                // "Reversed" (at iba pang status na walang sariling mapping).
+                StatusBadge(status: status, onDark: true),
               ],
             ),
           ),

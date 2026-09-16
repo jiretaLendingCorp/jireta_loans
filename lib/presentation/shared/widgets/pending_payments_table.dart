@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../data/models/collection_assignment_model.dart';
+import 'dialogs/office_payment_dialog.dart';
 import 'layout/responsive_content.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -87,7 +88,12 @@ class _PendingPaymentsTableState extends State<PendingPaymentsTable> {
       return;
     }
 
-    final paid = await _confirmAmount(context, item: c, amount: amount);
+    final paid = await showOfficePaymentDialog(
+      context,
+      lenderName: c.lenderName,
+      loanNumber: c.loanNumber,
+      amount: amount,
+    );
     if (paid == null || paid <= 0 || !mounted) return;
 
     setState(() => _recordingId = c.id);
@@ -122,71 +128,6 @@ class _PendingPaymentsTableState extends State<PendingPaymentsTable> {
             ? 'Marked as paid in office — ${paid.toStringAsFixed(2)} recorded'
             : (error ?? 'Failed to mark as paid in office')),
         backgroundColor: ok ? AppColors.success : AppColors.error,
-      ),
-    );
-  }
-
-  /// Confirm + editable amount (para sa partial/advance na bayad sa office).
-  /// Returns ang halagang naitala, o `null` kapag kinansela.
-  static Future<double?> _confirmAmount(
-    BuildContext context, {
-    required CollectionAssignmentModel item,
-    required double amount,
-  }) {
-    final ctrl = TextEditingController(text: amount.toStringAsFixed(2));
-    return showDialog<double>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Paid in Office'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${item.lenderName.isEmpty ? 'This lender' : item.lenderName}'
-              '${item.loanNumber.isEmpty ? '' : ' • ${item.loanNumber}'}',
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Kumpirmahin na nabayaran na sa office ang installment na ito. '
-              'Maaaring baguhin ang halaga para sa partial o advance na bayad.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Amount (₱)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              final v = double.tryParse(ctrl.text.replaceAll(',', '').trim());
-              if (v == null || v <= 0) return;
-              Navigator.pop(ctx, v);
-            },
-            child: const Text('Mark as Paid'),
-          ),
-        ],
       ),
     );
   }

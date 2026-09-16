@@ -68,6 +68,11 @@ class StatusBadge extends StatelessWidget {
         return (AppColors.statusCompleted, 'Completed');
       case 'rejected':
         return (AppColors.statusRejected, 'Rejected');
+      case 'reversed':
+        // Reversal ng bayad (`payment.status = 'reversed'`) — kung wala ito,
+        // bagsak ito sa default: gray na `textSecondary` at uppercase na
+        // "REVERSED", na hindi mabasa sa dark na header ng receipt.
+        return (AppColors.statusRejected, 'Reversed');
       case 'cancelled':
         return (AppColors.textSecondary, 'Cancelled');
       case 'overdue':

@@ -118,6 +118,17 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
     fetch();
   }
 
+  /// Status at/o search nang ISANG fetch lang — ginagamit kapag sabay na
+  /// nagbago ang dalawa (hal. "All Pending Payment" pill na may search sa
+  /// Payments module), para hindi dalawang beses mag-load.
+  void setFilters({String? status, String? search}) {
+    state = state.copyWith(
+      statusFilter: status ?? state.statusFilter,
+      search: search ?? state.search,
+    );
+    fetch();
+  }
+
   void setDateRange(String? from, String? to) {
     state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();

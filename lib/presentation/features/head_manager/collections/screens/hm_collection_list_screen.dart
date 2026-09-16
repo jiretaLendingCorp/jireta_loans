@@ -21,6 +21,7 @@ import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../lenders/providers/hm_lender_provider.dart';
 import '../providers/hm_collection_provider.dart';
+import '../../payments/widgets/payment_details_modal.dart';
 import '../widgets/assign_rider_collection_modal.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -169,13 +170,13 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
 
   final _paymentMethodTabs = const [
     FilterTabDef('all', 'All', Icons.layers_outlined),
-    FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
-    FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
-    FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
     // Lahat ng HINDI pa bayad/na-kolekta na installment (kasama ang office) —
     // dito pwedeng i-mark na "Paid in Office" ang mga office request.
     FilterTabDef('pending_payments', 'All Pending Payment',
         Icons.pending_actions_rounded),
+    FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
+    FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
+    FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
   ];
 
   /// True kapag "All Pending Payment" ang naka-select sa payment pills — ang
@@ -822,7 +823,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
               : InkWell(
                   onTap: () {
                     final id = p['id'] as String? ?? '';
-                    if (id.isNotEmpty) context.go(RouteConstants.hmPaymentDetails.replaceFirst(':id', id));
+                    if (id.isNotEmpty) showPaymentDetailsModal(context, id);
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
