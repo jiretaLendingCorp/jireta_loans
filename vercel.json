@@ -3,6 +3,6 @@
     "outputDirectory": "build/web",
     "rewrites": [
         { "source": "/(.*)", "destination": "filesystem" },
-        { "source": "/(.*)", "destination": "/index.html" }
+        { "source": "/((?!downloads/).*)", "destination": "/index.html" }
     ]
 }

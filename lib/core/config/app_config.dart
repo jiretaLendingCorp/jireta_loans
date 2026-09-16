@@ -15,17 +15,23 @@ class AppConfig {
   static const String timezone = 'Asia/Manila';
 
   // ── Android APK download (web login page) ──────────────────────────────
-  // Isang lugar lang ito para mapalitan ang download link kapag may bagong
-  // APK release. Puwede rin itong i-override sa build time nang hindi
-  // ginagalaw ang code:
+  // Naka-host ang APK sa GitHub Releases ng repo (asset name:
+  // `jireta-loans.apk`), HINDI sa `web/downloads/`. Dahilan: ang release APK
+  // ay ~141 MB — lampas sa 100 MB na file limit ng GitHub at sa 50 MB na file
+  // limit ng Supabase Storage free plan — kaya hindi ito ma-commit at hindi
+  // rin ma-upload sa Storage. Git-ignored na ang `web/downloads/*.apk`.
   //
-  //   flutter build web --dart-define=APK_DOWNLOAD_URL=https://jireta.com/downloads/jireta-loans-1.2.0.apk
+  // Ang `releases/latest/download/...` ay laging tumuturo sa pinakabagong
+  // release, kaya hindi na kailangang baguhin ang code kapag may bagong APK:
+  // i-upload lang ang bagong `jireta-loans.apk` asset sa isang release.
   //
-  // Ilagay ang APK file sa `web/downloads/` (hal. `web/downloads/
-  // jireta-loans.apk`) para maging available ito sa parehong domain ng site.
+  // Puwede pa ring i-override sa build time nang hindi ginagalaw ang code:
+  //
+  //   flutter build web --dart-define=APK_DOWNLOAD_URL=https://cdn.example.com/jireta-loans-1.2.0.apk
   static const String apkDownloadUrl = String.fromEnvironment(
     'APK_DOWNLOAD_URL',
-    defaultValue: 'https://jireta.vercel.app/downloads/jireta-loans.apk',
+    defaultValue:
+        'https://github.com/jiretaLendingCorp/jireta_loans/releases/latest/download/jireta-loans.apk',
   );
 
   /// Pangalan ng file kapag nag-download ang browser.

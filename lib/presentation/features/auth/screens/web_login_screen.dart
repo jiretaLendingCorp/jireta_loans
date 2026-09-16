@@ -851,13 +851,21 @@ class _ApkDownloadSection extends StatelessWidget {
 
   Future<void> _download(BuildContext context) async {
     // Hindi ito nagre-redirect sa ibang page — naka-trigger lang ang browser
-    // download ng APK mula sa `AppConfig.apkDownloadUrl`.
+    // download ng APK mula sa `AppConfig.apkDownloadUrl` (GitHub Releases).
+    //
+    // Sinusuri ng `downloadFromUrl` kung tunay na file ang nasa URL: kapag HTML
+    // ang binalik (hal. nawawalang asset o SPA fallback), hindi itutuloy at
+    // malinaw na error ang ipapakita — mas mabuti kaysa HTML na akala ng user
+    // ay APK.
     final ok = await downloadFromUrl(
       AppConfig.apkDownloadUrl,
       filename: AppConfig.apkFileName,
     );
     if (ok || !context.mounted) return;
-    context.showErrorToast('Could not start the download. Please try again.');
+    context.showErrorToast(
+      'The Android app is not available for download right now. '
+      'Please try again later.',
+    );
   }
 
   @override

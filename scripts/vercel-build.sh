@@ -97,4 +97,20 @@ else
   echo "WARNING: GOOGLE_MAPS_API_KEY not set — web map will use placeholder key"
 fi
 
-flutter build web --release
+# ── APK download ("Download APK" button sa web login page) ───────────────────
+# Naka-host ang release APK (~141 MB) sa GitHub Releases ng repo, hindi sa
+# `web/downloads/`:
+#   https://github.com/jiretaLendingCorp/jireta_loans/releases/latest/download/jireta-loans.apk
+# Hindi ito ma-commit dahil lampas sa 100 MB na file limit ng GitHub, at hindi
+# rin ma-upload sa Supabase Storage free plan (50 MB na file limit).
+#
+# Ang default URL ay nasa lib/core/config/app_config.dart. Kapag may custom na
+# host/CDN, i-set ang APK_DOWNLOAD_URL sa Vercel env vars — build-time constant
+# ang String.fromEnvironment, kaya kailangang ipasa dito sa --dart-define.
+if [ -n "${APK_DOWNLOAD_URL:-}" ]; then
+  echo "APK_DOWNLOAD_URL (custom): $APK_DOWNLOAD_URL"
+  flutter build web --release --dart-define=APK_DOWNLOAD_URL="$APK_DOWNLOAD_URL"
+else
+  echo "APK_DOWNLOAD_URL: (default) GitHub Releases — releases/latest/download/jireta-loans.apk"
+  flutter build web --release
+fi
