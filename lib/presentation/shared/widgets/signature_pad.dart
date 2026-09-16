@@ -48,10 +48,15 @@ class SignaturePad extends StatefulWidget {
 }
 
 class _SignaturePadState extends State<SignaturePad> {
+  // Handwritten-signature extraction: the exported PNG keeps ONLY the drawn
+  // strokes — the background is fully transparent, so no white box is carried
+  // into the uploaded document. The strokes themselves are untouched (same
+  // shape, proportions, orientation, and detail) — nothing is redrawn or
+  // beautified. On-screen the canvas still shows a white background.
   final SignatureController _ctrl = SignatureController(
     penStrokeWidth: 2,
     penColor: AppColors.deepNavy,
-    exportBackgroundColor: Colors.white,
+    exportBackgroundColor: Colors.transparent,
   );
 
   /// Panandaliang "Signature cleared" na mensahe (built-in).

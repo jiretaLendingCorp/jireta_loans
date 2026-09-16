@@ -23,6 +23,10 @@ class UserModel extends UserEntity {
   final String? city;
   final String? province;
   final String? zipCode;
+
+  /// Composed one-line address (rider_profiles.address). Staff/rider structured
+  /// parts come through [streetAddress]/[barangay]/[city]/[province].
+  final String? address;
   final List<Map<String, dynamic>> emergencyContacts;
   final bool isWalkIn;
   final Map<String, dynamic>? inOfficeApplication;
@@ -78,6 +82,7 @@ class UserModel extends UserEntity {
     this.city,
     this.province,
     this.zipCode,
+    this.address,
     this.emergencyContacts = const [],
     this.isWalkIn = false,
     this.inOfficeApplication,
@@ -166,6 +171,7 @@ class UserModel extends UserEntity {
       city: json['city'],
       province: json['province'],
       zipCode: json['zip_code'],
+      address: json['address'],
       emergencyContacts: (json['emergency_contacts'] as List?)
               ?.whereType<Map>()
               .map((e) => Map<String, dynamic>.from(e))
@@ -219,6 +225,7 @@ class UserModel extends UserEntity {
         'city': city,
         'province': province,
         'zip_code': zipCode,
+        'address': address,
         'emergency_contacts': emergencyContacts,
         'is_walk_in': isWalkIn,
         'in_office_application': inOfficeApplication,
@@ -243,6 +250,7 @@ class UserModel extends UserEntity {
     String? accountStatus,
     bool? forcePasswordChange,
     String? profilePhotoUrl,
+    String? address,
     bool? isWalkIn,
     Map<String, dynamic>? inOfficeApplication,
   }) {
@@ -279,6 +287,7 @@ class UserModel extends UserEntity {
       city: city,
       province: province,
       zipCode: zipCode,
+      address: address ?? this.address,
       emergencyContacts: emergencyContacts,
       isWalkIn: isWalkIn ?? this.isWalkIn,
       inOfficeApplication: inOfficeApplication ?? this.inOfficeApplication,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/philippines_address_field.dart';
 import '../providers/hm_employee_provider.dart';
 
 class CreateEmployeeModal extends ConsumerStatefulWidget {
@@ -21,6 +22,7 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
   final _suffixCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
   String _gender = 'male';
   String _civilStatus = 'single';
   DateTime? _dob;
@@ -222,6 +224,15 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
                   keyboardType: TextInputType.phone,
                   maxLength: 11,
                 ),
+                const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Address',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(height: 8),
+                PhilippinesAddressField(key: _addressKey),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -294,10 +305,12 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
       setState(() => _error = 'Date of birth is required');
       return;
     }
+    if (!(_addressKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;
     });
+    final address = _addressKey.currentState;
     try {
       await ref.read(hmEmployeeProvider.notifier).createEmployee({
         'first_name': _firstNameCtrl.text.trim(),
@@ -310,6 +323,11 @@ class _CreateEmployeeModalState extends ConsumerState<CreateEmployeeModal> {
         'civil_status': _civilStatus,
         'date_of_birth': _dob!.toIso8601String().split('T')[0],
         'position': 'Employee',
+        'address': address?.composedAddress,
+        'street_address': address?.street,
+        'barangay': address?.barangay,
+        'city': address?.city,
+        'province': address?.province,
       });
       if (mounted) Navigator.pop(context);
     } catch (e) {

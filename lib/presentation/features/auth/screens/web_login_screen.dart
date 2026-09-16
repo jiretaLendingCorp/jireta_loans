@@ -258,8 +258,11 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 loginCard,
-                const SizedBox(height: 18),
-                const _ApkDownloadSection(),
+                // HIDDEN: "Get the Jireta Mobile App" / Download APK card — hindi
+                // na ipinapakita sa login page. Nasa code pa rin ang
+                // `_ApkDownloadSection` kung ibabalik ito.
+                // const SizedBox(height: 18),
+                // const _ApkDownloadSection(),
               ],
             ),
           ),
@@ -846,6 +849,7 @@ class _FieldLabel extends StatelessWidget {
 // Get the Jireta Mobile App — APK download (very bottom of the login page)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ignore: unused_element
 class _ApkDownloadSection extends StatelessWidget {
   const _ApkDownloadSection();
 

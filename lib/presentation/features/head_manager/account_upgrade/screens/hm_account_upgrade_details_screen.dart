@@ -331,15 +331,28 @@ class _HmAccountUpgradeDetailsScreenState
                                     const SizedBox(width: 4),
                                     Text(d['created_at'] != null ? 'Submitted: ${d['created_at'].toString().substring(0, 19)}' : '—', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                                   ]),
-                                  if (d['file_url'] != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: OutlinedButton(
-                                        onPressed: () => _openDocument(d, allDocs: _allDocs),
-                                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), side: const BorderSide(color: AppColors.deepNavy), shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero)),
-                                        child: const Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                                      ),
-                                    ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Builder(builder: (_) {
+                                      final hasFile = [d['file_url'], d['signed_url']]
+                                          .any((v) => v != null && v.toString().trim().isNotEmpty);
+                                      return Row(children: [
+                                        OutlinedButton(
+                                          onPressed: hasFile ? () => _openDocument(d, allDocs: _allDocs) : null,
+                                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), side: BorderSide(color: hasFile ? AppColors.deepNavy : AppColors.border), shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero)),
+                                          child: Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: hasFile ? AppColors.deepNavy : AppColors.textTertiary)),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        // Ipakitang malinaw sa tabi ng View kung may laman
+                                        // (na-upload) o walang laman ang dokumento.
+                                        Row(mainAxisSize: MainAxisSize.min, children: [
+                                          Icon(hasFile ? Icons.check_circle_rounded : Icons.error_outline_rounded, size: 14, color: hasFile ? AppColors.success : AppColors.error),
+                                          const SizedBox(width: 4),
+                                          Text(hasFile ? 'File uploaded' : 'Empty — no file', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: hasFile ? AppColors.success : AppColors.error)),
+                                        ]),
+                                      ]);
+                                    }),
+                                  ),
                                 ]),
                               );
                             }),

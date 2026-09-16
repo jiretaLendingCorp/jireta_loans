@@ -22,10 +22,19 @@ import { searchScheduleIds, NO_MATCH_ID } from '../_shared/search.ts';
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
 
+// NOTE: `!inner` on loan_schedules/loans is REQUIRED, not cosmetic. PostgREST
+// applies embedded filters to the embedded rows ONLY (left join semantics), so
+// `scopeQueryToUser`'s `loan_schedule.loan.lender_id` filter alone returned
+// EVERY lender's assignments — a brand-new lender account saw the previous
+// account's collections in Recent Activity. `!inner` makes the join inner so
+// the nested filter also restricts the top-level collection_assignments rows
+// (same pattern as payments-view / kpi-view). collection_assignments.
+// loan_schedule_id is NOT NULL, so no legitimate row is dropped by the inner
+// join for rider / employee / head_manager callers.
 const COLLECTION_SELECT = `id, loan_schedule_id, status, collection_type, rider_id, assigned_by, requested_by, requested_at, assigned_at, amount_collected, requested_amount, collection_schedule, response_at, completed_at, reviewed_by, reviewed_at, rejection_reason, created_at,
   notes:collection_notes,
   proof_photo, borrower_signature, collection_photo,
-  loan_schedule:loan_schedules(id, installment_number, due_date, amount_due, loan:loans(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, gcash_number, users!lender_profiles_id_fkey(first_name, last_name, phone_number, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary))))),
+  loan_schedule:loan_schedules!inner(id, installment_number, due_date, amount_due, loan:loans!inner(id, loan_number, lender_id, lender_profiles!loans_lender_id_fkey(id, gcash_number, users!lender_profiles_id_fkey(first_name, last_name, phone_number, addresses:addresses(address_type, street, barangay, city, province, zip_code, latitude, longitude, is_primary))))),
   rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name)),
   assigned_by_user:users!collection_assignments_assigned_by_fkey(id, first_name, last_name)`;
 

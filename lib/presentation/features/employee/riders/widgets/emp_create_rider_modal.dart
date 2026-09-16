@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../providers/emp_rider_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+import '../../../../shared/widgets/philippines_address_field.dart';
 
 class EmpCreateRiderModal extends ConsumerStatefulWidget {
   const EmpCreateRiderModal({super.key});
@@ -22,6 +23,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   final _plateCtrl = TextEditingController();
   final _licenseCtrl = TextEditingController();
   final _otherBrandCtrl = TextEditingController();
+  final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
   String _vehicleType = 'motorcycle';
   String? _vehicleBrand;
   DateTime? _licenseExpiry;
@@ -75,7 +77,9 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
           const SnackBar(content: Text('Please select license expiry date')));
       return;
     }
+    if (!(_addressKey.currentState?.validate() ?? false)) return;
     setState(() => _isSaving = true);
+    final address = _addressKey.currentState;
     try {
       await ref.read(empRiderProvider.notifier).createRider({
         'first_name': _firstNameCtrl.text.trim(),
@@ -88,12 +92,17 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
         'drivers_license_expiry':
             _licenseExpiry!.toIso8601String().substring(0, 10),
         'vehicle_brand': _resolvedBrand,
+        'address': address?.composedAddress,
+        'street_address': address?.street,
+        'barangay': address?.barangay,
+        'city': address?.city,
+        'province': address?.province,
       });
       if (mounted) {
-        Navigator.of(context).pop();
         context.showSnackBarAsToast(const SnackBar(
             content: Text('Rider created.'),
             backgroundColor: AppColors.success));
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
@@ -198,6 +207,15 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                                       : AppColors.textPrimary)),
                         ),
                       ),
+                      const SizedBox(height: 14),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Address',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(height: 8),
+                      PhilippinesAddressField(key: _addressKey),
                       const SizedBox(height: 12),
                     ],
                   ),

@@ -281,7 +281,11 @@ async function handleVerify(req: Request) {
         : (rejection_notes
             ? `Account Upgrade rejected: ${rejection_notes}`
             : 'Account Upgrade rejected. You may resubmit after 1 month.'),
-      type: 'account_upgrade_update',
+      // Distinct type per outcome so the in-app list shows the right icon
+      // (verified = check, rejected = cross) instead of one generic upgrade icon.
+      type: action === 'verified'
+        ? 'account_upgrade_verified'
+        : 'account_upgrade_rejected',
       referenceId: singleDocId ?? targetLenderId ?? '',
       sentBy: user.id,
     });

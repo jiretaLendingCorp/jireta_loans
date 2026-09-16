@@ -188,10 +188,14 @@ async function handleGetRider(req: Request) {
       // lender while there is an ACTIVE assignment (accepted collection,
       // accepted/in_progress CI, or an in-flight rider-delivery disbursement)
       // on one of the lender's loans.
+      // NOTE: `!inner` sa bawat embed ng filter path ay KAILANGAN — kung wala
+      // ito, embedded-filter lang ang nangyayari (PostgREST left join) at hindi
+      // na-filter ang top-level rows, kaya kahit sinong lender ay makakakuha ng
+      // location ng rider na wala sa loans niya.
       const [collectionRows, ciRows, disbRows] = await Promise.all([
         (db
           .from('collection_assignments')
-          .select('id, status, updated_at, loan_schedule:loan_schedules(loan:loans(lender_id))')
+          .select('id, status, updated_at, loan_schedule:loan_schedules!inner(loan:loans!inner(lender_id))')
           .eq('rider_id', riderId)
           .in('status', TRACKED_COLLECTION_STATUSES)
           .eq('loan_schedule.loan.lender_id', authResult.id)) as unknown as Promise<{
@@ -200,7 +204,7 @@ async function handleGetRider(req: Request) {
         }>,
         (db
           .from('credit_investigations')
-          .select('id, status, updated_at, loan:loans(lender_id)')
+          .select('id, status, updated_at, loan:loans!inner(lender_id)')
           .eq('rider_id', riderId)
           .in('status', TRACKED_CI_STATUSES)
           .eq('loan.lender_id', authResult.id)) as unknown as Promise<{
@@ -209,7 +213,7 @@ async function handleGetRider(req: Request) {
         }>,
         (db
           .from('disbursements')
-          .select('id, status, updated_at, loan:loans(lender_id)')
+          .select('id, status, updated_at, loan:loans!inner(lender_id)')
           .eq('rider_id', riderId)
           .eq('method', 'rider_delivery')
           .eq('status', 'pending')
@@ -423,12 +427,15 @@ async function handleListTracked(req: Request) {
     const riderSelect = 'rider:rider_profiles(id, users!rider_profiles_id_fkey(first_name, last_name))';
 
     // ── Step 1: pull every ACTIVE assignment on the lender's loans ──────────
+    // `!inner` on the loan embeds is required so the `.eq('loan…lender_id')`
+    // filters below restrict the TOP-LEVEL rows, not just the embedded ones
+    // (see the get-rider note). Without it a lender sees every assignment.
     const [collectionRows, ciRows, disbRows] = await Promise.all([
       (db
         .from('collection_assignments')
         .select(
           `id, status, rider_id, created_at,
-           loan_schedule:loan_schedules(loan:loans(id, loan_number, lender_id)),
+           loan_schedule:loan_schedules!inner(loan:loans!inner(id, loan_number, lender_id)),
            ${riderSelect}`
         )
         .in('status', TRACKED_COLLECTION_STATUSES)
@@ -440,7 +447,7 @@ async function handleListTracked(req: Request) {
         .from('credit_investigations')
         .select(
           `id, status, rider_id, created_at,
-           loan:loans(id, loan_number, lender_id),
+           loan:loans!inner(id, loan_number, lender_id),
            ${riderSelect}`
         )
         .in('status', TRACKED_CI_STATUSES)
@@ -452,7 +459,7 @@ async function handleListTracked(req: Request) {
         .from('disbursements')
         .select(
           `id, status, rider_id, created_at,
-           loan:loans(id, loan_number, lender_id),
+           loan:loans!inner(id, loan_number, lender_id),
            ${riderSelect}`
         )
         .eq('method', 'rider_delivery')

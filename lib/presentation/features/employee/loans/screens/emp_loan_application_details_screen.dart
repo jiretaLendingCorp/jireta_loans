@@ -58,6 +58,10 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
       body: Container(
         color: const Color(0xFFF0F2F5),
         child: state.when(
+          // While silently refreshing after a payment is recorded, keep the
+          // current details on screen instead of flashing the whole page back
+          // to a loading spinner.
+          skipLoadingOnRefresh: true,
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(
               child: Padding(
@@ -637,14 +641,24 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: () =>
                         _showSignatureViewer(context, signature),
-                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    icon: const Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
-                        style: TextStyle(fontSize: 12)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy)),
+                    // Siksik at pantay na taas (32px) — kapareho ng View
+                    // button sa ibang Loan details view. Dating `Size.zero` +
+                    // default StadiumBorder kaya mukhang mataba at mahabang
+                    // pill ito.
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 32),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -666,14 +680,22 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: () => _showValidIdViewer(
                         context, _coMakerValidIdUrls(cm)),
-                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    icon: const Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
-                        style: TextStyle(fontSize: 12)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy)),
+                    // Kapareho ng Signature button sa itaas — pantay ang
+                    // taas para hindi lumabas na magkaibang sukat.
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 32),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -982,10 +1004,14 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                                 onRecorded: () async =>
                                     ref.invalidate(_empLoanDetailProvider(loanId)),
                               )
-                            : const Text('—',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textTertiary))),
+                            // Bayad na ang installment → walang "—" sa Action
+                            // column; blangko na lang ito.
+                            : isSettledScheduleRow(s)
+                                ? const SizedBox.shrink()
+                                : const Text('—',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textTertiary))),
                     ]);
                 }),
               ])),

@@ -96,11 +96,13 @@ class _LenderAccountUpgradeSubmitScreenState
   bool get _hasValidIdBack => _validIdBackFile != null;
   bool get _hasValidIdComplete => _hasValidIdFront && _hasValidIdBack;
 
+  // Only the Valid Government ID is REQUIRED; the rest are optional supporting
+  // documents ("ang i-require lang ay valid government ID").
   final Map<String, String> _docLabels = {
     'valid_id': 'Valid Government ID *',
-    'selfie': 'Selfie with ID *',
-    'mayors_permit': "Mayor's Permit *",
-    'birth_certificate': 'Birth Certificate *',
+    'selfie': 'Selfie with ID',
+    'mayors_permit': "Mayor's Permit",
+    'birth_certificate': 'Birth Certificate',
     // 00149: face recognition — optional muna, hindi required.
     'face_recognition': 'Face Recognition',
   };
@@ -532,22 +534,87 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   String? _docError(String key) {
-    if (!_showDocsError) return null;
-    // Face recognition is optional muna — hindi hinihingi sa submit.
-    if (key == 'face_recognition') return null;
-    if (_selectedFiles[key] != null) return null;
-    final label = (_docLabels[key] ?? 'Document').replaceAll(' *', '');
-    return '$label is required';
+    // Only the Valid Government ID is required — every other card is optional.
+    return null;
   }
 
   bool get _hasMissingDocs {
-    // Face recognition is optional — hindi kasama sa required docs check.
-    if (_selectedFiles.entries
-        .any((e) => e.key != 'face_recognition' && e.value == null)) {
-      return true;
+    // Valid Government ID (front + back) lang ang kailangan sa submit.
+    return !_hasValidIdComplete;
+  }
+
+  /// Preview a just-picked local file (image) inside a modal so the lender can
+  /// review exactly what they uploaded before submitting.
+  Future<void> _previewFile(PlatformFile? file) async {
+    if (file == null) return;
+    final name = file.name.toLowerCase();
+    final isImage = name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.png') ||
+        name.endsWith('.webp');
+    Uint8List? bytes = file.bytes;
+    if (bytes == null && file.path != null) {
+      try {
+        bytes = await File(file.path!).readAsBytes();
+      } catch (_) {}
     }
-    if (!_hasValidIdComplete) return true;
-    return false;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 520,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility_outlined,
+                        size: 18, color: AppColors.lenderBlue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        file.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: isImage && bytes != null
+                    ? InteractiveViewer(
+                        child: Image.memory(bytes, fit: BoxFit.contain),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text(
+                          'Preview is not available for this file type.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textSecondary),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -616,6 +683,11 @@ class _LenderAccountUpgradeSubmitScreenState
       return;
     }
 
+    // Ipakita agad ang loading ng Submit button sa mismong tap — bago pa ang
+    // identity verification (biometric/MPIN) — para hindi mukhang "nag-hang"
+    // ang button habang bukas ang verification prompt.
+    setState(() => _isSubmitting = true);
+
     // Kumpirmasyon bago ang submission: device credential (fingerprint /
     // Face ID / device PIN), o ang app-level MPIN kapag walang password ang
     // phone — at kung wala pang MPIN, hihingin munang i-set ito.
@@ -623,9 +695,11 @@ class _LenderAccountUpgradeSubmitScreenState
           context,
           reason: kSubmissionVerificationReason,
         );
-    if (!verified || !mounted) return;
+    if (!verified || !mounted) {
+      if (mounted) setState(() => _isSubmitting = false);
+      return;
+    }
 
-    setState(() => _isSubmitting = true);
     try {
       final docs = <Map<String, dynamic>>[];
       for (final e in _selectedFiles.entries) {
@@ -1011,6 +1085,8 @@ class _LenderAccountUpgradeSubmitScreenState
             hasFront: _hasValidIdFront,
             hasBack: _hasValidIdBack,
             onPick: () => _pickFile('valid_id'),
+            onView: () => _previewFile(
+                _selectedFiles['valid_id'] ?? _validIdBackFile),
             errorText: _validIdError(),
           ),
         ),
@@ -1025,6 +1101,7 @@ class _LenderAccountUpgradeSubmitScreenState
                     assetPath: _docAssetIcons[e.key],
                     file: e.value,
                     onPick: () => _pickFile(e.key),
+                    onView: () => _previewFile(e.value),
                     errorText: _docError(e.key),
                   ),
                 )),
@@ -1825,12 +1902,14 @@ class _ValidIdCard extends StatelessWidget {
   final bool hasFront;
   final bool hasBack;
   final VoidCallback onPick;
+  final VoidCallback? onView;
   final String? errorText;
 
   const _ValidIdCard({
     required this.hasFront,
     required this.hasBack,
     required this.onPick,
+    this.onView,
     this.errorText,
   });
 
@@ -1898,6 +1977,18 @@ class _ValidIdCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (hasFront && onView != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: TextButton.icon(
+                      onPressed: onView,
+                      style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 32)),
+                      icon: const Icon(Icons.visibility_outlined, size: 16),
+                      label: const Text('View', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
                 Icon(complete ? Icons.check_circle : Icons.upload_file_outlined,
                     color: complete
                         ? AppColors.success
@@ -1926,6 +2017,7 @@ class _DocUploadCard extends StatelessWidget {
   final String? assetPath;
   final PlatformFile? file;
   final VoidCallback onPick;
+  final VoidCallback? onView;
   final String? errorText;
 
   const _DocUploadCard({
@@ -1935,6 +2027,7 @@ class _DocUploadCard extends StatelessWidget {
     this.assetPath,
     this.file,
     required this.onPick,
+    this.onView,
     this.errorText,
   });
 
@@ -2016,6 +2109,18 @@ class _DocUploadCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (hasFile && onView != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: TextButton.icon(
+                      onPressed: onView,
+                      style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          minimumSize: const Size(0, 32)),
+                      icon: const Icon(Icons.visibility_outlined, size: 16),
+                      label: const Text('View', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
                 Icon(
                     hasFile ? Icons.check_circle : Icons.upload_file_outlined,
                     color: hasFile

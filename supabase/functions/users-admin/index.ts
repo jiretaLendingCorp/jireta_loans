@@ -118,7 +118,7 @@ async function handleGetList(req: Request) {
     .select(`id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url,
       created_at, last_login_at, roles!users_role_id_fkey(name),
       lender_profiles!lender_profiles_id_fkey(account_upgrade_status, gender, gcash_number),
-      rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available),
+      rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available, address),
       employee_profiles(position, gender, civil_status)`, { count: 'exact' });
 
   if (roleIds) {
@@ -158,6 +158,7 @@ async function handleGetList(req: Request) {
       drivers_license_number: riderProfile?.drivers_license_number ?? null,
       vehicle_brand: riderProfile?.vehicle_brand ?? null,
       is_available: riderProfile?.is_available ?? null,
+      address: riderProfile?.address ?? null,
     };
   });
 

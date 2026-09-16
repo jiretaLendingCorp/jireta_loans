@@ -1,7 +1,6 @@
 // lib/presentation/features/head_manager/loans/widgets/approve_reject_modal.dart
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_colors.dart';
-import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class ApproveRejectModal extends StatefulWidget {
   final String loanId;
@@ -20,14 +19,7 @@ class ApproveRejectModal extends StatefulWidget {
 }
 
 class _ApproveRejectModalState extends State<ApproveRejectModal> {
-  final _reasonCtrl = TextEditingController();
   bool _loading = false;
-
-  @override
-  void dispose() {
-    _reasonCtrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,25 +48,10 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
             Text(
               widget.isApprove
                   ? 'Are you sure you want to approve this loan application? This will proceed to disbursement.'
-                  : 'You are about to reject this loan application.',
+                  : 'Are you sure to reject this loan application? This action cannot be undone.',
               style:
                   const TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
-            if (!widget.isApprove) ...[
-              const SizedBox(height: 16),
-              const Text('Rejection Reason *',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _reasonCtrl,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Enter reason for rejection...',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -100,16 +77,8 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
   }
 
   Future<void> _confirm() async {
-    if (!widget.isApprove && _reasonCtrl.text.trim().isEmpty) {
-      context.showSnackBarAsToast(
-        const SnackBar(
-            content: Text('Please provide a rejection reason'),
-            backgroundColor: AppColors.error),
-      );
-      return;
-    }
     setState(() => _loading = true);
-    widget.onConfirm(widget.loanId,
-        _reasonCtrl.text.trim().isEmpty ? null : _reasonCtrl.text.trim());
+    // No reason collected — a plain Yes/No confirmation (reason stays null).
+    widget.onConfirm(widget.loanId, null);
   }
 }

@@ -25,6 +25,21 @@ bool isPayableScheduleRow(Map<String, dynamic> s) {
       scheduleOutstanding(s) > 0;
 }
 
+/// Bayad na ang installment (o wala nang natitirang halaga) — kaya walang
+/// dapat ipakitang Action dito, kahit dash.
+///
+/// Ito ang basehan ng empty Action cell sa Payment Schedule table: hindi na
+/// dapat lumabas ang "—" kapag bayad na.
+bool isSettledScheduleRow(Map<String, dynamic> s) {
+  final st = (s['status'] as String? ?? '').toLowerCase();
+  if (st == 'paid' || st == 'completed') return true;
+  // Fully-paid na pero hindi pa na-update ang status (hal. huling partial na
+  // eksaktong tumapat sa amount_due). Kapag wala ang `amount_paid` sa payload,
+  // amount_due pa rin ang lumalabas dito, kaya hindi ito nagma-mark ng row na
+  // hindi pa bayad.
+  return scheduleOutstanding(s) <= 0;
+}
+
 /// Walk-in (office) payment action para sa isang installment.
 ///
 /// BUSINESS RULE: verified na `office_cash` payment ang nililikha nito sa

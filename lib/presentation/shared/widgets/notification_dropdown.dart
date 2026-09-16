@@ -821,6 +821,10 @@ class NotificationDropdownPanel extends ConsumerWidget {
         return Icons.account_balance_outlined;
       case 'payment':
         return Icons.payment_outlined;
+      case 'account_upgrade_verified':
+        return Icons.verified_rounded;
+      case 'account_upgrade_rejected':
+        return Icons.gpp_bad_outlined;
       case 'account_upgrade':
         return Icons.verified_user_outlined;
       case 'collection':
@@ -838,6 +842,10 @@ class NotificationDropdownPanel extends ConsumerWidget {
         return AppColors.deepNavy;
       case 'payment':
         return AppColors.success;
+      case 'account_upgrade_verified':
+        return AppColors.success;
+      case 'account_upgrade_rejected':
+        return AppColors.error;
       case 'account_upgrade':
         return AppColors.info;
       case 'collection':

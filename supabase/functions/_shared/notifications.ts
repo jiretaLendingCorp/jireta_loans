@@ -47,6 +47,8 @@ const NOTIFICATION_EMOJI: Record<string, string> = {
   disbursement: '🏦',
   disbursement_overdue: '⏰',
   account_upgrade: '⭐',
+  account_upgrade_verified: '✅',
+  account_upgrade_rejected: '❌',
   user_created: '👤',
   general: '🔔',
 };
@@ -60,6 +62,8 @@ export function notificationEmoji(type: string): string {
   if (t.startsWith('payment')) return '💰';
   if (t.startsWith('disbursement')) return '🏦';
   if (t.startsWith('loan')) return '📄';
+  if (t.startsWith('account_upgrade_verified')) return '✅';
+  if (t.startsWith('account_upgrade_rejected')) return '❌';
   if (t.startsWith('account_upgrade')) return '⭐';
   return '🔔';
 }

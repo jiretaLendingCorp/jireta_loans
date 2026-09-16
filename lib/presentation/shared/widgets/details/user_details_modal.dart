@@ -178,6 +178,39 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
     return Icons.phone_outlined;
   }
 
+  /// Address block — the structured parts come from the `addresses` table and
+  /// are flattened onto the profile for every role (get-profile). Riders also
+  /// keep a composed one-liner on rider_profiles.address.
+  Widget _addressSection(UserModel u, Color accent) {
+    final hasStructured = (u.streetAddress ?? '').isNotEmpty ||
+        (u.barangay ?? '').isNotEmpty ||
+        (u.city ?? '').isNotEmpty ||
+        (u.province ?? '').isNotEmpty;
+    if (!hasStructured) {
+      final composed = u.address;
+      if (composed != null && composed.isNotEmpty) {
+        return _SectionCard(
+          title: 'Address',
+          icon: Icons.location_on_outlined,
+          accentColor: accent,
+          items: [_Kv('Address', composed)],
+        );
+      }
+    }
+    return _SectionCard(
+      title: 'Address',
+      icon: Icons.location_on_outlined,
+      accentColor: accent,
+      items: [
+        _Kv('Street', u.streetAddress ?? 'N/A'),
+        _Kv('Barangay', u.barangay ?? 'N/A'),
+        _Kv('City', u.city ?? 'N/A'),
+        _Kv('Province', u.province ?? 'N/A'),
+        _Kv('Zip Code', u.zipCode ?? 'N/A'),
+      ],
+    );
+  }
+
   List<Widget> _sectionsForRole(UserModel u, Color accent) {
     switch (u.role) {
       case 'employee':
@@ -197,6 +230,8 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
               _Kv('Last Login', u.lastLoginAt?.toString().substring(0, 16) ?? 'N/A'),
             ],
           ),
+          const SizedBox(height: 14),
+          _addressSection(u, accent),
         ];
       case 'rider':
         return [
@@ -223,6 +258,8 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
               _Kv('Member Since', u.createdAt.toString().substring(0, 10)),
             ],
           ),
+          const SizedBox(height: 14),
+          _addressSection(u, accent),
         ];
       case 'lender':
         return [
@@ -315,6 +352,8 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
               _Kv('Member Since', u.createdAt.toString().substring(0, 10)),
             ],
           ),
+          const SizedBox(height: 14),
+          _addressSection(u, accent),
         ];
     }
   }

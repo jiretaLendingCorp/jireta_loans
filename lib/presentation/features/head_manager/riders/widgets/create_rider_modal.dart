@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/philippines_address_field.dart';
 import '../providers/hm_rider_provider.dart';
 
 class CreateRiderModal extends ConsumerStatefulWidget {
@@ -20,6 +22,7 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
   final _plateCtrl = TextEditingController();
   final _licenseCtrl = TextEditingController();
   final _otherBrandCtrl = TextEditingController();
+  final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
   String _vehicleType = 'motorcycle';
   String? _vehicleBrand;
   bool _loading = false;
@@ -198,6 +201,14 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Address',
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  PhilippinesAddressField(key: _addressKey),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -271,10 +282,12 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!(_addressKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;
     });
+    final address = _addressKey.currentState;
     try {
       await ref.read(hmRiderProvider.notifier).createRider({
         'first_name': _firstCtrl.text.trim(),
@@ -285,8 +298,16 @@ class _CreateRiderModalState extends ConsumerState<CreateRiderModal> {
         'vehicle_brand': _resolvedBrand,
         'plate_number': _plateCtrl.text.trim(),
         'drivers_license_number': _licenseCtrl.text.trim(),
+        'address': address?.composedAddress,
+        'street_address': address?.street,
+        'barangay': address?.barangay,
+        'city': address?.city,
+        'province': address?.province,
       });
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        context.showSuccessToast('Rider created successfully');
+        Navigator.pop(context);
+      }
     } catch (e) {
       setState(() {
         _error = ErrorHandler.handle(e).message;

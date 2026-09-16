@@ -119,6 +119,24 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     if (!mounted) return;
     final perAccountKey = '${AppConstants.termsAcceptedKey}_$userId';
     if (prefs.getBool(perAccountKey) ?? false) return;
+
+    // Kung may existing record na ang lender (may pangalan na sa file, o may
+    // account-upgrade record na), hindi na ipapakita ang Terms & Conditions at
+    // ang "Fill In Information" modal — para sa mga bagong account lang ito.
+    final authUser = ref.read(authStateProvider).user;
+    final hasNameOnFile =
+        (authUser?.firstName ?? '').trim().isNotEmpty &&
+            (authUser?.lastName ?? '').trim().isNotEmpty;
+    final upgradeStatus =
+        (authUser?.accountUpgradeStatus ?? '').toLowerCase();
+    final hasUpgradeRecord = const {
+      'submitted',
+      'under_review',
+      'verified',
+      'rejected',
+    }.contains(upgradeStatus);
+    if (hasNameOnFile || hasUpgradeRecord) return;
+
     if (!mounted || !context.mounted) return;
     context.push(RouteConstants.terms);
   }
@@ -1581,12 +1599,11 @@ class _MyLoansOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final submitted = kpi?.totalApplications ?? 0;
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 20),
-        const Text(
+        SizedBox(height: 20),
+        Text(
           'Need cash now?',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -1596,8 +1613,8 @@ class _MyLoansOverview extends StatelessWidget {
             color: AppColors.lenderBlue,
           ),
         ),
-        const SizedBox(height: 6),
-        const Text(
+        SizedBox(height: 6),
+        Text(
           'Borrow from ₱3,000\nto ₱500,000',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -1608,8 +1625,8 @@ class _MyLoansOverview extends StatelessWidget {
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 10),
-        const Text(
+        SizedBox(height: 10),
+        Text(
           'Fast approval · Flexible terms · Low monthly rates\n'
           'Apply today and get the cash you need, right when you need it.',
           textAlign: TextAlign.center,
@@ -1619,14 +1636,14 @@ class _MyLoansOverview extends StatelessWidget {
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Text(
-          submitted == 1
-              ? '$submitted application submitted so far'
-              : '$submitted applications submitted so far',
+          'Must be 18 years old and above · Release in 1–3 business days.\n'
+          'You can apply if you are eligible based on your details.',
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
+            height: 1.5,
             color: AppColors.textTertiary,
           ),
         ),

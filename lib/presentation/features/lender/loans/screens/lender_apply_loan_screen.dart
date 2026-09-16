@@ -734,9 +734,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// default (full) term stays selectable.
   List<int> _termOptions(int max) {
     if (_frequency == 'daily') {
-      // Daily term choices run from 1 day up to 40 days (capped by the server
-      // maximum, which is at least 40 for every valid amount).
-      final last = max < 40 ? max : 40;
+      // Daily term choices run from 1 day all the way up to the server's
+      // maximum for the current amount. Dati'y naka-hardcode sa 40 days, kaya
+      // kahit mas mataas ang term ay hanggang 40 lang ang mapipiling card.
+      final last = max < 1 ? 0 : max;
       return [for (int i = 1; i <= last; i++) i];
     }
     const candidates = <String, List<int>>{
@@ -1227,6 +1228,24 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                           ],
                         ),
                       ),
+                      if (_coMakerValidId != null || _coMakerValidIdBack != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: TextButton.icon(
+                            onPressed: isSubmitting
+                                ? null
+                                : () => _previewLocalFile(
+                                    _coMakerValidId ?? _coMakerValidIdBack),
+                            style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8),
+                                minimumSize: const Size(0, 32)),
+                            icon: const Icon(Icons.visibility_outlined,
+                                size: 16),
+                            label: const Text('View',
+                                style: TextStyle(fontSize: 12)),
+                          ),
+                        ),
                       Icon(
                           _hasCoMakerValidIdComplete
                               ? Icons.check_circle
@@ -1249,6 +1268,75 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Preview the just-picked local image so the lender can review the
+  /// co-maker Valid ID (front/back) they uploaded before proceeding.
+  Future<void> _previewLocalFile(PlatformFile? file) async {
+    if (file == null) return;
+    Uint8List? bytes = file.bytes;
+    if (bytes == null && file.path != null) {
+      try {
+        bytes = await File(file.path!).readAsBytes();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 520,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility_outlined,
+                        size: 18, color: AppColors.lenderBlue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        file.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: bytes != null
+                    ? InteractiveViewer(
+                        child: Image.memory(bytes, fit: BoxFit.contain),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text(
+                          'Preview is not available for this file type.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 13, color: AppColors.textSecondary),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1344,9 +1432,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// 00128: borrower declares employment/income/source of funds + emergency
   /// contact FOR THIS APPLICATION. Stored on the loan record (not profile).
   Widget _buildFinancialEmergencyStep(bool isSubmitting) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    // Huwag dagdagan ng keyboard inset ang bottom padding: naka-resize na ang
+    // Scaffold sa ibabaw ng keyboard — kapag dinagdagan pa ay masyadong
+    // naitataas ang buong form kapag nag-focus sa Contact Name / Street.
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1395,7 +1485,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                     maxLength: 100,
                     onChanged: (_) => setState(() {}),
                     scrollPadding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 24),
                     decoration: _finFieldDeco('Please specify employment type',
                         errorText: _employmentOtherError),
                   ),
@@ -1407,7 +1497,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   maxLength: 255,
                   onChanged: (_) => setState(() {}),
                   scrollPadding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 24),
                   decoration: _finFieldDeco('Employer / Business Name',
                       errorText: _employerNameError),
                 ),
@@ -1451,7 +1541,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                     maxLength: 100,
                     onChanged: (_) => setState(() {}),
                     scrollPadding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 24),
                     decoration: _finFieldDeco('Please specify source of funds',
                         errorText: _sourceOtherError),
                   ),
@@ -1484,7 +1574,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   maxLength: 100,
                   onChanged: (_) => setState(() {}),
                   scrollPadding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 24),
                   decoration:
                       _finFieldDeco('Contact Name', errorText: _ecNameError),
                 ),
@@ -1513,7 +1603,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                     maxLength: 100,
                     onChanged: (_) => setState(() {}),
                     scrollPadding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 24),
                     decoration: _finFieldDeco('Please specify relationship',
                         errorText: _ecRelationshipOtherError),
                   ),
@@ -2089,7 +2179,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               onChanged: (_) => _emit(),
               maxLength: 100,
               scrollPadding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 24),
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'First name is required'
                   : null,
@@ -2101,7 +2191,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               onChanged: (_) => _emit(),
               maxLength: 100,
               scrollPadding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 24),
               validator: (v) => (v == null || v.trim().isEmpty)
                   ? 'Last name is required'
                   : null,
@@ -2114,7 +2204,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               onChanged: (_) => _emit(),
               maxLength: 11,
               scrollPadding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 24),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) {
                   return 'Contact number is required';
@@ -2149,7 +2239,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
                 onChanged: (_) => _emit(),
                 maxLength: 100,
                 scrollPadding: EdgeInsets.only(
-                    bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 24),
                 validator: (v) => (v == null || v.trim().isEmpty)
                     ? 'Please specify the relationship'
                     : null,
@@ -3356,9 +3446,7 @@ class _ChooseDisbursementViewState
       // "Are you sure…" na tanong (dati: nagpapaliwanag lang kung paano
       // deliver ang cash) — ang detalye ng susunod na mangyayari ay nasa
       // success dialog na.
-      message: _method == 'rider_delivery'
-          ? 'Are you sure to receive the funds via Cash on Delivery?'
-          : 'Are you sure to pick up the funds at the Jireta Loans office?',
+      message: 'Are you sure to receive the funds via Cash on Delivery?',
       confirmLabel: 'Confirm',
       confirmColor: AppColors.lenderBlue,
       onConfirm: () async {
@@ -3406,12 +3494,9 @@ class _ChooseDisbursementViewState
     // kailanman sumisilip ang placeholder.
     final dialogDone = SuccessDialog.showAutoDismiss(
       context,
-      title: _method == 'rider_delivery'
-          ? 'Cash on Delivery Confirmed'
-          : 'Office Pickup Confirmed',
-      message: _method == 'rider_delivery'
-          ? 'A rider will be scheduled to deliver your loan to your registered address.'
-          : 'We will notify you once your cash is ready for pickup at the office.',
+      title: 'Cash on Delivery Confirmed',
+      message:
+          'A rider will be scheduled to deliver your loan to your registered address.',
       buttonText: 'Done',
       duration: const Duration(seconds: 2),
     );
@@ -3457,14 +3542,6 @@ class _ChooseDisbursementViewState
                       'A rider will deliver the cash to your registered address.',
                   onTap: () => setState(() => _method = 'rider_delivery'),
                 ),
-                const SizedBox(height: 12),
-                _disbOption(
-                  selected: _method == 'office_cash',
-                  icon: Icons.business_center,
-                  title: 'Pick Up at Office',
-                  subtitle: 'Withdraw the cash at the Jireta Loans office.',
-                  onTap: () => setState(() => _method = 'office_cash'),
-                ),
               ],
             ),
           ),
@@ -3480,8 +3557,7 @@ class _ChooseDisbursementViewState
             mobileBottomNavInset(context) + kGapAboveFloatingNav,
           ),
           child: AppButton(
-            label:
-                'Confirm ${_method == 'rider_delivery' ? 'COD' : 'Office Pickup'}',
+            label: 'Confirm COD',
             onTap: _confirm,
             color: AppColors.lenderBlue,
             isExpanded: true,

@@ -284,9 +284,14 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
     final hasTasks = allTasks.isNotEmpty;
     final selectedTask = hasTasks ? allTasks[_selectedTaskIndex.clamp(0, allTasks.length - 1)] : null;
 
+    // Kapag OFF ang location (GPS off / permission denied) o hindi naka-track,
+    // naka-disable ang buong live map tracking — walang rider/destination
+    // marker, walang route, at hindi magagalaw ang tracking controls.
+    final liveActive = loc.error == null && loc.isTracking;
+
     final markers = <Marker>{};
     final circles = <Circle>{};
-    if (_displayPos != null) {
+    if (liveActive && _displayPos != null) {
       markers.add(Marker(
         markerId: const MarkerId('rider'),
         position: _displayPos!,
@@ -305,7 +310,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
         fillColor: AppColors.riderGreen.withValues(alpha: 0.08),
       ));
     }
-    if (_destPos != null) {
+    if (liveActive && _destPos != null) {
       final destTitle = _destLabel != null
           ? (_destLabel!.toUpperCase().startsWith('LENDER:') ? _destLabel! : 'LENDER: $_destLabel')
           : 'LENDER';
@@ -318,7 +323,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
     }
 
     final polylines = <Polyline>{};
-    if (_showRoutes && _routePoints != null && _routePoints!.length > 1) {
+    if (liveActive && _showRoutes && _routePoints != null && _routePoints!.length > 1) {
       polylines.add(Polyline(
         polylineId: const PolylineId('route'),
         points: _routePoints!,
@@ -407,9 +412,9 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                     },
                   ),
                   SizedBox(width: 6),
-                  Text('Live', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.success)),
+                  Text(liveActive ? 'Live' : 'Tracking Off', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: liveActive ? AppColors.success : AppColors.error)),
                   SizedBox(width: 6),
-                  Text(_displayPos != null ? 'You are on the move' : 'Acquiring GPS...', style: TextStyle(fontSize: 11, color: context.cTextSecondary)),
+                  Text(!liveActive ? 'Live tracking is disabled' : (_displayPos != null ? 'You are on the move' : 'Acquiring GPS...'), style: TextStyle(fontSize: 11, color: context.cTextSecondary)),
                 ]),
               ),
               const Spacer(),
@@ -482,10 +487,10 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Tracking Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
                 SizedBox(height: 8),
-                _FilterChip(label: 'All', count: allTasks.length, selected: _filter == 'All', onTap: () { setState(() { _filter = 'All'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
-                _FilterChip(label: 'Collections', count: dash.todayCollections.length, selected: _filter == 'Collections', onTap: () { setState(() { _filter = 'Collections'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
-                _FilterChip(label: 'Deliveries', count: dash.todayDeliveries.length, selected: _filter == 'Deliveries', onTap: () { setState(() { _filter = 'Deliveries'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
-                _FilterChip(label: 'CI', count: dash.todayCiTasks.length, selected: _filter == 'CI', onTap: () { setState(() { _filter = 'CI'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
+                _FilterChip(label: 'All', count: allTasks.length, selected: _filter == 'All', enabled: liveActive, onTap: () { setState(() { _filter = 'All'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
+                _FilterChip(label: 'Collections', count: dash.todayCollections.length, selected: _filter == 'Collections', enabled: liveActive, onTap: () { setState(() { _filter = 'Collections'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
+                _FilterChip(label: 'Deliveries', count: dash.todayDeliveries.length, selected: _filter == 'Deliveries', enabled: liveActive, onTap: () { setState(() { _filter = 'Deliveries'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
+                _FilterChip(label: 'CI', count: dash.todayCiTasks.length, selected: _filter == 'CI', enabled: liveActive, onTap: () { setState(() { _filter = 'CI'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
                 Divider(height: 16),
                 Row(children: [
                   SizedBox(width: 18, height: 18, child: Checkbox(value: _showRoutes, onChanged: (v) => setState(() => _showRoutes = v ?? true), activeColor: AppColors.riderGreen, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap)),
@@ -496,10 +501,10 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () {
+                    onPressed: liveActive ? () {
                       ref.read(riderLocationProvider.notifier).startTracking();
                       _resolveSelectedDestination();
-                    },
+                    } : null,
                     icon: Icon(Icons.refresh, size: 14),
                     label: Text('Refresh', style: TextStyle(fontSize: 12)),
                     style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 8), side: BorderSide(color: context.cBorder)),
@@ -560,7 +565,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
               ),
             ),
           // ETA tooltip center
-          if (_displayPos != null && _destPos != null)
+          if (liveActive && _displayPos != null && _destPos != null)
             Positioned(
               top: 240,
               left: 0,
@@ -614,7 +619,7 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                                 width: 150,
                                 padding: EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: context.cSurface,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: isSel ? AppColors.riderGreen : context.cBorder, width: isSel ? 1.5 : 1),
                                   boxShadow: isSel ? [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.15), blurRadius: 8)] : null,
@@ -711,18 +716,21 @@ class _FilterChip extends StatelessWidget {
   final String label;
   final int count;
   final bool selected;
+  final bool enabled;
   final VoidCallback onTap;
-  const _FilterChip({required this.label, required this.count, required this.selected, required this.onTap});
+  const _FilterChip({required this.label, required this.count, required this.selected, this.enabled = true, required this.onTap});
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: Padding(
       padding: EdgeInsets.only(bottom: 6),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: enabled ? onTap : null,
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
-            color: selected ? AppColors.riderGreen : Colors.white,
+            color: selected ? AppColors.riderGreen : context.cSurface,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: selected ? AppColors.riderGreen : context.cBorder),
           ),
@@ -737,6 +745,7 @@ class _FilterChip extends StatelessWidget {
           ]),
         ),
       ),
+    ),
     );
   }
 }
@@ -749,7 +758,7 @@ class _MapBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(width: 36, height: 36, decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]), child: Icon(icon, size: 18, color: Colors.black87)),
+      child: Container(width: 36, height: 36, decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(8), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)]), child: Icon(icon, size: 18, color: context.cTextPrimary)),
     );
   }
 }

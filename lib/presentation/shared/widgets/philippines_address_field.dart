@@ -58,6 +58,14 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
     return parts.join(', ');
   }
 
+  // ── Structured parts (for callers that persist to the normalized
+  // `addresses` table instead of a single free-text column). ──────────────
+  String get street => _streetCtrl.text.trim();
+  String? get barangay => _barangay;
+  String? get city => _municipality?.name;
+  String? get province => _province?.name;
+  String? get region => _region?.regionName;
+
   /// Reveals the inline required errors and reports whether the address is
   /// complete. Call this from the parent's Next/Submit validation.
   bool validate() {
@@ -241,8 +249,10 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
               setState(() {});
               _emit();
             },
+            // Sapat na ang maliit na gap para tumaas lang nang bahagya ang
+            // field sa ibabaw ng keyboard (dati: +120 → masyadong mataas).
             scrollPadding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 120),
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24),
             decoration: _deco('Street / House No. *',
                 errorText: missing && _streetCtrl.text.trim().isEmpty
                     ? 'Street address is required'

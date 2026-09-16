@@ -162,7 +162,12 @@ async function handleReject(req: Request) {
     if (roleCheck) return roleCheck;
 
     const { loan_id, rejection_reason } = await req.json();
-    if (!loan_id || !rejection_reason) return errorResponse('loan_id and rejection_reason are required', 400, 'VALIDATION_ERROR');
+    if (!loan_id) return errorResponse('loan_id is required', 400, 'VALIDATION_ERROR');
+    // The reject confirmation no longer collects a free-text reason (plain
+    // Yes/No modal), so fall back to a generic label when none is supplied.
+    const reason = (typeof rejection_reason === 'string' && rejection_reason.trim())
+      ? sanitizeString(rejection_reason)
+      : 'Rejected by staff';
 
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
@@ -173,10 +178,10 @@ async function handleReject(req: Request) {
       return errorResponse(`Cannot reject loan in ${loan.status} status`, 400, 'INVALID_STATUS');
     }
 
-    await db.from('loans').update({ status: 'rejected', rejected_by: user.id, rejection_reason: sanitizeString(rejection_reason) }).eq('id', loan_id);
+    await db.from('loans').update({ status: 'rejected', rejected_by: user.id, rejection_reason: reason }).eq('id', loan_id);
 
-    await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${sanitizeString(rejection_reason)}`, type: 'loan_rejected', referenceId: loan_id });
+    await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason: reason }, ipAddress: ip });
+    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${reason}`, type: 'loan_rejected', referenceId: loan_id });
 
     return jsonResponse({ message: 'Loan rejected' });
 }

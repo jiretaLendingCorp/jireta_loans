@@ -48,6 +48,36 @@ function lenderToE164(phone: string): string {
   return `+63${digits}`;
 }
 
+// ── Primary home address (addresses table, 3NF) ─────────────────────────────
+// The rider / employee / head-manager create forms now collect a structured
+// Philippine address. It is stored once in `addresses` (address_type 'home',
+// is_primary) — the same store users-manage update-profile and the lender
+// profile read. Best-effort: the account already exists by the time this runs,
+// so a failed address insert must never roll back the whole creation.
+async function insertPrimaryAddress(
+  db: ReturnType<typeof getAdminClient>,
+  userId: string,
+  src: Record<string, unknown>,
+): Promise<boolean> {
+  const street = src.street_address ? sanitizeString(String(src.street_address)).trim() : '';
+  const barangay = src.barangay ? sanitizeString(String(src.barangay)).trim() : '';
+  const city = src.city ? sanitizeString(String(src.city)).trim() : '';
+  const province = src.province ? sanitizeString(String(src.province)).trim() : '';
+  if (!street || !barangay || !city || !province) return false;
+  const { error } = await db.from('addresses').insert({
+    user_id: userId,
+    address_type: 'home',
+    street,
+    barangay,
+    city,
+    province,
+    zip_code: src.zip_code ? sanitizeString(String(src.zip_code)) : null,
+    is_primary: true,
+  });
+  if (error) console.error('[users-create] address insert failed:', error.message);
+  return !error;
+}
+
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'create-employee';
 
@@ -122,6 +152,7 @@ async function handleCreateEmployee(req: Request) {
     gender, civil_status, date_of_birth, email, phone_number,
     position, hired_at,
   } = body;
+  const address = body as Record<string, unknown>;
 
   if (!first_name || !last_name || !email || !phone_number || !position) {
     return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
@@ -228,6 +259,8 @@ async function handleCreateEmployee(req: Request) {
     date_of_birth: String(date_of_birth).trim().substring(0, 10),
   });
 
+  await insertPrimaryAddress(db, user.id, address);
+
   await db.from('password_history').insert({
     user_id: user.id,
     password_hash: await hashPassword(user.id, DEFAULT_PASSWORD),
@@ -258,6 +291,7 @@ async function handleCreateHeadManager(req: Request) {
     first_name, middle_name, last_name, suffix,
     gender, civil_status, date_of_birth, email, phone_number,
   } = body;
+  const address = body as Record<string, unknown>;
 
   if (!first_name || !last_name || !email || !phone_number) {
     return errorResponse('Required fields missing', 400, 'VALIDATION_ERROR');
@@ -373,6 +407,8 @@ async function handleCreateHeadManager(req: Request) {
     return errorResponse('Failed to save head manager profile', 500, 'SERVER_ERROR');
   }
 
+  await insertPrimaryAddress(db, user.id, address);
+
   await writeAuditLog({
     performedBy: authResult.id,
     action: 'user_created',
@@ -397,6 +433,7 @@ async function handleCreateRider(req: Request) {
   const body = await req.json();
   const { email, first_name, middle_name, last_name, suffix, phone, vehicle_type, plate_number,
     drivers_license_number, drivers_license_expiry, vehicle_brand } = body;
+  const address = body as Record<string, unknown>;
 
   if (!email || !first_name || !last_name || !phone || !vehicle_type || !plate_number || !drivers_license_number) {
     return errorResponse('Missing required fields', 400, 'VALIDATION_ERROR');
@@ -485,6 +522,7 @@ async function handleCreateRider(req: Request) {
     drivers_license_number: sanitizeString(drivers_license_number),
     drivers_license_expiry: drivers_license_expiry || null,
     vehicle_brand: vehicle_brand ? sanitizeString(vehicle_brand) : null,
+    address: address.address ? sanitizeString(String(address.address)) : null,
     is_available: true,
   });
   if (riderProfileErr) {
@@ -493,6 +531,8 @@ async function handleCreateRider(req: Request) {
     console.error('[users-create] rider profile insert failed:', riderProfileErr.message);
     return errorResponse('Failed to save rider profile', 500, 'SERVER_ERROR');
   }
+
+  await insertPrimaryAddress(db, newUser.id, address);
 
   await db.from('password_history').insert({
     user_id: newUser.id,

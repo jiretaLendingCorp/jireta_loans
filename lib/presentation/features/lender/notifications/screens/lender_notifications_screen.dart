@@ -189,6 +189,10 @@ class _NotifTile extends StatelessWidget {
         return Icons.account_balance_wallet_outlined;
       case 'collection':
         return Icons.delivery_dining_outlined;
+      case 'account_upgrade_verified':
+        return Icons.verified_rounded;
+      case 'account_upgrade_rejected':
+        return Icons.gpp_bad_outlined;
       case 'account_upgrade':
         return Icons.verified_user_outlined;
       default:
@@ -208,6 +212,10 @@ class _NotifTile extends StatelessWidget {
         return AppColors.info;
       case 'disbursement':
         return AppColors.riderGreen;
+      case 'account_upgrade_verified':
+        return AppColors.success;
+      case 'account_upgrade_rejected':
+        return AppColors.error;
       default:
         return AppColors.lenderBlue;
     }

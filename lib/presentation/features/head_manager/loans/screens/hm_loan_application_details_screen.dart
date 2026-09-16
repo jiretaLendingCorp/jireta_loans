@@ -38,8 +38,11 @@ class _HmLoanApplicationDetailsScreenState
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  /// [silent] keeps the current screen on display and swaps in the fresh data
+  /// when it arrives — used after recording a walk-in / office payment so the
+  /// whole loan application details does not flash back to a loading state.
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
     final data =
         await ref.read(hmLoanProvider.notifier).getLoanDetails(widget.loanId);
     if (!mounted) return;
@@ -611,14 +614,24 @@ class _HmLoanApplicationDetailsScreenState
                             color: AppColors.textSecondary))),
                   OutlinedButton.icon(
                     onPressed: () => _showSignatureViewer(signature),
-                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    icon: const Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
-                        style: TextStyle(fontSize: 12)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy)),
+                    // Siksik at pantay na taas (32px) — kapareho ng View
+                    // button sa ibang Loan details view. Dating `Size.zero` +
+                    // default StadiumBorder kaya mukhang mataba at mahabang
+                    // pill ito.
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 32),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -640,14 +653,22 @@ class _HmLoanApplicationDetailsScreenState
                   OutlinedButton.icon(
                     onPressed: () => _showValidIdViewer(
                         _coMakerValidIdUrls(cm)),
-                    icon: const Icon(Icons.visibility_outlined, size: 14),
+                    icon: const Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
-                        style: TextStyle(fontSize: 12)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy)),
+                    // Kapareho ng Signature button sa itaas — pantay ang
+                    // taas para hindi lumabas na magkaibang sukat.
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 32),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      side: const BorderSide(color: AppColors.border),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
                 ],
@@ -952,12 +973,16 @@ class _HmLoanApplicationDetailsScreenState
                                     loan['loan_number'] as String? ?? '',
                                 installmentLabel:
                                     'Installment #${s['installment_number'] ?? s['period_number'] ?? '-'}',
-                                onRecorded: _load,
+                                onRecorded: () => _load(silent: true),
                               )
-                            : const Text('—',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textTertiary))),
+                            // Bayad na ang installment → walang "—" sa Action
+                            // column; blangko na lang ito.
+                            : isSettledScheduleRow(s)
+                                ? const SizedBox.shrink()
+                                : const Text('—',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textTertiary))),
                     ]);
                 }),
               ])),

@@ -642,6 +642,7 @@ async function handleGetProfile(req: Request) {
     vehicle_brand: rider?.vehicle_brand ?? null,
     vehicle_type: rider?.vehicle_type ?? null,
     is_available: rider?.is_available ?? null,
+    rider_address: rider?.address ?? null,
     employment_type: lender?.employment_type ?? null,
     employer_name: lender?.employer_name ?? null,
     monthly_income: lender?.monthly_income ?? null,
