@@ -145,8 +145,7 @@ class _EmpAccountUpgradeDetailsScreenState
         action: action,
       );
       if (mounted) {
-        showSuccessSnackBar(
-            context, action == 'verified' ? 'All documents verified successfully.' : 'All documents rejected.');
+        showSuccessSnackBar(context, action == 'verified' ? 'All documents verified successfully.' : 'All documents rejected.');
         await _load();
       }
     } catch (e) {
@@ -217,38 +216,18 @@ class _EmpAccountUpgradeDetailsScreenState
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
-            child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: const BoxDecoration(
-                        gradient: LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)])),
-                    child: Row(children: [
-                      Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(7)),
-                          child: const Icon(Icons.insert_drive_file_rounded,
-                              color: Colors.white, size: 16)),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(_docLabel(docType), style: const TextStyle(
-                                  color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
-                      IconButton(
-                          icon: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.14), shape: BoxShape.circle),
-                              child: const Icon(Icons.close_rounded, size: 16, color: Colors.white)),
-                          onPressed: () => Navigator.pop(context)),
-                    ]),
-                  ),
-                  Flexible(
-                      child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(16), child: backUrl != null ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)])),
+                child: Row(children: [
+                  Container(width: 30, height: 30, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(7)), child: const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 16)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(_docLabel(docType), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
+                  IconButton(icon: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 16, color: Colors.white)), onPressed: () => Navigator.pop(context)),
+                ]),
+              ),
+              Flexible(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: backUrl != null ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('Front Side', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                   const SizedBox(height: 6),
@@ -261,7 +240,7 @@ class _EmpAccountUpgradeDetailsScreenState
                   DocumentViewer(url: backUrl, height: 540),
                 ])),
               ]) : DocumentViewer(url: url, height: 540))),
-                ]),
+            ]),
           ),
         ),
       );
@@ -306,32 +285,10 @@ class _EmpAccountUpgradeDetailsScreenState
                 icon: Icons.person_rounded,
                 accent: AppColors.lenderBlue,
                 child: Column(children: [
-                  _InfoRow('Full Name',
-                      '${lender['first_name'] ?? ''} ${lender['middle_name'] ?? ''} ${lender['last_name'] ?? ''}'
-                          .replaceAll(RegExp(r'\s+'), ' ')
-                          .trim()),
+                  _InfoRow('Full Name', '${lender['first_name'] ?? ''} ${lender['middle_name'] ?? ''} ${lender['last_name'] ?? ''}'.replaceAll(RegExp(r'\s+'), ' ').trim()),
                   _InfoRow('Phone', lender['phone_number'] ?? '—'),
                   _InfoRow('Email', lender['email'] ?? '—'),
-                  _InfoRow(
-                      'Address',
-                      [
-                        lender['street_address'],
-                        lender['barangay'],
-                        lender['city'],
-                        lender['province'],
-                        lender['zip_code']
-                      ]
-                              .where((e) => e != null && e.toString().isNotEmpty)
-                              .join(', ')
-                              .isEmpty
-                          ? '—'
-                          : [
-                              lender['street_address'],
-                              lender['barangay'],
-                              lender['city'],
-                              lender['province'],
-                              lender['zip_code']
-                            ].where((e) => e != null && e.toString().isNotEmpty).join(', ')),
+                  _InfoRow('Address', [lender['street_address'], lender['barangay'], lender['city'], lender['province'], lender['zip_code']].where((e) => e != null && e.toString().isNotEmpty).join(', ').isEmpty ? '—' : [lender['street_address'], lender['barangay'], lender['city'], lender['province'], lender['zip_code']].where((e) => e != null && e.toString().isNotEmpty).join(', ')),
                   const Divider(height: 20),
                   // 00128: financial details are declared per LOAN and are no
                   // longer part of the account-upgrade (lender profile) review.
@@ -347,8 +304,7 @@ class _EmpAccountUpgradeDetailsScreenState
                 icon: Icons.folder_copy_rounded,
                 accent: const Color(0xFF00838F),
                 child: docs.isEmpty
-                    ? const Text('No documents submitted.',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13))
+                    ? const Text('No documents submitted.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13))
                     : Column(
                         children: [
                           for (int i = 0; i < docs.length; i++) ...[
@@ -365,9 +321,7 @@ class _EmpAccountUpgradeDetailsScreenState
                                       child: _docIcon(d['document_type']?.toString() ?? ''),
                                     ),
                                     const SizedBox(width: 10),
-                                    Expanded(
-                                        child: Text(_docLabel(d['document_type']?.toString() ?? 'Document'),
-                                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+                                    Expanded(child: Text(_docLabel(d['document_type']?.toString() ?? 'Document'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
                                     if (docStatus.toLowerCase() != 'submitted')
                                       Text(docStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: docStatus.toLowerCase() == 'verified' ? AppColors.success : AppColors.error)),
                                   ]),
@@ -375,11 +329,7 @@ class _EmpAccountUpgradeDetailsScreenState
                                   Row(children: [
                                     const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
                                     const SizedBox(width: 4),
-                                    Text(
-                                        d['created_at'] != null
-                                            ? 'Submitted: ${d['created_at'].toString().substring(0, 19)}'
-                                            : '—',
-                                        style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                    Text(d['created_at'] != null ? 'Submitted: ${d['created_at'].toString().substring(0, 19)}' : '—', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                                   ]),
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8),
@@ -393,7 +343,8 @@ class _EmpAccountUpgradeDetailsScreenState
                                           child: Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: hasFile ? AppColors.deepNavy : AppColors.textTertiary)),
                                         ),
                                         const SizedBox(width: 10),
-                                        // Malinaw sa tabi ng View kung may laman o wala.
+                                        // Ipakitang malinaw sa tabi ng View kung may laman
+                                        // (na-upload) o walang laman ang dokumento.
                                         Row(mainAxisSize: MainAxisSize.min, children: [
                                           Icon(hasFile ? Icons.check_circle_rounded : Icons.error_outline_rounded, size: 14, color: hasFile ? AppColors.success : AppColors.error),
                                           const SizedBox(width: 4),
@@ -417,19 +368,7 @@ class _EmpAccountUpgradeDetailsScreenState
               width: isNarrow ? double.infinity : 340,
               child: Column(children: [
                 Container(
-                  decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(
-                          color: pendingDocs.isEmpty
-                              ? AppColors.riderGreen.withValues(alpha: 0.3)
-                              : AppColors.border),
-                      boxShadow: [
-                        BoxShadow(
-                            color: (pendingDocs.isEmpty ? AppColors.riderGreen : AppColors.deepNavy)
-                                .withValues(alpha: 0.06),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4))
-                      ]),
+                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: pendingDocs.isEmpty ? AppColors.riderGreen.withValues(alpha: 0.3) : AppColors.border), boxShadow: [BoxShadow(color: (pendingDocs.isEmpty ? AppColors.riderGreen : AppColors.deepNavy).withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))]),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -437,9 +376,7 @@ class _EmpAccountUpgradeDetailsScreenState
                         color: Color(0xFF5C6370),
                       ),
                       child: Row(children: [
-                        const Expanded(
-                            child: Text('Review Actions',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+                        const Expanded(child: Text('Review Actions', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
                         if (accountUpgradeStatus.toLowerCase() != 'submitted')
                           Text(accountUpgradeStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accountUpgradeStatus.toLowerCase() == 'verified' ? Colors.white : AppColors.error)),
                       ]),
@@ -557,27 +494,19 @@ class _PremiumSectionCard extends StatelessWidget {
   final Color accent;
   final Widget child;
 
-  const _PremiumSectionCard(
-      {required this.title, required this.subtitle, required this.icon, required this.accent, required this.child});
+  const _PremiumSectionCard({required this.title, required this.subtitle, required this.icon, required this.accent, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: AppColors.border),
-          boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
           child: Row(children: [
             const SizedBox(width: 8),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
-              if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.white70))
-            ]),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)), if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.white70))]),
           ]),
         ),
         Padding(padding: const EdgeInsets.all(16), child: child),
@@ -596,14 +525,8 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(
-            width: 130,
-            child: Text(label,
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
-        Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
+        SizedBox(width: 130, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
       ]),
     );
   }

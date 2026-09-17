@@ -1,4 +1,4 @@
-// lib/presentation/features/head_manager/account_upgrade/screens/hm_account_upgrade_list_screen.dart — matched to Loan Records premium table
+// lib/presentation/features/employee/account_upgrade/screens/emp_account_upgrade_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +10,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
-import '../providers/emp_account_upgrade_provider.dart';
+import '../../../head_manager/account_upgrade/providers/hm_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
@@ -21,8 +21,8 @@ class EmpAccountUpgradeListScreen extends ConsumerStatefulWidget {
 
 class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeListScreen> {
   final _searchCtrl = TextEditingController();
-  final _scrollCtrl = ScrollController();
   DateTimeRange? _dateRange;
+  final _scrollCtrl = ScrollController();
   // Ang lender na kasalukuyang ni-verify/re-reject para sa per-row spinner.
   // Hindi ito dapat mag-loading ng buong table.
   String? _busyLenderId;
@@ -38,7 +38,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
 
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
-    ref.read(empAccountUpgradeProvider.notifier).setDateRange(
+    ref.read(hmAccountUpgradeProvider.notifier).setDateRange(
           r == null ? null : SearchDateFilter.fromParam(r.start),
           r == null ? null : SearchDateFilter.toParam(r.end),
         );
@@ -53,7 +53,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(empAccountUpgradeProvider);
+    final state = ref.watch(hmAccountUpgradeProvider);
     final effectiveTab = state.statusFilter;
 
     return WebScaffold(
@@ -76,10 +76,9 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
                 _buildEmpty(state)
               else
                 _Entrance(child: _buildPremiumTable(state.docs)),
-              if (state.totalPages > 1) ...[
-                const SizedBox(height: 16),
-                _buildPagination(state),
-              ],
+              // Pagination bar — palaging nakikita kahit isang page lang.
+              const SizedBox(height: 16),
+              _buildPagination(state),
               const SizedBox(height: 8),
             ],
           ),
@@ -87,6 +86,8 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
       ),
     );
   }
+
+
 
   Widget _buildTabPills(String active) {
     final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
@@ -96,53 +97,39 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
       dropdownLabel: 'Pipeline',
       dropdownOptions: _dropdownTabs,
       dropdownValue: dropdownValue,
-      onDropdownChanged: (v) => ref.read(empAccountUpgradeProvider.notifier).setStatus(v),
+      onDropdownChanged: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v),
       pills: _pillTabs.map((t) {
         final isActive = t.key == active;
         return Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilterPillTab(def: t, active: isActive, onTap: () => ref.read(empAccountUpgradeProvider.notifier).setStatus(t.key)),
+          child: FilterPillTab(def: t, active: isActive, onTap: () => ref.read(hmAccountUpgradeProvider.notifier).setStatus(t.key)),
         );
       }).toList(),
     );
   }
 
-  Widget _buildToolbar(EmpAccountUpgradeState state) {
-    final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = state.totalCount;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: ResponsiveSearchToolbar(
-        searchField: Row(children: [
-          Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => ref.read(empAccountUpgradeProvider.notifier).setSearch(v),
-              style: const TextStyle(fontSize: 13),
-              decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)),
+  Widget _buildToolbar(HmAccountUpgradeState state) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search account upgrades...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
+            onChanged: (v) => ref.read(hmAccountUpgradeProvider.notifier).setSearch(v),
           ),
-          if (hasSearch)
-            InkWell(
-              onTap: () {
-                _searchCtrl.clear();
-                ref.read(empAccountUpgradeProvider.notifier).setSearch('');
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary)),
-            ),
-          if (hasSearch) const SizedBox(width: 10),
-          _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch()),
-        ]),
-        trailing: [
-          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          SearchResultsChip(count: resultsCount),
-        ],
-      ),
-    );
-  }
+          trailing: [
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            SearchResultsChip(count: state.totalCount),
+          ],
+        ),
+      );
 
   Widget _buildPremiumTable(List<dynamic> docs) {
     return ResponsiveListCard(
@@ -205,7 +192,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
   Future<void> _verifyAll(dynamic doc, String action) async {
     final lenderId = doc.lenderId.isEmpty ? doc.id : doc.lenderId;
     setState(() => _busyLenderId = lenderId);
-    final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: action);
+    final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: action);
     if (!mounted) return;
     setState(() => _busyLenderId = null);
     context.showSnackBarAsToast(SnackBar(content: Text(ok ? (action == 'verified' ? 'Account upgrade documents verified' : 'Account upgrade documents rejected') : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
@@ -245,7 +232,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
     if (confirmed == true) {
       if (!mounted) return;
       setState(() => _busyLenderId = lenderId);
-      final ok = await ref.read(empAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: 'rejected');
+      final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: 'rejected');
       if (!mounted) return;
       setState(() => _busyLenderId = null);
       context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'Account upgrade documents rejected' : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
@@ -260,36 +247,52 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
     );
   }
 
-  Widget _buildEmpty(EmpAccountUpgradeState state) {
+  Widget _buildEmpty(HmAccountUpgradeState state) {
     final isFiltered = state.statusFilter != 'all' || state.search.isNotEmpty;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
-      child: Column(children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [const Color(0xFF00838F).withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18)), child: const Icon(Icons.verified_user_rounded, size: 40, color: Color(0xFF00838F))),
-        const SizedBox(height: 16),
-        Text(isFiltered ? 'No matching submissions' : 'No account upgrade submissions found', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        Text(isFiltered ? 'Try a different filter.' : 'Lender KYC upgrade requests will appear here for review.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-        if (isFiltered) ...[
-          const SizedBox(height: 18),
-          OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(empAccountUpgradeProvider.notifier).setSearch(''); ref.read(empAccountUpgradeProvider.notifier).setStatus('all'); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isFiltered ? Icons.search_off_rounded : Icons.verified_user_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isFiltered ? 'No matching submissions' : 'No account upgrade submissions found',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
+          if (isFiltered) ...[
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchCtrl.clear();
+                ref.read(hmAccountUpgradeProvider.notifier).setSearch('');
+                ref.read(hmAccountUpgradeProvider.notifier).setStatus('all');
+              },
+              icon: const Icon(Icons.clear_all_rounded, size: 16),
+              label: const Text('Clear filters'),
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
-  Widget _buildPagination(EmpAccountUpgradeState state) {
+  Widget _buildPagination(HmAccountUpgradeState state) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(children: [
         const Spacer(),
-        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch(page: state.currentPage - 1)),
+        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(hmAccountUpgradeProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),
         Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(20)), child: Text('${state.currentPage} / ${state.totalPages}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
         const SizedBox(width: 8),
-        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(empAccountUpgradeProvider.notifier).fetch(page: state.currentPage + 1)),
+        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(hmAccountUpgradeProvider.notifier).fetch(page: state.currentPage + 1)),
       ]),
     );
   }
@@ -313,17 +316,6 @@ class _StatusInline extends StatelessWidget {
       default: c = AppColors.warning; label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
     }
     return Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 7, height: 7, decoration: BoxDecoration(color: c, shape: BoxShape.circle)), const SizedBox(width: 6), Flexible(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c), overflow: TextOverflow.ellipsis))]);
-  }
-}
-
-class _ToolbarIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _ToolbarIcon({required this.icon, required this.tooltip, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(message: tooltip, child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(9), child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 16, color: AppColors.textSecondary))));
   }
 }
 
@@ -362,13 +354,13 @@ class _ActionButtonState extends State<_ActionButton> {
       onExit: (_) => setState(() => _hover = false),
       child: InkWell(
         onTap: widget.onPressed,
-        borderRadius: BorderRadius.zero,
+        borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.primary ? (_hover ? widget.color : widget.color.withValues(alpha: 0.1)) : (_hover ? widget.color.withValues(alpha: 0.12) : Colors.white),
-            borderRadius: BorderRadius.zero,
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: widget.color.withValues(alpha: widget.primary ? 0.2 : 0.3)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

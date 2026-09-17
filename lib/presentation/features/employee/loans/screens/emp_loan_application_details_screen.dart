@@ -4,35 +4,56 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
 
-import '../../../../../core/constants/route_constants.dart';
-import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/pay_in_office_button.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../head_manager/ci/widgets/ci_assign_modal.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
+import '../../../head_manager/loans/providers/hm_loan_provider.dart';
 import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
-import '../../ci/widgets/emp_ci_assign_modal.dart';
-import '../providers/emp_loan_provider.dart';
-import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
-final _empLoanDetailProvider =
-    FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
-  return await sl<LoanRemoteDataSource>().getDetails(loanId: id);
-});
-
-class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
+class EmpLoanApplicationDetailsScreen extends ConsumerStatefulWidget {
   final String loanId;
   const EmpLoanApplicationDetailsScreen({super.key, required this.loanId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(_empLoanDetailProvider(loanId));
+  ConsumerState<EmpLoanApplicationDetailsScreen> createState() =>
+      _EmpLoanApplicationDetailsScreenState();
+}
 
+class _EmpLoanApplicationDetailsScreenState
+    extends ConsumerState<EmpLoanApplicationDetailsScreen> {
+  Map<String, dynamic>? _loan;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  /// [silent] keeps the current screen on display and swaps in the fresh data
+  /// when it arrives — used after recording a walk-in / office payment so the
+  /// whole loan application details does not flash back to a loading state.
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
+    final data =
+        await ref.read(hmLoanProvider.notifier).getLoanDetails(widget.loanId);
+    if (!mounted) return;
+    setState(() {
+      _loan = data;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return WebScaffold(
       title: 'Loan Application Details',
       actions: [
@@ -48,8 +69,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
             borderRadius: BorderRadius.circular(9),
             border: Border.all(color: AppColors.border)),
           child: IconButton(
-            onPressed: () =>
-                ref.invalidate(_empLoanDetailProvider(loanId)),
+            onPressed: _load,
             icon: const Icon(Icons.refresh_rounded,
                 size: 18, color: AppColors.textSecondary),
             tooltip: 'Refresh')),
@@ -57,27 +77,14 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
       ],
       body: Container(
         color: const Color(0xFFF0F2F5),
-        child: state.when(
-          // While silently refreshing after a payment is recorded, keep the
-          // current details on screen instead of flashing the whole page back
-          // to a loading spinner.
-          skipLoadingOnRefresh: true,
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(
-              child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text('Error: $e',
-                style: const TextStyle(color: AppColors.error)),
-          )),
-          data: (data) => data.isEmpty
-              ? _buildNotFound(context)
-              : _buildContent(context, ref, data),
-        ),
-      ),
-    );
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _loan == null
+                ? _buildNotFound()
+                : _buildContent()));
   }
 
-  Widget _buildNotFound(BuildContext context) {
+  Widget _buildNotFound() {
     return Center(
       child: Container(
         margin: const EdgeInsets.all(24),
@@ -119,16 +126,13 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
           ])));
   }
 
-  Widget _buildContent(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> loan) {
+  Widget _buildContent() {
+    final loan = _loan!;
     final rawStatus = loan['status'] as String? ?? '';
     final status = (loan['rider_delivery_assigned'] == true &&
             rawStatus == 'approved')
         ? 'rider_delivery_assigned'
         : rawStatus;
-    final canAssignDeliveryRider = rawStatus == 'approved' &&
-        loan['rider_delivery_assigned'] != true &&
-        loan['disbursement_method'] == 'rider_delivery';
     final fmt = NumberFormat('#,##0.00', 'en_PH');
 
     return SingleChildScrollView(
@@ -140,11 +144,8 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHero(context, ref, loan, status, fmt),
+              _buildHero(loan, status, fmt),
               const SizedBox(height: 16),
-              if (canAssignDeliveryRider)
-                _buildDisbursementAction(context, ref, loan),
-              if (canAssignDeliveryRider) const SizedBox(height: 16),
               LayoutBuilder(
                 builder: (context, c) {
                   final isNarrow = c.maxWidth < 820;
@@ -153,11 +154,11 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                       children: [
                         _buildLenderCard(loan),
                         const SizedBox(height: 16),
-                        _buildCoMakerCard(context, loan),
+                        _buildCoMakerCard(loan),
                         const SizedBox(height: 16),
                         _buildLoanCard(loan, fmt),
                         const SizedBox(height: 16),
-                        _buildSchedulePreview(ref, loan, fmt),
+                        _buildSchedulePreview(loan, fmt),
                       ]);
                   }
                   return Row(
@@ -169,7 +170,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                           children: [
                             _buildLenderCard(loan),
                             const SizedBox(height: 16),
-                            _buildCoMakerCard(context, loan),
+                            _buildCoMakerCard(loan),
                           ],
                         ),
                       ),
@@ -180,7 +181,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                           children: [
                             _buildLoanCard(loan, fmt),
                             const SizedBox(height: 16),
-                            _buildSchedulePreview(ref, loan, fmt),
+                            _buildSchedulePreview(loan, fmt),
                           ],
                         ),
                       ),
@@ -195,7 +196,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   }
 
   // ─────────────────── Loan hero: name/applied nasa head ───────────────────
-  Widget _buildHero(BuildContext context, WidgetRef ref,
+  Widget _buildHero(
       Map<String, dynamic> loan, String status, NumberFormat fmt) {
     final lender = loan['lender'] as Map<String, dynamic>? ?? {};
     final name =
@@ -210,7 +211,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
       subtitle: name.isEmpty
           ? 'Applied ${_formatDateTime(applied)}'
           : '$name • Applied ${_formatDateTime(applied)}',
-      trailing: _buildHeroTrailing(context, ref, loan, status),
+      trailing: _buildHeroTrailing(loan, status),
       child: Row(
         children: [
           Expanded(
@@ -232,9 +233,8 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   }
 
   // Status + vertical 3-dot menu sa right side ng Pending — pag pinindot,
-  // lalabas ang Approve / Assign CI / Reject.
-  Widget _buildHeroTrailing(BuildContext context, WidgetRef ref,
-      Map<String, dynamic> loan, String status) {
+  // lalabas ang Approve / Assign CI / Assign Delivery / Reject.
+  Widget _buildHeroTrailing(Map<String, dynamic> loan, String status) {
     final s = (loan['status'] as String? ?? '').toLowerCase().trim();
     final ciStatus =
         (loan['ci_status'] as String?)?.toLowerCase().trim() ?? '';
@@ -251,6 +251,9 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     final canAssignCi =
         const {'pending', 'under_review', 'ci_required'}.contains(s) ||
             (s == 'ci_assigned' && ciFailed);
+    final canAssignDelivery = s == 'approved' &&
+        loan['rider_delivery_assigned'] != true &&
+        (loan['disbursement_method'] as String? ?? '') == 'rider_delivery';
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -263,7 +266,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
             colorOverride: status.toLowerCase() == 'overdue'
                 ? AppColors.statusOverdueBg
                 : null),
-        if (canApprove || canAssignCi) ...[
+        if (canApprove || canAssignCi || canAssignDelivery) ...[
           const SizedBox(width: 6),
           PopupMenuButton<String>(
             tooltip: 'Actions',
@@ -273,13 +276,16 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
             onSelected: (v) {
               switch (v) {
                 case 'approve':
-                  _showApprove(context, ref, loan);
+                  _showApprove(widget.loanId);
                   break;
                 case 'reject':
-                  _showReject(context, ref, loan);
+                  _showReject(widget.loanId);
                   break;
                 case 'assign_ci':
-                  _showAssignCi(context, ref, loan);
+                  _showAssignCi();
+                  break;
+                case 'assign_delivery':
+                  _showAssignDeliveryRider();
                   break;
               }
             },
@@ -301,6 +307,15 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                           size: 16, color: AppColors.info),
                       const SizedBox(width: 8),
                       Text(ciFailed ? 'Reassign CI Rider' : 'Assign CI Rider')
+                    ])),
+              if (canAssignDelivery)
+                const PopupMenuItem(
+                    value: 'assign_delivery',
+                    child: Row(children: [
+                      Icon(Icons.delivery_dining_rounded,
+                          size: 16, color: AppColors.goldDark),
+                      SizedBox(width: 8),
+                      Text('Assign Cash on Delivery Rider')
                     ])),
               if (canApprove)
                 const PopupMenuItem(
@@ -331,111 +346,72 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showApprove(BuildContext context, WidgetRef ref,
-      Map<String, dynamic> loan) async {
-    final id = loan['id'] as String;
+  Future<void> _showApprove(String loanId) async {
     await showDialog<void>(
       context: context,
       builder: (_) => ApproveRejectModal(
-        loanId: id,
+        loanId: loanId,
         isApprove: true,
         onConfirm: (_, __) async {
-          final ok = await ref.read(empLoanProvider.notifier).approve(id);
-          if (!context.mounted) return;
+          final ok =
+              await ref.read(hmLoanProvider.notifier).approveLoan(loanId);
+          if (!mounted) return;
           Navigator.of(context).pop();
-          context.showSnackBarAsToast(SnackBar(
-            content:
-                Text(ok ? 'Loan approved successfully' : 'Approval failed'),
-            backgroundColor: ok ? AppColors.success : AppColors.error,
-          ));
-          if (ok) ref.invalidate(_empLoanDetailProvider(loanId));
+          _toast(ok ? 'Loan approved successfully' : 'Approval failed',
+              ok ? AppColors.success : AppColors.error);
+          if (ok) await _load();
         },
       ),
     );
   }
 
-  Future<void> _showReject(BuildContext context, WidgetRef ref,
-      Map<String, dynamic> loan) async {
-    final id = loan['id'] as String;
+  Future<void> _showReject(String loanId) async {
     await showDialog<void>(
       context: context,
       builder: (_) => ApproveRejectModal(
-        loanId: id,
+        loanId: loanId,
         isApprove: false,
         onConfirm: (_, reason) async {
-          final ok =
-              await ref.read(empLoanProvider.notifier).reject(id, reason ?? '');
-          if (!context.mounted) return;
+          final ok = await ref
+              .read(hmLoanProvider.notifier)
+              .rejectLoan(loanId, reason ?? '');
+          if (!mounted) return;
           Navigator.of(context).pop();
-          context.showSnackBarAsToast(SnackBar(
-            content: Text(ok ? 'Loan rejected' : 'Reject failed'),
-            backgroundColor: ok ? AppColors.error : AppColors.textSecondary,
-          ));
-          if (ok) ref.invalidate(_empLoanDetailProvider(loanId));
+          _toast(ok ? 'Loan rejected' : 'Reject failed',
+              ok ? AppColors.error : AppColors.textSecondary);
+          if (ok) await _load();
         },
       ),
     );
   }
 
-  Future<void> _showAssignCi(BuildContext context, WidgetRef ref,
-      Map<String, dynamic> loan) async {
+  Future<void> _showAssignCi() async {
     final assigned = await showDialog<bool>(
       context: context,
-      builder: (_) => EmpCiAssignModal(loanId: loan['id'] as String),
+      builder: (_) => CiAssignModal(loanId: widget.loanId),
     );
-    if (assigned == true && context.mounted) {
-      context.showSnackBarAsToast(const SnackBar(
-        content: Text('Rider assigned for credit investigation'),
-        backgroundColor: AppColors.success,
-      ));
-      ref.invalidate(_empLoanDetailProvider(loanId));
+    if (assigned == true && mounted) {
+      _toast('Rider assigned for credit investigation', AppColors.success);
+      await _load();
     }
   }
 
-  // ─────────────────────── Disbursement action (employee) ───────────────────────
-  Widget _buildDisbursementAction(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> loan) {
-    return _PremiumCard(
-      title: 'Cash on Delivery — Disbursement',
-      subtitle: 'Assign an available rider to hand the cash to the lender',
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'The lender chose to receive the loan via cash on delivery.',
-              style:
-                  TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: () => _showAssignDeliveryRider(context, ref, loan),
-            icon: const Icon(Icons.delivery_dining, size: 18),
-            label: const Text('Assign Cash on Delivery Rider'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: Colors.black87,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showAssignDeliveryRider(BuildContext context, WidgetRef ref,
-      Map<String, dynamic> data) async {
+  Future<void> _showAssignDeliveryRider() async {
     final assigned = await showDialog<bool>(
       context: context,
-      builder: (_) => RiderDisburseAssignModal(
-        loanId: data['id'] as String,
-      ),
+      builder: (_) => RiderDisburseAssignModal(loanId: widget.loanId),
     );
-    if (assigned == true && context.mounted) {
-      context.showSnackBarAsToast(const SnackBar(
-          content: Text('Delivery rider assigned'),
-          backgroundColor: AppColors.success));
-      ref.invalidate(_empLoanDetailProvider(loanId));
+    if (assigned == true && mounted) {
+      _toast('Delivery rider assigned', AppColors.success);
+      await _load();
     }
+  }
+
+  // Top-right na toast (hindi na nasa ilalim na buong-lapad na bar).
+  void _toast(String msg, Color color) {
+    context.showSnackBarAsToast(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
   }
 
   // ───────────────────────── Cards ─────────────────────────
@@ -466,7 +442,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     ].where((e) => e.isNotEmpty).toList();
     final name = nameParts.join(' ');
     final phone =
-        pick(lender, ['phone', 'phone_number', 'mobile_number']);
+        pick(lender, ['phone_number', 'phone', 'mobile_number']);
     final email = pick(lender, ['email', 'email_address']);
     // Nasa lender_profiles ang gender/civil_status/birthday (kita sa
     // kyc-view), kaya profile muna bago lender fallback.
@@ -575,7 +551,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
         ]));
   }
 
-  Widget _buildCoMakerCard(BuildContext context, Map<String, dynamic> loan) {
+  Widget _buildCoMakerCard(Map<String, dynamic> loan) {
     final coMakers =
         (loan['co_makers'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     if (coMakers.isEmpty) {
@@ -593,11 +569,9 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
               Icon(Icons.info_outline_rounded,
                   size: 18, color: AppColors.textTertiary),
               SizedBox(width: 8),
-              Expanded(
-                child: Text('No co-maker on file for this application.',
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
-              ),
+              Text('No co-maker on file for this application.',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.textSecondary)),
             ])));
     }
     final cm = coMakers.first;
@@ -639,8 +613,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w600,
                             color: AppColors.textSecondary))),
                   OutlinedButton.icon(
-                    onPressed: () =>
-                        _showSignatureViewer(context, signature),
+                    onPressed: () => _showSignatureViewer(signature),
                     icon: const Icon(Icons.visibility_outlined,
                         size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
@@ -679,7 +652,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                             color: AppColors.textSecondary))),
                   OutlinedButton.icon(
                     onPressed: () => _showValidIdViewer(
-                        context, _coMakerValidIdUrls(cm)),
+                        _coMakerValidIdUrls(cm)),
                     icon: const Icon(Icons.visibility_outlined,
                         size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
@@ -705,8 +678,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   }
 
   // Buong view ng signature sa dialog.
-  Future<void> _showSignatureViewer(
-      BuildContext context, String signature) {
+  Future<void> _showSignatureViewer(String signature) {
     return showDialog<void>(
       context: context,
       builder: (_) => Dialog(
@@ -773,8 +745,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
   }
 
   // Buong view ng valid ID image(s) sa dialog.
-  Future<void> _showValidIdViewer(
-      BuildContext context, List<String> urls) {
+  Future<void> _showValidIdViewer(List<String> urls) {
     return showDialog<void>(
       context: context,
       builder: (_) => Dialog(
@@ -865,8 +836,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildSchedulePreview(
-      WidgetRef ref, Map<String, dynamic> loan, NumberFormat fmt) {
+  Widget _buildSchedulePreview(Map<String, dynamic> loan, NumberFormat fmt) {
     final allSchedules = (loan['loan_schedules'] as List? ?? [])
         .cast<Map<String, dynamic>>();
     // Once the loan is approved (or beyond), the schedule is final — show the
@@ -882,6 +852,8 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
         '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim();
     final schedules =
         (isFinal ? allSchedules : allSchedules.take(5)).toList();
+    // Frequency (Daily / Weekly / Monthly) — nakalagay sa subtitle at
+    // mismo sa loob ng table area para laging visible.
     final frequency = resolveLoanFrequency(loan);
     final freqLabel = frequency.isEmpty ? '' : _capitalize(frequency);
     final emptySubtitle = freqLabel.isEmpty
@@ -993,7 +965,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                             horizontal: 8, vertical: 8),
                         child: canPayInOffice && isPayableScheduleRow(s)
                             ? PayInOfficeButton(
-                                loanId: loanId,
+                                loanId: widget.loanId,
                                 scheduleId: (s['id'] as String?) ?? '',
                                 amount: scheduleOutstanding(s),
                                 lenderName: lenderName,
@@ -1001,8 +973,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
                                     loan['loan_number'] as String? ?? '',
                                 installmentLabel:
                                     'Installment #${s['installment_number'] ?? s['period_number'] ?? '-'}',
-                                onRecorded: () async =>
-                                    ref.invalidate(_empLoanDetailProvider(loanId)),
+                                onRecorded: () => _load(silent: true),
                               )
                             // Bayad na ang installment → walang "—" sa Action
                             // column; blangko na lang ito.
@@ -1086,7 +1057,7 @@ class EmpLoanApplicationDetailsScreen extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reusable premium card + helpers — matches the Head Manager details design.
+// Reusable premium card + helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PremiumCard extends StatelessWidget {
@@ -1201,8 +1172,7 @@ class _ScheduleStatusPill extends StatelessWidget {
     // Plain text lang — hindi button.
     return Text(
       s.isEmpty ? '-' : '${s[0].toUpperCase()}${s.substring(1)}',
-      style:
-          TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c));
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c));
   }
 }
 

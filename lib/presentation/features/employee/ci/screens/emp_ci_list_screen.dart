@@ -1,4 +1,4 @@
-// lib/presentation/features/employee/ci/screens/emp_ci_list_screen.dart — matched to Loan Records premium table design
+// lib/presentation/features/employee/ci/screens/emp_ci_list_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,8 +12,8 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
-import '../providers/emp_ci_provider.dart';
-import '../widgets/emp_ci_assign_modal.dart';
+import '../../../head_manager/ci/providers/hm_ci_provider.dart';
+import '../../../head_manager/ci/widgets/ci_assign_modal.dart';
 
 class EmpCiListScreen extends ConsumerStatefulWidget {
   const EmpCiListScreen({super.key});
@@ -40,7 +40,7 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
 
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
-    ref.read(empCiProvider.notifier).setDateRange(
+    ref.read(hmCiProvider.notifier).setDateRange(
           r == null ? null : SearchDateFilter.fromParam(r.start),
           r == null ? null : SearchDateFilter.toParam(r.end),
         );
@@ -55,7 +55,9 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(empCiProvider);
+    final state = ref.watch(hmCiProvider);
+    final effectiveTab = state.statusFilter;
+
     return WebScaffold(
       title: 'Credit Investigations',
       body: Container(
@@ -63,27 +65,32 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
         child: SingleChildScrollView(
           controller: _scrollCtrl,
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _buildTabPills(state.statusFilter),
-            const SizedBox(height: 16),
-            _buildToolbar(state),
-            const SizedBox(height: 16),
-            if (state.isLoading)
-              _buildLoadingShimmer()
-            else if (state.items.isEmpty)
-              _buildEmpty(state)
-            else
-              _Entrance(child: _buildPremiumTable(state.items)),
-            if (state.totalPages > 1) ...[
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTabPills(effectiveTab),
               const SizedBox(height: 16),
-              _buildPagination(state),
+              _buildToolbar(state),
+              const SizedBox(height: 16),
+              if (state.isLoading)
+                _buildLoadingShimmer()
+              else if (state.items.isEmpty)
+                _buildEmpty(state)
+              else
+                _Entrance(child: _buildPremiumTable(state.items)),
+              if (state.totalPages > 1) ...[
+                const SizedBox(height: 16),
+                _buildPagination(state),
+              ],
+              const SizedBox(height: 8),
             ],
-            const SizedBox(height: 8),
-          ]),
+          ),
         ),
       ),
     );
   }
+
+
 
   Widget _buildTabPills(String active) {
     final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
@@ -93,7 +100,7 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
       dropdownLabel: 'Pipeline',
       dropdownOptions: _dropdownTabs,
       dropdownValue: dropdownValue,
-      onDropdownChanged: (v) => ref.read(empCiProvider.notifier).setStatus(v),
+      onDropdownChanged: (v) => ref.read(hmCiProvider.notifier).setStatus(v),
       pills: _pillTabs.map((t) {
         // The Failed pill also surfaces rider-declined investigations so
         // staff see every CI that needs reassignment in one place.
@@ -102,33 +109,37 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
         final statusToSend = t.key == 'failed' ? 'failed,declined' : t.key;
         return Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: FilterPillTab(def: t, active: isActive, onTap: () => ref.read(empCiProvider.notifier).setStatus(statusToSend)),
+          child: FilterPillTab(def: t, active: isActive, onTap: () => ref.read(hmCiProvider.notifier).setStatus(statusToSend)),
         );
       }).toList(),
     );
   }
 
-  Widget _buildToolbar(EmpCiState state) {
-    final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = state.totalCount;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: ResponsiveSearchToolbar(
-        searchField: Row(children: [
-          Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-          const SizedBox(width: 10),
-          Expanded(child: TextField(controller: _searchCtrl, onChanged: (v) => ref.read(empCiProvider.notifier).setSearch(v), style: const TextStyle(fontSize: 13), decoration: const InputDecoration(hintText: 'Search', hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary), border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.symmetric(vertical: 10)))),
-          if (hasSearch) InkWell(onTap: () { _searchCtrl.clear(); ref.read(empCiProvider.notifier).setSearch(''); }, borderRadius: BorderRadius.circular(20), child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary))),
-          if (hasSearch) const SizedBox(width: 10),
-          _ToolbarIcon(icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: () => ref.read(empCiProvider.notifier).fetch()),
-        ]),
-        trailing: [
-          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          SearchResultsChip(count: resultsCount),
-        ],
-      ),
-    );
-  }
+  Widget _buildToolbar(HmCiState state) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search investigations...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            onChanged: (v) => ref.read(hmCiProvider.notifier).setSearch(v),
+          ),
+          trailing: [
+            SearchDateFilter(
+              value: _dateRange,
+              onChanged: _onDateRangeChanged,
+            ),
+            SearchResultsChip(count: state.totalCount),
+          ],
+        ),
+      );
 
   Widget _buildPremiumTable(List<dynamic> items) {
     return ResponsiveListCard(
@@ -153,6 +164,8 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
                 status == 'declined');
         final displayStatus = isSuperseded ? 'reassigned' : status;
         final isPendingApproval = displayStatus == 'completed';
+        // Tapos na ang CI (approved/rejected/completed) — moot na ang
+        // deadline, kaya walang OVERDUE highlight (gaya sa details screen).
         final isOverdue = ci.deadline != null &&
             (ci.deadline as DateTime).isOverdue &&
             !isSuperseded &&
@@ -174,55 +187,70 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
             ]),
             Align(alignment: Alignment.centerLeft, child: _StatusInline(status: displayStatus)),
           ],
-          actions: _EmpActionCell(ci: ci, isPending: isPendingApproval, isLatest: isLatest),
+          actions: _HmActionCell(ci: ci, isPending: isPendingApproval, isLatest: isLatest),
         );
       }).toList(),
     );
   }
 
   Widget _buildLoadingShimmer() {
-    return Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)), padding: const EdgeInsets.all(16), child: Column(children: List.generate(6, (i) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(10))), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(height: 10, width: 160, decoration: BoxDecoration(color: AppColors.shimmerHighlight.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(6)))] )), const SizedBox(width: 16), Container(width: 86, height: 28, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(20)))])))));
-  }
-
-  Widget _buildEmpty(EmpCiState state) {
-    final isFiltered = _searchCtrl.text.isNotEmpty || state.statusFilter != 'all';
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
-      child: Column(children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.deepNavy.withValues(alpha: 0.10), AppColors.gold.withValues(alpha: 0.16)], begin: Alignment.topLeft, end: Alignment.bottomRight), shape: BoxShape.circle, border: Border.all(color: AppColors.border)), child: Icon(isFiltered ? Icons.search_off_rounded : Icons.search_outlined, size: 32, color: AppColors.deepNavy.withValues(alpha: 0.75))),
-        const SizedBox(height: 16),
-        Text(isFiltered ? 'No matching investigations' : 'No CI assignments found', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-        const SizedBox(height: 6),
-        Text(isFiltered ? 'Try adjusting your search or switch to a different status.' : 'Assignments created from loan applications will appear here.', textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        if (isFiltered) ...[
-          const SizedBox(height: 18),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(empCiProvider.notifier).setSearch(''); ref.read(empCiProvider.notifier).setStatus('all'); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
-            const SizedBox(width: 10),
-            ElevatedButton.icon(onPressed: () => ref.read(empCiProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 16), label: const Text('Refresh'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
-          ]),
-        ],
-      ]),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      padding: const EdgeInsets.all(16),
+      child: Column(children: List.generate(6, (i) => Padding(padding: const EdgeInsets.only(bottom: 12), child: Row(children: [Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(10))), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.55), borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(height: 10, width: 160, decoration: BoxDecoration(color: AppColors.shimmerHighlight.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(6)))] )), const SizedBox(width: 16), Container(width: 86, height: 28, decoration: BoxDecoration(color: AppColors.shimmerBase.withValues(alpha: 0.35), borderRadius: BorderRadius.circular(20)))])))),
     );
   }
 
-  Widget _buildPagination(EmpCiState state) {
+  Widget _buildEmpty(HmCiState state) {
+    final isFiltered = state.search.isNotEmpty || state.statusFilter != 'all';
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isFiltered ? Icons.search_off_rounded : Icons.search_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isFiltered ? 'No matching investigations' : 'No credit investigations found',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
+          if (isFiltered) ...[
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchCtrl.clear();
+                ref.read(hmCiProvider.notifier).setSearch('');
+                ref.read(hmCiProvider.notifier).setStatus('all');
+              },
+              icon: const Icon(Icons.clear_all_rounded, size: 16),
+              label: const Text('Clear filters'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination(HmCiState state) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: Row(children: [
         const Spacer(),
-        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(empCiProvider.notifier).fetch(page: state.currentPage - 1)),
+        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(hmCiProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),
         Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(20)), child: Text('${state.currentPage} / ${state.totalPages}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
         const SizedBox(width: 8),
-        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(empCiProvider.notifier).fetch(page: state.currentPage + 1)),
+        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(hmCiProvider.notifier).fetch(page: state.currentPage + 1)),
       ]),
     );
   }
 }
-
 
 
 
@@ -250,17 +278,6 @@ class _StatusInline extends StatelessWidget {
   }
 }
 
-class _ToolbarIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _ToolbarIcon({required this.icon, required this.tooltip, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(message: tooltip, child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(9), child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 16, color: AppColors.textSecondary))));
-  }
-}
-
 class _PageBtn extends StatelessWidget {
   final IconData icon;
   final bool enabled;
@@ -268,7 +285,11 @@ class _PageBtn extends StatelessWidget {
   const _PageBtn({required this.icon, required this.enabled, required this.onTap});
   @override
   Widget build(BuildContext context) {
-    return InkWell(onTap: enabled ? onTap : null, borderRadius: BorderRadius.circular(8), child: Container(width: 32, height: 32, decoration: BoxDecoration(color: enabled ? Colors.white : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 18, color: enabled ? AppColors.textPrimary : AppColors.textTertiary)));
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(width: 32, height: 32, decoration: BoxDecoration(color: enabled ? Colors.white : AppColors.surfaceVariant, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 18, color: enabled ? AppColors.textPrimary : AppColors.textTertiary)),
+    );
   }
 }
 
@@ -288,19 +309,19 @@ class _TableApproveButtonState extends ConsumerState<_TableApproveButton> {
   Future<void> _onTap() async {
     if (widget.label == 'Approve') {
       setState(() => _loading = true);
-      final ok = await ref.read(empCiProvider.notifier).approveReport(ciId: widget.ci.id as String);
+      final ok = widget.isHm ? await ref.read(hmCiProvider.notifier).approveReport(ciId: widget.ci.id as String) : await ref.read(hmCiProvider.notifier).approveReport(ciId: widget.ci.id as String);
       setState(() => _loading = false);
       if (!mounted) return;
-      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'CI approved — loan ready for final approval' : 'Approve failed: ${ref.read(empCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.success : AppColors.error));
+      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'CI approved — loan ready for final approval' : 'Approve failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.success : AppColors.error));
     } else {
       final reasonCtrl = TextEditingController();
       final reason = await showDialog<String>(context: context, builder: (_) => AlertDialog(title: const Text('Reject CI Report'), content: Column(mainAxisSize: MainAxisSize.min, children: [const Text('Provide reason (min 10 chars).', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)), const SizedBox(height: 12), TextField(controller: reasonCtrl, maxLines: 3, decoration: const InputDecoration(hintText: 'Rejection reason', border: OutlineInputBorder()))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')), ElevatedButton(onPressed: () { final r = reasonCtrl.text.trim(); if (r.length < 10) { context.showSnackBarAsToast(const SnackBar(content: Text('Reason must be at least 10 characters'))); return; } Navigator.pop(context, r); }, style: ElevatedButton.styleFrom(backgroundColor: AppColors.error), child: const Text('Reject', style: TextStyle(color: Colors.white)))]));
       if (reason == null) return;
       setState(() => _loading = true);
-      final ok = await ref.read(empCiProvider.notifier).rejectReport(ciId: widget.ci.id as String, reason: reason);
+      final ok = await ref.read(hmCiProvider.notifier).rejectReport(ciId: widget.ci.id as String, reason: reason);
       setState(() => _loading = false);
       if (!mounted) return;
-      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'CI rejected — loan returned to review' : 'Reject failed: ${ref.read(empCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.error : AppColors.error));
+      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'CI rejected — loan returned to review' : 'Reject failed: ${ref.read(hmCiProvider).error ?? 'error'}'), backgroundColor: ok ? AppColors.error : AppColors.error));
     }
   }
 
@@ -324,11 +345,11 @@ class _TableApproveButtonState extends ConsumerState<_TableApproveButton> {
 }
 
 
-class _EmpActionCell extends ConsumerWidget {
+class _HmActionCell extends ConsumerWidget {
   final dynamic ci;
   final bool isPending;
   final bool isLatest;
-  const _EmpActionCell(
+  const _HmActionCell(
       {required this.ci, required this.isPending, this.isLatest = true});
 
   @override
@@ -350,12 +371,12 @@ class _EmpActionCell extends ConsumerWidget {
     Future<void> assignRider() async {
       final ok = await showDialog<bool>(
         context: context,
-        builder: (_) => EmpCiAssignModal(loanId: loanId, ciId: ''),
+        builder: (_) => CiAssignModal(loanId: loanId),
       );
       if (ok == true) {
         // Silent refresh — hindi dapat mag-loading nang buo ang data table
         // pagkatapos mag-assign/mag-reassign.
-        ref.read(empCiProvider.notifier).fetch(silent: true);
+        ref.read(hmCiProvider.notifier).fetch(silent: true);
         if (context.mounted) {
           context.showSnackBarAsToast(
             SnackBar(
@@ -405,8 +426,8 @@ class _EmpActionCell extends ConsumerWidget {
               return;
             }
             if (v == 'view') {
-              context.go(
-                  RouteConstants.empCiDetails.replaceFirst(':id', ci.id));
+              context
+                  .go(RouteConstants.empCiDetails.replaceFirst(':id', ci.id));
             }
           },
           child: Container(
@@ -496,8 +517,8 @@ class _EmpActionCell extends ConsumerWidget {
       runSpacing: 6,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _TableApproveButton(ci: ci, isHm: false, label: 'Reject', icon: Icons.close_rounded, color: AppColors.error),
-        _TableApproveButton(ci: ci, isHm: false, label: 'Approve', icon: Icons.check_rounded, color: AppColors.success),
+        _TableApproveButton(ci: ci, isHm: true, label: 'Reject', icon: Icons.close_rounded, color: AppColors.error),
+        _TableApproveButton(ci: ci, isHm: true, label: 'Approve', icon: Icons.check_rounded, color: AppColors.success),
         actionsMenu(),
       ],
     );

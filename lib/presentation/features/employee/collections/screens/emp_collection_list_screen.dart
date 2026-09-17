@@ -11,21 +11,22 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
-import '../../../../shared/widgets/details/user_details_modal.dart';
-import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/pending_payments_table.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/details/user_details_modal.dart';
+import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
-import '../../lenders/providers/emp_lender_provider.dart';
-import '../providers/emp_collection_provider.dart';
-import '../widgets/emp_assign_rider_modal.dart';
+import '../../../head_manager/lenders/providers/hm_lender_provider.dart';
+import '../../../head_manager/collections/providers/hm_collection_provider.dart';
+import '../../../head_manager/payments/widgets/payment_details_modal.dart';
+import '../../../head_manager/collections/widgets/assign_rider_collection_modal.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
-// ── Payments state inside Employee Collections (mirrors HM) ──
-class _EmpPaymentsState {
+// ── Payments state reused inside Collections (so Payments tab lives here) ──
+class _PaymentsState {
   final List<Map<String, dynamic>> payments;
   final bool isLoading;
   final String? error;
@@ -33,8 +34,9 @@ class _EmpPaymentsState {
   final int totalPages;
   final int totalCount;
   final String methodFilter;
-  final String search;
-  const _EmpPaymentsState({
+  final String? dateFrom;
+  final String? dateTo;
+  const _PaymentsState({
     this.payments = const [],
     this.isLoading = false,
     this.error,
@@ -42,9 +44,10 @@ class _EmpPaymentsState {
     this.totalPages = 1,
     this.totalCount = 0,
     this.methodFilter = 'all',
-    this.search = '',
+    this.dateFrom,
+    this.dateTo,
   });
-  _EmpPaymentsState copyWith({
+  _PaymentsState copyWith({
     List<Map<String, dynamic>>? payments,
     bool? isLoading,
     String? error,
@@ -52,9 +55,10 @@ class _EmpPaymentsState {
     int? totalPages,
     int? totalCount,
     String? methodFilter,
-    String? search,
+    String? dateFrom,
+    String? dateTo,
   }) =>
-      _EmpPaymentsState(
+      _PaymentsState(
         payments: payments ?? this.payments,
         isLoading: isLoading ?? this.isLoading,
         error: error,
@@ -62,14 +66,15 @@ class _EmpPaymentsState {
         totalPages: totalPages ?? this.totalPages,
         totalCount: totalCount ?? this.totalCount,
         methodFilter: methodFilter ?? this.methodFilter,
-        search: search ?? this.search,
+        dateFrom: dateFrom ?? this.dateFrom,
+        dateTo: dateTo ?? this.dateTo,
       );
 }
 
-class _EmpPaymentsNotifier extends StateNotifier<_EmpPaymentsState>
+class _PaymentsNotifier extends StateNotifier<_PaymentsState>
     with RealtimeRefreshMixin {
   final PaymentRemoteDataSource _ds;
-  _EmpPaymentsNotifier(this._ds) : super(const _EmpPaymentsState()) {
+  _PaymentsNotifier(this._ds) : super(const _PaymentsState()) {
     bindRealtimeRefresh(['payments'], refresh: () => fetch(silent: true));
     fetch();
   }
@@ -81,7 +86,8 @@ class _EmpPaymentsNotifier extends StateNotifier<_EmpPaymentsState>
       final res = await _ds.getPaymentListPage(
         page: page,
         method: m == 'all' ? null : m,
-        search: state.search.isEmpty ? null : state.search,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       final payments = (res['data'] as List? ?? []).cast<Map<String, dynamic>>();
       final meta = res['meta'] as Map<String, dynamic>? ?? {};
@@ -106,14 +112,14 @@ class _EmpPaymentsNotifier extends StateNotifier<_EmpPaymentsState>
     fetch(method: method);
   }
 
-  void setSearch(String s) {
-    state = state.copyWith(search: s);
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
     fetch();
   }
 
   Future<bool> reversePayment(String paymentId) async {
     try {
-      await _ds.reversePayment(paymentId: paymentId, reason: 'Reversed by Employee');
+      await _ds.reversePayment(paymentId: paymentId, reason: 'Reversed by Head Manager');
       await fetch();
       return true;
     } catch (_) {
@@ -122,9 +128,9 @@ class _EmpPaymentsNotifier extends StateNotifier<_EmpPaymentsState>
   }
 }
 
-final _empPaymentsInCollectionProvider =
-    StateNotifierProvider<_EmpPaymentsNotifier, _EmpPaymentsState>((ref) {
-  return _EmpPaymentsNotifier(sl<PaymentRemoteDataSource>());
+final _hmPaymentsInCollectionProvider =
+    StateNotifierProvider<_PaymentsNotifier, _PaymentsState>((ref) {
+  return _PaymentsNotifier(sl<PaymentRemoteDataSource>());
 });
 
 class EmpCollectionListScreen extends ConsumerStatefulWidget {
@@ -137,11 +143,12 @@ class EmpCollectionListScreen extends ConsumerStatefulWidget {
 class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScreen> {
   final _searchCtrl = TextEditingController();
   /// Assignment na kasalukuyang ini-approve/re-reject — para makita ang
-  /// spinner sa mismong button habang tumatakbo ang request.
+  /// spinner sa mismong button habang tumatakbo ang request (dating walang
+  /// loading state, kaya parang "bigla na lang" lumalabas ang toast).
   String? _reviewingId;
   final _scrollCtrl = ScrollController();
   DateTimeRange? _dateRange;
-  String _activeTab = 'all';
+  String _activeTab = 'all'; // all, payments, requested, assigned, in_progress, completed
 
   final _dropdownTabs = const [
     FilterTabDef('all', 'All', Icons.layers_outlined),
@@ -172,15 +179,16 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
   ];
 
-  /// True kapag "All Pending Payment" ang naka-select sa payment pills.
+  /// True kapag "All Pending Payment" ang naka-select sa payment pills — ang
+  /// table na ipinapakita ay galing sa collections (hindi sa payments list).
   bool _pendingPayments = false;
 
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
-    ref.read(empCollectionProvider.notifier).setDateRange(
-          r == null ? null : SearchDateFilter.fromParam(r.start),
-          r == null ? null : SearchDateFilter.toParam(r.end),
-        );
+    final from = r == null ? null : SearchDateFilter.fromParam(r.start);
+    final to = r == null ? null : SearchDateFilter.toParam(r.end);
+    ref.read(hmCollectionProvider.notifier).setDateRange(from, to);
+    ref.read(_hmPaymentsInCollectionProvider.notifier).setDateRange(from, to);
   }
 
   @override
@@ -197,23 +205,22 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
       _pendingPayments = false;
     });
     _searchCtrl.clear();
-    ref.read(empCollectionProvider.notifier).setSearch('');
-    ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
     if (key == 'payments') {
-      ref.read(_empPaymentsInCollectionProvider.notifier).fetch(method: 'all');
+      ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(method: 'all');
     } else if (key == 'early_payers') {
       // Lender list na may `is_early_payer` insight — client-side na search.
-      ref.read(empLenderProvider.notifier).load(silent: true);
+      ref.read(hmLenderProvider.notifier).load(silent: true);
     } else {
-      ref.read(empCollectionProvider.notifier).setStatus(key);
+      ref.read(hmCollectionProvider.notifier).setSearch('');
+      ref.read(hmCollectionProvider.notifier).setStatus(key);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final collectionState = ref.watch(empCollectionProvider);
-    final paymentsState = ref.watch(_empPaymentsInCollectionProvider);
-    final lenderState = ref.watch(empLenderProvider);
+    final collectionState = ref.watch(hmCollectionProvider);
+    final paymentsState = ref.watch(_hmPaymentsInCollectionProvider);
+    final lenderState = ref.watch(hmLenderProvider);
     final isPayments = _activeTab == 'payments';
     final isEarlyPayers = _activeTab == 'early_payers';
 
@@ -247,14 +254,14 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                       child: PendingPaymentsTable(
                         items: collectionState.items,
                         onView: (c) => context.go(RouteConstants
-                            .empCollectionDetails
+                            .hmCollectionDetails
                             .replaceFirst(':id', c.id)),
                         onRefresh: () async {
                           await ref
-                              .read(empCollectionProvider.notifier)
+                              .read(hmCollectionProvider.notifier)
                               .fetch(silent: true);
                           await ref
-                              .read(_empPaymentsInCollectionProvider.notifier)
+                              .read(_hmPaymentsInCollectionProvider.notifier)
                               .fetch(silent: true);
                         },
                       ),
@@ -270,11 +277,12 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                   else if (paymentsState.error != null &&
                       paymentsState.payments.isEmpty)
                     _buildPaymentError(paymentsState.error!)
-                  else if (paymentsState.payments.isEmpty)
+                  else if (_filteredPayments(paymentsState.payments).isEmpty)
                     _buildPaymentEmpty(paymentsState)
                   else
                     _Entrance(
-                        child: _buildPaymentsTable(paymentsState.payments)),
+                        child: _buildPaymentsTable(
+                            _filteredPayments(paymentsState.payments))),
                   if (paymentsState.totalPages > 1) ...[
                     const SizedBox(height: 16),
                     _buildPaymentPagination(paymentsState),
@@ -302,6 +310,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     );
   }
 
+  // ── Tabs: dropdown for All/Requested/etc (like Loan Records Pipeline) + Payments pill beside it ──
   Widget _buildTabPills() {
     final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
     final isDropdownActive = dropdownKeys.contains(_activeTab);
@@ -323,8 +332,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
   }
 
   /// Mga early payer: lender na may verified payment at LAHAT ng bayad ay bago
-  /// o eksaktong due date (galing sa `lender_payment_insights` RPC).
-  List<UserModel> _earlyPayerLenders(EmpLenderState state) {
+  /// o eksaktong due date. Galing sa `lender_payment_insights` RPC (hindi
+  /// kailangang mag-compute sa client).
+  List<UserModel> _earlyPayerLenders(HmLenderState state) {
     final all = state.lenders.where((u) => u.isEarlyPayer).toList()
       ..sort((a, b) => b.maxDaysEarly.compareTo(a.maxDaysEarly));
     final q = _searchCtrl.text.toLowerCase().trim();
@@ -337,7 +347,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     }).toList();
   }
 
-  Widget _buildEarlyPayers(EmpLenderState state) {
+  Widget _buildEarlyPayers(HmLenderState state) {
     if (state.isLoading && state.lenders.isEmpty) return _buildLoadingShimmer();
     final lenders = _earlyPayerLenders(state);
     if (lenders.isEmpty) {
@@ -475,7 +485,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     );
   }
 
-  Widget _buildPaymentMethodFilter(_EmpPaymentsState state) {
+  Widget _buildPaymentMethodFilter(_PaymentsState state) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -493,11 +503,11 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
                 if (isPendingPill) {
                   setState(() => _pendingPayments = true);
                   // `status=pending` → lahat ng hindi pa bayad (server-side).
-                  ref.read(empCollectionProvider.notifier).setStatus('pending');
+                  ref.read(hmCollectionProvider.notifier).setStatus('pending');
                 } else {
                   setState(() => _pendingPayments = false);
                   ref
-                      .read(_empPaymentsInCollectionProvider.notifier)
+                      .read(_hmPaymentsInCollectionProvider.notifier)
                       .setMethod(t.key);
                 }
               },
@@ -508,78 +518,70 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     );
   }
 
-  Widget _buildToolbar(EmpCollectionState cState, _EmpPaymentsState pState, bool isPayments) {
-    final isEarlyPayers = _activeTab == 'early_payers';
-    final hasSearch = _searchCtrl.text.isNotEmpty;
-    final resultsCount = (isPayments && !_pendingPayments)
-        ? pState.totalCount
-        : isEarlyPayers
-            ? _earlyPayerLenders(ref.read(empLenderProvider)).length
-            : cState.totalCount;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: ResponsiveSearchToolbar(
-        searchField: Row(
-          children: [
-            Icon(Icons.search_rounded, size: 18, color: hasSearch ? AppColors.deepNavy : AppColors.textTertiary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                onChanged: (v) {
-                  if (isEarlyPayers) {
-                    setState(() {});
-                  } else if (isPayments && !_pendingPayments) {
-                    ref
-                        .read(_empPaymentsInCollectionProvider.notifier)
-                        .setSearch(v);
-                  } else {
-                    ref.read(empCollectionProvider.notifier).setSearch(v);
-                  }
-                },
-                style: const TextStyle(fontSize: 13),
-                decoration: const InputDecoration(
-                  hintText: 'Search',
-                  hintStyle: TextStyle(fontSize: 13, color: AppColors.textTertiary),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 10),
-                ),
+  // ── Toolbar: single outer box with Search (hint "Search"), refresh, results badge ──
+  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState, bool isPayments) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ResponsiveSearchToolbar(
+          searchField: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: isPayments && !_pendingPayments
+                ? 'Search payments...'
+                : _activeTab == 'early_payers'
+                    ? 'Search early payers...'
+                    : _pendingPayments
+                        ? 'Search pending payments...'
+                        : 'Search collections...',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: AppColors.border),
               ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
-            if (hasSearch)
-              InkWell(
-                onTap: () {
-                  _searchCtrl.clear();
-                  ref.read(empCollectionProvider.notifier).setSearch('');
-                  ref.read(_empPaymentsInCollectionProvider.notifier).setSearch('');
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: AppColors.textTertiary.withValues(alpha: 0.14), shape: BoxShape.circle),
-                  child: const Icon(Icons.close_rounded, size: 14, color: AppColors.textSecondary),
-                ),
-              ),
-            if (hasSearch) const SizedBox(width: 10),
-            _ToolbarIcon(
-              icon: Icons.refresh_rounded,
-              tooltip: 'Refresh',
-              onTap: () => (isPayments && !_pendingPayments)
-                  ? ref.read(_empPaymentsInCollectionProvider.notifier).fetch()
-                  : ref.read(empCollectionProvider.notifier).fetch(),
+            onChanged: (v) {
+              if ((isPayments && !_pendingPayments) ||
+                  _activeTab == 'early_payers') {
+                setState(() {});
+              } else {
+                ref.read(hmCollectionProvider.notifier).setSearch(v);
+              }
+            },
+          ),
+          trailing: [
+            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+            SearchResultsChip(
+              count: isPayments && !_pendingPayments
+                  // No search text -> true server total; while searching the
+                  // box filters client-side so the chip matches what is shown.
+                  ? (_searchCtrl.text.trim().isEmpty
+                      ? pState.totalCount
+                      : _filteredPayments(pState.payments).length)
+                  : _activeTab == 'early_payers'
+                      ? _earlyPayerLenders(ref.read(hmLenderProvider)).length
+                      : cState.totalCount,
             ),
           ],
         ),
-        trailing: [
-          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          SearchResultsChip(count: resultsCount),
-        ],
-      ),
-    );
+      );
+
+
+
+  List<Map<String, dynamic>> _filteredPayments(List<Map<String, dynamic>> payments) {
+    final q = _searchCtrl.text.toLowerCase().trim();
+    if (q.isEmpty) return payments;
+    return payments.where((p) {
+      final lender = p['lender'] as Map<String, dynamic>? ?? {};
+      final loan = p['loan'] as Map<String, dynamic>? ?? {};
+      final lenderName = '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.toLowerCase();
+      final loanNum = (loan['loan_number'] ?? '').toString().toLowerCase();
+      final method = (p['payment_method'] ?? '').toString().toLowerCase();
+      return lenderName.contains(q) || loanNum.contains(q) || method.contains(q);
+    }).toList();
   }
 
-  Widget _buildCollectionsContent(EmpCollectionState state) {
+  // ── Collections content ──
+  Widget _buildCollectionsContent(HmCollectionState state) {
     final items = state.items;
     if (items.isEmpty) {
       final isFiltered = state.search.isNotEmpty || state.statusFilter != 'all';
@@ -593,7 +595,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             const SizedBox(height: 4),
             const Text('Try a different search or status filter', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             const SizedBox(height: 14),
-            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(empCollectionProvider.notifier).setSearch(''); ref.read(empCollectionProvider.notifier).setStatus('all'); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+            OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(hmCollectionProvider.notifier).setSearch(''); ref.read(hmCollectionProvider.notifier).setStatus('all'); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
           ]),
         );
       }
@@ -602,6 +604,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     return _Entrance(
       child: Column(
         children: [
+          // Premium header + cards wrapped in white card
           ResponsiveListCard(
             minTableWidth: 820,
             columns: const [
@@ -630,17 +633,17 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     // mangolekta muli (bagong assignment para sa parehong schedule).
     final canReassign = status == 'rejected' && !isOffice;
     // Nag-submit na si rider ng proof — kailangang i-approve (baba ang loan
-    // balance) o i-reject (hindi nakuha ang pera).
+    // balance) o i-reject (hindi nakuha ang pera) ng HM/Employee.
     final canReview = status == 'pending_approval';
     return ResponsiveRow(
       cells: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(col.loanNumber.isNotEmpty ? col.loanNumber : '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+          Text(col.loanNumber.isNotEmpty ? col.loanNumber : 'N/A', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
           Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
         ]),
         Text('₱${fmt.format(amount)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
-        Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : '—'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
+        Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : 'N/A'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
         Row(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 7, height: 7, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
           const SizedBox(width: 6),
@@ -648,30 +651,39 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
         ]),
       ],
       actions: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (canAssign)
+        InkWell(
+          onTap: () => context.go(RouteConstants.empCollectionDetails.replaceFirst(':id', col.id)),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
+        ),
+        // "Assign" — dating rider icon button, ginawang text button at inilagay
+        // sa kanan ng View. Requested (hindi pa naka-assign) lang ito lumalabas.
+        if (canAssign) ...[
+          const SizedBox(width: 6),
           InkWell(
             onTap: () async {
               final loanScheduleId = col.loanScheduleId as String? ?? '';
               final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
-              final result = await showDialog<bool>(context: context, builder: (_) => EmpAssignRiderModal(loanScheduleId: loanScheduleId, loanId: loanId, assignmentId: col.id as String? ?? ''));
+              final result = await showDialog<bool>(context: context, builder: (_) => AssignRiderCollectionModal(loanScheduleId: loanScheduleId, loanId: loanId, assignmentId: col.id as String? ?? ''));
               if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
             },
             borderRadius: BorderRadius.circular(9),
-            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Icon(Icons.delivery_dining_rounded, size: 14, color: Colors.white)),
+            child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.riderGreen, borderRadius: BorderRadius.circular(9)), child: const Text('Assign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
           ),
-        if (canAssign) const SizedBox(width: 6),
-        if (canReassign) const SizedBox(width: 6),
-        if (canReassign)
+        ],
+        if (canReassign) ...[
+          const SizedBox(width: 6),
           InkWell(
             onTap: () async {
               final loanScheduleId = col.loanScheduleId as String? ?? '';
               final loanId = (col.loanSchedule?['loan']?['id'] as String?) ?? (col.loanSchedule?['loan_id'] as String?) ?? '';
-              final result = await showDialog<bool>(context: context, builder: (_) => EmpAssignRiderModal(loanScheduleId: loanScheduleId, loanId: loanId));
+              final result = await showDialog<bool>(context: context, builder: (_) => AssignRiderCollectionModal(loanScheduleId: loanScheduleId, loanId: loanId));
               if (result == true && mounted) context.showSnackBarAsToast(const SnackBar(content: Text('Rider assigned successfully'), backgroundColor: AppColors.success));
             },
             borderRadius: BorderRadius.circular(9),
             child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(9)), child: const Text('Reassign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
           ),
+        ],
         // Approve / Reject direktang sa action column kapag na-submit na ni
         // rider ang collection. Silent ang refresh ng provider kaya HINDI
         // nag-reloading nang buo ang table (realtime din ang listahan).
@@ -691,16 +703,12 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             onTap: () => _reviewCollection(col, approve: false),
           ),
         ],
-        InkWell(
-          onTap: () => context.go(RouteConstants.empCollectionDetails.replaceFirst(':id', col.id)),
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
-        ),
       ]),
     );
   }
 
   /// Approve o Reject ang rider-submitted collection. Hindi ito nag-shishimmer
-  /// ng buong table — silent refresh ang approve/reject sa provider.
+  /// ng buong table — `approveCollection`/`rejectCollection` ay silent refresh.
   Future<void> _reviewCollection(dynamic col, {required bool approve}) async {
     final assignmentId = col.id as String? ?? '';
     if (assignmentId.isEmpty) return;
@@ -738,7 +746,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
       if (confirmed != true || !mounted) return;
     }
 
-    final notifier = ref.read(empCollectionProvider.notifier);
+    final notifier = ref.read(hmCollectionProvider.notifier);
     setState(() => _reviewingId = assignmentId);
     bool ok;
     try {
@@ -755,7 +763,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             ? (approve
                 ? 'Collection approved — loan balance updated'
                 : 'Collection rejected — rider can be reassigned')
-            : (ref.read(empCollectionProvider).error ??
+            : (ref.read(hmCollectionProvider).error ??
                 (approve
                     ? 'Failed to approve collection'
                     : 'Failed to reject collection'))),
@@ -764,6 +772,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     );
   }
 
+  // ── Payments table (premium container like loan records) ──
   Widget _buildPaymentsTable(List<Map<String, dynamic>> payments) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final dateFmt = DateFormat('MMM dd, yyyy h:mm a');
@@ -781,7 +790,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
         final lender = p['lender'] as Map<String, dynamic>? ?? {};
         final loan = p['loan'] as Map<String, dynamic>? ?? {};
         final status = (p['status'] as String? ?? '-').toLowerCase();
-        final method = (p['payment_method'] as String? ?? p['method'] as String? ?? '-').toLowerCase();
+        final method = (p['payment_method'] as String? ?? '-').toLowerCase();
         final amt = (p['amount'] as num?)?.toDouble() ?? 0;
         final statusColor = status == 'verified' ? AppColors.success : status == 'pending' ? AppColors.warning : AppColors.error;
         final dateStr = () {
@@ -789,17 +798,12 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
           if (d == null) return '-';
           try { return dateFmt.format(toManila(DateTime.parse(d.toString()))); } catch (_) { return d.toString(); }
         }();
-        final flatLenderName = p['lender_name'] != null ? p['lender_name'] as String : null;
-        final resolvedLender = flatLenderName != null && flatLenderName.isNotEmpty
-            ? flatLenderName
-            : ('${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim().isEmpty ? '—' : '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim());
-        final loanNumberFlat = p['loan_number'] as String? ?? loan['loan_number'] as String? ?? '—';
         return ResponsiveRow(
           cells: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(resolvedLender, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+              Text('${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim().isEmpty ? '—' : '${lender['first_name'] ?? ''} ${lender['last_name'] ?? ''}'.trim(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
               const SizedBox(height: 2),
-              Text(loanNumberFlat, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+              Text(loan['loan_number'] as String? ?? '—', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
             ]),
             Text('₱${fmt.format(amt)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
             _PaymentMethodInline(method: method),
@@ -819,8 +823,9 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
               : InkWell(
                   onTap: () {
                     final id = p['id'] as String? ?? '';
-                    if (id.isNotEmpty) context.go(RouteConstants.empPaymentDetails.replaceFirst(':id', id));
+                    if (id.isNotEmpty) showPaymentDetailsModal(context, id);
                   },
+                  borderRadius: BorderRadius.circular(8),
                   child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))])),
                 ),
         );
@@ -841,7 +846,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
       ),
     );
     if (confirm == true && mounted) {
-      final ok = await ref.read(_empPaymentsInCollectionProvider.notifier).reversePayment(paymentId);
+      final ok = await ref.read(_hmPaymentsInCollectionProvider.notifier).reversePayment(paymentId);
       if (mounted) context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'Payment reversed' : 'Failed to reverse payment'), backgroundColor: ok ? AppColors.success : AppColors.error));
     }
   }
@@ -905,7 +910,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
           const SizedBox(height: 6),
           Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 16),
-          ElevatedButton.icon(onPressed: () => ref.read(empCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
+          ElevatedButton.icon(onPressed: () => ref.read(hmCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
         ]),
       ),
     );
@@ -924,7 +929,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
           const SizedBox(height: 6),
           Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 16),
-          ElevatedButton.icon(onPressed: () => ref.read(_empPaymentsInCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
+          ElevatedButton.icon(onPressed: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
         ]),
       ),
     );
@@ -932,116 +937,130 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
   /// Walang pending na babayaran — lahat ng koleksyon ay tapos na.
   Widget _buildPendingEmpty() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.border),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x08000000),
-                blurRadius: 12,
-                offset: Offset(0, 4))
-          ]),
-      child: Column(children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.10),
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.border)),
-          child: const Icon(Icons.task_alt_rounded,
-              size: 34, color: AppColors.success),
-        ),
-        const SizedBox(height: 16),
-        const Text('No pending payments',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        const Text(
-          'All installments are paid, or there is no open collection request.',
-          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 18),
-        OutlinedButton.icon(
-          onPressed: () => ref.read(empCollectionProvider.notifier).fetch(),
-          icon: const Icon(Icons.refresh_rounded, size: 16),
-          label: const Text('Refresh'),
-        ),
-      ]),
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.task_alt_rounded,
+              size: 64, color: AppColors.textTertiary),
+          const SizedBox(height: 16),
+          const Text(
+            'No pending payments',
+            style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'All installments are paid, or there is no open collection request.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
+          ),
+          const SizedBox(height: 18),
+          OutlinedButton.icon(
+            onPressed: () => ref
+                .read(hmCollectionProvider.notifier)
+                .fetch(),
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: const Text('Refresh'),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildEmpty() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
-      child: Column(children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.riderGreen.withValues(alpha: 0.12), AppColors.deepNavy.withValues(alpha: 0.08)]), borderRadius: BorderRadius.circular(18), border: Border.all(color: AppColors.border)), child: const Icon(Icons.delivery_dining_rounded, size: 40, color: AppColors.riderGreen)),
-        const SizedBox(height: 16),
-        const Text('No collections found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 6),
-        const Text('Rider collection assignments will appear here once requested.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-      ]),
-    );
-  }
-
-  Widget _buildPaymentEmpty(_EmpPaymentsState state) {
-    final isFiltered = state.search.isNotEmpty || state.methodFilter != 'all';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x08000000), blurRadius: 12, offset: Offset(0, 4))]),
-      child: Column(children: [
-        Container(width: 72, height: 72, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.deepNavy.withValues(alpha: 0.10), AppColors.gold.withValues(alpha: 0.16)]), shape: BoxShape.circle, border: Border.all(color: AppColors.border)), child: Icon(isFiltered ? Icons.search_off_rounded : Icons.payments_outlined, size: 32, color: AppColors.deepNavy.withValues(alpha: 0.75))),
-        const SizedBox(height: 16),
-        Text(isFiltered ? 'No matching payments' : 'No payments found', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-        const SizedBox(height: 6),
-        Text(isFiltered ? 'Try a different search or method filter.' : 'Verified payments will appear here.', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary), textAlign: TextAlign.center),
-        if (isFiltered) ...[
-          const SizedBox(height: 18),
-          OutlinedButton.icon(onPressed: () { _searchCtrl.clear(); ref.read(_empPaymentsInCollectionProvider.notifier).setMethod('all'); setState(() {}); }, icon: const Icon(Icons.clear_all_rounded, size: 16), label: const Text('Clear filters')),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.delivery_dining_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
+          SizedBox(height: 16),
+          Text(
+            'No collections found',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
         ],
-      ]),
+      ),
     );
   }
 
-  Widget _buildCollectionPagination(EmpCollectionState state) {
+  Widget _buildPaymentEmpty(_PaymentsState state) {
+    final isFiltered = _searchCtrl.text.isNotEmpty || state.methodFilter != 'all';
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isFiltered ? Icons.search_off_rounded : Icons.payments_outlined,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            isFiltered ? 'No matching payments' : 'No payments found',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 16,
+            ),
+          ),
+          if (isFiltered) ...[
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchCtrl.clear();
+                ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod('all');
+                setState(() {});
+              },
+              icon: const Icon(Icons.clear_all_rounded, size: 16),
+              label: const Text('Clear filters'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCollectionPagination(HmCollectionState state) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Row(children: [
         const Spacer(),
-        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(empCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
+        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(hmCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),
         Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(20)), child: Text('${state.currentPage} / ${state.totalPages}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
         const SizedBox(width: 8),
-        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(empCollectionProvider.notifier).fetch(page: state.currentPage + 1)),
+        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(hmCollectionProvider.notifier).fetch(page: state.currentPage + 1)),
       ]),
     );
   }
 
-  Widget _buildPaymentPagination(_EmpPaymentsState state) {
+  Widget _buildPaymentPagination(_PaymentsState state) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Row(children: [
         const Spacer(),
-        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(_empPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
+        _PageBtn(icon: Icons.chevron_left_rounded, enabled: state.currentPage > 1, onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage - 1)),
         const SizedBox(width: 8),
         Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(20)), child: Text('${state.currentPage} / ${state.totalPages}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
         const SizedBox(width: 8),
-        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(_empPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage + 1)),
+        _PageBtn(icon: Icons.chevron_right_rounded, enabled: state.currentPage < state.totalPages, onTap: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(page: state.currentPage + 1)),
       ]),
     );
   }
 }
 
-
+// ── Supporting widgets (mirrors loan records style) ──
 
 
 /// Maliit na pill-style button para sa Approve / Reject sa actions column.
@@ -1049,7 +1068,8 @@ class _CollectionActionButton extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  /// True habang tumatakbo ang request — spinner sa halip na label.
+  /// True habang tumatakbo ang request — spinner sa halip na label, at
+  /// naka-disable ang tap para hindi ma-double submit.
   final bool busy;
   const _CollectionActionButton({
     required this.label,
@@ -1124,24 +1144,6 @@ class _PaymentMethodInline extends StatelessWidget {
       const SizedBox(width: 6),
       Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c)),
     ]);
-  }
-}
-
-class _ToolbarIcon extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _ToolbarIcon({required this.icon, required this.tooltip, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9), border: Border.all(color: AppColors.border)), child: Icon(icon, size: 16, color: AppColors.textSecondary)),
-      ),
-    );
   }
 }
 

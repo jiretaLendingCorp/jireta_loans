@@ -11,7 +11,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/providers/ci_detail_provider.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
-import '../providers/emp_ci_provider.dart';
+import '../../../head_manager/ci/providers/hm_ci_provider.dart';
 
 class EmpCiDetailsScreen extends ConsumerStatefulWidget {
   final String ciId;
@@ -132,6 +132,11 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
 
   DateTime? _parseCiDate(dynamic value) {
     if (value == null) return null;
+    // response_at / completed_at / reviewed_at were historically written via
+    // nowManilaISO() as Manila wall-time tagged UTC, while created_at is true
+    // UTC. parseManila() (+8h) is correct for true UTC but double-shifts the
+    // legacy wall-time values. Try parseManila first; if the result lies in
+    // the future relative to Manila now, fall back to the raw wall time.
     final raw = DateTime.tryParse(value.toString());
     if (raw == null) return null;
     final viaManila = parseManila(value);
@@ -144,6 +149,9 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
   Widget _buildAssignmentCard(Map<String, dynamic> ci, CreditInvestigationModel model) {
     final status = (ci['status'] as String? ?? '').trim().toLowerCase();
     final hasAccepted = ci['response_at'] != null;
+    // Derive acceptance from response_at as well — backend moves
+    // assigned -> in_progress on accept (no persistent `accepted` state),
+    // so status alone can't be trusted for legacy/cached rows.
     String acceptedLabel;
     if (hasAccepted) {
       final dt = _parseCiDate(ci['response_at']);
@@ -495,12 +503,12 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
   }
 
   Future<void> _approveReport(String ciId) async {
-    final ok = await ref.read(empCiProvider.notifier).approveReport(ciId: ciId);
+    final ok = await ref.read(hmCiProvider.notifier).approveReport(ciId: ciId);
     if (!mounted) return;
     context.showSnackBarAsToast(SnackBar(
       content: Text(ok
           ? 'CI approved — loan is now approved'
-          : 'Approve failed: ${ref.read(empCiProvider).error ?? 'error'}'),
+          : 'Approve failed: ${ref.read(hmCiProvider).error ?? 'error'}'),
       backgroundColor: ok ? AppColors.success : AppColors.error,
     ));
     if (ok) _refreshAfterDecision();
@@ -542,14 +550,13 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
       ),
     );
     if (reason == null || !mounted) return;
-    final ok = await ref
-        .read(empCiProvider.notifier)
-        .rejectReport(ciId: ciId, reason: reason);
+    final ok =
+        await ref.read(hmCiProvider.notifier).rejectReport(ciId: ciId, reason: reason);
     if (!mounted) return;
     context.showSnackBarAsToast(SnackBar(
       content: Text(ok
           ? 'CI report rejected — loan has been rejected'
-          : 'Reject failed: ${ref.read(empCiProvider).error ?? 'error'}'),
+          : 'Reject failed: ${ref.read(hmCiProvider).error ?? 'error'}'),
       backgroundColor: AppColors.error,
     ));
     if (ok) _refreshAfterDecision();
@@ -559,7 +566,7 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
   /// desisyon (at pati na rin ang CI listahan sa likod nito).
   void _refreshAfterDecision() {
     ref.invalidate(ciDetailProvider(widget.ciId));
-    ref.read(empCiProvider.notifier).fetch(silent: true);
+    ref.read(hmCiProvider.notifier).fetch(silent: true);
   }
 
   String _formatAddress(Map<String, dynamic> addr) {

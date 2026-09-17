@@ -10,11 +10,10 @@ import '../../../../../data/datasources/remote/collection_remote_datasource.dart
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/details/collection_proof_viewer.dart';
-import '../providers/emp_collection_provider.dart';
-import '../widgets/emp_assign_rider_modal.dart';
+import '../../../head_manager/collections/providers/hm_collection_provider.dart';
+import '../../../head_manager/collections/widgets/assign_rider_collection_modal.dart';
 
-final _empCollectionDetailProvider =
-    FutureProvider.family<CollectionAssignmentModel?, String>((ref, id) async {
+final _collectionDetailProvider = FutureProvider.family<CollectionAssignmentModel?, String>((ref, id) async {
   final ds = sl<CollectionRemoteDataSource>();
   final list = await ds.getCollectionList(limit: 1000);
   for (final c in list) {
@@ -29,7 +28,7 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(_empCollectionDetailProvider(collectionId));
+    final async = ref.watch(_collectionDetailProvider(collectionId));
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final dateFmt = DateFormat('MMM d, yyyy h:mm a');
 
@@ -40,9 +39,7 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
           onPressed: () => context.go(RouteConstants.empCollections),
           icon: const Icon(Icons.arrow_back_rounded, size: 16),
           label: const Text('Back', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
         ),
         const SizedBox(width: 12),
       ],
@@ -54,8 +51,7 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildContent(
-      BuildContext context, WidgetRef ref, CollectionAssignmentModel col, NumberFormat fmt, DateFormat dateFmt) {
+  Widget _buildContent(BuildContext context, WidgetRef ref, CollectionAssignmentModel col, NumberFormat fmt, DateFormat dateFmt) {
     final schedule = col.loanSchedule ?? {};
     final isOffice = col.collectionType == 'office';
     final hasProof = col.proofPhoto != null || col.borrowerSignature != null || col.collectionPhoto != null;
@@ -79,7 +75,7 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
                 accent: AppColors.riderGreen,
                 child: Column(children: [
                   _InfoRow('Lender', col.lenderName.isNotEmpty ? col.lenderName : 'N/A'),
-                  _InfoRow('Loan Number', col.loanNumber.isNotEmpty ? col.loanNumber : '—'),
+                  _InfoRow('Loan Number', col.loanNumber.isNotEmpty ? col.loanNumber : 'N/A'),
                   _InfoRow('Request Type', isOffice ? 'Pay at the Office' : 'Rider Collection'),
                   _InfoRow('Status', col.status),
                   const Divider(height: 20),
@@ -95,14 +91,14 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
                 accent: AppColors.lenderBlue,
                 child: Column(children: [
                   if (col.lenderPhone.isNotEmpty) _InfoRow('Lender Phone', col.lenderPhone),
-                  _InfoRow(isOffice ? 'Payment Location' : 'Assigned Rider', isOffice ? 'Office' : col.riderName.isNotEmpty ? col.riderName : 'Unassigned'),
+                  _InfoRow(isOffice ? 'Payment Location' : 'Assigned Rider', isOffice ? 'Office' : col.riderName.isNotEmpty ? col.riderName : 'N/A'),
                   _InfoRow('Assigned By', col.assignedByName.isNotEmpty ? col.assignedByName : 'N/A'),
-                  _InfoRow('Requested At', col.effectiveRequestedAt != null ? dateFmt.format(col.effectiveRequestedAt!) : '—'),
-                  _InfoRow('Assigned At', col.effectiveAssignedAt != null ? dateFmt.format(col.effectiveAssignedAt!) : '—'),
+                  _InfoRow('Requested At', col.effectiveRequestedAt != null ? dateFmt.format(col.effectiveRequestedAt!) : 'N/A'),
+                  _InfoRow('Assigned At', col.effectiveAssignedAt != null ? dateFmt.format(col.effectiveAssignedAt!) : 'N/A'),
                   _InfoRow('Schedule', col.collectionSchedule != null ? dateFmt.format(col.collectionSchedule!) : 'N/A'),
                   _InfoRow('Response At', col.responseAt != null ? dateFmt.format(col.responseAt!) : 'Pending'),
                   _InfoRow('Completed At',
-                      isCompleted && col.completedAt != null ? dateFmt.format(col.completedAt!) : '—'),
+                      isCompleted && col.completedAt != null ? dateFmt.format(col.completedAt!) : 'N/A'),
                   const Divider(height: 20),
                   _InfoRow('Notes', col.notes ?? 'None'),
                 ]),
@@ -121,21 +117,14 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
                     const SizedBox(height: 12),
                     Container(
                       width: double.infinity,
-                      decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 3))]),
+                      decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 3))]),
                       child: ElevatedButton.icon(
                         onPressed: () => showCollectionProofDialog(context, [
                           if (col.proofPhoto != null) CollectionProofItem(label: 'Payment Proof', url: col.proofPhoto!),
                           if (col.borrowerSignature != null) CollectionProofItem(label: 'Lender Signature', url: col.borrowerSignature!),
                           if (col.collectionPhoto != null) CollectionProofItem(label: 'Scene Photo', url: col.collectionPhoto!),
                         ]),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         icon: const Icon(Icons.visibility_rounded, size: 18, color: Colors.white),
                         label: const Text('View Collection Proof', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                       ),
@@ -151,8 +140,8 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
                   icon: Icons.location_on_rounded,
                   accent: AppColors.riderGreen,
                   child: Column(children: [
-                    _InfoRow('Latitude', col.locationLat?.toStringAsFixed(6) ?? '—'),
-                    _InfoRow('Longitude', col.locationLng?.toStringAsFixed(6) ?? '—'),
+                    _InfoRow('Latitude', col.locationLat?.toStringAsFixed(6) ?? 'N/A'),
+                    _InfoRow('Longitude', col.locationLng?.toStringAsFixed(6) ?? 'N/A'),
                   ]),
                 ),
               ],
@@ -229,6 +218,7 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
   }
 
   /// Approve/Reject actions — lumalabas LANG habang `pending_approval`.
+  /// Sa approve bumababa ang loan balance; sa reject, hindi.
   Widget _buildReviewActions(
       BuildContext context, WidgetRef ref, CollectionAssignmentModel col) {
     final s = col.status.toLowerCase();
@@ -331,9 +321,9 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    final ok = await ref.read(empCollectionProvider.notifier).approveCollection(col.id);
+    final ok = await ref.read(hmCollectionProvider.notifier).approveCollection(col.id);
     if (!context.mounted) return;
-    ref.invalidate(_empCollectionDetailProvider(col.id));
+    ref.invalidate(_collectionDetailProvider(col.id));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? 'Collection approved — loan balance updated' : 'Failed to approve collection'),
       backgroundColor: ok ? AppColors.success : AppColors.error,
@@ -347,13 +337,13 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
         '';
     final result = await showDialog<bool>(
       context: context,
-      builder: (_) => EmpAssignRiderModal(
+      builder: (_) => AssignRiderCollectionModal(
         loanScheduleId: col.loanScheduleId,
         loanId: loanId,
       ),
     );
     if (result != true || !context.mounted) return;
-    ref.invalidate(_empCollectionDetailProvider(col.id));
+    ref.invalidate(_collectionDetailProvider(col.id));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
       content: Text('Rider assigned successfully'),
       backgroundColor: AppColors.success,
@@ -400,9 +390,9 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
       }
       return;
     }
-    final ok = await ref.read(empCollectionProvider.notifier).rejectCollection(col.id, reason);
+    final ok = await ref.read(hmCollectionProvider.notifier).rejectCollection(col.id, reason);
     if (!context.mounted) return;
-    ref.invalidate(_empCollectionDetailProvider(col.id));
+    ref.invalidate(_collectionDetailProvider(col.id));
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? 'Collection rejected — reassign a rider' : 'Failed to reject collection'),
       backgroundColor: ok ? AppColors.success : AppColors.error,
