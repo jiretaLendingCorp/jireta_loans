@@ -953,7 +953,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           ),
           const SizedBox(height: 6),
           const Text(
-            'Lahat ng installment ay bayad na, o walang bukas na collection request.',
+            'All installments are paid, or there is no open collection request.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
           ),

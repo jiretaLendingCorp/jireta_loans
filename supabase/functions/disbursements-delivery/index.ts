@@ -173,6 +173,15 @@ async function handleOfficeCash(req: Request) {
       authorized_by: authResult.id,
       disbursed_at: now,
       status: 'completed',
+      // KRITIKAL: `disbursements.status_id` ay may DEFAULT na uuid ng
+      // 'pending' (00110 §9) at ang `sync_disbursements_lookup_ids` trigger
+      // (00111) ay nag-o-overwrite ng `status` kapag `status_id IS DISTINCT
+      // FROM OLD.status_id` — sa INSERT, DEFAULT (pending) vs NULL → distinct,
+      // kaya ang 'completed' ay nagiging 'pending' (ACTIVE ang loan pero
+      // Pending ang release sa Disbursements list). Ang `status_id: null` ay
+      // nagpapatakbo ng ELSE branch (code → id) kaya 'completed' ang mananaig.
+      // Kapareho ng fix sa `payments` (payments-manage `status_id: null`).
+      status_id: null,
     })
     .select()
     .single();
@@ -261,6 +270,10 @@ async function handleRiderDelivery(req: Request) {
       authorized_by: authResult.id,
       disbursed_at: null,
       status: 'pending',
+      // `status_id: null` para ang `status` code ang masundan ng trigger
+      // (tingnan ang paliwanag sa handleOfficeCash) — hindi ang DEFAULT na
+      // 'pending' uuid, na siyang nag-o-overwrite ng `status` sa INSERT.
+      status_id: null,
     })
     .select()
     .single();

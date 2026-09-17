@@ -75,6 +75,23 @@ class PaymentModel {
         recordedByUser: json['recorded_by_user'] as Map<String, dynamic>?,
       );
 
+  /// Stable, readable fallback reference para sa cash (office/rider) payments
+  /// na walang Xendit reference. Pareho ito sa convention ng receipt at ng
+  /// HM payment details, kaya isang value lang ang laman ng lahat ng lugar.
+  static String referenceFromId(String? paymentId) {
+    final compact = (paymentId ?? '').replaceAll('-', '').toUpperCase();
+    if (compact.isEmpty) return '';
+    return 'JR-${compact.length >= 12 ? compact.substring(0, 12) : compact}';
+  }
+
+  /// Ang reference na ipapakita sa UI: ang totoong reference number kung meron
+  /// (GCash/Xendit), kung wala ay ang derived na `JR-…` mula sa payment id —
+  /// para hindi blangko/"—" ang Reference No. ng office payment.
+  String get displayReference {
+    final raw = referenceNumber?.trim() ?? '';
+    return raw.isNotEmpty ? raw : referenceFromId(id);
+  }
+
   String get loanNumber => loan?['loan_number'] ?? '';
   String get lenderName {
     final l = loan?['lender'];

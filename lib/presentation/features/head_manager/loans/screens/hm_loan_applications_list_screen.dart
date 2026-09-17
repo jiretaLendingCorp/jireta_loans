@@ -25,6 +25,8 @@ import '../../disbursements/providers/hm_disbursement_provider.dart';
 import '../../../../../data/models/disbursement_model.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../../../../core/errors/error_handler.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class HmLoanApplicationsListScreen extends ConsumerStatefulWidget {
@@ -258,23 +260,33 @@ class _HmLoanApplicationsListScreenState
     return ResponsiveListCard(
       minTableWidth: 880,
       variant: ResponsiveListVariant.card,
+      // Ang `flex` ng bawat column = TOTOONG lapad ng laman + 48px, at ang
+      // kanilang kabuuan (≈948) ay halos katumbas ng available na lapad ng
+      // row. Dahil dito: (a) pantay-pantay ang gap ng lahat ng column
+      // (~50px) at (b) puno ang buong lapad — walang blangkong space sa dulo.
+      // Loan # (LN-2026-872871 ≈ 124) · Lender (≈ 112) ·
+      // Method ("Cash on Delivery" ≈ 138) · Amount (₱60,000.00 ≈ 90) ·
+      // Status ("Completed" ≈ 62) · Date ("Sep 17, 2026 6:35 AM" ≈ 134).
       headerTextStyle: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
           color: AppColors.textSecondary),
       columns: const [
-        ResponsiveCol('Loan #', flex: 2),
-        ResponsiveCol('Lender', flex: 3),
-        ResponsiveCol('Method', flex: 2),
-        ResponsiveCol('Amount', flex: 2),
-        ResponsiveCol('Status', flex: 2),
-        ResponsiveCol('Date', flex: 2),
+        ResponsiveCol('Loan #', flex: 172),
+        ResponsiveCol('Lender', flex: 160),
+        ResponsiveCol('Method', flex: 186),
+        ResponsiveCol('Amount', flex: 138),
+        ResponsiveCol('Status', flex: 110),
+        ResponsiveCol('Date', flex: 182),
       ],
+      // 72px ≈ eksaktong lapad ng "View" button, at naka-LEFT align (hindi
+      // right) kaya ang kaliwang dulo ng "Actions" header ay nakatapat
+      // mismo sa kaliwang dulo ng button (parehong x).
       actionsCol: const ResponsiveActionsCol(
           label: 'Actions',
-          width: 80,
-          alignment: Alignment.centerRight,
-          alignEnd: true),
+          width: 72,
+          alignment: Alignment.centerLeft,
+          alignEnd: false),
       rowBorder: const Border(bottom: BorderSide(color: AppColors.divider)),
       rows: items.map((d) => _buildDisbursementRow(d)).toList(),
     );
@@ -995,6 +1007,47 @@ class _HmLoanApplicationsListScreenState
       _onActionDone();
     }
   }
+
+  /// "Disburse in Office" — ibinibigay na sa lender ang cash sa opisina.
+  ///
+  /// Sa backend (`disbursements-delivery?fn=office-cash`): verified na
+  /// `office_cash` disbursement ang nililikha, nagiging `active` ang loan, at
+  /// nagsisimula ang payment schedule. May validation din doon (lahat ng
+  /// Account Upgrade documents verified, walang existing disbursement) — ang
+  /// error na iyon ang ipinapakita sa dialog kapag hindi natuloy.
+  Future<void> _showDisburseOffice(LoanModel loan) async {
+    final lenderName = (loan.lenderName ?? '').trim();
+    final lender = lenderName.isEmpty ? 'the lender' : lenderName;
+    final done = await showAsyncConfirmationDialog(
+      context,
+      title: 'Disburse in Office?',
+      message: 'Ibibigay na ang ${loan.principalAmount.toCurrency} cash kay $lender '
+          '(${loan.loanNumber}) sa opisina.\n\nKapag na-disburse: magiging '
+          'Active na ang loan at magsisimula ang payment schedule — kaya '
+          'siguraduhing natanggap na ng lender ang pera bago i-confirm.',
+      confirmLabel: 'Disburse',
+      confirmColor: AppColors.success,
+      onConfirm: () async {
+        try {
+          await ref
+              .read(hmDisbursementProvider.notifier)
+              .disburseOfficeCash(loanId: loan.id);
+          return null;
+        } catch (e) {
+          return ErrorHandler.handle(e).message;
+        }
+      },
+    );
+    if (done == true && mounted) {
+      context.showSnackBarAsToast(
+        const SnackBar(
+          content: Text('Cash released in office — loan is now active'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _onActionDone();
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1155,6 +1208,15 @@ class _RowActions extends StatelessWidget {
     final canAssignDeliveryRider = status == 'approved' &&
         !loan.riderDeliveryAssigned &&
         loan.disbursementMethod == 'rider_delivery';
+    // Office pickup release — na-approve na (tapos na ang CI) pero hindi pa
+    // naibibigay ang cash. Ito ang aksyon ng staff, at dating WALA ito sa menu
+    // kaya "Open details" lang ang lumalabas kahit kailangan nang i-release.
+    // `office_cash` = "Pick Up at Office" ang pinili ng lender; kung wala pang
+    // pinipili (walang laman), pinapayagan pa rin ang release sa opisina.
+    final method = (loan.disbursementMethod ?? '').toLowerCase().trim();
+    final canDisburseOffice = status.toLowerCase().trim() == 'approved' &&
+        loan.disbursedAt == null &&
+        (method == 'office_cash' || method.isEmpty);
     final canReject = [
       'pending',
       'under_review',
@@ -1231,6 +1293,15 @@ class _RowActions extends StatelessWidget {
                         SizedBox(width: 8),
                         Text('Assign Cash on Delivery Rider')
                       ])),
+                if (canDisburseOffice)
+                  const PopupMenuItem(
+                      value: 'disburse_office',
+                      child: Row(children: [
+                        Icon(Icons.storefront_rounded,
+                            size: 16, color: AppColors.success),
+                        SizedBox(width: 8),
+                        Text('Disburse in Office')
+                      ])),
                 if (canReject)
                   const PopupMenuItem(
                       value: 'reject',
@@ -1262,6 +1333,9 @@ class _RowActions extends StatelessWidget {
                     break;
                   case 'assign_delivery':
                     parent?._showAssignDisbursementRider(loan);
+                    break;
+                  case 'disburse_office':
+                    parent?._showDisburseOffice(loan);
                     break;
                   case 'view':
                     parent?._openDetails(context, loan.id);

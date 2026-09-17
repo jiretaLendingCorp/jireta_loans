@@ -18,7 +18,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID, sanitizeString } from '../_shared/validators.ts';
-import { nowManilaISO, normalizeManilaInput } from '../_shared/timezone.ts';
+import { MANILA_TZ, nowManilaISO, normalizeManilaInput } from '../_shared/timezone.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'assign';
@@ -66,10 +66,10 @@ async function handleCiAssign(req: Request) {
   if (!loan_id || !rider_id) return errorResponse('loan_id and rider_id are required', 400, 'VALIDATION_ERROR');
   if (!validateUUID(loan_id) || !validateUUID(rider_id)) return errorResponse('Invalid UUID format', 400, 'VALIDATION_ERROR');
 
-  // TIMESTAMPTZ: ang "Rider Visit Date & Time" na pinili ng HM/employee ay
-  // Manila wall time. Kapag walang timezone marker ang pinadala ng app
-  // (lumang build), i-interpret ito bilang +08:00 — kung UTC ang gagamitin ng
-  // Postgres, 8 oras ang pagka-mali ng deadline at ng lender notification.
+  // TIMESTAMPTZ: ang "Rider Visit Date" na pinili ng HM/employee ay Manila
+  // wall time (midnight — petsa lang, walang oras). Kapag walang timezone
+  // marker ang pinadala ng app (lumang build), i-interpret ito bilang +08:00 —
+  // kung UTC ang gagamitin ng Postgres, isang araw ang pagka-mali ng deadline.
   const deadlineIso = normalizeManilaInput(deadline);
 
   const db = getAdminClient();
@@ -176,13 +176,20 @@ async function handleCiAssign(req: Request) {
     const { data: loanRow } = await db.from('loans').select('lender_id').eq('id', loan_id).single();
     const riderName = riderUser ? `${(riderUser as any).first_name ?? ''} ${(riderUser as any).last_name ?? ''}`.trim() : 'Our rider';
     // Ang `deadlineIso` (normalized UTC) ang gamitin — hindi ang hilaw na
-    // request value — para tugma ang oras sa notification sa piniling oras.
-    const visitDate = deadlineIso ? new Date(deadlineIso).toLocaleString('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'soon';
+    // request value. PETSA lang ang ipakita: walang oras na pinipili sa assign
+    // modal (midnight ang deadline), kaya kung may oras pa itong ipapakita ay
+    // lumalabas na "12:00 AM" — misleading para sa lender. Ang eksaktong ORAS
+    // ng bisita ay ipinapadala sa lender sa pag-accept ng rider.
+    const visitDate = deadlineIso
+      ? new Date(deadlineIso).toLocaleDateString('en-PH', { timeZone: MANILA_TZ, month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
     if ((loanRow as any)?.lender_id) {
       await sendPushNotification({
         userId: (loanRow as any).lender_id,
         title: 'Credit Investigation Scheduled',
-        body: `Hi! ${riderName} has been assigned to your loan application and will visit your address by ${visitDate} for verification. Please be available. Tap to view your application status.`,
+        body: visitDate
+          ? `Hi! ${riderName} has been assigned to your loan application and will visit your address on ${visitDate} for verification. Please be available on that day. Tap to view your application status.`
+          : `Hi! ${riderName} has been assigned to your loan application and will visit your address soon for verification. Please be available. Tap to view your application status.`,
         type: 'ci_assigned',
         referenceId: loan_id,
         sentBy: authResult.id,
@@ -222,6 +229,42 @@ async function handleCiAccept(req: Request) {
   await db.from('rider_profiles').update({ is_available: false }).eq('id', user.id);
   await writeAuditLog({ performedBy: user.id, action: 'ci_accept', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
   if (ci.assigned_by) await sendPushNotification({ userId: ci.assigned_by, title: 'Investigation Accepted', body: 'The rider has accepted the credit investigation assignment and will proceed with the visit.', type: 'ci_accepted', referenceId: ci_id });
+
+  // ── Ipalam sa LENDER ang ORAS ng pagbisita ──────────────────────────────
+  // Ang oras ng pagpunta ng rider ay NAG-UUMPISA sa pag-accept na ito (hindi na
+  // pinipili ng staff sa assign modal), kaya dito — at hindi sa assign —
+  // ipinapadala ang may-oras na notification. Kailangang malaman ng lender ang
+  // eksaktong oras para nandoon siya kapag dumating ang rider.
+  try {
+    const acceptedAt = new Date();
+    const visitTime = acceptedAt.toLocaleTimeString('en-PH', {
+      timeZone: MANILA_TZ,
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    const visitDay = acceptedAt.toLocaleDateString('en-PH', {
+      timeZone: MANILA_TZ,
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const { data: riderUser } = await db.from('users').select('first_name, last_name').eq('id', user.id).single();
+    const riderName = riderUser
+      ? `${(riderUser as any).first_name ?? ''} ${(riderUser as any).last_name ?? ''}`.trim() || 'Our rider'
+      : 'Our rider';
+    const { data: loanRow } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
+    if ((loanRow as any)?.lender_id) {
+      await sendPushNotification({
+        userId: (loanRow as any).lender_id,
+        title: 'Rider On The Way',
+        body: `Hi! ${riderName} accepted your credit investigation and will visit you on ${visitDay} at ${visitTime}. Please be available at this time so the rider can proceed with the verification. Tap to view your application status.`,
+        type: 'ci_accepted',
+        referenceId: ci.loan_id,
+        sentBy: user.id,
+      });
+    }
+  } catch (_) {}
+
   return jsonResponse({ message: 'CI assignment accepted' });
 }
 

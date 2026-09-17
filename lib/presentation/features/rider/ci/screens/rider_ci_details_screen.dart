@@ -978,22 +978,19 @@ class _DetailsStep extends StatelessWidget {
                           !isCompleted
                       ? AppColors.error
                       : null),
+              // Notes: plain read-only row na may label — HINDI button/pill.
+              // Dati itong bordered+tinted na kahon na mukhang
+              // napi-pindot, at walang nakasulat kung ano ito.
               if (ci.investigationNotes != null &&
                   ci.investigationNotes!.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  margin: EdgeInsets.only(top: 8),
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                      color: AppColors.riderGreen.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: AppColors.riderGreen.withValues(alpha: 0.15))),
-                  child: Text(ci.investigationNotes!,
-                      style: TextStyle(
-                          fontSize: 13,
-                          height: 1.45,
-                          color: context.cTextPrimary)),
+                _InfoTile(
+                  icon: Icons.sticky_note_2_outlined,
+                  label: 'Notes',
+                  value: ci.investigationNotes!,
+                  valueStyle: TextStyle(
+                      fontSize: 13,
+                      height: 1.45,
+                      color: context.cTextPrimary),
                 ),
             ],
           ),
@@ -1042,7 +1039,6 @@ class _DetailsStep extends StatelessWidget {
               ],
             ),
           ],
-          SizedBox(height: 80),
         ],
       ),
     );
@@ -1197,7 +1193,6 @@ class _UploadStep extends StatelessWidget {
               ),
             ),
           ],
-          SizedBox(height: 80),
         ],
       ),
     );
@@ -1266,7 +1261,6 @@ class _ReportStep extends StatelessWidget {
                   null,
             ),
           ),
-          SizedBox(height: 80),
         ],
       ),
     );
@@ -1525,7 +1519,6 @@ class _UploadReportStep extends StatelessWidget {
                   null,
             ),
           ),
-          SizedBox(height: 80),
         ],
       ),
     );
@@ -1593,17 +1586,11 @@ class _ReviewStep extends StatelessWidget {
                         ? AppColors.error
                         : null),
                 if (ci.investigationNotes != null && ci.investigationNotes!.isNotEmpty)
-                  Container(
-                    width: double.infinity,
-                    margin: EdgeInsets.only(top: 8),
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                        color: context.cSurfaceVariant,
-                        borderRadius: BorderRadius.circular(8)),
-                    child: Text(ci.investigationNotes!,
-                        style: TextStyle(
-                            fontSize: 12, color: context.cTextSecondary, height: 1.4)),
-                  ),
+                  // Plain na label + text row — kapareho ng layout ng ibang
+                  // _ReviewTile. Dating nasa gitna ang label (shrink-wrapped
+                  // na Text sa center-aligned na Column) at ang nilalaman ay
+                  // tinted na box na mukhang button.
+                  _ReviewTile('Notes', ci.investigationNotes!),
               ],
             ),
           ),
@@ -1687,19 +1674,13 @@ class _ReviewStep extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                             color: context.cTextTertiary)),
                   )
-                : Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: context.cSurfaceVariant,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: context.cBorder.withValues(alpha: 0.5))),
-                    child: Text(reportText.trim(),
-                        style: TextStyle(
-                            fontSize: 13, height: 1.5, color: context.cTextPrimary)),
-                  ),
+                // Plain na text lang — HINDI bordered/tinted na kahon. Dating
+                // mukhang button o text field na pwedeng i-tap dahil sa
+                // background + border + rounded corners.
+                : Text(reportText.trim(),
+                    style: TextStyle(
+                        fontSize: 13, height: 1.5, color: context.cTextPrimary)),
           ),
-          SizedBox(height: 90),
         ],
       ),
     );
@@ -1875,8 +1856,10 @@ class _CompletedView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Walang action bar sa ilalim ng view na ito, kaya maliit na bottom
+    // padding lang — dati ay 100 na blangkong espasyo ang na-scroll pa.
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2293,11 +2276,16 @@ class _InfoTile extends StatelessWidget {
   final String label;
   final String value;
   final Color? valueColor;
+
+  /// Override ng value style para sa mahabang content (hal. Notes): hindi
+  /// naka-bold at mas maluwag ang line height kaysa sa karaniwang value.
+  final TextStyle? valueStyle;
   const _InfoTile(
       {required this.icon,
       required this.label,
       required this.value,
-      this.valueColor});
+      this.valueColor,
+      this.valueStyle});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -2332,12 +2320,13 @@ class _InfoTile extends StatelessWidget {
                 SizedBox(height: 3),
                 Text(
                   value,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    height: 1.35,
-                    color: valueColor ?? context.cTextPrimary,
-                  ),
+                  style: valueStyle ??
+                      TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
+                        color: valueColor ?? context.cTextPrimary,
+                      ),
                 ),
               ],
             ),

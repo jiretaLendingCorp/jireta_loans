@@ -71,8 +71,7 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
       return;
     }
     if (_deadline == null) {
-      setState(() =>
-          _error = 'Please select the rider visit date and time');
+      setState(() => _error = 'Please select the rider visit date');
       return;
     }
     setState(() {
@@ -152,15 +151,16 @@ class _CiAssignModalState extends ConsumerState<CiAssignModal> {
                     children: [
                       _buildRiderPicker(),
                       const SizedBox(height: 16),
-                      // REQUIRED ang ORAS — anong oras pupunta si rider sa
-                      // lender sa petsang iyon.
+                      // PETSA lang — walang time picker. Ang ORAS ng bisita ay
+                      // hindi na pinipili ng staff: nag-uumpisa ito sa sandaling
+                      // i-accept ng rider ang assignment, at doon ipinapaalam
+                      // sa lender ang eksaktong oras ng pagpunta ng rider.
                       AppDatePicker(
-                        label: 'Rider Visit Date & Time *',
+                        label: 'Rider Visit Date *',
                         value: _deadline,
                         onChanged: (d) => setState(() => _deadline = d),
                         firstDate: DateTime.now(),
                         lastDate: DateTime.now().add(const Duration(days: 60)),
-                        withTime: true,
                       ),
                       const SizedBox(height: 16),
                       AppTextField(

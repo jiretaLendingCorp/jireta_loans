@@ -961,7 +961,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
         const Text(
-          'Lahat ng installment ay bayad na, o walang bukas na collection request.',
+          'All installments are paid, or there is no open collection request.',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           textAlign: TextAlign.center,
         ),

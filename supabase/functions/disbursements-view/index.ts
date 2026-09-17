@@ -81,6 +81,7 @@ async function handleGetList(req: Request) {
     `id, loan_id, method, amount, status,
      xendit_disbursement_id:xendit_id, xendit_reference, xendit_status,
      rider_id, disbursed_by:authorized_by, disbursed_at, delivery_date,
+     authorized_by_user:users!disbursements_authorized_by_fkey(first_name, last_name),
      notes:delivery_notes, delivery_proof, delivery_proof_2, borrower_signature, created_at, updated_at,
      loan:loans!disbursements_loan_id_fkey!inner(
        id, loan_number, status,
@@ -127,6 +128,14 @@ async function handleGetList(req: Request) {
     const loan = embedAsObject(r.loan);
     const lp = loan ? embedAsObject(loan.lender_profiles) : null;
     const users = lp ? embedAsObject(lp.users) : null;
+    // `authorized_by` ay UUID FK → `users`. Kunin ang pangalan dito para hindi
+    // hilaw na UUID ang lumalabas sa "Disbursed By" ng Office Cash section.
+    const authorizedByUser = embedAsObject<{ first_name?: string; last_name?: string }>(
+      r.authorized_by_user,
+    );
+    const authorizedByName = authorizedByUser
+      ? `${authorizedByUser.first_name ?? ''} ${authorizedByUser.last_name ?? ''}`.trim()
+      : '';
     const proofs: Record<string, unknown> = {};
     for (const field of PROOF_FIELDS) {
       proofs[field] = await signProof(db, r[field]);
@@ -137,6 +146,7 @@ async function handleGetList(req: Request) {
       lender_name: users
         ? `${users.first_name} ${users.last_name}`.trim()
         : null,
+      disbursed_by_name: authorizedByName || null,
       loan_number: loan?.loan_number ?? null,
     };
   }));

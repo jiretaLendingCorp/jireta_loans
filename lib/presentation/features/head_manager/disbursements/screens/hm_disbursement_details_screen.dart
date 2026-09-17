@@ -158,7 +158,7 @@ class HmDisbursementDetailsContent extends ConsumerWidget {
       return [
         _title('Office Cash Release'),
         const SizedBox(height: 14),
-        _row('Disbursed By', d.disbursedBy ?? 'N/A'),
+        _row('Disbursed By', d.disbursedByLabel),
         if (d.disbursedAt != null)
           _row('Release Date',
               DateFormat('MMM dd, yyyy hh:mm a').format(d.disbursedAt!)),

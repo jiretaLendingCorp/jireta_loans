@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/datasources/remote/disbursement_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -533,6 +537,13 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
     final canAssignDeliveryRider = status == 'approved' &&
         !loan.riderDeliveryAssigned &&
         loan.disbursementMethod == 'rider_delivery';
+    // Office pickup release — kapareho ng Head Manager: na-approve na at hindi
+    // pa naibibigay ang cash. Dati, wala itong aksyon sa menu kaya
+    // "Open details" lang ang nakikita ng staff.
+    final method = (loan.disbursementMethod ?? '').toLowerCase().trim();
+    final canDisburseOffice = status == 'approved' &&
+        loan.disbursedAt == null &&
+        (method == 'office_cash' || method.isEmpty);
     final canReject = [
       'pending',
       'under_review',
@@ -608,6 +619,15 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
                         SizedBox(width: 8),
                         Text('Assign Cash on Delivery Rider')
                       ])),
+                if (canDisburseOffice)
+                  const PopupMenuItem(
+                      value: 'disburse_office',
+                      child: Row(children: [
+                        Icon(Icons.storefront_rounded,
+                            size: 16, color: AppColors.success),
+                        SizedBox(width: 8),
+                        Text('Disburse in Office')
+                      ])),
                 if (canReject)
                   const PopupMenuItem(
                       value: 'reject',
@@ -639,6 +659,9 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
                     break;
                   case 'assign_delivery':
                     _showAssignDeliveryRider(loan);
+                    break;
+                  case 'disburse_office':
+                    _showDisburseOffice(loan);
                     break;
                   case 'view':
                     _openDetails(context, loan.id);
@@ -738,6 +761,45 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
       context.showSnackBarAsToast(
         const SnackBar(
           content: Text('Delivery rider assigned'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      ref.read(empLoanProvider.notifier).load(silent: true);
+    }
+  }
+
+  /// "Disburse in Office" — ibinibigay na sa lender ang cash sa opisina
+  /// (`disbursements-delivery?fn=office-cash`): nagiging `active` ang loan at
+  /// nagsisimula ang payment schedule. Ang validation errors mula sa backend
+  /// (hal. hindi pa verified ang Account Upgrade documents) ay ipinapakita sa
+  /// dialog bago pa man ito magsara.
+  Future<void> _showDisburseOffice(LoanModel loan) async {
+    final lenderName = (loan.lenderName ?? '').trim();
+    final lender = lenderName.isEmpty ? 'the lender' : lenderName;
+    final done = await showAsyncConfirmationDialog(
+      context,
+      title: 'Disburse in Office?',
+      message:
+          'Ibibigay na ang ${loan.principalAmount.toCurrency} cash kay $lender '
+          '(${loan.loanNumber}) sa opisina.\n\nKapag na-disburse: magiging '
+          'Active na ang loan at magsisimula ang payment schedule — kaya '
+          'siguraduhing natanggap na ng lender ang pera bago i-confirm.',
+      confirmLabel: 'Disburse',
+      confirmColor: AppColors.success,
+      onConfirm: () async {
+        try {
+          await sl<DisbursementRemoteDataSource>()
+              .disburseOfficeCash(loanId: loan.id);
+          return null;
+        } catch (e) {
+          return ErrorHandler.handle(e).message;
+        }
+      },
+    );
+    if (done == true && mounted) {
+      context.showSnackBarAsToast(
+        const SnackBar(
+          content: Text('Cash released in office — loan is now active'),
           backgroundColor: AppColors.success,
         ),
       );

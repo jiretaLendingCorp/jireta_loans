@@ -122,19 +122,22 @@ class _PayInOfficeButtonState extends State<PayInOfficeButton> {
     if (!mounted) return;
     setState(() => _busy = false);
 
-    // Refresh — best effort lang: hindi dapat mag-report ng failure kung
-    // matagumpay nang naitala ang bayad.
-    try {
-      await widget.onRecorded?.call();
-    } catch (_) {}
-
-    if (!mounted) return;
+    // Ang toast ay dapat LUMABAS AGAD pagkatapos huminto ang loading. Dati
+    // inaantay pa ang `onRecorded()` (network refresh) bago ang toast — kaya
+    // "tapos na ang loading" pero delayed pa ang "Paid in office" na mensahe.
     if (ok) {
       context.showToast(
           'Paid in office — ₱${amount.toStringAsFixed(2)} recorded');
     } else {
       context.showErrorToast(error ?? 'Failed to record office payment');
     }
+
+    // Refresh — best effort lang at PAGKATAPOS ng toast: hindi ito dapat
+    // mag-report ng failure o makapagpadelay ng success message kung
+    // matagumpay nang naitala ang bayad.
+    try {
+      await widget.onRecorded?.call();
+    } catch (_) {}
   }
 
   @override
@@ -148,11 +151,33 @@ class _PayInOfficeButtonState extends State<PayInOfficeButton> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.success)),
+        // Ang Action cell ng Payment Schedule Table ay may TIGHT width
+        // constraint (IntrinsicColumnWidth). Kapag bare `SizedBox` lang ang
+        // nasa ilalim nito, na-e-enforce pabalik ang lapad ng buong column sa
+        // spinner — kaya naging WIDE/patag ang loading. Ang `Row` ay nagbibigay
+        // ng natural (loose) size sa mga anak, kaya bilog pa rin ang spinner at
+        // pareho pa rin ang lapad ng button (hindi tumatalon ang column).
         child: _busy
-            ? const SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2))
+            ? const Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.success),
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'Pay in Office',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.success),
+                  ),
+                ],
+              )
             : const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [

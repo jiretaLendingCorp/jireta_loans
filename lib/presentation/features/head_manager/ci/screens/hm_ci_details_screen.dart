@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/providers/ci_detail_provider.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../providers/hm_ci_provider.dart';
 
 class HmCiDetailsScreen extends ConsumerStatefulWidget {
   final String ciId;
@@ -64,19 +66,21 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Workflow Progress — FULL WIDTH sa pinaka-itaas ng page: dito agad
+          // nakikita ng staff kung saang stage na ang assignment.
+          _buildProgressCard(ci, status),
+          const SizedBox(height: 16),
           LayoutBuilder(builder: (context, c) {
             final isNarrow = c.maxWidth < 860;
             final leftColumn = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _buildLenderCard(ci, model),
               const SizedBox(height: 16),
               _buildAssignmentCard(ci, model),
-              if ((ci['report_summary'] as String?)?.isNotEmpty == true) ...[
+              // Isang card na lang: CI Report + Evidence Photos.
+              if ((ci['report_summary'] as String?)?.isNotEmpty == true ||
+                  (ci['ci_documents'] as List?)?.isNotEmpty == true) ...[
                 const SizedBox(height: 16),
-                _buildReportCard(ci),
-              ],
-              if ((ci['ci_documents'] as List?)?.isNotEmpty == true) ...[
-                const SizedBox(height: 16),
-                _buildDocumentsCard(ci),
+                _buildReportEvidenceCard(ci),
               ],
               if (status == 'approved' || status == 'rejected') ...[
                 const SizedBox(height: 16),
@@ -84,12 +88,12 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
               ],
             ]);
 
+            // Nasa itaas na (full width) ang progress card — status card na
+            // lang ang naiwan sa right rail.
             final rightRail = SizedBox(
               width: isNarrow ? double.infinity : 340,
               child: Column(children: [
                 _buildStatusCard(ci, model, status),
-                const SizedBox(height: 16),
-                _buildProgressCard(ci, status),
               ]),
             );
 
@@ -155,7 +159,8 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     } else {
       acceptedLabel = status == 'declined' ? 'Declined' : 'Pending';
     }
-    String completedLabel = '—';
+    // Walang "—": kapag wala pang value ay 'N/A' ang nakalagay.
+    String completedLabel = 'N/A';
     if (ci['completed_at'] != null) {
       final dt = _parseCiDate(ci['completed_at']);
       completedLabel = dt != null ? _dateFmt.format(dt) : ci['completed_at'].toString();
@@ -175,46 +180,54 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     );
   }
 
-  Widget _buildReportCard(Map<String, dynamic> ci) {
-    return _SectionCard(
-      title: 'CI Report',
-      subtitle: 'Field investigation summary',
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
-        ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(ci['report_summary'] as String? ?? '', style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildDocumentsCard(Map<String, dynamic> ci) {
+  /// Pinagsamang card: CI Report + Evidence Photos. Dating magkahiwalay na
+  /// card ito pero pareho naman ang konteksto (field visit), kaya isang card
+  /// na lang para hindi hati ang atensyon ng nagre-review.
+  Widget _buildReportEvidenceCard(Map<String, dynamic> ci) {
     final docs = (ci['ci_documents'] as List?) ?? [];
+    final report = (ci['report_summary'] as String?) ?? '';
     return _SectionCard(
-      title: 'Evidence Photos (${docs.length})',
-      subtitle: 'Captured during the field visit',
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1),
-        itemCount: docs.length,
-        itemBuilder: (ctx, i) {
-          final doc = docs[i] as Map<String, dynamic>;
-          return _DocumentThumbnail(doc: doc);
-        },
-      ),
+      title: docs.isEmpty
+          ? 'CI Report'
+          : 'CI Report & Evidence Photos (${docs.length})',
+      subtitle: 'Field investigation summary',
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (report.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('“', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.textTertiary, height: 0.8)),
+              const SizedBox(width: 8),
+              Expanded(child: Text(report, style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textPrimary))),
+            ]),
+          ),
+        if (report.isNotEmpty && docs.isNotEmpty) const SizedBox(height: 16),
+        if (docs.isNotEmpty) ...[
+          const Text('Evidence Photos',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+          const SizedBox(height: 10),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1),
+            itemCount: docs.length,
+            itemBuilder: (ctx, i) {
+              final doc = docs[i] as Map<String, dynamic>;
+              return _DocumentThumbnail(doc: doc);
+            },
+          ),
+        ],
+      ]),
     );
   }
 
@@ -222,8 +235,8 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     final status = (ci['status'] as String? ?? '').toLowerCase();
     final isApproved = status == 'approved';
     final reviewer = ci['reviewer'] as Map<String, dynamic>?;
-    final reviewerName = reviewer != null ? '${reviewer['first_name'] ?? ''} ${reviewer['last_name'] ?? ''}'.trim() : '—';
-    final reviewedAt = ci['reviewed_at'] != null ? _dateFmt.format(parseManila(ci['reviewed_at'])!) : '—';
+    final reviewerName = reviewer != null ? '${reviewer['first_name'] ?? ''} ${reviewer['last_name'] ?? ''}'.trim() : 'N/A';
+    final reviewedAt = ci['reviewed_at'] != null ? _dateFmt.format(parseManila(ci['reviewed_at'])!) : 'N/A';
     final notes = ci['review_notes'] as String? ?? (ci['review_decision'] as String? ?? '');
     return _SectionCard(
       title: isApproved ? 'CI Approved' : 'CI Rejected',
@@ -249,55 +262,6 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
   Widget _buildStatusCard(Map<String, dynamic> ci, CreditInvestigationModel model, String status) {
     final deadline = parseManila(ci['deadline']);
     final isOverdue = deadline != null && deadline.isOverdue && !['completed', 'approved', 'rejected'].contains(status);
-    // Backend accepts straight to `in_progress` (no persistent `accepted`),
-    // so derive acceptance from response_at for stale/cached rows where
-    // status may still read `assigned`/`pending`.
-    final hasAccepted = ci['response_at'] != null;
-    var effective = status;
-    if ((effective == 'assigned' || effective == 'pending' || effective.isEmpty) && hasAccepted) {
-      effective = 'accepted';
-    }
-    final String msg;
-    final Color msgColor;
-    switch (effective) {
-      case 'approved':
-        msg = 'CI report approved — loan has been auto-approved.';
-        msgColor = AppColors.success;
-        break;
-      case 'rejected':
-        msg = 'CI report rejected — loan has been rejected.';
-        msgColor = AppColors.error;
-        break;
-      case 'completed':
-        msg = 'Report submitted — awaiting your decision.';
-        msgColor = AppColors.warning;
-        break;
-      case 'in_progress':
-        msg = 'Investigation is currently in progress.';
-        msgColor = AppColors.lenderBlue;
-        break;
-      case 'accepted':
-        msg = 'Rider accepted this assignment.';
-        msgColor = AppColors.riderGreen;
-        break;
-      case 'declined':
-        msg = 'Rider declined this assignment — please reassign.';
-        msgColor = AppColors.error;
-        break;
-      case 'assigned':
-      case 'pending':
-        msg = 'Rider assigned — awaiting acceptance.';
-        msgColor = AppColors.lenderBlue;
-        break;
-      default:
-        if (hasAccepted) {
-          msg = 'Rider accepted this assignment.';
-          msgColor = AppColors.riderGreen;
-        } else {
-          msg = 'Rider assigned — awaiting acceptance.';
-          msgColor = AppColors.lenderBlue;
-        }
-    }
     final statusLabel = status.replaceAll('_', ' ').toUpperCase();
 
     return Container(
@@ -333,16 +297,6 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
             _InfoRow('Loan Number', model.loanNumber.isEmpty ? 'N/A' : model.loanNumber, labelWidth: 120),
             if (deadline != null)
               _InfoRow('Deadline', DateFormat('MMM d, yyyy').format(deadline), labelWidth: 120, valueColor: isOverdue ? AppColors.error : null),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: msgColor.withValues(alpha: 0.08),
-                border: Border.all(color: msgColor.withValues(alpha: 0.3)),
-              ),
-              child: Text(msg, style: TextStyle(color: msgColor, fontSize: 12, fontWeight: FontWeight.w700)),
-            ),
           ]),
         ),
       ]),
@@ -354,6 +308,9 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     final isRejected = status == 'rejected';
     final isCompletedPending = status == 'completed';
     final hasAccepted = ci['response_at'] != null;
+    // Ang "kailangan pang i-approve/reject" indicator ay orange badge na
+    // nakapatong sa 3-dots actions menu (tingnan ang _buildWorkflowActions),
+    // kaya green pa rin ang icon ng tapos nang step dito sa stepper.
     final steps = <({String label, bool done, IconData icon})>[
       (label: 'Assigned', done: ci['created_at'] != null, icon: Icons.assignment_turned_in_rounded),
       (label: 'Accepted', done: hasAccepted || status == 'accepted' || status == 'in_progress' || isCompletedPending || isApproved || isRejected, icon: Icons.handshake_rounded),
@@ -373,46 +330,243 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     return _SectionCard(
       title: 'Workflow Progress',
       subtitle: 'Assignment stages',
-      child: Column(children: [
-        for (int i = 0; i < steps.length; i++) ...[
-          Row(children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: steps[i].done
-                    ? AppColors.riderGreen
-                    : i == activeIndex
-                        ? AppColors.lenderBlue
-                        : AppColors.surfaceVariant,
-                shape: BoxShape.circle,
-                border: Border.all(
-                    color: steps[i].done
-                        ? AppColors.riderGreen
-                        : i == activeIndex
-                            ? AppColors.lenderBlue
-                            : AppColors.border),
-              ),
-              child: Icon(steps[i].icon,
-                  size: 14,
-                  color: steps[i].done || i == activeIndex ? Colors.white : AppColors.textTertiary),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-                child: Text(steps[i].label,
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: i == activeIndex ? FontWeight.w800 : FontWeight.w600,
-                        color: i == activeIndex ? AppColors.deepNavy : AppColors.textSecondary))),
-          ]),
-          if (i < steps.length - 1)
-            Padding(
-              padding: const EdgeInsets.only(left: 13.5, top: 4, bottom: 4),
-              child: Container(width: 1.5, height: 12, color: steps[i].done ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border),
-            ),
-        ],
-      ]),
+      // Compact na card — maliit ang header at laman para hindi kalat.
+      compact: true,
+      // 3-dot sa dulo ng header — dito na mismo i-approve/reject ang report.
+      trailing: _buildWorkflowActions(ci, status),
+      child: LayoutBuilder(builder: (context, c) {
+        // Naka-wide ang card na ito (full width sa itaas ng page), kaya
+        // HORIZONTAL stepper ang gamitin para puno ang buong lapad. Kapag
+        // makitid (mobile/tablet), vertical pa rin para hindi mag-cramp ang
+        // mga label.
+        if (c.maxWidth >= 720) return _buildHorizontalSteps(steps, activeIndex);
+        return _buildVerticalSteps(steps, activeIndex);
+      }),
     );
+  }
+
+  Widget _buildVerticalSteps(
+      List<({String label, bool done, IconData icon})> steps, int activeIndex) {
+    return Column(children: [
+      for (int i = 0; i < steps.length; i++) ...[
+        Row(children: [
+          _stepDot(steps[i], i == activeIndex),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Text(steps[i].label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: i == activeIndex ? FontWeight.w800 : FontWeight.w600,
+                      color: i == activeIndex ? AppColors.deepNavy : AppColors.textSecondary))),
+        ]),
+        if (i < steps.length - 1)
+          Padding(
+            padding: const EdgeInsets.only(left: 13.5, top: 4, bottom: 4),
+            child: Container(width: 1.5, height: 12, color: steps[i].done ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border),
+          ),
+      ],
+    ]);
+  }
+
+  /// Horizontal stepper (wide card): naka-centro ang icon sa ibabaw ng label,
+  /// may connector na linya sa pagitan ng mga stage.
+  Widget _buildHorizontalSteps(
+      List<({String label, bool done, IconData icon})> steps, int activeIndex) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < steps.length; i++) ...[
+          if (i > 0)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                    height: 2,
+                    color: steps[i - 1].done
+                        ? AppColors.riderGreen.withValues(alpha: 0.4)
+                        : AppColors.border),
+              ),
+            ),
+          SizedBox(
+            width: 96,
+            child: Column(children: [
+              _stepDot(steps[i], i == activeIndex),
+              const SizedBox(height: 6),
+              Text(steps[i].label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: i == activeIndex ? FontWeight.w800 : FontWeight.w600,
+                      color: i == activeIndex ? AppColors.deepNavy : AppColors.textSecondary)),
+            ]),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _stepDot(({String label, bool done, IconData icon}) step, bool isActive) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: step.done
+            ? AppColors.riderGreen
+            : isActive
+                ? AppColors.lenderBlue
+                : AppColors.surfaceVariant,
+        shape: BoxShape.circle,
+        border: Border.all(
+            color: step.done
+                ? AppColors.riderGreen
+                : isActive
+                    ? AppColors.lenderBlue
+                    : AppColors.border),
+      ),
+      child: Icon(step.icon,
+          size: 12,
+          color: step.done || isActive ? Colors.white : AppColors.textTertiary),
+    );
+  }
+
+  // ─────────────────────────── Card header actions ───────────────────────────
+
+  /// 3-dot menu sa dulong bahagi ng Workflow Progress card.
+  ///
+  /// Dito na mismo ginagawa ang CI report review (approve / reject) — hindi na
+  /// kailangang bumalik sa CI list para hanapin ang row. Naka-grey ang dalawang
+  /// action hangga't hindi pa naka-submit ang report (`completed`), at ang
+  /// tooltip ang nagpapaliwanag nito.
+  Widget _buildWorkflowActions(Map<String, dynamic> ci, String status) {
+    final ciId = (ci['id'] ?? '').toString();
+    final canReview = status == 'completed';
+    return PopupMenuButton<String>(
+      tooltip: canReview
+          ? 'Actions'
+          : 'Available once the rider submits the report',
+      padding: EdgeInsets.zero,
+      iconSize: 18,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      // Orange badge sa ibabaw ng 3-dots kapag naka-submit na ang report —
+      // senyales na agad sa user na may approve/reject na dapat gawin.
+      icon: SizedBox(
+        width: 22,
+        height: 22,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Icon(Icons.more_vert_rounded, size: 18, color: Colors.white),
+            if (canReview)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppColors.warning,
+                    shape: BoxShape.circle,
+                    // Ring na kapareho ng header color para mukhang badge.
+                    border: Border.all(
+                        color: const Color(0xFF5C6370), width: 1.2),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'approve',
+          enabled: canReview,
+          child: const Row(children: [
+            Icon(Icons.verified_rounded, size: 16, color: AppColors.success),
+            SizedBox(width: 10),
+            Text('Approve'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'reject',
+          enabled: canReview,
+          child: const Row(children: [
+            Icon(Icons.cancel_outlined, size: 16, color: AppColors.error),
+            SizedBox(width: 10),
+            Text('Reject'),
+          ]),
+        ),
+      ],
+      onSelected: (value) {
+        if (value == 'approve') _approveReport(ciId);
+        if (value == 'reject') _rejectReport(ciId);
+      },
+    );
+  }
+
+  Future<void> _approveReport(String ciId) async {
+    final ok = await ref.read(hmCiProvider.notifier).approveReport(ciId: ciId);
+    if (!mounted) return;
+    context.showSnackBarAsToast(SnackBar(
+      content: Text(ok
+          ? 'CI approved — loan is now approved'
+          : 'Approve failed: ${ref.read(hmCiProvider).error ?? 'error'}'),
+      backgroundColor: ok ? AppColors.success : AppColors.error,
+    ));
+    if (ok) _refreshAfterDecision();
+  }
+
+  Future<void> _rejectReport(String ciId) async {
+    final reasonCtrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reject CI Report'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Provide reason (min 10 chars).',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          const SizedBox(height: 12),
+          TextField(
+              controller: reasonCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                  hintText: 'Rejection reason',
+                  border: OutlineInputBorder())),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () {
+                final r = reasonCtrl.text.trim();
+                if (r.length < 10) {
+                  context.showSnackBarAsToast(const SnackBar(
+                      content: Text('Reason must be at least 10 characters')));
+                  return;
+                }
+                Navigator.pop(context, r);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+              child: const Text('Reject', style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+    if (reason == null || !mounted) return;
+    final ok =
+        await ref.read(hmCiProvider.notifier).rejectReport(ciId: ciId, reason: reason);
+    if (!mounted) return;
+    context.showSnackBarAsToast(SnackBar(
+      content: Text(ok
+          ? 'CI report rejected — loan has been rejected'
+          : 'Reject failed: ${ref.read(hmCiProvider).error ?? 'error'}'),
+      backgroundColor: AppColors.error,
+    ));
+    if (ok) _refreshAfterDecision();
+  }
+
+  /// Status + progress + review cards sa details ay i-refresh pagkatapos ng
+  /// desisyon (at pati na rin ang CI listahan sa likod nito).
+  void _refreshAfterDecision() {
+    ref.invalidate(ciDetailProvider(widget.ciId));
+    ref.read(hmCiProvider.notifier).fetch(silent: true);
   }
 
   String _formatAddress(Map<String, dynamic> addr) {
@@ -466,7 +620,20 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final Widget child;
-  const _SectionCard({required this.title, this.subtitle = '', required this.child});
+
+  /// Opsyonal na widget sa dulong bahagi ng header — hal. ang 3-dot actions
+  /// menu ng Workflow Progress card.
+  final Widget? trailing;
+
+  /// Mas maliit na card — masikip ang header at laman. Ginagamit ng
+  /// Workflow Progress stepper.
+  final bool compact;
+  const _SectionCard(
+      {required this.title,
+      this.subtitle = '',
+      required this.child,
+      this.trailing,
+      this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -478,17 +645,31 @@ class _SectionCard extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: compact ? 6 : 10),
           decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
           child: Row(children: [
             const SizedBox(width: 8),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
-              if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.white70)),
+              Text(title,
+                  style: TextStyle(
+                      fontSize: compact ? 11 : 12,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white)),
+              if (subtitle.isNotEmpty)
+                Text(subtitle,
+                    style: TextStyle(fontSize: compact ? 9 : 10, color: Colors.white70)),
             ]),
+            if (trailing != null) ...[
+              const Spacer(),
+              trailing!,
+            ],
           ]),
         ),
-        Padding(padding: const EdgeInsets.all(16), child: child),
+        Padding(
+            padding: compact
+                ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
+                : const EdgeInsets.all(16),
+            child: child),
       ]),
     );
   }

@@ -12,6 +12,9 @@ class DisbursementModel {
   final String? gcashNumber;
   final String? riderId;
   final String? disbursedBy;
+  /// Pangalan ng nag-release (mula sa `authorized_by` → users join). Ang
+  /// `disbursedBy` ay UUID ng user, kaya ito ang dapat ipakita sa UI.
+  final String? disbursedByName;
   final DateTime? disbursedAt;
   final DateTime? deliveryDate;
   final String? notes;
@@ -34,6 +37,7 @@ class DisbursementModel {
     this.gcashNumber,
     this.riderId,
     this.disbursedBy,
+    this.disbursedByName,
     this.disbursedAt,
     this.deliveryDate,
     this.notes,
@@ -72,6 +76,7 @@ class DisbursementModel {
         gcashNumber: json['gcash_number'],
         riderId: json['rider_id'],
         disbursedBy: json['disbursed_by'],
+        disbursedByName: (json['disbursed_by_name'] as String?)?.trim(),
         disbursedAt: json['disbursed_at'] != null
             ? parseManila(json['disbursed_at'])
             : null,
@@ -134,6 +139,21 @@ class DisbursementModel {
       default:
         return method;
     }
+  }
+
+  static final _uuidRe = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+  /// Pangalan ng nag-release ng Office Cash (`authorized_by` → users join).
+  /// Ang `disbursed_by` ay UUID ng user kaya hindi ito ipinapakita — 'N/A'
+  /// na lang kapag wala ang name join (hal. lumang row o hindi pa deployed
+  /// ang `disbursements-view` na may `disbursed_by_name`).
+  String get disbursedByLabel {
+    final name = (disbursedByName ?? '').trim();
+    if (name.isNotEmpty) return name;
+    final raw = (disbursedBy ?? '').trim();
+    if (raw.isEmpty || _uuidRe.hasMatch(raw)) return 'N/A';
+    return raw; // legacy rows na pangalan mismo ang nakaimbak
   }
 
   String get disbursementMethod => method;

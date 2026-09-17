@@ -660,13 +660,13 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                 Icons.archive_outlined, 'Archived', RouteConstants.hmArchived),
           ],
         ),
+        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
+            RouteConstants.hmAccountUpgrade),
         const _NavItem(
           Icons.description_outlined,
           'Loan Records',
           RouteConstants.hmLoanApplications,
         ),
-        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
-            RouteConstants.hmAccountUpgrade),
         const _NavItem(
           Icons.search_outlined,
           'Credit Investigation',
@@ -702,13 +702,13 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                 RouteConstants.empRiders),
           ],
         ),
+        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
+            RouteConstants.empAccountUpgrade),
         const _NavItem(
           Icons.description_outlined,
           'Loan Records',
           RouteConstants.empLoans,
         ),
-        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
-            RouteConstants.empAccountUpgrade),
         const _NavItem(
           Icons.search_outlined,
           'Credit Investigation',

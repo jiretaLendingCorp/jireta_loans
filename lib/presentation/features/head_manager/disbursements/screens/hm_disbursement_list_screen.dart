@@ -124,20 +124,33 @@ class _HmDisbursementListScreenState
       child: ResponsiveListCard(
         minTableWidth: 880,
         variant: ResponsiveListVariant.card,
+        // Ang `flex` ng bawat column = TOTOONG lapad ng laman + 48px, at ang
+        // kanilang kabuuan (≈948) ay halos katumbas ng available na lapad ng
+        // row. Dahil dito: pantay-pantay ang gap ng lahat ng column (~50px)
+        // at puno ang buong lapad (walang blangkong space sa dulo). Pareho
+        // ng Disbursements tab ng Loan Records.
         headerTextStyle: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textSecondary),
+        // Loan # (≈ 124) · Lender (≈ 112) · Amount (₱60,000.00 ≈ 90) ·
+        // Status ("Completed" ≈ 62) · Date (≈ 134) · Method (≈ 138).
         columns: const [
-          ResponsiveCol('Loan #', flex: 2),
-          ResponsiveCol('Lender', flex: 3),
-          ResponsiveCol('Amount', flex: 2),
-          ResponsiveCol('Status', flex: 2),
-          ResponsiveCol('Date', flex: 2),
-          ResponsiveCol('Method', flex: 2),
+          ResponsiveCol('Loan #', flex: 172),
+          ResponsiveCol('Lender', flex: 160),
+          ResponsiveCol('Amount', flex: 138),
+          ResponsiveCol('Status', flex: 110),
+          ResponsiveCol('Date', flex: 182),
+          ResponsiveCol('Method', flex: 186),
         ],
+        // 72px ≈ eksaktong lapad ng "View" button, at naka-LEFT align (hindi
+        // right) kaya ang kaliwang dulo ng "Actions" header ay nakatapat
+        // mismo sa kaliwang dulo ng button (parehong x).
         actionsCol: const ResponsiveActionsCol(
-            label: 'Actions', width: 80, alignment: Alignment.centerRight, alignEnd: true),
+            label: 'Actions',
+            width: 72,
+            alignment: Alignment.centerLeft,
+            alignEnd: false),
         rowBorder: const Border(bottom: BorderSide(color: AppColors.divider)),
         rows: items.map((d) => _buildRow(context, d)).toList(),
       ),

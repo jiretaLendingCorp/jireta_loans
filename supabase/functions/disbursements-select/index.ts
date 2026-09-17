@@ -128,6 +128,12 @@ serve(async (req) => {
           authorized_by: authResult.id,
           disbursed_at: now,
           status: xenditResult.status === 'COMPLETED' ? 'completed' : 'pending',
+          // KRITIKAL: kung walang `status_id: null`, ang DEFAULT (pending) na
+          // `status_id` ang masusundan ng `sync_disbursements_lookup_ids`
+          // trigger sa INSERT — kaya ang matagumpay na Xendit transfer
+          // (COMPLETED) ay magpapakita pa rin ng Pending. Tingnan ang
+          // handleOfficeCash sa disbursements-delivery.
+          status_id: null,
         })
         .select()
         .single();

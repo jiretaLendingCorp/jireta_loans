@@ -320,18 +320,15 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
       final p = await _ds.getPaymentDetail(paymentId);
       // Cash (rider/office) payments have no Xendit reference — derive a
       // stable, human-readable reference from the payment id so the receipt
-      // always shows one instead of a blank/"---" value.
-      final rawRef = (p.referenceNumber ?? '').trim();
-      final compactId = p.id.replaceAll('-', '').toUpperCase();
-      final fallbackRef = compactId.isEmpty
-          ? ''
-          : 'JR-${compactId.length >= 12 ? compactId.substring(0, 12) : compactId}';
+      // always shows one instead of a blank/"---" value. Iisa lang ang
+      // derivation (`PaymentModel.displayReference`) para pareho ang reference
+      // sa Transaction card at sa receipt.
       return {
         'receipt_url': p.receiptUrl,
         'amount': p.amount,
         'payment_method': p.method,
         'status': p.status,
-        'reference_number': rawRef.isNotEmpty ? rawRef : fallbackRef,
+        'reference_number': p.displayReference,
         // DateTime mismo ang ipinapasa — Manila wall time na ang `p.createdAt`
         // (parseManila sa PaymentModel). Kung i-e-encode pa ito pabalik sa ISO
         // string na may `Z` at i-parse ulit ng parseManila, made-doble ang +8h.

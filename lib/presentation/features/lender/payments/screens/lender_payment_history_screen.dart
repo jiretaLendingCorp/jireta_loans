@@ -323,7 +323,10 @@ class _PaymentCard extends StatelessWidget {
     final amount = item.amount;
     final method = item.method;
     final status = item.status;
-    final referenceNum = item.referenceNumber;
+    // `displayReference` — kapag cash/office ang bayad (walang Xendit
+    // reference), derived `JR-…` mula sa payment id ang lumalabas. Dati '—'
+    // lang ang nakikita ng lender sa Transaction card kahit bayad na.
+    final referenceNum = item.displayReference;
     final loanNumber = item.loanNumber.isNotEmpty ? item.loanNumber : (item.loan?['loan_number'] ?? '');
 
     final methodIcon = method.contains('gcash')
@@ -338,9 +341,7 @@ class _PaymentCard extends StatelessWidget {
 
     // Buong reference number ang ipinapakita (hindi na naka-mask) para may
     // maipakitang patunay ng bayad kapag paid na ang transaction.
-    final refText = (referenceNum != null && referenceNum.trim().isNotEmpty)
-        ? referenceNum.trim()
-        : '—';
+    final refText = referenceNum.trim().isNotEmpty ? referenceNum.trim() : '—';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
