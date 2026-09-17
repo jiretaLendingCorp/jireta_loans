@@ -742,7 +742,7 @@ async function handleSubmit(req: Request) {
 
 // ── Step-3 account submit ────────────────────────────────────────────────────
 // Wizard Step 3 (Documents) button is a SUBMIT, not Next: staff has collected
-// identity + address + the 4 required documents in person, so this handler
+// identity + address + the required documents in person, so this handler
 // creates the lender account and AUTO-VERIFIES the account upgrade — NO loan
 // is created here. The lender logs in (phone + default password 12345678,
 // force-change on first login) and applies for the loan themselves, OR staff
@@ -751,12 +751,12 @@ async function handleSubmit(req: Request) {
 // Idempotent: re-submitting an application that already has a lender returns
 // the existing lender (and ensures it is verified).
 // ─────────────────────────────────────────────────────────────────────────────
+// REQUIRED lang: Valid ID (front + back) — pareho ng wizard UI. Ang Selfie /
+// Mayor's Permit / Birth Certificate ay OPSYONAL (pwede pang i-upload ng staff
+// kapag may dala ang lender) kaya hindi na hinaharang ang step-3 submit.
 const STEP3_REQUIRED_DOCS = new Set([
   'valid_id',
   'valid_id_back',
-  'selfie',
-  'mayors_permit',
-  'birth_certificate',
 ]);
 
 async function handleSubmitAccount(req: Request) {

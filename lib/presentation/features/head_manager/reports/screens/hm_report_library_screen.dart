@@ -72,15 +72,22 @@ class _ReportNotifier extends StateNotifier<_ReportState>
     }
   }
 
+  /// [preview] = true para sa Proceed ng date-range modal — kukunin lang ang
+  /// rows at hindi ito naka-record sa `reports`. Sa Excel/PDF export
+  /// (preview = false) lang nagkakaroon ng bagong Generated Reports History entry.
   Future<Map<String, dynamic>?> generate(
-      String templateKey, Map<String, dynamic> params) async {
+      String templateKey, Map<String, dynamic> params,
+      {bool preview = false, String format = 'pdf'}) async {
     state = state.copyWith(isGenerating: true);
     try {
       final res = await _ds.generateReport(
-          templateKey: templateKey, parameters: params, format: 'pdf');
-      // Only the freshly generated report is added to history below; the
-      // screen stays on the preview instead of flashing "loading everything".
-      await _refreshHistorySilently();
+          templateKey: templateKey,
+          parameters: params,
+          format: format,
+          preview: preview);
+      // Bagong history entry lang ang ire-refresh kapag export — sa preview,
+      // wala namang naidagdag kaya hindi na kailangan.
+      if (!preview) await _refreshHistorySilently();
       state = state.copyWith(isGenerating: false);
       return res;
     } catch (_) {
@@ -104,6 +111,10 @@ class HmReportLibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
+  /// 5 reports lang kada page ng Generated Reports History.
+  static const int _historyPageSize = 5;
+  int _historyPage = 1;
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(_reportProvider);
@@ -143,14 +154,6 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                     const SizedBox(height: 32),
                     _buildSectionTitle(
                       title: 'Generated Reports History',
-                      trailing: state.history.isNotEmpty
-                          ? TextButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.open_in_new, size: 14),
-                              label: const Text('View All',
-                                  style: TextStyle(fontSize: 12)),
-                            )
-                          : null,
                     ),
                     const SizedBox(height: 16),
                     _buildHistory(context, state),
@@ -213,8 +216,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
             child: _PremiumTemplateCard(
               data: templates[i],
               generating: state.isGenerating,
-              onGenerate: (fmt) => _showGenerateDialog(context, templates[i],
-                  initialFormat: fmt),
+              onGenerate: () => _showGenerateDialog(context, templates[i]),
             ),
           ),
         );
@@ -242,62 +244,104 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
         ),
       );
     }
+    // Client-side pagination — 5 reports kada page.
+    final total = state.history.length;
+    final totalPages = (total / _historyPageSize).ceil();
+    final page = _historyPage > totalPages ? totalPages : _historyPage;
+    final pageItems = state.history
+        .skip((page - 1) * _historyPageSize)
+        .take(_historyPageSize)
+        .toList();
     return Container(
       decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.border)),
       child: Column(
-        children: state.history.asMap().entries.map((e) {
-          final r = e.value;
-          final isLast = e.key == state.history.length - 1;
-          return Container(
-            key: ValueKey(r['id']),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              border: isLast
-                  ? null
-                  : const Border(bottom: BorderSide(color: AppColors.divider)),
+        children: [
+          for (var i = 0; i < pageItems.length; i++)
+            _historyRow(
+              pageItems[i],
+              isLast: i == pageItems.length - 1 && totalPages == 1,
             ),
-            child: Row(
+          if (totalPages > 1)
+            _buildHistoryPagination(page, totalPages, total),
+        ],
+      ),
+    );
+  }
+
+  /// Isang row ng Generated Reports History.
+  Widget _historyRow(Map<String, dynamic> r, {required bool isLast}) {
+    return Container(
+      key: ValueKey(r['id']),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : const Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(r['report_name'] as String? ?? 'Generated Report',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13)),
-                      const SizedBox(height: 2),
-                      Text(_formatDate(r['created_at']),
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 11)),
-                    ],
-                  ),
-                ),
-                _HistoryAction(
-                  icon: Icons.picture_as_pdf_rounded,
-                  label: 'PDF',
-                  color: AppColors.error,
-                  onTap: () => _downloadPdf(
-                      context,
-                      r['report_name'] as String? ?? 'Report',
-                      _normalizeRows(r['data'])),
-                ),
-                const SizedBox(width: 8),
-                _HistoryAction(
-                  icon: Icons.table_chart_rounded,
-                  label: 'Excel',
-                  color: AppColors.riderGreen,
-                  onTap: () => _downloadExcel(
-                      context,
-                      r['report_name'] as String? ?? 'Report',
-                      _normalizeRows(r['data'])),
-                ),
+                Text(r['report_name'] as String? ?? 'Generated Report',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(_formatDate(r['created_at']),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 11)),
               ],
             ),
-          );
-        }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Prev / page counter / Next sa ilalim ng history list.
+  Widget _buildHistoryPagination(int page, int totalPages, int total) {
+    final from = (page - 1) * _historyPageSize + 1;
+    final rawTo = page * _historyPageSize;
+    final to = rawTo > total ? total : rawTo;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        children: [
+          Text('Showing $from–$to of $total',
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.textSecondary)),
+          const Spacer(),
+          _PageBtn(
+            icon: Icons.chevron_left_rounded,
+            enabled: page > 1,
+            onTap: () => setState(() => _historyPage = page - 1),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+                color: AppColors.deepNavy,
+                borderRadius: BorderRadius.circular(20)),
+            child: Text('$page / $totalPages',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
+          ),
+          const SizedBox(width: 8),
+          _PageBtn(
+            icon: Icons.chevron_right_rounded,
+            enabled: page < totalPages,
+            onTap: () => setState(() => _historyPage = page + 1),
+          ),
+        ],
       ),
     );
   }
@@ -426,9 +470,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
       ];
 
   Future<void> _showGenerateDialog(
-      BuildContext context, Map<String, dynamic> template,
-      {String initialFormat = 'pdf'}) async {
+      BuildContext context, Map<String, dynamic> template) async {
     DateTimeRange? range;
+    bool loading = false;
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -568,53 +612,65 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                         color: AppColors.textSecondary))),
             const SizedBox(width: 8),
             ElevatedButton.icon(
-              onPressed: range == null
+              // Habang tumatakbo ang generate, naka-disable at naka-loading
+              // ang Proceed button — hindi na nagsasara agad ang date range
+              // dialog bago pa matapos ang paggawa ng report.
+              onPressed: (range == null || loading)
                   ? null
                   : () async {
                       final selected = range!;
-                      debugPrint(
-                          '[DEBUG] Proceed tapped template=${template['name']} range=$selected format=$initialFormat');
-                      Navigator.pop(ctx);
-                      await Future.delayed(const Duration(milliseconds: 250));
-                      if (!context.mounted) return;
+                      setS(() => loading = true);
+                      final templateKey = template['key'] as String;
+                      final params = <String, dynamic>{
+                        'date_from':
+                            DateFormat('yyyy-MM-dd').format(selected.start),
+                        'date_to':
+                            DateFormat('yyyy-MM-dd').format(selected.end),
+                      };
+                      Map<String, dynamic>? result;
                       try {
-                        final result = await ref
+                        // PREVIEW lang — hindi pa naka-record sa Generated
+                        // Reports History. Ang Excel/PDF export sa preview modal
+                        // lang ang nagsa-save ng entry.
+                        result = await ref
                             .read(_reportProvider.notifier)
-                            .generate(template['key'] as String, {
-                          'date_from':
-                              DateFormat('yyyy-MM-dd').format(selected.start),
-                          'date_to':
-                              DateFormat('yyyy-MM-dd').format(selected.end),
-                        });
-                        if (!context.mounted) return;
-                        dynamic rawData;
-                        if (result != null) {
-                          rawData = result['data'] ??
-                              result['rows'] ??
-                              result['records'] ??
-                              result;
-                          if (rawData is Map && rawData.containsKey('data')) {
-                            rawData = rawData['data'];
-                          }
-                        }
-                        debugPrint('[DEBUG] Generate result rawData: $rawData');
-                        final dataForPreview = rawData ?? [];
-                        await _showDownloadDialog(
-                            context,
-                            template['name'] as String? ?? 'Report',
-                            dataForPreview,
-                            dateRange: selected,
-                            initialFormat: initialFormat);
+                            .generate(templateKey, params, preview: true);
                       } catch (e) {
                         debugPrint('[DEBUG] Generate error: $e');
-                        if (!context.mounted) return;
-                        await _showDownloadDialog(context,
-                            template['name'] as String? ?? 'Report', [],
-                            dateRange: selected, initialFormat: initialFormat);
                       }
+                      if (!ctx.mounted) return;
+                      // Tapos na ang preview fetch — isara na ang date dialog at
+                      // buksan ang preview (modal) ng report.
+                      Navigator.pop(ctx);
+                      if (!context.mounted) return;
+                      dynamic rawData;
+                      if (result != null) {
+                        rawData = result['data'] ??
+                            result['rows'] ??
+                            result['records'] ??
+                            result;
+                        if (rawData is Map && rawData.containsKey('data')) {
+                          rawData = rawData['data'];
+                        }
+                      }
+                      final dataForPreview = rawData ?? [];
+                      await _showDownloadDialog(
+                          context,
+                          template['name'] as String? ?? 'Report',
+                          dataForPreview,
+                          templateKey: templateKey,
+                          parameters: params,
+                          dateRange: selected);
                     },
-              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-              label: const Text('Proceed'),
+              icon: loading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: Text(loading ? 'Generating…' : 'Proceed'),
               style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF5C6370),
                   disabledBackgroundColor:
@@ -633,11 +689,10 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
 
   Future<void> _showDownloadDialog(
       BuildContext context, String title, dynamic data,
-      {DateTimeRange? dateRange, String? initialFormat}) async {
+      {DateTimeRange? dateRange,
+      required String templateKey,
+      required Map<String, dynamic> parameters}) async {
     final rows = _normalizeRows(data);
-    final columns = _columnsOf(rows);
-    debugPrint(
-        'Preview rows: ${rows.length} columns: $columns firstRow: ${rows.isNotEmpty ? rows.first : 'empty'}');
     await showDialog(
       context: context,
       barrierDismissible: true,
@@ -683,150 +738,25 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                     ],
                   ),
                 ),
-                // Preview table - Template
+                // Preview — aktwal na PDF (coupon) na lalabas din kapag
+                // na-download, para eksaktong tugma ang preview sa file.
                 Expanded(
-                  child: Scrollbar(
-                    thumbVisibility: true,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          // Template header inside preview — walang box,
-                          // text lang na naka-center.
-                          Column(
-                            children: [
-                                const Text('Jireta Loans & Credit Corp',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        color: AppColors.textSecondary,
-                                        letterSpacing: 0.4)),
-                                const SizedBox(height: 4),
-                                Text(title,
-                                    style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textPrimary),
-                                    textAlign: TextAlign.center),
-                                if (dateRange != null) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                      '${DateFormat('MMM dd, yyyy').format(dateRange.start)} – ${DateFormat('MMM dd, yyyy').format(dateRange.end)}',
-                                      style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textSecondary)),
-                                ],
-                              ],
-                            ),
-                          const SizedBox(height: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: initialFormat == 'xlsx'
-                                      ? AppColors.riderGreen
-                                          .withValues(alpha: 0.1)
-                                      : AppColors.error.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: initialFormat == 'xlsx'
-                                          ? AppColors.riderGreen
-                                              .withValues(alpha: 0.18)
-                                          : AppColors.error
-                                              .withValues(alpha: 0.18)),
-                                ),
-                                child: Text(
-                                    initialFormat == 'xlsx'
-                                        ? 'Excel Layout'
-                                        : 'PDF Layout',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: initialFormat == 'xlsx'
-                                            ? AppColors.riderGreen
-                                            : AppColors.error,
-                                        letterSpacing: 0.4)),
-                              ),
-                              const SizedBox(height: 8),
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(
-                                      initialFormat == 'xlsx'
-                                          ? AppColors.riderGreen
-                                          : AppColors.deepNavy),
-                                  headingTextStyle: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 11),
-                                  dataRowMinHeight: 32,
-                                  dataRowMaxHeight: 36,
-                                  headingRowHeight: 36,
-                                  columnSpacing: 16,
-                                  horizontalMargin: 12,
-                                  border: TableBorder.all(
-                                      color: AppColors.border, width: 0.6),
-                                  columns: [
-                                    for (final c in columns)
-                                      DataColumn(
-                                          label: Text(_prettyHeader(c),
-                                              style: const TextStyle(
-                                                  fontSize: 11)))
-                                  ],
-                                  rows: rows.isEmpty
-                                      ? [
-                                          DataRow(cells: [
-                                            for (final _ in columns)
-                                              const DataCell(Text('—',
-                                                  style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: AppColors
-                                                          .textTertiary)))
-                                          ]),
-                                        ]
-                                      : [
-                                          for (final r in rows.take(200))
-                                            DataRow(cells: [
-                                              for (final c in columns)
-                                                DataCell(Text(
-                                                    r[c]?.toString() ?? '',
-                                                    style: const TextStyle(
-                                                        fontSize: 11)))
-                                            ]),
-                                        ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (rows.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 12),
-                              child: Text(
-                                  'No records for selected period — template preview',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.textSecondary),
-                                  textAlign: TextAlign.center),
-                            ),
-                        ],
-                      ),
+                  child: PdfPreview(
+                    build: (format) => buildPdf(title: title, rows: rows),
+                    pdfFileName: '${sanitizeFileName(title)}.pdf',
+                    allowPrinting: false,
+                    allowSharing: false,
+                    canChangePageFormat: false,
+                    canChangeOrientation: false,
+                    canDebug: false,
+                    useActions: false,
+                    padding: EdgeInsets.zero,
+                    previewPageMargin: const EdgeInsets.all(12),
+                    loadingWidget: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
                 ),
-                if (rows.length > 200)
-                  Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    color: AppColors.surfaceVariant,
-                    child: Text(
-                        'Showing first 200 of ${rows.length} records. Download to see all.',
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textSecondary),
-                        textAlign: TextAlign.center),
-                  ),
                 // Actions
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -834,34 +764,16 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                       border:
                           Border(top: BorderSide(color: AppColors.divider))),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: const Text('Close')),
-                      const Spacer(),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          try {
-                            final bytes =
-                                await buildPdf(title: title, rows: rows);
-                            await Printing.layoutPdf(
-                                onLayout: (_) async => bytes);
-                          } catch (_) {
-                            if (ctx.mounted) {
-                              ctx.showSnackBarAsToast(const SnackBar(
-                                  content: Text('Print failed'),
-                                  backgroundColor: AppColors.error));
-                            }
-                          }
-                        },
-                        icon: const Icon(Icons.print_rounded, size: 16),
-                        label: const Text('Print'),
-                      ),
-                      const SizedBox(width: 8),
                       OutlinedButton.icon(
                         onPressed: () async {
                           Navigator.pop(ctx);
+                          final saved = await _recordExport(
+                              templateKey, parameters,
+                              format: 'xlsx');
                           if (!context.mounted) return;
+                          if (!saved) _notifyExportNotRecorded(context);
                           await _downloadExcel(context, title, rows);
                         },
                         icon: const Icon(Icons.table_chart_rounded,
@@ -873,7 +785,11 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                       ElevatedButton.icon(
                         onPressed: () async {
                           Navigator.pop(ctx);
+                          final saved = await _recordExport(
+                              templateKey, parameters,
+                              format: 'pdf');
                           if (!context.mounted) return;
+                          if (!saved) _notifyExportNotRecorded(context);
                           await _downloadPdf(context, title, rows);
                         },
                         icon:
@@ -894,56 +810,24 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     );
   }
 
-  /// Consistent, human-readable column labels para sa preview table
-  /// (hindi raw keys tulad ng `riderName`).
-  static String _prettyHeader(String key) {
-    const overrides = <String, String>{
-      'riderName': 'Rider Name',
-      'rider_name': 'Rider Name',
-      'phoneNumber': 'Phone Number',
-      'phone_number': 'Phone Number',
-      'plateNumber': 'Plate Number',
-      'plate_number': 'Plate Number',
-      'accountStatus': 'Account Status',
-      'account_status': 'Account Status',
-      'ciAssignments': 'CI Assigned',
-      'ci_assigned': 'CI Assigned',
-      'ciCompleted': 'CI Completed',
-      'ci_completed': 'CI Completed',
-      'collectionsCompleted': 'Collections Completed',
-      'collections_completed': 'Collections Completed',
-      'lenderName': 'Lender Name',
-      'lender_name': 'Lender Name',
-      'employeeName': 'Employee Name',
-      'employee_name': 'Employee Name',
-      'templateKey': 'Report',
-      'template_key': 'Report',
-      'createdAt': 'Date',
-      'created_at': 'Date',
-    };
-    final o = overrides[key];
-    if (o != null) return o;
-    // camelCase / snake_case → "Title Case With Spaces"
-    final spaced = key
-        .replaceAllMapped(
-            RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m[1]} ${m[2]}')
-        .replaceAll('_', ' ');
-    return spaced
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .map((w) => w[0].toUpperCase() + w.substring(1))
-        .join(' ');
+  /// Dito lang naka-record ang report sa Generated Reports History — sa
+  /// mismong pagpindot ng Excel o PDF mula sa preview, hindi sa Proceed.
+  Future<bool> _recordExport(String templateKey,
+      Map<String, dynamic> parameters,
+      {required String format}) async {
+    final res = await ref.read(_reportProvider.notifier).generate(
+          templateKey,
+          parameters,
+          format: format,
+        );
+    return res != null;
   }
 
-  List<String> _columnsOf(List<Map<String, dynamic>> rows) {
-    final cols = <String>[];
-    for (final r in rows) {
-      for (final k in r.keys) {
-        if (!cols.contains(k)) cols.add(k);
-      }
-    }
-    if (cols.isEmpty) cols.add('No Data');
-    return cols;
+  void _notifyExportNotRecorded(BuildContext context) {
+    if (!context.mounted) return;
+    context.showSnackBarAsToast(const SnackBar(
+        content: Text('File downloaded, pero hindi na-save sa report history'),
+        backgroundColor: AppColors.warning));
   }
 
   Future<void> _downloadPdf(BuildContext context, String title,
@@ -1059,7 +943,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
 class _PremiumTemplateCard extends StatefulWidget {
   final Map<String, dynamic> data;
   final bool generating;
-  final void Function(String format) onGenerate;
+  final VoidCallback onGenerate;
   const _PremiumTemplateCard(
       {required this.data, required this.generating, required this.onGenerate});
   @override
@@ -1129,9 +1013,7 @@ class _PremiumTemplateCardState extends State<_PremiumTemplateCard> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: GestureDetector(
-                        onTap: widget.generating
-                            ? null
-                            : () => widget.onGenerate('pdf'),
+                        onTap: widget.generating ? null : widget.onGenerate,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 7),
@@ -1169,34 +1051,28 @@ class _PremiumTemplateCardState extends State<_PremiumTemplateCard> {
   }
 }
 
-class _HistoryAction extends StatelessWidget {
+/// Prev/Next button ng client-side pagination (kapareho ng list screens).
+class _PageBtn extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final Color color;
+  final bool enabled;
   final VoidCallback onTap;
-  const _HistoryAction(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      required this.onTap});
+  const _PageBtn(
+      {required this.icon, required this.enabled, required this.onTap});
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
+            color: enabled ? Colors.white : AppColors.surfaceVariant,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.18))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: color))
-        ]),
+            border: Border.all(color: AppColors.border)),
+        child: Icon(icon,
+            size: 18,
+            color: enabled ? AppColors.textPrimary : AppColors.textTertiary),
       ),
     );
   }

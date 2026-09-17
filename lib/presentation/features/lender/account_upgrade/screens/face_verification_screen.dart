@@ -13,6 +13,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:image_picker/image_picker.dart';
@@ -30,6 +31,15 @@ enum _FacePhase { scanning, verifying, success, failed }
 
 class FaceVerificationScreen extends StatefulWidget {
   const FaceVerificationScreen({super.key});
+
+  /// Android/iOS lang ang supported: ML Kit face detection ay android + ios
+  /// platforms lang ang declared, at ang camera image stream
+  /// (`startImageStream`) ay `UnimplementedError` sa camera_web. Sa web/desktop,
+  /// dating dead end ito — nagsa-scan habang walang detection at walang capture.
+  static bool get isSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   @override
   State<FaceVerificationScreen> createState() => _FaceVerificationScreenState();
@@ -69,6 +79,9 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
+    // Sa unsupported platforms, huwag nang buksan ang camera/ML Kit — may
+    // malinaw na notice na lang sa `_buildUnsupportedPlatform()`.
+    if (!FaceVerificationScreen.isSupported) return;
     _detector = FaceDetector(
       options: FaceDetectorOptions(
         performanceMode: FaceDetectorMode.fast,
@@ -383,6 +396,7 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen>
   }
 
   Widget _buildBody() {
+    if (!FaceVerificationScreen.isSupported) return _buildUnsupportedPlatform();
     switch (_phase) {
       case _FacePhase.scanning:
         return _buildScanning();
@@ -605,6 +619,64 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen>
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Unsupported platform: mobile-only ang live face verification ─────────
+  Widget _buildUnsupportedPlatform() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: const BoxDecoration(
+                color: AppColors.infoLight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.phone_iphone_rounded,
+                  color: AppColors.info, size: 44),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Available on the mobile app only',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: _navy,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Ang live Face Verification ay gumagamit ng device camera at face '
+              'detection, kaya Android at iOS app lang ito sinusuportahan. '
+              'Buksan ang Jireta Loans app sa phone mo para tapusin ang step na ito.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              label: const Text('Go back'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _navy,
+                side: const BorderSide(color: AppColors.border),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

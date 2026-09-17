@@ -38,10 +38,14 @@ class ReportRemoteDataSource {
         .toList();
   }
 
+  /// [preview] = true kapag preview lang (Proceed sa date-range modal): kukunin
+  /// ang report rows pero HINDI ito naka-record sa `reports` / Generated Reports
+  /// History. Ang aktwal na export (Excel/PDF) lang ang nagsa-save ng record.
   Future<Map<String, dynamic>> generateReport({
     required String templateKey,
     required Map<String, dynamic> parameters,
     required String format,
+    bool preview = false,
   }) async {
     final res = await _client.post(
       ApiEndpoints.reportsGenerate,
@@ -49,6 +53,7 @@ class ReportRemoteDataSource {
         'template_key': templateKey,
         'parameters': parameters,
         'format': format,
+        if (preview) 'preview': true,
       },
     );
     return res.data as Map<String, dynamic>;

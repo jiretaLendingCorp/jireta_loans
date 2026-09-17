@@ -87,9 +87,16 @@ class PaymentModel {
   /// Ang reference na ipapakita sa UI: ang totoong reference number kung meron
   /// (GCash/Xendit), kung wala ay ang derived na `JR-…` mula sa payment id —
   /// para hindi blangko/"—" ang Reference No. ng office payment.
+  ///
+  /// Huling fallback ang `idempotencyKey` (may uuid ito para sa office/rider
+  /// cash na ni-record ng staff) — para kahit hindi isama ng backend ang `id`
+  /// sa payload, may reference pa ring nakikita ang lender.
   String get displayReference {
     final raw = referenceNumber?.trim() ?? '';
-    return raw.isNotEmpty ? raw : referenceFromId(id);
+    if (raw.isNotEmpty) return raw;
+    final fromId = referenceFromId(id);
+    if (fromId.isNotEmpty) return fromId;
+    return referenceFromId(idempotencyKey);
   }
 
   String get loanNumber => loan?['loan_number'] ?? '';

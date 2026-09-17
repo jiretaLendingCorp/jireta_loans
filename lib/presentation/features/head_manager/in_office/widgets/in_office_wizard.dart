@@ -7,11 +7,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/document_viewer.dart';
 import '../../../../shared/widgets/philippines_address_field.dart';
 import '../providers/hm_in_office_provider.dart';
+
+/// Mga dokumentong REQUIRED sa Lender Account Upgrade (walk-in) wizard.
+///
+/// Valid ID (front + back) lang ang kailangan — OPSYONAL na ang Selfie with ID,
+/// Mayor's Permit, at Birth Certificate (pwede pa ring i-upload, pero hindi
+/// hinaharang ang Next/Submit). Pampubliko ito para masusuri ng unit test.
+const Set<String> kInOfficeRequiredDocTypes = {
+  'valid_id',
+  'valid_id_back',
+};
 
 class _DocFile {
   final String name;
@@ -53,9 +64,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   /// "Full Name", "Valid ID (Front)", atbp.
   static const double _rowLabelWidth = 150;
 
-  // Valid ID is collected as FRONT + BACK (matches Account Upgrade), so the
-  // required document set is: valid_id, valid_id_back, selfie, mayors_permit,
-  // birth_certificate.
   static const List<(String, String)> _docTypes = [
     ('valid_id', 'Valid ID (Front)'),
     ('valid_id_back', 'Valid ID (Back)'),
@@ -63,6 +71,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     ('mayors_permit', "Mayor's Permit"),
     ('birth_certificate', 'Birth Certificate'),
   ];
+
+  /// REQUIRED lang: Valid ID (front + back) — tingnan ang
+  /// [kInOfficeRequiredDocTypes]. Ang Selfie / Mayor's Permit / Birth
+  /// Certificate ay OPSYONAL — hindi na hinaharang ng mga ito ang Next/Submit,
+  /// ngunit naka-upload pa rin kung may ibibigay ang lender.
+  static const Set<String> _requiredDocTypes = kInOfficeRequiredDocTypes;
 
   static const Map<String, String> _docAssetIcons = {
     'valid_id': 'assets/icons/id_card.png',
@@ -945,9 +959,22 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const Text('Documents',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text(
-            'Upload all required documents.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        RichText(
+          text: const TextSpan(
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            children: [
+              TextSpan(text: 'Upload Valid ID (front & back) — '),
+              TextSpan(
+                  text: 'required',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              TextSpan(text: '. The rest are optional. '),
+              // Format + size limit sa TAAS na — hindi na inuulit sa bawat
+              // card, at WALANG hard line break (tuloy-tuloy na pangungusap)
+              // para hindi lumabas na hiwalay/hanging na linya.
+              TextSpan(text: 'JPG, PNG or PDF (max 5MB each).'),
+            ],
+          ),
+        ),
         const SizedBox(height: 20),
         ..._docTypes.map((d) => _docUploadCard(d.$1, d.$2)),
         if (_docsError != null)
@@ -990,7 +1017,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         title: Text(label,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         subtitle: Text(
-          hasFile ? file.name : 'Required — JPG, PNG or PDF (max 5MB)',
+          hasFile
+              ? file.name
+              : (_requiredDocTypes.contains(type)
+                  ? 'Required — not uploaded yet'
+                  : 'Optional — not uploaded yet'),
           style: TextStyle(
             fontSize: 12,
             color: hasFile ? AppColors.success : AppColors.textSecondary,
@@ -998,21 +1029,33 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: TextButton.icon(
-          onPressed: () {
-            if (hasFile) {
-              setState(() {
-                _docs.remove(type);
-                _existingDocPaths.remove(type);
-                _docsError = null;
-              });
-            } else {
-              _pickDocument(type);
-            }
-          },
-          icon: Icon(hasFile ? Icons.close : Icons.upload_file, size: 16),
-          label: Text(hasFile ? 'Remove' : 'Upload'),
-          style: TextButton.styleFrom(foregroundColor: AppColors.deepNavy),
+        // May VIEW na rin sa upload step (hindi lang sa read-only list) — para
+        // makita agad ang aktwal na file bago i-submit, kasama na ang mga
+        // naka-upload na dati (continued draft).
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasFile) ...[
+              _viewDocButton(type, label),
+              const SizedBox(width: 4),
+            ],
+            TextButton.icon(
+              onPressed: () {
+                if (hasFile) {
+                  setState(() {
+                    _docs.remove(type);
+                    _existingDocPaths.remove(type);
+                    _docsError = null;
+                  });
+                } else {
+                  _pickDocument(type);
+                }
+              },
+              icon: Icon(hasFile ? Icons.close : Icons.upload_file, size: 16),
+              label: Text(hasFile ? 'Remove' : 'Upload'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.deepNavy),
+            ),
+          ],
         ),
       ),
     );
@@ -1155,7 +1198,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       if (!mounted) return;
       _showDocumentDialog(
         label: label,
-        child: Image.memory(bytes, fit: BoxFit.contain),
+        // Kailangan ng tahasang lapad/taas — kung hindi, ang intrinsic size ng
+        // larawan ang gagamitin (maliit na maliit ang preview sa modal).
+        child: SizedBox(
+          width: double.infinity,
+          height: 540,
+          child: Image.memory(bytes, fit: BoxFit.contain),
+        ),
       );
       return;
     }
@@ -1335,10 +1384,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  void _showMessage(String message) {
+  /// Toast sa TAAS (top-right, overlay-based) — hindi bottom SnackBar, kaya
+  /// kitang-kita agad ang mensahe at hindi natatakpan ang modal.
+  void _showMessage(String message, {bool isError = true}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    if (isError) {
+      context.showErrorToast(message);
+    } else {
+      context.showSuccessToast(message);
+    }
   }
 
   /// Ipakita ang error text ng mga invalid na field, tapos itago pagkatapos ng
@@ -1479,12 +1533,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     // Documents live on UI step 2 — block Next until all uploads are present.
     if (_step == 2) {
       final missingDocs = _docTypes
-          .where((d) => !_docs.containsKey(d.$1))
+          .where((d) =>
+              _requiredDocTypes.contains(d.$1) && !_docs.containsKey(d.$1))
           .map((d) => d.$2)
           .toList();
       if (missingDocs.isNotEmpty) {
         setState(() => _docsError =
-            'Please upload all required documents: ${missingDocs.join(', ')}');
+            'Please upload the required document(s): ${missingDocs.join(', ')}');
         return;
       }
     }
@@ -1601,12 +1656,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     }
 
     final missingDocs = _docTypes
-        .where((d) => !_docs.containsKey(d.$1))
+        .where((d) =>
+            _requiredDocTypes.contains(d.$1) && !_docs.containsKey(d.$1))
         .map((d) => d.$2)
         .toList();
     if (missingDocs.isNotEmpty) {
       setState(() => _docsError =
-          'Please upload all required documents: ${missingDocs.join(', ')}');
+          'Please upload the required document(s): ${missingDocs.join(', ')}');
       return;
     }
 
@@ -1633,14 +1689,20 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
             .read(hmInOfficeProvider.notifier)
             .saveStep(_appId!, e.key, e.value);
         if (!ok) {
-          if (mounted) _showMessage('Failed to save step ${e.key}. Server rejected the data.');
+          if (mounted) {
+            _showMessage(_serverReason(
+                'Failed to save step ${e.key}. Server rejected the data.'));
+          }
           setState(() => _loading = false);
           return;
         }
       }
       final res = await ref.read(hmInOfficeProvider.notifier).submitAccount(_appId!);
       if (res == null) {
-        if (mounted) _showMessage('Account submit failed. Please try again.');
+        if (mounted) {
+          _showMessage(
+              _serverReason('Account submit failed. Please try again.'));
+        }
         setState(() => _loading = false);
         return;
       }
@@ -1649,36 +1711,18 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         _loading = false;
         _submittedInSession = true;
       });
-      final isNewLender = (res['is_new_lender'] as bool?) ?? true;
-      final loginPhone = (res['login_phone']?.toString() ?? _phoneCtrl.text.trim());
+      // Simpleng confirmation lang: "Successfully Created" + Done (walang
+      // body/credentials) — ayon sa gusto ng HM.
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
+          title: const Row(
             children: [
-              const Icon(Icons.verified_user, color: AppColors.success),
-              const SizedBox(width: 8),
-              Expanded(child: Text(isNewLender ? 'Account Created & Verified' : 'Existing Account Linked & Verified')),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                isNewLender
-                    ? 'The walk-in is complete. The lender can now log in and apply for a loan on their own.'
-                    : 'This phone number already has a lender account — it was linked and verified. The lender can log in with their existing password and apply for a loan.',
-                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              if (isNewLender) ...[
-                const SizedBox(height: 12),
-                _credentialRow('Phone', loginPhone),
-                const SizedBox(height: 6),
-                _credentialRow('Password', '12345678'),
-              ],
+              Icon(Icons.verified_user, color: AppColors.success),
+              SizedBox(width: 8),
+              Expanded(child: Text('Successfully Created')),
             ],
           ),
           actions: [
@@ -1702,27 +1746,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     }
   }
 
-  Widget _credentialRow(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Text('$label: ',
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-          Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary)),
-          ),
-        ],
-      ),
-    );
+  /// Isinasama ang aktwal na dahilan mula sa backend (nakaimbak sa
+  /// `state.error` ng provider) sa snackbar — hal. "Step 3 is incomplete:
+  /// missing valid_id" — kaya hindi generic na "try again" lang ang nakikita.
+  String _serverReason(String fallback) {
+    final reason = (ref.read(hmInOfficeProvider).error ?? '').trim();
+    if (reason.isEmpty || reason == fallback) return fallback;
+    return '$fallback\n$reason';
   }
 
   /// Uploads the picked document files and returns the backend step-5 payload

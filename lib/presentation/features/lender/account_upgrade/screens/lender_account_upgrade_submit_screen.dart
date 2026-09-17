@@ -112,7 +112,10 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': 'A clear selfie holding your Valid ID',
     'mayors_permit': "Valid Mayor's Permit / Business Permit",
     'birth_certificate': 'PSA/NSO Birth Certificate',
-    'face_recognition': 'Tap to start the live Face Verification flow (camera scan + liveness check)',
+    // Android/iOS lang ang may ML Kit face detection + camera image stream.
+    'face_recognition': FaceVerificationScreen.isSupported
+        ? 'Tap to start the live Face Verification flow (camera scan + liveness check)'
+        : 'Available sa Android/iOS app lang (kailangan ang device camera)',
   };
 
   final Map<String, IconData> _docIcons = {
@@ -300,6 +303,19 @@ class _LenderAccountUpgradeSubmitScreenState
     // 00149: Face Recognition uses the live Face Verification flow (camera
     // preview + liveness/compare animation), not a photo/gallery card.
     if (docType == 'face_recognition') {
+      // Hindi gagana ang live scan sa web/desktop (walang ML Kit at walang
+      // camera image stream) — malinaw na notice imbes na dead-end na screen.
+      if (!FaceVerificationScreen.isSupported) {
+        await showInfoDialog(
+          context,
+          title: 'Mobile app only',
+          message:
+              'Ang live Face Verification ay available lang sa Jireta Loans '
+              'Android/iOS app dahil kailangan nito ang device camera at face '
+              'detection. Buksan ang app sa phone mo para tapusin ang step na ito.',
+        );
+        return;
+      }
       final result = await Navigator.of(context).push<FaceVerifyResult>(
         MaterialPageRoute(builder: (_) => const FaceVerificationScreen()),
       );

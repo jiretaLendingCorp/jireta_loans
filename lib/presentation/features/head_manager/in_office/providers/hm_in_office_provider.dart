@@ -110,6 +110,10 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
       await _ds.saveStep(applicationId: applicationId, step: step, data: data);
       return true;
     } catch (e) {
+      // Itago ang DAHILAN sa state.error — ipinapakita ito ng wizard sa
+      // snackbar kapag bigong mag-save (dating generic na mensahe lang, kaya
+      // mahirap i-debug ang 400/500 mula sa backend).
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
       // ignore: avoid_print
       print('[HmInOffice] saveStep $step failed for $applicationId: ${ErrorHandler.handle(e).message}');
       return false;
@@ -121,7 +125,9 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
   Future<Map<String, dynamic>?> submitApplication(String applicationId) async {
     try {
       final res = await _ds.submit(applicationId: applicationId);
-      await load();
+      // Silent refresh: ina-update ang listahan nang WALANG isLoading spinner
+      // (dating nag-fla-flash ang buong table pagkatapos ng Submit).
+      await load(silent: true);
       return res;
     } catch (e) {
       // ignore: avoid_print
@@ -135,9 +141,15 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
   Future<Map<String, dynamic>?> submitAccount(String applicationId) async {
     try {
       final res = await _ds.submitAccount(applicationId: applicationId);
-      await load();
+      // Silent refresh (tingnan ang submitApplication): hindi na nag-re-reload
+      // nang buo ang In-Office table pagkatapos ng step-3 Submit.
+      await load(silent: true);
       return res;
     } catch (e) {
+      // Itago ang DAHILAN (hal. "Step 3 is incomplete: missing selfie") sa
+      // state.error para hindi na generic na "Account submit failed" lang ang
+      // nakikita ng staff.
+      state = state.copyWith(error: ErrorHandler.handle(e).message);
       // ignore: avoid_print
       print('[HmInOffice] submitAccount failed for $applicationId: ${ErrorHandler.handle(e).message}');
       return null;

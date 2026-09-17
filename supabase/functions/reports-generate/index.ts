@@ -699,7 +699,7 @@ serve(async (req) => {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { template_key, parameters } = body;
+    const { template_key, parameters, preview, format } = body;
 
     if (!template_key || !SUPPORTED_TEMPLATES.has(template_key)) {
       return errorResponse('Unsupported report template', 400, 'VALIDATION_ERROR');
@@ -721,6 +721,23 @@ serve(async (req) => {
       (parameters ?? {}) as Record<string, string>,
     );
 
+    // PREVIEW ONLY (Proceed sa date-range modal): ibinabalik lang ang rows para
+    // ma-preview. HINDI ito naka-record sa `reports`, kaya wala pa itong entry sa
+    // Generated Reports History hangga't hindi nag-export ng Excel o PDF.
+    if (preview === true) {
+      return jsonResponse({
+        success: true,
+        preview: true,
+        persisted: false,
+        template_name: template.title,
+        row_count: reportData.length,
+        data: reportData,
+      });
+    }
+
+    // EXPORT (Excel o PDF ang pinindot): dito lang nase-save ang record at audit log.
+    const exportFormat = format === 'xlsx' || format === 'excel' ? 'xlsx' : 'pdf';
+
     const { data: report, error: reportErr } = await db
       .from('reports')
       .insert({
@@ -740,11 +757,13 @@ serve(async (req) => {
       action: 'report_export',
       tableName: 'reports',
       recordId: report.id,
-      newValues: { template_key, parameters },
+      newValues: { template_key, parameters, format: exportFormat },
     });
 
     return jsonResponse({
       success: true,
+      persisted: true,
+      format: exportFormat,
       report_id: report.id,
       template_name: template.title,
       row_count: reportData.length,
