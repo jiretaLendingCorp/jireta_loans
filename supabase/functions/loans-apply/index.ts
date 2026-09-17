@@ -312,6 +312,55 @@ serve(async (req) => {
 
     await db.from('loan_schedules').insert(scheduleRows);
 
+    // ── Walk-in (in-office) linkage ─────────────────────────────────────────
+    // Ang walk-in application na na-submit sa Step 3 ("account created +
+    // upgrade auto-verified") ay naiiwang status 'submitted' na WALANG loan —
+    // sadyang hindi pa ito loan. Kapag nag-apply na si lender sa app (dito),
+    // i-link ang bagong loan sa walk-in app at i-mark na 'converted'. Kung
+    // hindi, "No loan yet" pa rin ito sa In-Office list ng Loan Records kahit
+    // aktibo na ang loan (hindi kasi gumagawa ng loan ang kyc-view auto-convert
+    // kapag verified na agad ang account).
+    try {
+      const { data: pendingApps } = await db
+        .from('in_office_applications')
+        .select('id')
+        .eq('lender_id', lenderId)
+        .eq('status', 'submitted')
+        .order('created_at', { ascending: true })
+        .limit(5);
+      for (const pendingApp of pendingApps ?? []) {
+        const appId = String((pendingApp as { id: string }).id);
+        const { data: alreadyLinked } = await db
+          .from('loans')
+          .select('id')
+          .eq('in_office_application_id', appId)
+          .limit(1);
+        if (alreadyLinked && alreadyLinked.length > 0) continue; // may loan na ang app
+        const now = new Date().toISOString();
+        await db.from('loans')
+          .update({ in_office_application_id: appId, updated_at: now })
+          .eq('id', loan.id);
+        await db.from('in_office_applications')
+          .update({ status: 'converted', wizard_step: 5, updated_at: now })
+          .eq('id', appId);
+        await writeAuditLog({
+          performedBy: lenderId,
+          action: 'in_office_submitted',
+          tableName: 'in_office_applications',
+          recordId: appId,
+          newValues: {
+            loan_id: loan.id,
+            loan_number: loanNumber,
+            note: 'Lender self-applied → walk-in application linked + converted',
+          },
+        });
+        break; // isang walk-in app lang bawat self-apply
+      }
+    } catch (linkErr) {
+      // Hindi dapat ma-fail ang application dahil lang sa linkage.
+      console.error('loans-apply walk-in linkage error:', linkErr);
+    }
+
     if (co_maker && co_maker.first_name && co_maker.last_name) {
       const coMakerName = String(co_maker.first_name).trim();
       const coMakerLast = String(co_maker.last_name).trim();

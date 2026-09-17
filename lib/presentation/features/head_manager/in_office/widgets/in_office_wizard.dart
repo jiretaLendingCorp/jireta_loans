@@ -1,4 +1,5 @@
 // lib/presentation/features/head_manager/in_office/widgets/in_office_wizard.dart
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -8,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/document_viewer.dart';
 import '../providers/hm_in_office_provider.dart';
 
 class _DocFile {
@@ -46,6 +48,10 @@ class InOfficeWizard extends ConsumerStatefulWidget {
 class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   static const int _maxDocBytes = 5 * 1024 * 1024;
 
+  /// Lapad ng LABEL column sa lahat ng read-only row — para pantay ang
+  /// "Full Name", "Valid ID (Front)", atbp.
+  static const double _rowLabelWidth = 150;
+
   // Valid ID is collected as FRONT + BACK (matches Account Upgrade), so the
   // required document set is: valid_id, valid_id_back, selfie, mayors_permit,
   // birth_certificate.
@@ -77,6 +83,17 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   String? _appId;
   bool _loading = false;
 
+  /// Ipinapakita ang error text sa ilalim ng mga field — 2 SEGUNDO lang
+  /// pagkatapos ma-block ang Next/Submit, tapos nawawala.
+  ///
+  /// Hindi ito ang humaharang sa pag-next: LAGING tumatakbo ang validator ng
+  /// `Form` (`_formKey.currentState!.validate()`), itong flag lang ang
+  /// kumokontrol kung IGUHIT pa ang error (tingnan ang `_ValidatedTextField`).
+  /// Kaya hindi na "naka-stack" pataas ang form habang may lumang error text.
+  bool _showFieldErrors = false;
+  static const Duration _errorVisibleFor = Duration(seconds: 2);
+  Timer? _errorHideTimer;
+
   /// True after the step-3 SUBMIT (account creation) succeeded in this
   /// session — the SUBMIT button must not be offered again once submitted.
   bool _submittedInSession = false;
@@ -90,6 +107,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   // Documents already uploaded to storage (docType -> file_path). Kept so
   // continuing a draft does not re-upload (or upload empty) existing files.
   final Map<String, String> _existingDocPaths = {};
+
+
 
   final _formKey = GlobalKey<FormState>();
 
@@ -287,7 +306,9 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      // Walang border radius — flat/square ang buong modal (tugma sa ibang
+      // dialogs ng app).
+      shape: const RoundedRectangleBorder(),
       child: SizedBox(
         width: 680,
         height: 600,
@@ -300,9 +321,14 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                 : Column(
                     children: [
                       _buildHeader(),
-                      _buildStepIndicator(),
+                      // View mode: isang page lang na may LAHAT ng section —
+                      // wala nang "1 → 2 → 3" stepper dahil walang
+                      // navigation na kailangan.
+                      if (!_isViewOnly) _buildStepIndicator(),
                       Expanded(child: _buildStepContent()),
-                      _buildFooter(),
+                      // View mode: walang action na kailangan — ang X sa header
+                      // ang pang-sara, kaya wala nang footer/Close button.
+                      if (!_isViewOnly) _buildFooter(),
                     ],
                   ),
       ),
@@ -311,28 +337,69 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: AppColors.deepNavy,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 8, 14),
+      decoration: const BoxDecoration(color: AppColors.deepNavy),
       child: Row(
         children: [
-          Icon(_isViewOnly ? Icons.visibility_outlined : Icons.person_add,
-              color: AppColors.gold, size: 22),
-          const SizedBox(width: 10),
-          Text(_isViewOnly ? 'View Walk-in Application' : 'Walk-in Loan Application',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700)),
-          const Spacer(),
-          if (_accountUpgradeStatus != null) ...[
-            _accountUpgradeChip(_accountUpgradeStatus!),
-            const SizedBox(width: 10),
+          // Square na gold-tinted na icon box — unique na mark ng walk-in
+          // modal (hindi lang basta icon sa tabi ng title).
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.16),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+            ),
+            child: Icon(
+              _isViewOnly ? Icons.visibility_outlined : Icons.person_add,
+              color: AppColors.gold,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                    // Ang walk-in wizard ay ACCOUNT UPGRADE ang aktwal na
+                    // ginagawa (account setup, hindi loan application — si
+                    // lender ang mag-a-apply ng loan sa app), kaya 'Lender
+                    // Account Upgrade' ang titulo.
+                    _isViewOnly
+                        ? 'View Lender Account Upgrade'
+                        : 'Lender Account Upgrade',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(
+                    _isViewOnly
+                        ? 'In-Office (walk-in) application details'
+                        : "Create the walk-in lender's account",
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 11)),
+              ],
+            ),
+          ),
+          if (_headerStatus != null) ...[
+            _headerStatusLabel(),
+            const SizedBox(width: 16),
           ],
+          // Compact na close button — dating 48x48 default IconButton ang
+          // nagpapataas sa header.
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white54),
+            icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            splashRadius: 20,
+            tooltip: 'Close',
             onPressed: () => Navigator.pop(context),
           ),
         ],
@@ -340,45 +407,100 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  /// Small status chip in the header showing the lender's Account Upgrade
-  /// state — makes it immediately visible that the walk-in account was
-  /// auto-verified when Steps 1-3 were submitted.
-  Widget _accountUpgradeChip(String status) {
-    final s = status.toLowerCase();
-    final (Color bg, Color fg, String label) = switch (s) {
-      'verified' || 'approved' =>
-        (AppColors.success, Colors.white, 'Account Verified'),
-      'rejected' => (AppColors.error, Colors.white, 'Account Rejected'),
-      'submitted' || 'pending' || 'under_review' =>
-        (AppColors.info, Colors.white, 'Upgrade Under Review'),
-      _ => (Colors.white24, Colors.white, 'Not Verified'),
+  /// Status na nakalagay sa header — ang TOTOONG progreso ng walk-in
+  /// application at ng loan nito, hindi lang "Account Verified":
+  ///   • May loan na   → status ng loan ('Active Loan', 'Loan Pending', ...)
+  ///   • 'submitted'   → 'Upgraded Account' (na-upgrade na ang account,
+  ///                     naghihintay lang na mag-apply si lender)
+  ///   • 'draft'       → 'Draft'
+  ///   • 'converted'   → 'Converted to Loan'
+  /// Fallback lang ang account upgrade status kapag wala pang details.
+  (Color, IconData, String)? get _headerStatus {
+    final details = _details;
+    if (details != null) {
+      final loan = details['loan'];
+      if (loan is Map && loan.isNotEmpty) {
+        final s = (loan['status'] ?? '').toString().toLowerCase().trim();
+        final (Color color, IconData icon) = switch (s) {
+          'active' || 'approved' =>
+            (AppColors.riderGreenLight, Icons.check_circle_rounded),
+          'overdue' || 'rejected' || 'cancelled' =>
+            (const Color(0xFFEF9A9A), Icons.error_rounded),
+          'completed' => (const Color(0xFF64B5F6), Icons.verified_rounded),
+          _ => (AppColors.goldLight, Icons.hourglass_top_rounded),
+        };
+        final label = switch (s) {
+          'active' => 'Active Loan',
+          'overdue' => 'Overdue Loan',
+          'completed' => 'Completed Loan',
+          'approved' => 'Loan Approved',
+          'rejected' => 'Loan Rejected',
+          'cancelled' => 'Loan Cancelled',
+          'pending' => 'Loan Pending',
+          'under_review' => 'Loan Under Review',
+          '' => 'Loan Application',
+          _ => 'Loan ${_titleCase(s)}',
+        };
+        return (color, icon, label);
+      }
+
+      switch ((details['status'] ?? '').toString().toLowerCase().trim()) {
+        case 'submitted':
+          return (
+            AppColors.riderGreenLight,
+            Icons.verified_rounded,
+            'Upgraded Account'
+          );
+        case 'draft':
+          return (Colors.white70, Icons.edit_note_rounded, 'Draft');
+        case 'converted':
+          return (
+            AppColors.riderGreenLight,
+            Icons.verified_rounded,
+            'Converted to Loan'
+          );
+      }
+    }
+
+    final upgrade = _accountUpgradeStatus;
+    if (upgrade == null) return null;
+    return switch (upgrade.toLowerCase()) {
+      'verified' || 'approved' => (
+          AppColors.riderGreenLight,
+          Icons.verified_rounded,
+          'Account Verified'
+        ),
+      'rejected' =>
+        (const Color(0xFFEF9A9A), Icons.cancel_rounded, 'Account Rejected'),
+      'submitted' || 'pending' || 'under_review' => (
+          const Color(0xFF64B5F6),
+          Icons.hourglass_top_rounded,
+          'Upgrade Under Review'
+        ),
+      _ => (Colors.white70, Icons.remove_circle_outline, 'Not Verified'),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            s == 'verified'
-                ? Icons.verified_rounded
-                : s == 'rejected'
-                    ? Icons.cancel_rounded
-                    : Icons.hourglass_top_rounded,
-            size: 14,
-            color: fg,
-          ),
-          const SizedBox(width: 5),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: fg)),
-        ],
-      ),
+  }
+
+  static String _titleCase(String raw) => raw
+      .split(RegExp(r'[_\s]+'))
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+
+  /// Status label sa header — PLAIN label lang (icon + text), walang
+  /// background/border kaya hindi ito mukhang button. Maliliwanag na kulay
+  /// para mabasa sa navy na header.
+  Widget _headerStatusLabel() {
+    final (Color fg, IconData icon, String label) = _headerStatus!;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: fg),
+        const SizedBox(width: 6),
+        Text(label,
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w600, color: fg)),
+      ],
     );
   }
 
@@ -418,72 +540,84 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     // themselves. Steps: Identify → Address → Documents.
     final steps = ['Identify', 'Address', 'Documents'];
     return Container(
-      color: AppColors.surfaceVariant,
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+      // COMPACT na banda: ang label ay nasa TABI ng bilog (hindi sa ilalim) at
+      // 8px lang ang vertical padding. Dating dalawang linya ito (28px na bilog
+      // + 6px gap + label) na may 14px padding sa itaas at ibaba → ~76px ang
+      // taas; ngayon isang linya lang (24px na bilog) → ~40px.
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 20),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceVariant,
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
       child: Row(
-        children: steps.asMap().entries.map((e) {
-          final i = e.key;
-          final label = e.value;
-          final done = i < _step;
-          final active = i == _step;
-          return Expanded(
-            child: Row(
-              children: [
-                Column(
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: done
-                            ? AppColors.success
-                            : active
-                                ? AppColors.deepNavy
-                                : AppColors.border,
-                      ),
-                      alignment: Alignment.center,
-                      child: done
-                          ? const Icon(Icons.check,
-                              size: 14, color: Colors.white)
-                          : Text('${i + 1}',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: active
-                                      ? Colors.white
-                                      : AppColors.textTertiary,
-                                  fontWeight: FontWeight.w700)),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(label,
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: active
-                                ? AppColors.deepNavy
-                                : AppColors.textTertiary,
-                            fontWeight:
-                                active ? FontWeight.w700 : FontWeight.w400)),
-                  ],
-                ),
-                if (i < steps.length - 1)
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      margin:
-                          const EdgeInsets.only(bottom: 14, left: 4, right: 4),
-                      color: done ? AppColors.success : AppColors.border,
-                    ),
+        // center (hindi start): pantay sa gitna ng bilog ang 2px na connector
+        // kahit one-line na ang bawat step.
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (var i = 0; i < steps.length; i++) ...[
+            // Connector bago ang step i — hatiin ang matitirang lapad sa gitna
+            // ng mga step group.
+            if (i > 0)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    height: 2,
+                    color: i <= _step ? AppColors.success : AppColors.border,
                   ),
+                ),
+              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: i < _step
+                        ? AppColors.success
+                        : i == _step
+                            ? AppColors.deepNavy
+                            : AppColors.border,
+                  ),
+                  alignment: Alignment.center,
+                  child: i < _step
+                      ? const Icon(Icons.check, size: 13, color: Colors.white)
+                      : Text('${i + 1}',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: i == _step
+                                  ? Colors.white
+                                  : AppColors.textTertiary,
+                              fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(width: 7),
+                Text(steps[i],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: i == _step
+                            ? AppColors.deepNavy
+                            : AppColors.textTertiary,
+                        fontWeight:
+                            i == _step ? FontWeight.w700 : FontWeight.w400)),
               ],
             ),
-          );
-        }).toList(),
+          ],
+        ],
       ),
     );
   }
 
   Widget _buildStepContent() {
+    // View mode: lahat ng section (Identify + Address + Documents + Signature)
+    // sa ISANG scroll — tingnan ang `_buildReadOnlyPage`.
+    if (_isViewOnly) return _buildReadOnlyPage();
+
     // Fully read-only (View of an already-submitted loan): every step is a
     // read-only display.
     final readOnlyStep = _fullyReadOnly || (_isViewOnly && _step < 3);
@@ -512,15 +646,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Widget _buildStep1() {
+    // Wala nang "Identify Lender" heading + paliwanag sa itaas — deretso na sa
+    // unang field (ang stepper sa itaas na ang nagsasabi kung anong step ito).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Identify Lender',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        const Text('Search for an existing lender or create a new account. These fields match Account Upgrade so the walk-in account is ready for verification.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const SizedBox(height: 20),
         _field('Phone Number', _phoneCtrl,
             keyboardType: TextInputType.phone,
             maxLength: 11,
@@ -582,20 +712,17 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Widget _dobField() {
-    return TextFormField(
+    return _ValidatedTextField(
+      label: 'Date of Birth',
       readOnly: true,
-      validator: (_) => _dob == null ? 'Date of birth is required' : null,
+      showError: _showFieldErrors,
       controller: TextEditingController(
           text: _dob == null
               ? ''
               : '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}'),
-      decoration: InputDecoration(
-        labelText: 'Date of Birth',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
-      ),
+      // Ang `_dob` ang sinusuri (hindi ang text) — pinipili ito sa date picker.
+      validator: (_) => _dob == null ? 'Date of birth is required' : null,
+      suffixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
       onTap: () async {
         final now = DateTime.now();
         final picked = await showDatePicker(
@@ -646,60 +773,86 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  Widget _readOnlyRow(String label, String value) {
+  Widget _readOnlyRow(String label, String value) => _readOnlyDataRow(
+        label,
+        Text(value.isEmpty ? 'N/A' : value,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
+      );
+
+  /// LABEL sa kaliwa (fixed na lapad, pantay lahat) at ang VALUE sa gild niya.
+  Widget _readOnlyDataRow(String label, Widget value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            width: 150,
+            width: _rowLabelWidth,
             child: Text(label,
                 style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                     fontWeight: FontWeight.w600)),
           ),
-          Expanded(
-            child: Text(value.isEmpty ? '—' : value,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary)),
-          ),
+          Expanded(child: value),
         ],
       ),
     );
   }
 
+  /// Read-only section: puting card na may manipis na border, header na may
+  /// tinted na icon box, at divider — SQUARE ang corners (walang radius).
   Widget _readOnlyCard(
       String title, IconData icon, List<Widget> rows, {Widget? footer}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(10),
+        color: Colors.white,
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(icon, size: 16, color: AppColors.deepNavy),
-            const SizedBox(width: 8),
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy)),
-          ]),
-          const SizedBox(height: 10),
-          ...rows,
-          if (footer != null) ...[
-            const SizedBox(height: 6),
-            footer,
-          ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: AppColors.deepNavy.withValues(alpha: 0.08),
+                  ),
+                  child: Icon(icon, size: 15, color: AppColors.deepNavy),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.deepNavy)),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: AppColors.divider),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...rows,
+                if (footer != null) ...[
+                  const SizedBox(height: 8),
+                  footer,
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -715,28 +868,67 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     return '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}';
   }
 
+  /// Mga row ng "Personal Information" card — share ng step-by-step read-only
+  /// view at ng isang-page na View mode.
+  List<Widget> get _personalInfoRows => [
+        _readOnlyRow('Full Name', _displayName),
+        _readOnlyRow('Phone Number', _phoneCtrl.text.trim()),
+        _readOnlyRow('Email', _emailCtrl.text.trim()),
+        _readOnlyRow('Gender', _gender ?? ''),
+        _readOnlyRow('Civil Status', _civilStatus ?? ''),
+        _readOnlyRow('Date of Birth', _displayDob()),
+        _readOnlyRow('Suffix', _suffixCtrl.text.trim()),
+      ];
+
+  /// Isang page na may lahat ng section — ito ang View mode (wala nang
+  /// step-by-step navigation). Read-only lahat, sunod-sunod na cards.
+  Widget _buildReadOnlyPage() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _readOnlyCard('Personal Information', Icons.person_outline,
+              _personalInfoRows),
+          _readOnlyCard('Home Address', Icons.location_on_outlined,
+              _addressRows),
+          _readOnlyCard(
+              'Documents', Icons.folder_outlined, _documentTiles(boxed: false)),
+          _readOnlyCard('Lender Signature', Icons.draw_outlined, [
+            _readOnlyRow(
+                'Signature',
+                (_signature != null && _signature!.isNotEmpty)
+                    ? 'Signed ✓'
+                    : 'Not signed'),
+          ]),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStep1ReadOnly() {
+    // Kapareho ng editable step 1 — wala nang "Identify Lender" heading, ang
+    // "Read-only" note na lang ang naiwan sa itaas ng card.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Identify Lender',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
         const Text('Read-only: these details were already submitted.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 16),
-        _readOnlyCard('Personal Information', Icons.person_outline, [
-          _readOnlyRow('Full Name', _displayName),
-          _readOnlyRow('Phone Number', _phoneCtrl.text.trim()),
-          _readOnlyRow('Email', _emailCtrl.text.trim()),
-          _readOnlyRow('Gender', _gender ?? ''),
-          _readOnlyRow('Civil Status', _civilStatus ?? ''),
-          _readOnlyRow('Date of Birth', _displayDob()),
-          _readOnlyRow('Suffix', _suffixCtrl.text.trim()),
-        ]),
+        _readOnlyCard('Personal Information', Icons.person_outline,
+            _personalInfoRows),
       ],
     );
   }
+
+  /// Mga row ng "Home Address" card (share ng step read-only at one-page view).
+  List<Widget> get _addressRows => [
+        _readOnlyRow('Street / House No.', _streetCtrl.text.trim()),
+        _readOnlyRow('Barangay', _barangayCtrl.text.trim()),
+        _readOnlyRow('City / Municipality', _cityCtrl.text.trim()),
+        _readOnlyRow('Province', _provinceCtrl.text.trim()),
+        _readOnlyRow('ZIP Code', _zipCtrl.text.trim()),
+      ];
 
   Widget _buildStep2ReadOnly() {
     return Column(
@@ -748,13 +940,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const Text('Read-only: these details were already submitted.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 16),
-        _readOnlyCard('Home Address', Icons.location_on_outlined, [
-          _readOnlyRow('Street / House No.', _streetCtrl.text.trim()),
-          _readOnlyRow('Barangay', _barangayCtrl.text.trim()),
-          _readOnlyRow('City / Municipality', _cityCtrl.text.trim()),
-          _readOnlyRow('Province', _provinceCtrl.text.trim()),
-          _readOnlyRow('ZIP Code', _zipCtrl.text.trim()),
-        ]),
+        _readOnlyCard('Home Address', Icons.location_on_outlined, _addressRows),
       ],
     );
   }
@@ -931,6 +1117,213 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
 
+  /// Maliit na VIEW button sa tabi ng filename — binuksan ang aktwal na
+  /// dokumento sa dialog.
+  Widget _viewDocButton(String type, String label) {
+    return Tooltip(
+      message: 'View uploaded file',
+      child: OutlinedButton.icon(
+        onPressed: () => _viewDocument(type, label),
+        icon: const Icon(Icons.visibility_outlined, size: 14),
+        label: const Text('View',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.deepNavy,
+          side: BorderSide(color: AppColors.deepNavy.withValues(alpha: 0.25)),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          minimumSize: const Size(0, 28),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+
+  /// Buksan ang naka-upload (o bagong piniling) dokumento sa isang dialog para
+  /// makita ng staff ang aktwal na file, hindi lang ang filename.
+  ///
+  ///   • Naka-upload na dati (`_existingDocPaths`) → sine-sign ang storage path
+  ///     para maging viewable URL.
+  ///   • Bagong pinili pa lang (bytes, hindi pa naka-upload) → direkta sa
+  ///     memory ipinapakita; ang PDF ay hindi kayang i-preview bago i-submit.
+  Future<void> _viewDocument(String type, String label) async {
+    final file = _docs[type];
+    final path = (_existingDocPaths[type] ?? '').trim();
+    final isPdf = (file?.mimeType ?? '').toLowerCase().contains('pdf') ||
+        (file?.name ?? '').toLowerCase().endsWith('.pdf') ||
+        path.toLowerCase().endsWith('.pdf');
+
+    if (path.isEmpty) {
+      final bytes = file?.bytes ?? Uint8List(0);
+      if (bytes.isEmpty) return;
+      if (isPdf) {
+        _showMessage(
+            'Mai-preview ang PDF pagkatapos i-submit ang application.');
+        return;
+      }
+      if (!mounted) return;
+      _showDocumentDialog(
+        label: label,
+        child: Image.memory(bytes, fit: BoxFit.contain),
+      );
+      return;
+    }
+
+    try {
+      final url = path.startsWith('http') ? path : await _resolveDocUrl(path);
+      if (!mounted) return;
+      _showDocumentDialog(
+        label: label,
+        // Sinusuportahan ng DocumentViewer ang image (may VIEW/zoom controls)
+        // at ang PDF (tap-to-open card).
+        child: DocumentViewer(url: url, height: 540),
+      );
+    } catch (e) {
+      _showMessage('Unable to open document: $e');
+    }
+  }
+
+  /// Sine-sign ang storage path para maging viewable URL. Ang walk-in
+  /// documents ay naka-upload sa `loan-documents` bucket, pero ang mga
+  /// na-backfill sa `account_upgrade_documents` (migration 00133) ay
+  /// maaaring nasa `account-upgrade-documents` pa rin — kaya may fallback.
+  Future<String> _resolveDocUrl(String path) async {
+    Object? lastError;
+    for (final bucket in const [
+      'loan-documents',
+      'account-upgrade-documents'
+    ]) {
+      try {
+        return await SupabaseStorageService.instance
+            .getSignedUrl(bucket: bucket, path: path);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError ?? Exception('Document not found');
+  }
+
+  /// Dialog na may parehong header (deep navy) ng document viewer sa Account
+  /// Upgrade details — para isang hitsura lang ang pagtingin ng dokumento.
+  void _showDocumentDialog({required String label, required Widget child}) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                        colors: [AppColors.deepNavy, Color(0xFF1A2E4A)])),
+                child: Row(children: [
+                  Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(7)),
+                      child: const Icon(Icons.insert_drive_file_rounded,
+                          color: Colors.white, size: 16)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: Text(label,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15))),
+                  IconButton(
+                      tooltip: 'Close',
+                      icon: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              shape: BoxShape.circle),
+                          child: const Icon(Icons.close_rounded,
+                              size: 16, color: Colors.white)),
+                      onPressed: () => Navigator.pop(context)),
+                ]),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: child,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Document row — LABEL sa kaliwa ("Valid ID (Front)" etc.) at sa gild nito
+  /// ang filename ng na-upload na file (green = uploaded, red = Missing) +
+  /// VIEW button para makita ang aktwal na file.
+  Widget _documentTile(String type, String label, {bool boxed = true}) {
+    final file = _docs[type];
+    final name = (file?.name ?? '').trim();
+    final path = (_existingDocPaths[type] ?? '').trim();
+    // May maipakikitang file: naka-upload na (may storage path) o bagong
+    // pinili pa lang (may bytes) — kung wala, walang View button.
+    final canView = path.isNotEmpty || (file?.bytes.isNotEmpty ?? false);
+    final row = _readOnlyDataRow(
+      label,
+      // `Expanded` (hindi `Flexible`) ang filename — sinasapawan nito ang buong
+      // natitirang lapad kaya ang VIEW button ay laging nasa parehong x
+      // (dulong kanan ng value area), pantay-pantay lahat ng row kahit iba-iba
+      // ang haba ng filename.
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              name.isEmpty ? 'Missing' : name,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: name.isEmpty || !canView
+                      ? AppColors.error
+                      : AppColors.success),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (canView) ...[
+            const SizedBox(width: 12),
+            _viewDocButton(type, label),
+          ],
+        ],
+      ),
+    );
+    if (!boxed) {
+      return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: row);
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border.all(
+            color: file != null
+                ? AppColors.success.withValues(alpha: 0.5)
+                : AppColors.border),
+        color: file != null
+            ? AppColors.success.withValues(alpha: 0.04)
+            : Colors.white,
+      ),
+      child: row,
+    );
+  }
+
+  List<Widget> _documentTiles({bool boxed = true}) =>
+      _docTypes.map((d) => _documentTile(d.$1, d.$2, boxed: boxed)).toList();
+
   Widget _buildDocumentsReadOnly() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -941,55 +1334,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const Text('Read-only: these documents were already uploaded.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         const SizedBox(height: 16),
-        ..._docTypes.map((d) {
-          final type = d.$1;
-          final file = _docs[type];
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border.all(
-                  color: file != null
-                      ? AppColors.success.withValues(alpha: 0.5)
-                      : AppColors.border),
-              borderRadius: BorderRadius.circular(8),
-              color: file != null
-                  ? AppColors.success.withValues(alpha: 0.04)
-                  : Colors.white,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  file != null
-                      ? Icons.check_circle
-                      : Icons.description_outlined,
-                  color: file != null
-                      ? AppColors.success
-                      : AppColors.textSecondary,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(d.$2,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)),
-                ),
-                Text(
-                  file != null ? (file.name.isNotEmpty ? file.name : 'Uploaded') : 'Missing',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: file != null
-                        ? AppColors.success
-                        : AppColors.error,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          );
-        }),
+        ..._documentTiles(),
         _readOnlyCard('Lender Signature', Icons.draw_outlined, [
           _readOnlyRow('Signature',
               (_signature != null && _signature!.isNotEmpty) ? 'Signed ✓' : 'Not signed'),
@@ -1004,24 +1349,42 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Ipakita ang error text ng mga invalid na field, tapos itago pagkatapos ng
+  /// [_errorVisibleFor] — para hindi manatiling naka-stack ang form.
+  void _flashErrors() {
+    _errorHideTimer?.cancel();
+    setState(() => _showFieldErrors = true);
+    _errorHideTimer = Timer(_errorVisibleFor, () {
+      if (mounted) setState(() => _showFieldErrors = false);
+    });
+  }
+
   Widget _buildFooter() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: const BoxDecoration(
         color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: Row(
         children: [
           if (_step > 0)
             OutlinedButton(
-              onPressed: _loading ? null : () => setState(() => _step--),
+              // Bumabalik sa naunang step nang walang dalang error text.
+              onPressed: _loading
+                  ? null
+                  : () => setState(() {
+                        _step--;
+                        _showFieldErrors = false;
+                      }),
               child: const Text('Back'),
             ),
           const Spacer(),
+          // View mode ay walang footer (hindi na ito naabot) — ang X sa
+          // header ang pang-sara.
           if (_fullyReadOnly)
-            // View mode: browse the read-only steps (Identify → Address →
-            // Documents), then Close. Nothing to edit or submit.
+            // Read-only (may naka-link nang loan): browse the steps, then
+            // Close. Nothing to edit or submit.
             _step < 2
                 ? ElevatedButton(
                     onPressed: () => setState(() => _step++),
@@ -1104,7 +1467,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       };
 
   Future<void> _nextStep() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      // 2 segundo lang ang error text (tingnan ang _ValidatedTextField) —
+      // hindi na naka-stack pataas ang form pagkatapos.
+      _flashErrors();
+      return;
+    }
     // Documents live on UI step 2 — block Next until all uploads are present.
     if (_step == 2) {
       final missingDocs = _docTypes
@@ -1136,7 +1504,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         }
       }
     }
-    if (mounted) setState(() => _step++);
+    if (mounted) {
+      _errorHideTimer?.cancel();
+      setState(() {
+        _showFieldErrors = false;
+        _step++;
+      });
+    }
   }
 
   Map<String, dynamic> _collectStepData(int uiStep) {
@@ -1191,7 +1565,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   }
 
   Future<void> _submitAccountAndContinue() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      // 2 segundo lang ang error text (tingnan ang _ValidatedTextField) —
+      // hindi na naka-stack pataas ang form pagkatapos.
+      _flashErrors();
+      return;
+    }
 
     // The step-3 SUBMIT creates the lender account. It must only run once:
     // resubmitting an already-submitted application would re-run account
@@ -1391,59 +1770,43 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       int? maxLength,
       FormFieldValidator<String>? validator,
       ValueChanged<String>? onChanged}) {
-    return TextFormField(
+    return _ValidatedTextField(
+      label: label,
       controller: ctrl,
       keyboardType: keyboardType,
       maxLines: maxLines,
       maxLength: maxLength,
-      onChanged: onChanged,
+      prefix: prefix,
+      showError: _showFieldErrors,
       validator: validator ?? _requiredValidator,
-      decoration: InputDecoration(
-        labelText: label,
-        counterText: '',
-        prefixText: prefix,
-        errorMaxLines: 2,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
+      onChanged: onChanged,
     );
   }
 
   Widget _simpleField(String label,
-      {TextEditingController? controller,
+      {required TextEditingController controller,
       TextInputType? keyboardType,
       int? maxLength}) {
-    return TextFormField(
+    return _ValidatedTextField(
+      label: label,
       controller: controller,
       keyboardType: keyboardType,
       maxLength: maxLength,
+      showError: _showFieldErrors,
       validator: _requiredValidator,
-      decoration: InputDecoration(
-        labelText: label,
-        counterText: '',
-        errorMaxLines: 2,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
     );
   }
 
   /// Optional text field (middle name / suffix) — no required validator.
   Widget _optionalField(String label, TextEditingController ctrl,
       {int? maxLength}) {
-    return TextFormField(
+    return _ValidatedTextField(
+      label: label,
       controller: ctrl,
       maxLength: maxLength,
-      decoration: InputDecoration(
-        labelText: label,
-        counterText: '',
-        errorMaxLines: 2,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
+      showError: _showFieldErrors,
+      // Laging valid — walang error na maipapakita sa optional field.
+      validator: (_) => null,
     );
   }
 
@@ -1453,20 +1816,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     List<String> options,
     ValueChanged<String?> onChanged,
   ) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      decoration: InputDecoration(
-        labelText: label,
-        counterText: '',
-        errorMaxLines: 2,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      ),
-      validator: _requiredValidator,
-      items: options
-          .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-          .toList(),
+    return _ValidatedDropdownField(
+      label: label,
+      value: value,
+      options: options,
+      showError: _showFieldErrors,
       onChanged: onChanged,
     );
   }
@@ -1498,6 +1852,147 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     _coLastCtrl.dispose();
     _coPhoneCtrl.dispose();
     _coAddressCtrl.dispose();
+    _errorHideTimer?.cancel();
     super.dispose();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Validation display helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// TextField na may SARILING `FormField` (sa halip na `TextFormField`) para
+/// kontrolado natin kung kailan iginuguhit ang error text.
+///
+/// Mahalaga: laging tumatakbo ang [validator] at nakarehistro pa rin sa
+/// `Form` — kaya hindi naaapektuhan ang `_formKey.currentState!.validate()`
+/// (hindi ito humaharang o nagpapalusot sa Next/Submit). Ang tanging
+/// kontrolado ay ang PAGPAPAKITA: kapag `showError == false` (lampas na sa
+/// 2-second window), hindi iginuguhit ang error at wala ring reserbang space
+/// sa ilalim ng field — hindi na "naka-stack" pataas ang form.
+class _ValidatedTextField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final FormFieldValidator<String> validator;
+  final bool showError;
+  final TextInputType? keyboardType;
+  final int maxLines;
+  final int? maxLength;
+  final String? prefix;
+  final bool readOnly;
+  final VoidCallback? onTap;
+  final Widget? suffixIcon;
+  final ValueChanged<String>? onChanged;
+
+  const _ValidatedTextField({
+    required this.label,
+    required this.controller,
+    required this.validator,
+    required this.showError,
+    this.keyboardType,
+    this.maxLines = 1,
+    this.maxLength,
+    this.prefix,
+    this.readOnly = false,
+    this.onTap,
+    this.suffixIcon,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<String>(
+      initialValue: controller.text,
+      // Ang `controller.text` ang sinusuri (hindi ang sariling value ng
+      // FormField) — pwedeng ma-prefill ito ng `_applyDetails` pagkatapos ng
+      // async load, kaya dapat laging kasalukuyang nilalaman ang tinitignan.
+      validator: (_) => validator(controller.text),
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      builder: (field) => TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        maxLength: maxLength,
+        readOnly: readOnly,
+        onTap: onTap,
+        onChanged: (v) {
+          field.didChange(v);
+          onChanged?.call(v);
+        },
+        decoration: InputDecoration(
+          labelText: label,
+          counterText: '',
+          prefixText: prefix,
+          suffixIcon: suffixIcon,
+          errorMaxLines: 2,
+          errorText: showError ? field.errorText : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dropdown version ng [_ValidatedTextField] — parehong 2-second show/hide ng
+/// error text (hindi "naka-stack"), pero tuloy pa rin ang validation ng `Form`.
+class _ValidatedDropdownField extends StatelessWidget {
+  final String label;
+  final String? value;
+  final List<String> options;
+  final bool showError;
+  final ValueChanged<String?> onChanged;
+
+  const _ValidatedDropdownField({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.showError,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Lokal na kopya ng `value` — ang mga instance field ay hindi nagpi-promote
+    // sa Dart, kaya hindi basta-basta ma-che-check ang `value.isEmpty`.
+    final selected = value;
+    return FormField<String>(
+      initialValue: selected,
+      // Ang `value` ng parent (hal. `_gender`) ang sinusuri — maaaring
+      // ma-prefill ito ng details pagkatapos ng unang build.
+      validator: (_) => (selected == null || selected.isEmpty)
+          ? 'This field is required'
+          : null,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      builder: (field) => InputDecorator(
+        // Nakataas ang label kapag may napiling value — gaya ng
+        // DropdownButtonFormField.
+        isEmpty: selected == null,
+        decoration: InputDecoration(
+          labelText: label,
+          counterText: '',
+          errorMaxLines: 2,
+          errorText: showError ? field.errorText : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: selected,
+            isDense: true,
+            isExpanded: true,
+            items: options
+                .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                .toList(),
+            onChanged: (v) {
+              field.didChange(v);
+              onChanged(v);
+            },
+          ),
+        ),
+      ),
+    );
   }
 }

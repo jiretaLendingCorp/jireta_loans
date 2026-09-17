@@ -52,12 +52,24 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
     FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
   ];
 
+  /// Manila-day bounds ng napiling filter — `null` kapag walang date filter.
+  String? get _dateFromParam =>
+      _dateRange == null ? null : SearchDateFilter.fromParam(_dateRange!.start);
+  String? get _dateToParam =>
+      _dateRange == null ? null : SearchDateFilter.toParam(_dateRange!.end);
+
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
-    ref.read(empLoanProvider.notifier).setDateRange(
-          r == null ? null : SearchDateFilter.fromParam(r.start),
-          r == null ? null : SearchDateFilter.toParam(r.end),
-        );
+    final from = _dateFromParam;
+    final to = _dateToParam;
+    // Naka-wire sa KASALUKUYANG tab — dati, ang loan list lang ang tumatanggap
+    // ng date range kaya walang nangyayari sa In-Office tab kahit may napiling
+    // petsa. Sinasabayan din ang loan list para hindi stale ang pipeline/
+    // active/completed kapag lumipat pabalik.
+    ref.read(empLoanProvider.notifier).setDateRange(from, to);
+    if (_overrideTab == 'in_office') {
+      ref.read(empInOfficeProvider.notifier).setDateRange(from, to);
+    }
   }
 
   @override
@@ -133,7 +145,11 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
             onTap: () {
               if (t.key == 'in_office') {
                 setState(() => _overrideTab = 'in_office');
-                ref.read(empInOfficeProvider.notifier).loadList();
+                // Isinasama ang date filter ng screen (source of truth) para
+                // tama ang lalabas kahit pinili ang range habang nasa ibang tab.
+                ref
+                    .read(empInOfficeProvider.notifier)
+                    .setDateRange(_dateFromParam, _dateToParam);
                 return;
               }
               if (_overrideTab != null) setState(() => _overrideTab = null);
@@ -199,9 +215,15 @@ class EmpLoanApplicationsScreen extends ConsumerStatefulWidget {
   }
 
   List _filteredEmpInOffice(List items) {
-    if (_inOfficeSearch.isEmpty) return items;
+    // Draft = walk-in application na hindi pa na-submit (kasama na ang mga
+    // abandonadong wizard) — hindi ito dapat lumabas sa In-Office tab.
+    final visible = items
+        .where((e) =>
+            (((e as Map)['status'] ?? '').toString().toLowerCase()) != 'draft')
+        .toList();
+    if (_inOfficeSearch.isEmpty) return visible;
     final q = _inOfficeSearch.toLowerCase();
-    return items.where((e) {
+    return visible.where((e) {
       final m = e as Map<String, dynamic>;
       final name = (m['lender_name'] ?? '').toString().toLowerCase();
       final id = (m['id'] ?? '').toString().toLowerCase();

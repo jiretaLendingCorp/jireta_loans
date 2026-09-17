@@ -63,12 +63,26 @@ class _HmLoanApplicationsListScreenState
     FilterTabDef('disbursements', 'Disbursements', Icons.payments_outlined),
   ];
 
+  /// Manila-day bounds ng napiling filter — `null` kapag walang date filter.
+  String? get _dateFromParam =>
+      _dateRange == null ? null : SearchDateFilter.fromParam(_dateRange!.start);
+  String? get _dateToParam =>
+      _dateRange == null ? null : SearchDateFilter.toParam(_dateRange!.end);
+
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
-    ref.read(hmLoanProvider.notifier).setDateRange(
-          r == null ? null : SearchDateFilter.fromParam(r.start),
-          r == null ? null : SearchDateFilter.toParam(r.end),
-        );
+    final from = _dateFromParam;
+    final to = _dateToParam;
+    // Naka-wire sa KASALUKUYANG tab: dati, ang loan list lang ang tumatanggap ng
+    // date range kaya WALANG nangyayari sa In-Office at Disbursements tabs
+    // kahit may napiling petsa. Sinasabayan pa rin ang loan list para hindi
+    // stale ang pipeline/active/completed kapag lumipat pabalik.
+    ref.read(hmLoanProvider.notifier).setDateRange(from, to);
+    if (_overrideTab == 'in_office') {
+      ref.read(hmInOfficeProvider.notifier).setDateRange(from, to);
+    } else if (_overrideTab == 'disbursements') {
+      ref.read(hmDisbursementProvider.notifier).setDateRange(from, to);
+    }
   }
 
   @override
@@ -156,14 +170,19 @@ class _HmLoanApplicationsListScreenState
             onTap: () {
               if (t.key == 'in_office') {
                 setState(() => _overrideTab = 'in_office');
-                // ignore: unused_result
-                ref.read(hmInOfficeProvider.notifier).load();
+                // Isinasama ang date filter ng screen (ito ang source of truth)
+                // para kapag pinili ang range habang nasa ibang tab, tama pa
+                // rin ang mga lalabas na application.
+                ref
+                    .read(hmInOfficeProvider.notifier)
+                    .setDateRange(_dateFromParam, _dateToParam);
                 return;
               }
               if (t.key == 'disbursements') {
                 setState(() => _overrideTab = 'disbursements');
-                // ignore: unused_result
-                ref.read(hmDisbursementProvider.notifier).load();
+                ref
+                    .read(hmDisbursementProvider.notifier)
+                    .setDateRange(_dateFromParam, _dateToParam);
                 return;
               }
               if (_overrideTab != null) setState(() => _overrideTab = null);
@@ -224,9 +243,15 @@ class _HmLoanApplicationsListScreenState
 
   List<Map<String, dynamic>> _filteredInOffice(
       List<Map<String, dynamic>> apps) {
-    if (_inOfficeSearch.isEmpty) return apps;
+    // Draft = walk-in application na hindi pa na-submit (kasama na ang mga
+    // abandonadong wizard, na may draft row agad pagbukas ng "New Walk-in") —
+    // hindi ito dapat lumabas dito. Submitted/converted lang ang may nangyari.
+    final visible = apps
+        .where((a) => (a['status'] ?? '').toString().toLowerCase() != 'draft')
+        .toList();
+    if (_inOfficeSearch.isEmpty) return visible;
     final q = _inOfficeSearch.toLowerCase();
-    return apps.where((a) {
+    return visible.where((a) {
       final name = (a['lender_name'] ?? '').toString().toLowerCase();
       final id = (a['id'] ?? '').toString().toLowerCase();
       return name.contains(q) || id.contains(q);
@@ -362,37 +387,70 @@ class _HmLoanApplicationsListScreenState
 
   Widget _buildInOfficeList(List<Map<String, dynamic>> apps) {
     return ResponsiveListCard(
-      minTableWidth: 860,
+      minTableWidth: 940,
+      // Order ng columns: Lender · Created · Status · Loan — nasa DULO ang Loan
+      // (kadikit na ng action column) at pinalawak ang Lender/Created/Status
+      // para punuin ang dating malaking blangkong puwang pagkatapos ng lender
+      // name (flex 3 → 4 sa Lender, 4 sa Created/Loan, 3 sa Status).
       columns: const [
-        ResponsiveCol('Lender', icon: Icons.person_outline, flex: 3),
-        ResponsiveCol('Loan', icon: Icons.request_quote_outlined, flex: 2),
-        ResponsiveCol('Created', icon: Icons.event_outlined, flex: 2),
-        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
+        ResponsiveCol('Lender', icon: Icons.person_outline, flex: 4),
+        ResponsiveCol('Created', icon: Icons.event_outlined, flex: 4),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
+        ResponsiveCol('Loan', icon: Icons.request_quote_outlined, flex: 4),
       ],
       actionsCol: ResponsiveActionsCol(
-        label: '',
-        width: 140,
-        alignment: Alignment.centerRight,
-        headerWidget: ElevatedButton.icon(
-          onPressed: () => showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => InOfficeWizard(
-              applicationId: null,
-              onComplete: () =>
-                  ref.read(hmInOfficeProvider.notifier).load(),
+        label: 'Action',
+        // ACTION label + "New Walk-in" button sa IISANG header row — kaya
+        // pinalawak ang action column (140 → 236) para magkasya pareho nang
+        // hindi nagsasapawan.
+        //
+        // Naka-centerLEFT na ngayon (dating centerRight): ito ang nagtapat ng
+        // View button sa ilalim mismo ng ACTION label — kaparehong convention
+        // ng ibang columns (ang icon ng header at ang content ng cell ay
+        // parehong nagsisimula sa kaliwang dulo ng column). Ang "New Walk-in"
+        // button ang nananatili sa dulong kanan ng header row.
+        width: 236,
+        alignment: Alignment.centerLeft,
+        headerWidget: Row(
+          // max (hindi min) para umabot sa buong lapad ng action column — dito
+          // nakabitin ang Spacer na nagtutulak sa "New Walk-in" sa dulong
+          // kanan habang ang ACTION label ay nasa kaliwang dulo.
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            const Icon(Icons.bolt_outlined,
+                size: 12, color: AppColors.textTertiary),
+            const SizedBox(width: 6),
+            const Text(
+              'ACTION',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.5),
             ),
-          ),
-          icon: const Icon(Icons.add, size: 14),
-          label: const Text('New Walk-in',
-              style: TextStyle(fontSize: 11)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.deepNavy,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(
-                horizontal: 10, vertical: 6),
-            minimumSize: const Size(0, 32),
-          ),
+            const Spacer(),
+            ElevatedButton.icon(
+              onPressed: () => showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => InOfficeWizard(
+                  applicationId: null,
+                  onComplete: () =>
+                      ref.read(hmInOfficeProvider.notifier).load(),
+                ),
+              ),
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('New Walk-in',
+                  style: TextStyle(fontSize: 11)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.deepNavy,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                minimumSize: const Size(0, 32),
+              ),
+            ),
+          ],
         ),
       ),
       rows: apps.map((app) {
@@ -400,6 +458,12 @@ class _HmLoanApplicationsListScreenState
         final dateStr = createdAt != null
             ? DateFormat('MMM dd, yyyy h:mm a').format(createdAt)
             : '—';
+        // Hindi 'Converted'/'Submitted' ang ipinapakita kundi ang totoong
+        // progreso: 'Active Loan' kapag aktibo na ang naka-link na loan, at
+        // 'Upgraded Account' kapag submitted pa lang (wala pang loan).
+        final (statusColor, statusLabel) = _inOfficeStatusMeta(app);
+        // Kaparehong order ng `columns` sa taas: Lender · Created · Status ·
+        // Loan. Ang Loan ang huling data column, kadikit ng View action.
         return ResponsiveRow(
           cells: [
             Text(
@@ -411,21 +475,27 @@ class _HmLoanApplicationsListScreenState
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              _inOfficeLoanLabel(app),
-              style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600),
-            ),
-            Text(
               dateStr,
               style: const TextStyle(
                   fontSize: 13,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
             ),
             _StatusInline(
-                status: (app['status'] ?? 'submitted').toString()),
+              status: (app['status'] ?? 'submitted').toString(),
+              labelOverride: statusLabel,
+              colorOverride: statusColor,
+            ),
+            Text(
+              _inOfficeLoanLabel(app),
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
           actions: _InOfficeActions(app: app),
         );
@@ -1100,13 +1170,21 @@ class _FrequencyInline extends StatelessWidget {
 
 class _StatusInline extends StatelessWidget {
   final String status;
-  const _StatusInline({required this.status});
+
+  /// Optional override — ginagamit ng In-Office table para ipakita ang TOTOONG
+  /// progreso ng application (hal. 'Active Loan', 'Upgraded Account') sa halip
+  /// na ang hilaw na status nito ('converted', 'submitted').
+  final String? labelOverride;
+  final Color? colorOverride;
+
+  const _StatusInline(
+      {required this.status, this.labelOverride, this.colorOverride});
 
   @override
   Widget build(BuildContext context) {
     final s = status.toLowerCase();
-    final Color c;
-    final String label;
+    Color c;
+    String label;
     switch (s) {
       case 'pending':
         c = AppColors.warning;
@@ -1155,6 +1233,10 @@ class _StatusInline extends StatelessWidget {
       default:
         c = AppColors.textSecondary;
         label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+    }
+    if (labelOverride != null) {
+      label = labelOverride!;
+      if (colorOverride != null) c = colorOverride!;
     }
     // Flat — dot + colored text, no square Container background/border
     return Row(
@@ -1374,6 +1456,43 @@ class _RowActions extends StatelessWidget {
     );
   }
 }
+
+/// Status label + kulay ng In-Office application — hindi ang hilaw na status
+/// ng application ('submitted' / 'converted') kundi ang TOTOONG progreso nito
+/// (kaparehong panuntunan ng label sa header ng `InOfficeWizard`):
+///   • may naka-link nang loan → status ng LOAN ('Active Loan',
+///     'Loan Pending', 'Overdue Loan', …)
+///   • 'submitted' (wala pang loan) → 'Upgraded Account'
+///   • 'converted' (may loan na) → 'Converted to Loan'
+(Color, String) _inOfficeStatusMeta(Map<String, dynamic> app) {
+  final loan = app['loan'];
+  if (loan is Map && loan.isNotEmpty) {
+    final s = (loan['status'] ?? '').toString().toLowerCase().trim();
+    return switch (s) {
+      'active' => (AppColors.riderGreen, 'Active Loan'),
+      'overdue' => (AppColors.error, 'Overdue Loan'),
+      'completed' => (AppColors.info, 'Completed Loan'),
+      'approved' => (AppColors.success, 'Loan Approved'),
+      'rejected' => (AppColors.error, 'Loan Rejected'),
+      'cancelled' => (AppColors.error, 'Loan Cancelled'),
+      'pending' || 'under_review' => (AppColors.warning, 'Loan Pending'),
+      '' => (AppColors.textSecondary, 'Loan Application'),
+      _ => (AppColors.textSecondary, 'Loan ${_titleCaseLabel(s)}'),
+    };
+  }
+  return switch ((app['status'] ?? '').toString().toLowerCase().trim()) {
+    'submitted' => (AppColors.info, 'Upgraded Account'),
+    'converted' => (AppColors.deepNavy, 'Converted to Loan'),
+    'draft' => (AppColors.textSecondary, 'Draft'),
+    _ => (AppColors.textSecondary, 'Submitted'),
+  };
+}
+
+String _titleCaseLabel(String s) => s
+    .replaceAll('_', ' ')
+    .split(' ')
+    .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+    .join(' ');
 
 String _inOfficeLoanLabel(Map<String, dynamic> app) {
   final loan = app['loan'];

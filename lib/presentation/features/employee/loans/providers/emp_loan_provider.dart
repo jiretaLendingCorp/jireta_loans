@@ -42,8 +42,11 @@ class EmpLoanState {
     int? total,
     String? search,
     Object? statusFilter = _unset,
-    String? dateFrom,
-    String? dateTo,
+    // Parehong sentinel trick sa statusFilter — kailangan ito para MAAARING
+    // i-clear ang date filter (`null ?? oldValue` = oldValue, kaya nananatili
+    // ang `date_from`/`date_to` sa query kahit na-clear na sa UI).
+    Object? dateFrom = _unset,
+    Object? dateTo = _unset,
   }) =>
       EmpLoanState(
         loans: loans ?? this.loans,
@@ -56,8 +59,8 @@ class EmpLoanState {
         statusFilter: statusFilter == _unset
             ? this.statusFilter
             : statusFilter as String?,
-        dateFrom: dateFrom ?? this.dateFrom,
-        dateTo: dateTo ?? this.dateTo,
+        dateFrom: dateFrom == _unset ? this.dateFrom : dateFrom as String?,
+        dateTo: dateTo == _unset ? this.dateTo : dateTo as String?,
       );
 }
 
@@ -118,6 +121,7 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
     load();
   }
 
+  /// `(null, null)` = i-clear ang date filter.
   void setDateRange(String? from, String? to) {
     state = state.copyWith(dateFrom: from, dateTo: to, page: 1);
     load();

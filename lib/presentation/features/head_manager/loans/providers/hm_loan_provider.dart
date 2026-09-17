@@ -33,6 +33,13 @@ class HmLoanState {
     this.dateTo,
   });
 
+  /// Sentinel para sa `dateFrom` / `dateTo`: iba ang "hindi ipinasa"
+  /// (panatilihin ang datos) sa "ipinasang null" (i-clear ang filter). Kung
+  /// `??` lang ang gamit, hindi maibabalik sa WALANG date filter ang listahan
+  /// dahil `null ?? oldValue` = oldValue — kaya nananatiling filtered ang
+  /// query kahit na-clear na ang date filter sa UI.
+  static const _unset = Object();
+
   HmLoanState copyWith({
     List<LoanModel>? loans,
     bool? isLoading,
@@ -43,8 +50,8 @@ class HmLoanState {
     String? statusFilter,
     String? search,
     String? tabFilter,
-    String? dateFrom,
-    String? dateTo,
+    Object? dateFrom = _unset,
+    Object? dateTo = _unset,
   }) =>
       HmLoanState(
         loans: loans ?? this.loans,
@@ -56,8 +63,8 @@ class HmLoanState {
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
         tabFilter: tabFilter ?? this.tabFilter,
-        dateFrom: dateFrom ?? this.dateFrom,
-        dateTo: dateTo ?? this.dateTo,
+        dateFrom: dateFrom == _unset ? this.dateFrom : dateFrom as String?,
+        dateTo: dateTo == _unset ? this.dateTo : dateTo as String?,
       );
 }
 
@@ -130,6 +137,8 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
     fetchLoans();
   }
 
+  /// `(null, null)` = i-clear ang date filter (at i-refetch nang walang
+  /// `date_from` / `date_to`).
   void setDateRange(String? from, String? to) {
     state = state.copyWith(dateFrom: from, dateTo: to);
     fetchLoans();

@@ -12,21 +12,38 @@ class HmInOfficeState {
   final bool isLoading;
   final String? error;
 
+  /// Manila-day date range (ISO, UTC instant) na ipinapasa sa backend bilang
+  /// `date_from` / `date_to` — naka-apply sa `created_at` ng application.
+  final String? dateFrom;
+  final String? dateTo;
+
   const HmInOfficeState({
     this.applications = const [],
     this.isLoading = false,
     this.error,
+    this.dateFrom,
+    this.dateTo,
   });
+
+  /// Sentinel para sa `dateFrom` / `dateTo` sa [copyWith]: iba ang "hindi
+  /// ipinasa" (panatilihin ang datos) sa "ipinasang null" (i-clear ang
+  /// filter). Kung `??` lang ang gamit, hindi maibabalik sa walang filter
+  /// dahil `null ?? oldValue` = oldValue.
+  static const _unset = Object();
 
   HmInOfficeState copyWith({
     List<Map<String, dynamic>>? applications,
     bool? isLoading,
     String? error,
+    Object? dateFrom = _unset,
+    Object? dateTo = _unset,
   }) =>
       HmInOfficeState(
         applications: applications ?? this.applications,
         isLoading: isLoading ?? this.isLoading,
         error: error,
+        dateFrom: dateFrom == _unset ? this.dateFrom : dateFrom as String?,
+        dateTo: dateTo == _unset ? this.dateTo : dateTo as String?,
       );
 }
 
@@ -53,6 +70,10 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
       final data = await _ds.getList(
         status: status == 'all' ? null : status,
         page: page,
+        // Isinasama ang nakatagong date range — kung wala, hindi na ito
+        // kailangan pang salain sa app.
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
       );
       state = state.copyWith(applications: data, isLoading: false);
     } catch (e) {
@@ -60,6 +81,13 @@ class HmInOfficeNotifier extends StateNotifier<HmInOfficeState>
       state = state.copyWith(
           isLoading: false, error: ErrorHandler.handle(e).message);
     }
+  }
+
+  /// Date-range filter ng In-Office tab (`created_at` ng aplikasyon, Manila
+  /// day). `(null, null)` = i-clear ang filter.
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(dateFrom: from, dateTo: to);
+    load();
   }
 
   void setStatus(String status) => load(status: status);

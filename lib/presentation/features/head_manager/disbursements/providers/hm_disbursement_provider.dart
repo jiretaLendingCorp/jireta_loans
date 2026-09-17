@@ -27,6 +27,11 @@ class HmDisbursementState {
     this.dateTo,
   });
 
+  /// Sentinel para sa `dateFrom` / `dateTo`: iba ang "hindi ipinasa"
+  /// (panatilihin) sa "ipinasang null" (i-clear ang filter) — kung `??` lang,
+  /// hindi maaalis ang `date_from` / `date_to` sa query.
+  static const _unset = Object();
+
   HmDisbursementState copyWith({
     List<DisbursementModel>? disbursements,
     bool? isLoading,
@@ -34,8 +39,8 @@ class HmDisbursementState {
     String? methodFilter,
     String? statusFilter,
     String? search,
-    String? dateFrom,
-    String? dateTo,
+    Object? dateFrom = _unset,
+    Object? dateTo = _unset,
   }) =>
       HmDisbursementState(
         disbursements: disbursements ?? this.disbursements,
@@ -44,8 +49,8 @@ class HmDisbursementState {
         methodFilter: methodFilter ?? this.methodFilter,
         statusFilter: statusFilter ?? this.statusFilter,
         search: search ?? this.search,
-        dateFrom: dateFrom ?? this.dateFrom,
-        dateTo: dateTo ?? this.dateTo,
+        dateFrom: dateFrom == _unset ? this.dateFrom : dateFrom as String?,
+        dateTo: dateTo == _unset ? this.dateTo : dateTo as String?,
       );
 }
 
@@ -92,6 +97,7 @@ class HmDisbursementNotifier extends StateNotifier<HmDisbursementState>
     load();
   }
 
+  /// `(null, null)` = i-clear ang date filter.
   void setDateRange(String? from, String? to) {
     state = state.copyWith(dateFrom: from, dateTo: to);
     load();

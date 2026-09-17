@@ -44,15 +44,23 @@ class InOfficeRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  /// `dateFrom` / `dateTo` = Manila-day bounds mula sa
+  /// `SearchDateFilter.fromParam/toParam`. Sinasala ng backend ang
+  /// `created_at` ng application (`in-office-view?fn=list`) — parehong
+  /// param names ng loans/disbursements lists (`date_from`/`date_to`).
   Future<List<Map<String, dynamic>>> getList({
     String? status,
     int page = 1,
     int limit = 20,
+    String? dateFrom,
+    String? dateTo,
   }) async {
     final res = await _client.get(
       ApiEndpoints.inOfficeGetList,
       queryParams: {
         if (status != null) 'status': status,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
         'page': page,
         'limit': limit,
       },
@@ -88,8 +96,15 @@ class InOfficeRemoteDataSource {
     String? status,
     int page = 1,
     int limit = 20,
+    String? dateFrom,
+    String? dateTo,
   }) =>
-      getList(status: status, page: page, limit: limit);
+      getList(
+          status: status,
+          page: page,
+          limit: limit,
+          dateFrom: dateFrom,
+          dateTo: dateTo);
 
   Future<Map<String, dynamic>> submitApplication({
     required String applicationId,

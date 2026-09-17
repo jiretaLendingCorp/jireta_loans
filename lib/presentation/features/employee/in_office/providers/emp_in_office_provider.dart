@@ -19,6 +19,13 @@ class EmpInOfficeNotifier
   final InOfficeRemoteDataSource _ds;
   final LoanRemoteDataSource _loanDs;
 
+  /// Manila-day date range (`SearchDateFilter.fromParam/toParam`) na ipinapasa
+  /// sa backend bilang `date_from` / `date_to` — naka-apply sa `created_at` ng
+  /// application. Nasa notifier ito (hindi sa state) dahil
+  /// `AsyncValue<Map<String, dynamic>>` ang state ng provider na ito.
+  String? _dateFrom;
+  String? _dateTo;
+
   EmpInOfficeNotifier(this._ds, this._loanDs)
       : super(const AsyncData({'items': [], 'total': 0})) {
     bindRealtimeRefresh(['in_office_applications'],
@@ -31,12 +38,23 @@ class EmpInOfficeNotifier
     if (!silent) state = const AsyncLoading();
     try {
       final data = await _ds.getList(
-          status: status == 'all' ? null : status, page: page);
+        status: status == 'all' ? null : status,
+        page: page,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+      );
       state = AsyncData({'items': data, 'total': data.length});
     } catch (e, s) {
       if (silent && state is AsyncData) return;
       state = AsyncError(e, s);
     }
+  }
+
+  /// Date-range filter ng In-Office tab. `(null, null)` = i-clear ang filter.
+  void setDateRange(String? from, String? to) {
+    _dateFrom = from;
+    _dateTo = to;
+    loadList();
   }
 
   void setStatus(String status) => loadList(status: status);
