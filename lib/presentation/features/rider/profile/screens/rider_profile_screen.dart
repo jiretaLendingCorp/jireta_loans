@@ -488,6 +488,14 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
             icon: Icons.calendar_today_outlined,
             label: 'Member since',
             value: _memberSince(user)),
+        // Primary home address (addresses table) — makikita rin ng rider ang
+        // sarili niyang address sa Profile, hindi lang sa People → details.
+        ModernInfoRowData(
+            icon: Icons.location_on_outlined,
+            label: 'Address',
+            value: user.formattedAddress.isEmpty
+                ? '—'
+                : user.formattedAddress),
       ],
     );
   }

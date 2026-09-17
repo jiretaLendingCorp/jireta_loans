@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/di/injection.dart';
 import '../../../core/errors/error_handler.dart';
+import '../../../core/extensions/context_extensions.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/datasources/remote/user_remote_datasource.dart';
 import 'forms/app_date_picker.dart';
+import 'philippines_address_field.dart';
 
 class EditUserModal extends ConsumerStatefulWidget {
   final String userId;
@@ -32,11 +34,18 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
   final _lastCtrl = TextEditingController();
   final _suffixCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _streetCtrl = TextEditingController();
-  final _barangayCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController();
-  final _provinceCtrl = TextEditingController();
   final _zipCtrl = TextEditingController();
+
+  /// Ang address ay hindi na free-text controllers — opisyal na PSA/PSGC data
+  /// ang ginagamit ng `PhilippinesAddressField` (Region → Province →
+  /// City/Municipality → Barangay + Street). Ito ang mga initial value na
+  /// ipinapasa rito mula sa `get-profile` para naka-prefill ang picker.
+  final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
+  String _initStreet = '';
+  String? _initRegion;
+  String? _initProvince;
+  String? _initCity;
+  String? _initBarangay;
 
   bool _loading = true;
   bool _saving = false;
@@ -82,10 +91,14 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         _phoneCtrl.text = (data['phone_number'] as String?) ?? '';
         // Address lives in the addresses table — get-profile flattens the
         // primary home address straight onto the user object.
-        _streetCtrl.text = (data['street_address'] as String?) ?? '';
-        _barangayCtrl.text = (data['barangay'] as String?) ?? '';
-        _cityCtrl.text = (data['city'] as String?) ?? '';
-        _provinceCtrl.text = (data['province'] as String?) ?? '';
+        _initStreet = (data['street_address'] as String?) ?? '';
+        // Ang Region ay hindi nakaimbak sa `addresses` — hinahanap ito ng
+        // picker mula sa city/province (PSA data) kapag wala rito.
+        _initRegion =
+            (data['region'] as String?) ?? (data['region_name'] as String?);
+        _initProvince = data['province'] as String?;
+        _initCity = data['city'] as String?;
+        _initBarangay = data['barangay'] as String?;
         _zipCtrl.text = (data['zip_code'] as String?) ?? '';
         _email = (data['email'] as String?) ?? '';
         _gender = _asKnownCode(data['gender'], _genders);
@@ -107,6 +120,22 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
 
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    // Address: opsyonal, pero kapag may nilagay, dapat KUMPLETO — ang
+    // `addresses` table ay NOT NULL sa street/barangay/city/province, kaya ang
+    // putol-putol na address ay dati ay tahimik na hindi na-save.
+    final addr = _addressKey.currentState;
+    final street = addr?.street ?? '';
+    final barangay = addr?.barangay ?? '';
+    final city = addr?.city ?? '';
+    final province = addr?.province ?? '';
+    final hasAddress = street.isNotEmpty ||
+        barangay.isNotEmpty ||
+        city.isNotEmpty ||
+        province.isNotEmpty ||
+        _zipCtrl.text.trim().isNotEmpty;
+    if (hasAddress && !(addr?.validate() ?? false)) return;
+
     setState(() {
       _saving = true;
       _error = null;
@@ -129,13 +158,23 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                   '${_dob!.year}-${_dob!.month.toString().padLeft(2, '0')}-${_dob!.day.toString().padLeft(2, '0')}',
           },
         // Primary home address (users-manage upserts into `addresses`).
-        'street_address': _streetCtrl.text.trim(),
-        'barangay': _barangayCtrl.text.trim(),
-        'city': _cityCtrl.text.trim(),
-        'province': _provinceCtrl.text.trim(),
-        'zip_code': _zipCtrl.text.trim(),
+        // Isinasama lang kapag may laman — hindi dapat mabura ang nakatagong
+        // address kapag blangko ang form.
+        if (hasAddress) ...{
+          'street_address': street,
+          'barangay': barangay,
+          'city': city,
+          'province': province,
+          'zip_code': _zipCtrl.text.trim(),
+        },
       });
       if (!mounted) return;
+      // Malinaw na feedback na na-save ang changes (dati, biglang nagsasara
+      // ang modal at walang kumpirmasyon).
+      context.showSnackBarAsToast(const SnackBar(
+        content: Text('Changes saved successfully'),
+        backgroundColor: AppColors.success,
+      ));
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -153,10 +192,6 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
     _lastCtrl.dispose();
     _suffixCtrl.dispose();
     _phoneCtrl.dispose();
-    _streetCtrl.dispose();
-    _barangayCtrl.dispose();
-    _cityCtrl.dispose();
-    _provinceCtrl.dispose();
     _zipCtrl.dispose();
     super.dispose();
   }
@@ -257,22 +292,18 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                               color: AppColors.textPrimary),
                         ),
                         const SizedBox(height: 8),
-                        _f('Street Address', _streetCtrl, maxLength: 100),
-                        const SizedBox(height: 12),
-                        _f('Barangay', _barangayCtrl, maxLength: 100),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _f('City / Municipality', _cityCtrl,
-                                  maxLength: 100),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _f('Province', _provinceCtrl,
-                                  maxLength: 100),
-                            ),
-                          ],
+                        // Opisyal na Philippine address (PSA data via
+                        // philippines_rpcmb): Region → Province → City /
+                        // Municipality → Barangay + Street. Kapareho ng
+                        // walk-in (in-office) at iba pang address forms, kaya
+                        // standardized na ang naka-save na address.
+                        PhilippinesAddressField(
+                          key: _addressKey,
+                          initialStreet: _initStreet,
+                          initialRegion: _initRegion,
+                          initialProvince: _initProvince,
+                          initialCity: _initCity,
+                          initialBarangay: _initBarangay,
                         ),
                         const SizedBox(height: 12),
                         _f('ZIP Code', _zipCtrl, maxLength: 4),

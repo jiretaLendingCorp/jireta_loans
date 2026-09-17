@@ -249,6 +249,14 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
             value: user.dateOfBirth != null
                 ? AppFormatters.date(user.dateOfBirth!)
                 : '—'),
+        // Primary home address (addresses table) — hindi lang sa People →
+        // details ito makikita, kundi sa sariling Profile din ng employee.
+        ModernInfoRowData(
+            icon: Icons.location_on_outlined,
+            label: 'Address',
+            value: user.formattedAddress.isEmpty
+                ? '—'
+                : user.formattedAddress),
       ],
     );
   }

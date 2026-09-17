@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/document_viewer.dart';
+import '../../../../shared/widgets/philippines_address_field.dart';
 import '../providers/hm_in_office_provider.dart';
 
 class _DocFile {
@@ -107,6 +108,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   // Documents already uploaded to storage (docType -> file_path). Kept so
   // continuing a draft does not re-upload (or upload empty) existing files.
   final Map<String, String> _existingDocPaths = {};
+
+  /// Address step: opisyal na PH address (PSA data via philippines_rpcmb) —
+  /// Region → Province → City/Municipality → Barangay + Street. Kinukuha ang
+  /// structured parts sa `_collectStepData(1)` para ang `application_addresses`
+  /// row ay standardized (tulad ng sa ibang address forms ng app).
+  final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
 
 
 
@@ -376,15 +383,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(
-                    _isViewOnly
-                        ? 'In-Office (walk-in) application details'
-                        : "Create the walk-in lender's account",
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white54, fontSize: 11)),
               ],
             ),
           ),
@@ -748,21 +746,15 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         const SizedBox(height: 20),
         _sectionTitle('Home Address'),
         const SizedBox(height: 8),
-        _simpleField('Street / House No.',
-            controller: _streetCtrl, maxLength: 100),
-        const SizedBox(height: 8),
-        _simpleField('Barangay', controller: _barangayCtrl, maxLength: 100),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-                child: _simpleField('City / Municipality',
-                    controller: _cityCtrl, maxLength: 100)),
-            const SizedBox(width: 12),
-            Expanded(
-                child: _simpleField('Province',
-                    controller: _provinceCtrl, maxLength: 100)),
-          ],
+        // Philippine address (PSA/PSGC data) — pareho ng Edit User (People) at
+        // ng ibang address forms. Naka-prefill mula sa na-save nang address
+        // kapag kinokontinue o tinitignan ang application.
+        PhilippinesAddressField(
+          key: _addressKey,
+          initialStreet: _streetCtrl.text,
+          initialCity: _cityCtrl.text,
+          initialProvince: _provinceCtrl.text,
+          initialBarangay: _barangayCtrl.text,
         ),
         const SizedBox(height: 8),
         _simpleField('ZIP Code',
@@ -1355,7 +1347,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     _errorHideTimer?.cancel();
     setState(() => _showFieldErrors = true);
     _errorHideTimer = Timer(_errorVisibleFor, () {
-      if (mounted) setState(() => _showFieldErrors = false);
+      if (!mounted) return;
+      setState(() => _showFieldErrors = false);
+      // Ang PH address picker ay may sariling inline errors (hindi galing sa
+      // `_ValidatedTextField`) — parehong 2 segundo lang din silang nakikita.
+      _addressKey.currentState?.clearErrors();
     });
   }
 
@@ -1473,6 +1469,13 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       _flashErrors();
       return;
     }
+    // Address step: ang PH address picker ay hindi TextFormField kaya hindi
+    // ito kasama sa `Form.validate()` — manwal itong sinusuri rito (dapat
+    // kumpleto: Region, Province, City/Municipality, Barangay at Street).
+    if (_step == 1 && !(_addressKey.currentState?.validate() ?? false)) {
+      _flashErrors();
+      return;
+    }
     // Documents live on UI step 2 — block Next until all uploads are present.
     if (_step == 2) {
       final missingDocs = _docTypes
@@ -1513,7 +1516,24 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     }
   }
 
+  /// Isinasalin ang napiling PH address (Region → Province → City → Barangay +
+  /// Street) sa mga controller. Ang `address_type` ay 'home' at walang Region
+  /// column ang `application_addresses` — street/barangay/city/province ang
+  /// naipapasa (kapareho ng dating payload).
+  void _syncAddressParts() {
+    final a = _addressKey.currentState;
+    if (a == null) return;
+    _streetCtrl.text = a.street;
+    _barangayCtrl.text = a.barangay ?? '';
+    _cityCtrl.text = a.city ?? '';
+    _provinceCtrl.text = a.province ?? '';
+  }
+
   Map<String, dynamic> _collectStepData(int uiStep) {
+    // Ang piniling PH address ay nasa `PhilippinesAddressField` state —
+    // isinasalin ito sa controllers (isa nang source of truth, ginagamit din
+    // ng read-only summary). No-op kapag hindi naka-mount ang address step.
+    _syncAddressParts();
     return switch (uiStep) {
       0 => {
           'phone': _phoneCtrl.text.trim(),

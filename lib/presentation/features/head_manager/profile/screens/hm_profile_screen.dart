@@ -242,6 +242,14 @@ class _HmProfileScreenState extends ConsumerState<HmProfileScreen> {
             value: user.dateOfBirth != null
                 ? AppFormatters.date(user.dateOfBirth!)
                 : '—'),
+        // Primary home address (addresses table) — dapat makita rin ng HM ang
+        // sarili niyang address, hindi lang sa People → details ng iba.
+        ModernInfoRowData(
+            icon: Icons.location_on_outlined,
+            label: 'Address',
+            value: user.formattedAddress.isEmpty
+                ? '—'
+                : user.formattedAddress),
       ],
     );
   }

@@ -10,16 +10,50 @@ import 'package:philippines_rpcmb/philippines_rpcmb.dart';
 
 import '../../../core/theme/app_colors.dart';
 
+/// Hinahanap ang Region ng isang City/Municipality name sa PSG/PSA data.
+///
+/// Kailangan ito ng prefill: ang `addresses` / `application_addresses` table
+/// ay hindi nag-iimbak ng Region (street / barangay / city / province lang) —
+/// kaya kapag nag-prefill mula sa DB, hindi na kailangang piliin muli ng user
+/// ang Region dropdown.
+String? philippineRegionForCity(String? city) {
+  final c = (city ?? '').trim().toLowerCase();
+  if (c.isEmpty) return null;
+  for (final r in philippineRegions) {
+    for (final p in r.provinces) {
+      for (final m in p.municipalities) {
+        if (m.name.toLowerCase() == c) return r.regionName;
+      }
+    }
+  }
+  return null;
+}
+
 class PhilippinesAddressField extends StatefulWidget {
   final String label;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+
+  // ── Prefill (opsyonal) — para sa mga edit/continue form na may existing na
+  // address sa `addresses` table. Ang mga pangalan ay tinutugma sa opisyal na
+  // PSA list (case-insensitive); kapag walang tugma, blangko na lang ang
+  // dropdown (hindi ito error).
+  final String? initialStreet;
+  final String? initialRegion;
+  final String? initialProvince;
+  final String? initialCity;
+  final String? initialBarangay;
 
   const PhilippinesAddressField({
     super.key,
     this.label = 'Address',
     this.errorText,
     this.onChanged,
+    this.initialStreet,
+    this.initialRegion,
+    this.initialProvince,
+    this.initialCity,
+    this.initialBarangay,
   });
 
   @override
@@ -73,10 +107,57 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
     return isValid;
   }
 
+  /// Itago muli ang inline errors nang hindi binabago ang napiling address —
+  /// ginagamit ng mga parent na may 2-second auto-hide ng validation errors
+  /// (hal. Lender Account Upgrade wizard).
+  void clearErrors() {
+    if (!_attempted) return;
+    setState(() => _attempted = false);
+  }
+
   @override
   void initState() {
     super.initState();
     _streetFocus.addListener(_onStreetFocus);
+    _applyInitialValues();
+  }
+
+  /// Prefill mula sa [PhilippinesAddressField.initialStreet] at ng mga
+  /// initial na pangalan ng Region/Province/City/Barangay (tugma sa PSA list).
+  void _applyInitialValues() {
+    _streetCtrl.text = widget.initialStreet?.trim() ?? '';
+    // Region: direktang ipinasa, o kung wala (hindi ito nakaimbak sa DB)
+    // hinahanap mula sa city/province name ng PSA data.
+    final explicitRegion = widget.initialRegion?.trim() ?? '';
+    final regionName = explicitRegion.isNotEmpty
+        ? explicitRegion.toLowerCase()
+        : philippineRegionForCity(widget.initialCity)?.toLowerCase();
+    final provinceName = widget.initialProvince?.trim().toLowerCase();
+    final cityName = widget.initialCity?.trim().toLowerCase();
+    final barangayName = widget.initialBarangay?.trim().toLowerCase();
+
+    if (regionName != null && regionName.isNotEmpty) {
+      _region = philippineRegions
+          .where((r) => r.regionName.toLowerCase() == regionName)
+          .firstOrNull;
+    }
+    final provinces = _region?.provinces ?? const <Province>[];
+    if (provinceName != null && provinceName.isNotEmpty) {
+      _province =
+          provinces.where((p) => p.name.toLowerCase() == provinceName).firstOrNull;
+    }
+    final municipalities = _province?.municipalities ?? const <Municipality>[];
+    if (cityName != null && cityName.isNotEmpty) {
+      _municipality = municipalities
+          .where((m) => m.name.toLowerCase() == cityName)
+          .firstOrNull;
+    }
+    final barangays = _municipality?.barangays ?? const <String>[];
+    if (barangayName != null && barangayName.isNotEmpty) {
+      _barangay = barangays
+          .where((b) => b.toLowerCase() == barangayName)
+          .firstOrNull;
+    }
   }
 
   void _onStreetFocus() {

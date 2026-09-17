@@ -98,6 +98,20 @@ class UserModel extends UserEntity {
 
   String get phone => phoneNumber ?? '';
 
+  /// Composed na one-line address: `street, barangay, city, province, zip`
+  /// (mula sa `addresses` table, primary home address — get-profile). Fallback
+  /// ang [`address`] (composed one-liner ng `rider_profiles.address`) kapag
+  /// walang structured parts. Ginagamit ng mga Profile screen ng lahat ng role
+  /// (HM / Employee / Rider / Lender) para pantay ang format.
+  String get formattedAddress {
+    final structured = [streetAddress, barangay, city, province, zipCode]
+        .where((p) => p != null && p.trim().isNotEmpty)
+        .map((p) => p!.trim())
+        .toList();
+    if (structured.isNotEmpty) return structured.join(', ');
+    return (address ?? '').trim();
+  }
+
   /// May balance pa ba ang lender (may active/overdue na loan)?
   bool get hasOutstanding => outstandingBalance > 0;
 
