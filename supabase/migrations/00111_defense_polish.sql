@@ -628,57 +628,18 @@ COMMENT ON CONSTRAINT loan_schedules_loan_id_installment_number_key ON public.lo
 COMMENT ON TABLE public.rider_locations IS 'Current/latest location per rider (1 row per rider, UNIQUE(rider_id)). Optimized for realtime tracking. For history/audit, see rider_location_history (00109). Re-verified 00111.';
 
 -- ─────────────────────────────────────────────────────────────────
--- 5) lender vs borrower terminology — alias views + docs
---    Keep lender_profiles / lender_id as writable source for compat;
---    expose borrower_* aliases for new code/docs/ERD clarity.
+-- 5) lender vs borrower terminology — docs
+--    Keep lender_profiles / lender_id as the writable source; role/table
+--    names stay "lender" for compat (semantic borrower) per the comments below.
 -- ─────────────────────────────────────────────────────────────────
 
--- borrower_profiles alias already created in 00109 — re-ensure with security_invoker
-CREATE OR REPLACE VIEW public.borrower_profiles AS SELECT * FROM public.lender_profiles;
-ALTER VIEW public.borrower_profiles SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_profiles IS 'Alias VIEW for lender_profiles — semantically borrower_profiles (borrower/client who borrows and repays). Historically named lender but role description = Borrower. Underlying table remains lender_profiles for backward compat; writes go to lender_profiles. Re-verified 00111.';
-GRANT SELECT ON public.borrower_profiles TO anon, authenticated, service_role;
-
-CREATE OR REPLACE VIEW public.borrower_role AS SELECT * FROM public.roles WHERE name = 'lender';
-ALTER VIEW public.borrower_role SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_role IS 'Convenience alias: SELECT * FROM borrower_role returns the lender row (name=lender) which semantically means borrower.';
-GRANT SELECT ON public.borrower_role TO anon, authenticated, service_role;
-
--- Convenience view: loans with borrower_id alias column
-CREATE OR REPLACE VIEW public.borrower_loans AS
-  SELECT l.*, l.lender_id AS borrower_id FROM public.loans l;
-ALTER VIEW public.borrower_loans SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_loans IS 'Alias VIEW for loans — exposes borrower_id as alias for lender_id (semantically borrower). Use borrower_id in new code/docs/ERD for clarity; underlying column remains loans.lender_id for compat.';
-GRANT SELECT ON public.borrower_loans TO anon, authenticated, service_role;
-
--- Borrower emergency contacts alias
-CREATE OR REPLACE VIEW public.borrower_emergency_contacts AS
-  SELECT ec.*, ec.lender_id AS borrower_id FROM public.emergency_contacts ec;
-ALTER VIEW public.borrower_emergency_contacts SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_emergency_contacts IS 'Alias VIEW for emergency_contacts — borrower_id alias for lender_id.';
-GRANT SELECT ON public.borrower_emergency_contacts TO anon, authenticated, service_role;
-
--- Borrower documents alias
-CREATE OR REPLACE VIEW public.borrower_account_upgrade_documents AS
-  SELECT d.*, d.lender_id AS borrower_id FROM public.account_upgrade_documents d;
-ALTER VIEW public.borrower_account_upgrade_documents SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_account_upgrade_documents IS 'Alias VIEW for account_upgrade_documents — borrower_id alias for lender_id.';
-GRANT SELECT ON public.borrower_account_upgrade_documents TO anon, authenticated, service_role;
-
--- In-office applications borrower alias
-CREATE OR REPLACE VIEW public.borrower_in_office_applications AS
-  SELECT a.*, a.lender_id AS borrower_id FROM public.in_office_applications a;
-ALTER VIEW public.borrower_in_office_applications SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_in_office_applications IS 'Alias VIEW for in_office_applications — borrower_id alias for lender_id.';
-GRANT SELECT ON public.borrower_in_office_applications TO anon, authenticated, service_role;
-
 -- Documentation: ensure every lender_id column has borrower comment for ERD
-COMMENT ON COLUMN public.loans.lender_id IS 'Borrower (client) who owns the loan. FK -> lender_profiles.id (which is 1:1 -> users.id). Despite the name lender_id, this is the BORROWER. For new code/ERD, use VIEW borrower_loans.borrower_id or alias lender_id as borrower_id.';
-COMMENT ON COLUMN public.emergency_contacts.lender_id IS 'Borrower (lender_profiles.id) this emergency contact belongs to. Alias: borrower_id via VIEW borrower_emergency_contacts.';
-COMMENT ON COLUMN public.account_upgrade_documents.lender_id IS 'Borrower (lender_profiles.id) who uploaded the document. Alias: borrower_id via VIEW borrower_account_upgrade_documents.';
-COMMENT ON COLUMN public.in_office_applications.lender_id IS 'Borrower (lender_profiles.id) for in-office wizard. Nullable. Alias: borrower_id via VIEW borrower_in_office_applications.';
-COMMENT ON TABLE public.lender_profiles IS 'Borrower/client profile (1:1 child of users.id, PK=FK CASCADE). Historically named lender_profiles but SEMANTICALLY BORROWER — see roles.description Borrower. Use VIEW borrower_profiles for clarity. Canonical FK columns are *_id uuid -> lookup.id (00110); varchar aliases are deprecated but kept for compat. Chain: loans.lender_id -> lender_profiles.id -> users.id.';
-COMMENT ON TABLE public.loans IS 'Loan application. lender_id is the BORROWER (client) who owns the loan. See VIEW borrower_loans for borrower_id alias. Canonical lookup FKs are payment_frequency_id uuid and status_id uuid (00110); varchar payment_frequency/status are deprecated aliases.';
+COMMENT ON COLUMN public.loans.lender_id IS 'Borrower (client) who owns the loan. FK -> lender_profiles.id (which is 1:1 -> users.id). Despite the name lender_id, this is the BORROWER. For new code/ERD, prefer aliasing lender_id as borrower_id.';
+COMMENT ON COLUMN public.emergency_contacts.lender_id IS 'Borrower (lender_profiles.id) this emergency contact belongs to. Semantically this is borrower_id.';
+COMMENT ON COLUMN public.account_upgrade_documents.lender_id IS 'Borrower (lender_profiles.id) who uploaded the document. Semantically this is borrower_id.';
+COMMENT ON COLUMN public.in_office_applications.lender_id IS 'Borrower (lender_profiles.id) for in-office wizard. Nullable. Semantically this is borrower_id.';
+COMMENT ON TABLE public.lender_profiles IS 'Borrower/client profile (1:1 child of users.id, PK=FK CASCADE). Historically named lender_profiles but SEMANTICALLY BORROWER — see roles.description Borrower. Canonical FK columns are *_id uuid -> lookup.id (00110); varchar aliases are deprecated but kept for compat. Chain: loans.lender_id -> lender_profiles.id -> users.id.';
+COMMENT ON TABLE public.loans IS 'Loan application. lender_id is the BORROWER (client) who owns the loan. Canonical lookup FKs are payment_frequency_id uuid and status_id uuid (00110); varchar payment_frequency/status are deprecated aliases.';
 COMMENT ON COLUMN public.users.account_status IS 'DEPRECATED alias for account_status_id (uuid FK -> user_account_statuses.id). Prefer account_status_id. Kept for compat; trigger keeps both synced.';
 COMMENT ON COLUMN public.users.account_status_id IS 'Canonical FK -> user_account_statuses.id (uuid). Properly normalized. Synced with account_status varchar via trigger trg_sync_users_lookup. Use this in new code/ERD.';
 COMMENT ON COLUMN public.loans.status IS 'DEPRECATED alias for status_id. Prefer status_id uuid FK -> loan_statuses.id.';
@@ -731,7 +692,7 @@ BEGIN
   END LOOP;
   RAISE NOTICE 'UNIQUE checks: role_permissions and loan_schedules verified above';
   RAISE NOTICE 'CHECK: auth_logs.failed_attempts >=0 enforced';
-  RAISE NOTICE 'Terminology: borrower_profiles, borrower_loans, borrower_role views available as alias for lender_*';
+  RAISE NOTICE 'Terminology: lender_* tables/columns are the semantic borrower (see column comments).';
   RAISE NOTICE 'Canvas: ERD should draw uuid arrows (e.g., loans.status_id -> loan_statuses.id) as PRIMARY, varchar as deprecated dashed alias';
 END $$;
 

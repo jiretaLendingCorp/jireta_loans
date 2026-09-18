@@ -49,7 +49,7 @@
 --        Not a bug: loans.installment_amount = agreed standard installment
 --        (snapshot at approval, from 00017 term backfill); loan_schedules.
 --        amount_due = per-installment actual due (may diverge with rounding/
---        penalty adjustments). Views v_loan_financials / v_loan_schedules are
+--        penalty adjustments). The v_loan_schedules view is
 --        source of truth for outstanding.
 --
 --   ⚠️ 10) UUID defaults mix gen_random_uuid() vs uuid_generate_v4() —
@@ -128,27 +128,13 @@ COMMENT ON CONSTRAINT fk_loans_in_office ON public.loans IS
 -- 2) lender_profiles naming — clarify borrower semantics
 -- ─────────────────────────────────────────────────────────────────
 COMMENT ON TABLE public.lender_profiles IS
-  'Borrower/client profile (1:1 child of users.id). The role/table is named lender for historical reasons but SEMANTICALLY means BORROWER — the person who borrows and repays. See roles.description: ''Borrower who applies for loans''. For readability, use the alias VIEW public.borrower_profiles. Chain: loans.lender_id -> lender_profiles.id -> users.id.';
+  'Borrower/client profile (1:1 child of users.id). The role/table is named lender for historical reasons but SEMANTICALLY means BORROWER — the person who borrows and repays. See roles.description: ''Borrower who applies for loans''. Chain: loans.lender_id -> lender_profiles.id -> users.id.';
 COMMENT ON COLUMN public.lender_profiles.id IS 'PK = users.id (1:1). This is the borrower user id.';
 COMMENT ON COLUMN public.lender_profiles.account_upgrade_status IS 'FK -> account_upgrade_statuses.code (not_submitted, pending, submitted, verified, rejected). Controls loan eligibility.';
 COMMENT ON COLUMN public.loans.lender_id IS 'Borrower (client) who owns the loan. FK -> lender_profiles.id (which is 1:1 -> users.id). Despite the name lender, this is the BORROWER.';
 COMMENT ON COLUMN public.in_office_applications.lender_id IS 'Borrower (lender_profiles.id) for in-office wizard. Nullable because wizard may start before borrower record is linked; created_by is the staff who opened it.';
 COMMENT ON COLUMN public.emergency_contacts.lender_id IS 'Borrower (lender_profiles.id) this emergency contact belongs to.';
 COMMENT ON COLUMN public.account_upgrade_documents.lender_id IS 'Borrower (lender_profiles.id) who uploaded the document.';
-
--- Backward-compatible alias VIEW: SELECT * FROM borrower_profiles == lender_profiles
-CREATE OR REPLACE VIEW public.borrower_profiles AS
-  SELECT * FROM public.lender_profiles;
-ALTER VIEW public.borrower_profiles SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_profiles IS 'Alias VIEW for lender_profiles — semantically ''borrower_profiles''. Use this name in new code/docs for clarity; underlying table remains lender_profiles for backward compat. Writes go to lender_profiles; this VIEW is read-only alias.';
-GRANT SELECT ON public.borrower_profiles TO anon, authenticated, service_role;
-
--- Also expose a convenience VIEW for role lookup (lender role == borrower role)
-CREATE OR REPLACE VIEW public.borrower_role AS
-  SELECT * FROM public.roles WHERE name = 'lender';
-ALTER VIEW public.borrower_role SET (security_invoker = true);
-COMMENT ON VIEW public.borrower_role IS 'Convenience alias: SELECT * FROM borrower_role returns the lender row (name=lender) which semantically means borrower.';
-GRANT SELECT ON public.borrower_role TO anon, authenticated, service_role;
 
 -- OPTIONAL FULL RENAME (destructive, for v2 — uncomment only in a maintenance window):
 -- -- 1) Rename table + indexes + FKs + RLS policies + views
@@ -381,10 +367,10 @@ COMMENT ON CONSTRAINT payments_context_check ON public.payments IS
 -- 6) loans.installment_amount vs loan_schedules.amount_due — document
 -- ─────────────────────────────────────────────────────────────────
 COMMENT ON COLUMN public.loans.installment_amount IS
-  'Agreed standard installment at approval time (snapshot, DECIMAL). Derived from principal_amount * (1+interest_rate/100) / term_periods and backfilled from loan_schedules (00105:308). Stays constant for audit; per-installment actual may diverge in loan_schedules.amount_due (rounding/penalty). Source of truth for outstanding is views v_loan_financials / v_loan_schedules, not this column alone.';
+  'Agreed standard installment at approval time (snapshot, DECIMAL). Derived from principal_amount * (1+interest_rate/100) / term_periods and backfilled from loan_schedules (00105:308). Stays constant for audit; per-installment actual may diverge in loan_schedules.amount_due (rounding/penalty). Source of truth for outstanding is the v_loan_schedules view, not this column alone.';
 COMMENT ON COLUMN public.loans.term_periods IS
   'Number of installments derived from term_days + payment_frequency. Backfilled in 00105 from COUNT(loan_schedules). Used with installment_amount to display agreement.';
-COMMENT ON COLUMN public.loans.principal_amount IS 'Original loan principal (3000..500000). total_payable = principal * (1+interest_rate/100) (see v_loan_financials).';
+COMMENT ON COLUMN public.loans.principal_amount IS 'Original loan principal (3000..500000). total_payable = principal * (1+interest_rate/100).';
 COMMENT ON COLUMN public.loan_schedules.amount_due IS
   'Actual amount due for THIS installment (installment_number). Usually equals loans.installment_amount but may differ per row for rounding/fee adjustments. payments.amount is checked against this per schedule via v_loan_schedules.amount_paid.';
 

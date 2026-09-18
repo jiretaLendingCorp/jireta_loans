@@ -228,25 +228,8 @@ EXCEPTION WHEN OTHERS THEN RAISE WARNING 'realtime loan_emergency_contacts: %', 
 END $$;
 
 -- ─────────────────────────────────────────────────────────────────
--- 6) Canonical view refresh — expose loan snapshot cleanly
+-- 6) Canonical view layer removed (was v_loans_canonical here)
 -- ─────────────────────────────────────────────────────────────────
-CREATE OR REPLACE VIEW public.v_loans_canonical AS
-  SELECT
-    l.id, l.loan_number, l.lender_id, l.in_office_application_id,
-    l.principal_amount, l.interest_rate,
-    l.payment_frequency_id, pf.code AS payment_frequency, pf.label AS payment_frequency_label,
-    l.term_days, l.term_periods, l.installment_amount, l.purpose,
-    l.status_id, ls.code AS status, ls.label AS status_label,
-    l.employment_type_id, et.code AS employment_type, et.label AS employment_type_label,
-    l.employer_name, l.monthly_income, l.source_of_funds,
-    l.approved_by, l.rejected_by, l.rejection_reason,
-    l.created_at, l.updated_at
-  FROM public.loans l
-  LEFT JOIN public.payment_frequencies pf ON pf.id = l.payment_frequency_id
-  LEFT JOIN public.loan_statuses ls ON ls.id = l.status_id
-  LEFT JOIN public.employment_types et ON et.id = l.employment_type_id;
-ALTER VIEW public.v_loans_canonical SET (security_invoker = true);
-GRANT SELECT ON public.v_loans_canonical TO anon, authenticated, service_role;
 
 -- ─────────────────────────────────────────────────────────────────
 -- 7) Deprecation comments — lender_profiles keeps columns only for compat

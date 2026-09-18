@@ -52,12 +52,6 @@
 --        was NOT NULL (guarded by is_nullable check + COUNT(*) =0).
 --      - Keep varchar FK -> lookup(code) for now (zero-downtime), but
 --        COMMENT marks it DEPRECATED; ERD should draw uuid arrow as PRIMARY.
---      - Create canonical views (no varchar duplicates) for defense/ERD:
---        v_loans_canonical, v_payments_canonical, v_disbursements_canonical,
---        v_lender_profiles_canonical, v_users_canonical, etc.
---        These views SELECT only uuid FKs + JOIN to lookup for label,
---        proving the design is clean without varchar storage. Underlying
---        tables stay writable; views are security_invoker = true.
 --      - Keep commented ALTER TABLE ... DROP COLUMN block (v2) with a
 --        2-sprint timeline; uncomment after Flutter fully writes *_id.
 --
@@ -308,101 +302,11 @@ COMMENT ON COLUMN public.rider_profiles.vehicle_type IS 'DEPRECATED alias for ve
 COMMENT ON COLUMN public.rider_profiles.vehicle_type_id IS 'Canonical FK -> vehicle_types.id (uuid, NOT NULL).';
 
 -- ─────────────────────────────────────────────────────────────────
--- A3) Canonical views for defense/ERD — no varchar duplicates.
---     Base tables keep varchar for compat, but these views expose ONLY
---     the canonical uuid columns (+ joined code/label as derived, not stored).
---     Defense tip: set ERD source to these views to show clean 3NF without
---     duplicate columns. Views are security_invoker = true so RLS applies.
+-- A3) Canonical ERD views removed — the base tables now expose both the
+--     canonical *_id uuid columns (primary) and the deprecated varchar
+--     aliases; no separate ERD view layer is maintained.
 -- ─────────────────────────────────────────────────────────────────
 
--- Users canonical (uuid only; varchar shown as derived via join for readability)
-CREATE OR REPLACE VIEW public.v_users_canonical AS
-  SELECT
-    u.id, u.role_id, u.email, u.phone_number, u.first_name, u.middle_name, u.last_name, u.suffix,
-    u.account_status_id,
-    uas.code  AS account_status,  -- derived, not stored duplicate (for human reads)
-    uas.label AS account_status_label,
-    u.fcm_token, u.force_password_change, u.terms_accepted_at, u.profile_photo_url,
-    u.last_login_at, u.created_by, u.created_at, u.updated_at
-  FROM public.users u
-  LEFT JOIN public.user_account_statuses uas ON uas.id = u.account_status_id;
-ALTER VIEW public.v_users_canonical SET (security_invoker = true);
-COMMENT ON VIEW public.v_users_canonical IS 'Canonical view of users — exposes ONLY account_status_id uuid FK (no duplicate varchar storage). account_status is derived via JOIN to user_account_statuses for readability. Use this view for ERD/docs (draw arrow users.account_status_id -> user_account_statuses.id). Base table keeps deprecated varchar for zero-downtime compat until v2 drop.';
-GRANT SELECT ON public.v_users_canonical TO anon, authenticated, service_role;
-
--- Lender profiles canonical
-CREATE OR REPLACE VIEW public.v_lender_profiles_canonical AS
-  SELECT
-    lp.id,
-    lp.gender_id,        gt.code AS gender, gt.label AS gender_label,
-    lp.civil_status_id,  cs.code AS civil_status, cs.label AS civil_status_label,
-    lp.date_of_birth,
-    lp.employment_type_id, et.code AS employment_type, et.label AS employment_type_label,
-    lp.employer_name, lp.monthly_income, lp.gcash_number,
-    lp.account_upgrade_status_id, aus.code AS account_upgrade_status, aus.label AS account_upgrade_status_label,
-    lp.account_upgrade_rejection_notes, lp.source_of_funds,
-    lp.created_at, lp.updated_at
-  FROM public.lender_profiles lp
-  LEFT JOIN public.gender_types gt ON gt.id = lp.gender_id
-  LEFT JOIN public.civil_statuses cs ON cs.id = lp.civil_status_id
-  LEFT JOIN public.employment_types et ON et.id = lp.employment_type_id
-  LEFT JOIN public.account_upgrade_statuses aus ON aus.id = lp.account_upgrade_status_id;
-ALTER VIEW public.v_lender_profiles_canonical SET (security_invoker = true);
-COMMENT ON VIEW public.v_lender_profiles_canonical IS 'Canonical view — only *_id uuid FKs stored; varchar codes are derived via JOIN. Use for ERD (no duplicate columns).';
-GRANT SELECT ON public.v_lender_profiles_canonical TO anon, authenticated, service_role;
-
--- Loans canonical
-CREATE OR REPLACE VIEW public.v_loans_canonical AS
-  SELECT
-    l.id, l.loan_number, l.lender_id, l.in_office_application_id,
-    l.principal_amount, l.interest_rate,
-    l.payment_frequency_id, pf.code AS payment_frequency, pf.label AS payment_frequency_label,
-    l.term_days, l.term_periods, l.installment_amount, l.purpose,
-    l.status_id, ls.code AS status, ls.label AS status_label,
-    l.approved_by, l.rejected_by, l.rejection_reason,
-    l.created_at, l.updated_at
-  FROM public.loans l
-  LEFT JOIN public.payment_frequencies pf ON pf.id = l.payment_frequency_id
-  LEFT JOIN public.loan_statuses ls ON ls.id = l.status_id;
-ALTER VIEW public.v_loans_canonical SET (security_invoker = true);
-COMMENT ON VIEW public.v_loans_canonical IS 'Canonical view of loans — only payment_frequency_id + status_id uuid FKs (no duplicate varchar storage). payment_frequency/status derived via JOIN for display. ERD should draw loans.payment_frequency_id -> payment_frequencies.id and loans.status_id -> loan_statuses.id as PRIMARY.';
-GRANT SELECT ON public.v_loans_canonical TO anon, authenticated, service_role;
-
--- Payments canonical
-CREATE OR REPLACE VIEW public.v_payments_canonical AS
-  SELECT
-    p.id, p.loan_schedule_id, p.collection_assignment_id,
-    p.payment_method_id, pm.code AS payment_method, pm.label AS payment_method_label,
-    p.amount,
-    p.status_id, ps.code AS status, ps.label AS status_label,
-    p.xendit_payment_id, p.xendit_reference, p.idempotency_key,
-    p.recorded_by, p.receipt_path, p.notes, p.paid_at, p.created_at
-  FROM public.payments p
-  LEFT JOIN public.payment_methods pm ON pm.id = p.payment_method_id
-  LEFT JOIN public.payment_statuses ps ON ps.id = p.status_id;
-ALTER VIEW public.v_payments_canonical SET (security_invoker = true);
-COMMENT ON VIEW public.v_payments_canonical IS 'Canonical view of payments — only payment_method_id + status_id uuid FKs. payment_method/status derived via JOIN.';
-GRANT SELECT ON public.v_payments_canonical TO anon, authenticated, service_role;
-
--- Disbursements canonical
-CREATE OR REPLACE VIEW public.v_disbursements_canonical AS
-  SELECT
-    d.id, d.loan_id, d.authorized_by,
-    d.method_id, dm.code AS method, dm.label AS method_label,
-    d.amount,
-    d.status_id, ds.code AS status, ds.label AS status_label,
-    d.xendit_id, d.xendit_reference, d.xendit_status,
-    d.rider_id, d.delivery_date, d.delivery_notes, d.delivery_proof,
-    d.borrower_signature, d.disbursed_at, d.created_at, d.updated_at
-  FROM public.disbursements d
-  LEFT JOIN public.disbursement_methods dm ON dm.id = d.method_id
-  LEFT JOIN public.disbursement_statuses ds ON ds.id = d.status_id;
-ALTER VIEW public.v_disbursements_canonical SET (security_invoker = true);
-COMMENT ON VIEW public.v_disbursements_canonical IS 'Canonical view of disbursements — only method_id + status_id uuid FKs. method/status derived via JOIN.';
-GRANT SELECT ON public.v_disbursements_canonical TO anon, authenticated, service_role;
-
--- Document that these 5 views are the ERD source for a clean schema without varchar duplicates.
-COMMENT ON SCHEMA public IS 'Canonical ERD/views for defense: use v_users_canonical, v_lender_profiles_canonical, v_loans_canonical, v_payments_canonical, v_disbursements_canonical to show clean 3NF without varchar duplicates. Base tables retain deprecated varchar aliases for zero-downtime compat (synced by triggers) until v2 drop after app migrates to *_id. See migration 00112 v2 block.';
 
 -- ─────────────────────────────────────────────────────────────────
 -- B) Actual FK constraints — ensure they exist + VALIDATE.
@@ -657,7 +561,6 @@ BEGIN
 
   RAISE NOTICE 'B) FKs: uuid FKs validated above (FK OK / FK VALID logs). See preceding FK OK (uuid, VALID) lines for the 7 critical + 30+ others.';
   RAISE NOTICE 'C) UNIQUE: role_permissions UNIQUE(role_id, permission_id) and loan_schedules UNIQUE(loan_id, installment_number) — both single, verified above.';
-  RAISE NOTICE 'D) Views for ERD: v_users_canonical, v_lender_profiles_canonical, v_loans_canonical, v_payments_canonical, v_disbursements_canonical — use these for draw.io to show clean schema without varchar duplicates.';
   RAISE NOTICE 'E) Flutter forward-compat: lib/data/models/{user,loan,payment}_model.dart now read both varchar and *_id (json[code] ?? json[id]), Edge still writes varchar (trigger maps to uuid). Next sprint: Edge writes *_id, following migration drops varchar (v2 block below).';
 END $$;
 
@@ -665,8 +568,7 @@ END $$;
 -- OPTIONAL FUTURE v2 — PHYSICAL DROP OF DEPRECATED VARCHAR COLUMNS
 -- Timeline: AFTER Flutter + Edge fully migrate to *_id (2 sprints).
 -- Current app 0% uses *_id (audit 2026-08-28: 45 Dart + 18 Edge files 100% varchar),
--- so uncommenting now would break every insert (42703). The views
--- v_*_canonical already prove the final clean schema without varchar.
+-- so uncommenting now would break every insert (42703).
 --
 -- Steps for v2 maintenance window:
 --   1) Flutter release N: models read both (done in this commit), datasources

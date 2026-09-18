@@ -465,7 +465,6 @@ END $$;
 -- ─────────────────────────────────────────────────────────────────────
 
 ALTER VIEW v_loan_schedules  SET (security_invoker = true);
-ALTER VIEW v_loan_financials SET (security_invoker = true);
 
 -- ─────────────────────────────────────────────────────────────────────
 -- 4) Privileges / grants (00007)

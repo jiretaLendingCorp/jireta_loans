@@ -466,38 +466,10 @@ CREATE TRIGGER trg_enforce_notifications_update_columns
   FOR EACH ROW EXECUTE FUNCTION enforce_notifications_update_columns();
 
 -- ─────────────────────────────────────────────────────────────────────
--- 9) Read-only views exposing derived financials (00021). Single source
---    of truth: the base tables. Payment status is filtered to 'verified'
---    so only settled amounts count toward principal/interest/penalties.
+-- 9) Read-only view exposing the loan payment schedule (00021). Single
+--    source of truth: the base tables. Payment status is filtered to
+--    'verified' so only settled amounts count per installment.
 -- ─────────────────────────────────────────────────────────────────────
-
-CREATE OR REPLACE VIEW v_loan_financials AS
-SELECT
-  l.id                                    AS loan_id,
-  l.principal_amount,
-  l.interest_rate,
-  ROUND(l.principal_amount * (1 + l.interest_rate / 100), 2) AS total_payable,
-  COALESCE(pl.total_penalties, 0)         AS penalties_total,
-  COALESCE(pm.total_paid, 0)              AS payments_total,
-  GREATEST(
-    0,
-    ROUND(l.principal_amount * (1 + l.interest_rate / 100), 2)
-    + COALESCE(pl.total_penalties, 0)
-    - COALESCE(pm.total_paid, 0)
-  )                                       AS outstanding_balance
-FROM loans l
-LEFT JOIN (
-  SELECT loan_id, SUM(penalty_amount) AS total_penalties
-  FROM penalty_logs
-  GROUP BY loan_id
-) pl ON pl.loan_id = l.id
-LEFT JOIN (
-  SELECT ls.loan_id, SUM(p.amount) AS total_paid
-  FROM payments p
-  JOIN loan_schedules ls ON ls.id = p.loan_schedule_id
-  WHERE p.status = 'verified'
-  GROUP BY ls.loan_id
-) pm ON pm.loan_id = l.id;
 
 CREATE OR REPLACE VIEW v_loan_schedules AS
 SELECT

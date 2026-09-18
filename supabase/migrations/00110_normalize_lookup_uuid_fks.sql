@@ -547,7 +547,7 @@ COMMENT ON COLUMN public.payments.payment_method_id IS 'Canonical FK -> payment_
 COMMENT ON COLUMN public.payments.status IS 'DEPRECATED alias for status_id. Prefer status_id uuid FK.';
 COMMENT ON COLUMN public.payments.status_id IS 'Canonical FK -> payment_statuses.id';
 
-COMMENT ON TABLE public.lender_profiles IS 'Borrower/client profile (1:1 child of users.id, PK=FK CASCADE). Historically named lender but semantically BORROWER (see roles.description). Use VIEW borrower_profiles for clarity. UUID FK columns (gender_id, civil_status_id, employment_type_id, account_upgrade_status_id) are canonical; varchar aliases kept for compat.';
+COMMENT ON TABLE public.lender_profiles IS 'Borrower/client profile (1:1 child of users.id, PK=FK CASCADE). Historically named lender but semantically BORROWER (see roles.description). UUID FK columns (gender_id, civil_status_id, employment_type_id, account_upgrade_status_id) are canonical; varchar aliases kept for compat.';
 
 -- ─────────────────────────────────────────────────────────────────
 -- 9) Defaults for new uuid columns (optional, helps INSERT without trigger)
