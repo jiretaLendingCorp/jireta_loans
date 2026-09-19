@@ -51,18 +51,36 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   /// Server-side rejection of the submitted current password (field-level).
   String? _currentPasswordError;
 
+  /// Opaque reset-flow token from the URL (`?t=<64 hex chars>`).
+  ///
+  /// SECURITY: this replaces the account email in the URL. The email used to
+  /// travel as `?email=...`, which leaks the account identifier into browser
+  /// history, server/proxy access logs, analytics and the Referer header of
+  /// third-party requests. The token is a random, non-reversible handle the
+  /// server maps back to the email internally.
+  String? _resetToken;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      String? emailFromQuery;
+      String? token;
       try {
-        emailFromQuery = GoRouterState.of(context).uri.queryParameters['email'];
+        token = GoRouterState.of(context).uri.queryParameters['t'];
       } catch (_) {}
-      emailFromQuery ??= Uri.base.queryParameters['email'];
-      if (emailFromQuery != null && emailFromQuery.isNotEmpty) {
-        _emailCtrl.text = Uri.decodeComponent(emailFromQuery);
-        if (mounted) setState(() {});
+      token ??= Uri.base.queryParameters['t'];
+      // The email is handed over in memory (GoRouterState.extra) — never in the
+      // URL. It is only used for display and for resending; a reload loses it
+      // and the token above keeps the flow working.
+      String? handoffEmail;
+      try {
+        final extra = GoRouterState.of(context).extra;
+        if (extra is String && extra.isNotEmpty) handoffEmail = extra;
+      } catch (_) {}
+      if (token != null && token.isNotEmpty) _resetToken = token;
+      if (handoffEmail != null) _emailCtrl.text = handoffEmail;
+      if (mounted && (_resetToken != null || handoffEmail != null)) {
+        setState(() {});
       }
       _startResendTimer();
     });
@@ -162,12 +180,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   Future<void> _verifyOtp() async {
     final email = _emailCtrl.text.trim();
     final otp = _otp;
-    if (email.isEmpty) {
+    final token = _resetToken;
+    final hasToken = token != null && token.isNotEmpty;
+    if (email.isEmpty && !hasToken) {
       setState(() => _otpError =
-          'No email found. Go back to Forgot Password and send code again.');
+          'Reset session expired. Go back to Forgot Password and request a new code.');
       return;
     }
-    if (!AppValidators.isValidEmail(email)) {
+    if (email.isNotEmpty && !AppValidators.isValidEmail(email)) {
       setState(() => _otpError = 'Invalid email format.');
       return;
     }
@@ -192,9 +212,13 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       _verifying = true;
       _otpError = null;
     });
-    final ok = await ref
-        .read(authProvider.notifier)
-        .verifyResetOtp(email: email, otp: otp);
+    // Token first: with it the email is not sent at all — the server resolves
+    // the account from the opaque handle.
+    final ok = await ref.read(authProvider.notifier).verifyResetOtp(
+          otp: otp,
+          email: hasToken ? null : email,
+          resetToken: token,
+        );
     if (!mounted) return;
     setState(() => _verifying = false);
     if (ok) {
@@ -233,10 +257,13 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
   Future<void> _resendOtp() async {
     if (_lockSecondsLeft > 0 || _resending) return;
+    // Resending mints a brand-new code, so it needs the email (the server
+    // cannot address the mail from the token alone). The token from the URL is
+    // not enough here — ask for the address only when it is unknown.
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
       context.showSnackBarAsToast(const SnackBar(
-          content: Text('No email found. Go back to Forgot Password.'),
+          content: Text('Enter the email you used above to resend the code.'),
           backgroundColor: AppColors.error));
       return;
     }
@@ -252,11 +279,17 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     if (!mounted) return;
     setState(() => _resending = false);
     if (ok) {
+      // Every send rotates the flow token (the previous row is invalidated
+      // server-side), so keep the newest one for verify/reset. The URL is left
+      // untouched on purpose — rewriting it would rebuild this screen and wipe
+      // the in-progress state.
+      final rotated = ref.read(authProvider.notifier).resetToken;
       _startResendTimer();
       for (final c in _otpControllers) {
         c.clear();
       }
       setState(() {
+        if (rotated != null && rotated.isNotEmpty) _resetToken = rotated;
         _otpError = null;
         _otpVerified = false;
       });
@@ -329,10 +362,13 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     }
     final newPassword = _newCtrl.text;
     final notifier = ref.read(authProvider.notifier);
+    final token = _resetToken;
+    final hasToken = token != null && token.isNotEmpty;
     final ok = await notifier.resetPassword(
-      email: email,
       otp: otp,
       newPassword: newPassword,
+      email: hasToken ? null : email,
+      resetToken: token,
       currentPassword: _currentCtrl.text,
     );
     if (!mounted) return;
@@ -537,27 +573,31 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
               ),
             )
           else ...[
+            // Reached after a page reload: the URL token still authorises the
+            // verify/reset calls, so the email is only needed to resend.
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.errorLight,
+                color: AppColors.infoLight,
                 borderRadius: BorderRadius.circular(12),
                 border:
-                    Border.all(color: AppColors.error.withValues(alpha: 0.18)),
+                    Border.all(color: AppColors.info.withValues(alpha: 0.18)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: AppColors.error, size: 18),
+                  const Icon(Icons.info_outline_rounded,
+                      color: AppColors.info, size: 18),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'No email found. Enter your email to receive a code.',
+                      _resetToken == null
+                          ? 'Reset session expired. Go back to Forgot Password to request a new code.'
+                          : 'Code sent to your email. Enter the address below only if you need to resend it.',
                       style: TextStyle(
                           fontSize: 12,
                           height: 1.4,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.error.withValues(alpha: 0.95)),
+                          color: AppColors.info.withValues(alpha: 0.95)),
                     ),
                   ),
                 ],
@@ -574,7 +614,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
               style: _inputStyle,
               decoration:
                   _input(hint: 'you@example.com', icon: Icons.mail_outlined),
-              validator: AppValidators.email,
               onChanged: (_) => setState(() {}),
             ),
           ],

@@ -144,30 +144,58 @@ class AuthRemoteDataSource {
     );
   }
 
-  Future<void> forgotPassword({required String email}) async {
-    await _client.post(ApiEndpoints.authForgotPassword, data: {'email': email});
+  /// Returns the opaque reset-flow token (64 hex chars, hash-like).
+  ///
+  /// SECURITY: the reset screen puts THIS in the URL instead of the email, so
+  /// the account identifier never lands in browser history, access logs or the
+  /// Referer header. The server resolves the token back to the email itself.
+  Future<String?> forgotPassword({required String email}) async {
+    final res = await _client.post(
+      ApiEndpoints.authForgotPassword,
+      data: {'email': email},
+    );
+    final data = res.data;
+    if (data is Map && data['reset_token'] is String) {
+      final token = data['reset_token'] as String;
+      return token.isEmpty ? null : token;
+    }
+    return null;
   }
 
-  Future<void> verifyResetOtp(
-      {required String email, required String otp}) async {
+  /// [resetToken] is preferred: the email is then never sent at all.
+  Future<void> verifyResetOtp({
+    required String otp,
+    String? email,
+    String? resetToken,
+  }) async {
     await _client.post(
       ApiEndpoints.authVerifyResetOtp,
-      data: {'email': email, 'otp': otp},
+      data: {
+        'otp': otp,
+        if (resetToken != null && resetToken.isNotEmpty)
+          'reset_token': resetToken
+        else
+          'email': email,
+      },
     );
   }
 
   Future<void> resetPassword({
-    required String email,
     required String otp,
     required String newPassword,
+    String? email,
+    String? resetToken,
     String? currentPassword,
   }) async {
     await _client.post(
       ApiEndpoints.authResetPassword,
       data: {
-        'email': email,
         'otp': otp,
         'new_password': newPassword,
+        if (resetToken != null && resetToken.isNotEmpty)
+          'reset_token': resetToken
+        else
+          'email': email,
         // Verified server-side against Supabase Auth when supplied.
         if (currentPassword != null && currentPassword.isNotEmpty)
           'current_password': currentPassword,

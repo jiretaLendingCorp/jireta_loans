@@ -19,6 +19,11 @@ import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient, getAnonClient } from "../_shared/db.ts";
 import { sendPasswordResetOtpEmail } from "../_shared/email.ts";
 import { hashPassword, matchesPasswordHistory } from "../_shared/password_hash.ts";
+import {
+  generateResetToken,
+  hashResetToken,
+  isResetToken,
+} from "../_shared/reset_token.ts";
 import { checkRateLimit, checkBlock, blockKey, recordSecurityEvent } from "../_shared/rate_limiter.ts";
 import { singleWithObjectEmbeds } from "../_shared/types.ts";
 import {
@@ -88,6 +93,28 @@ function lockoutError(lockedUntil: Date, attempts: number): Response {
   });
 }
 
+/**
+ * Resolves the account email from the opaque flow token (see
+ * _shared/reset_token.ts). Only live rows are considered: unused and not yet
+ * expired. Returns null for an unknown / dead token.
+ */
+async function resolveEmailFromResetToken(
+  db: ReturnType<typeof getAdminClient>,
+  token: string,
+): Promise<string | null> {
+  if (!isResetToken(token)) return null;
+  const tokenHash = await hashResetToken(token);
+  const { data } = await db.from("email_reset_otps")
+    .select("email")
+    .eq("reset_token_hash", tokenHash)
+    .eq("used", false)
+    .gte("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { email?: string } | null)?.email ?? null;
+}
+
 function forgotRateLimitError(retryAfterSeconds: number, scope: "email" | "device"): Response {
   const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
   const label = scope === "email"
@@ -134,6 +161,12 @@ async function handleForgotPassword(req: Request) {
   if (!validateEmail(cleanEmail)) return errorResponse("Invalid email format", 400, "VALIDATION_ERROR");
   const ip = clientIp(req);
 
+  // Opaque handle for the reset flow. The client puts this (never the email) in
+  // the URL, so the account identifier stays out of history/logs/Referer.
+  const resetToken = generateResetToken();
+  const resetTokenHash = await hashResetToken(resetToken);
+  const baseResponse = { expires_in: OTP_EXPIRY_MINUTES * 60, reset_token: resetToken };
+
   // Block checks
   const emailBlock = await checkBlock(`forgot:${cleanEmail}`);
   if (emailBlock.blocked) return forgotRateLimitError(emailBlock.retryAfterSeconds ?? FORGOT_BLOCK_MINUTES * 60, "email");
@@ -157,11 +190,14 @@ async function handleForgotPassword(req: Request) {
   const { data: userRow } = await db.from("users").select("id, account_status, first_name, last_name, roles!users_role_id_fkey!inner(name, is_archived)").eq("email", cleanEmail).maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
 
+  // NOTE: a token is returned even for unknown / inactive accounts. Returning
+  // it only for real accounts would make this endpoint an account-enumeration
+  // oracle; an orphan token simply resolves to nothing server-side.
   if (!user || !["head_manager", "employee"].includes(user?.roles?.name)) {
-    return jsonResponse({ message: "If an account exists, we'll send a reset code." });
+    return jsonResponse({ message: "If an account exists, we'll send a reset code.", ...baseResponse });
   }
   if (user.account_status !== "active" || (user as unknown as { roles?: { is_archived?: boolean } })?.roles?.is_archived === true) {
-    return jsonResponse({ message: "If an account exists, we'll send a reset code." });
+    return jsonResponse({ message: "If an account exists, we'll send a reset code.", ...baseResponse });
   }
 
   // Generate 6-digit OTP
@@ -177,6 +213,7 @@ async function handleForgotPassword(req: Request) {
     user_id: user.id,
     email: cleanEmail,
     otp_hash: otpHash,
+    reset_token_hash: resetTokenHash,
     expires_at: expiresAt,
     attempts: 0,
     used: false,
@@ -214,20 +251,32 @@ async function handleForgotPassword(req: Request) {
     await db.from("auth_logs").insert({ user_id: user.id, event_type: "password_reset_requested", ip_address: ip });
   } catch (_) { /* ignore log failure */ }
 
-  return jsonResponse({ message: "If an account exists, we'll send a reset code.", expires_in: OTP_EXPIRY_MINUTES * 60 });
+  return jsonResponse({ message: "If an account exists, we'll send a reset code.", ...baseResponse });
 }
 
 // ── VERIFY OTP ───────────────────────────────────────────────────────────────
 async function handleVerifyOtp(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const { email, otp, code } = body as { email?: unknown; otp?: unknown; code?: unknown };
-  const cleanEmail = sanitizeString(email).toLowerCase();
+  const { email, otp, code, reset_token } = body as { email?: unknown; otp?: unknown; code?: unknown; reset_token?: unknown };
   const cleanOtp = sanitizeString(otp ?? code);
-  if (!cleanEmail || !cleanOtp) return errorResponse("Email and OTP are required", 400, "VALIDATION_ERROR");
-  if (!validateEmail(cleanEmail)) return errorResponse("Invalid email format", 400, "VALIDATION_ERROR");
+  if (!cleanOtp) return errorResponse("Email and OTP are required", 400, "VALIDATION_ERROR");
   if (!/^\d{6}$/.test(cleanOtp)) return errorResponse("OTP must be 6 digits", 400, "VALIDATION_ERROR");
 
   const db = getAdminClient();
+
+  // Preferred path: the opaque token identifies the account, so the email never
+  // has to travel through the client URL / request. The email fallback keeps
+  // older clients (and a hard refresh that lost the token) working.
+  let cleanEmail = sanitizeString(email).toLowerCase();
+  const flowToken = sanitizeString(reset_token);
+  if (flowToken) {
+    const resolved = await resolveEmailFromResetToken(db, flowToken);
+    if (!resolved) return errorResponse("Invalid or expired OTP", 400, "INVALID_OTP");
+    cleanEmail = resolved;
+  } else {
+    if (!cleanEmail) return errorResponse("Email and OTP are required", 400, "VALIDATION_ERROR");
+    if (!validateEmail(cleanEmail)) return errorResponse("Invalid email format", 400, "VALIDATION_ERROR");
+  }
   // Lockout check
   const lock = await readEmailLockout(db, cleanEmail);
   if (lock.lockedUntil && lock.lockedUntil.getTime() > Date.now()) return lockoutError(lock.lockedUntil, lock.failedAttempts);
@@ -287,15 +336,13 @@ async function handleVerifyOtp(req: Request) {
 // ── RESET PASSWORD with OTP ────────────────────────────────────────────────
 async function handleResetPassword(req: Request) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  const email = sanitizeString(body["email"] ?? "").toLowerCase();
   const otp = sanitizeString((body["otp"] ?? body["code"] ?? body["token"]) as unknown);
   const new_password = body["new_password"] as string | undefined;
   const current_password = sanitizeString(body["current_password"] ?? "");
 
-  if (!email || !otp || !new_password) {
+  if (!otp || !new_password) {
     return errorResponse("Email, OTP and new_password are required", 400, "VALIDATION_ERROR");
   }
-  if (!validateEmail(email)) return errorResponse("Invalid email format", 400, "VALIDATION_ERROR");
   if (!/^\d{6}$/.test(otp)) return errorResponse("OTP must be 6 digits", 400, "VALIDATION_ERROR");
 
   const pw = sanitizeString(new_password);
@@ -303,6 +350,19 @@ async function handleResetPassword(req: Request) {
   if (!check.valid) return errorResponse(check.message!, 400, "VALIDATION_ERROR");
 
   const db = getAdminClient();
+
+  // Same token-first resolution as verify-otp: the account email is resolved
+  // server-side from the opaque URL token, never sent by the browser.
+  let email = sanitizeString(body["email"] ?? "").toLowerCase();
+  const flowToken = sanitizeString(body["reset_token"] ?? "");
+  if (flowToken) {
+    const resolved = await resolveEmailFromResetToken(db, flowToken);
+    if (!resolved) return errorResponse("Invalid or expired OTP", 400, "INVALID_OTP");
+    email = resolved;
+  } else {
+    if (!email) return errorResponse("Email, OTP and new_password are required", 400, "VALIDATION_ERROR");
+    if (!validateEmail(email)) return errorResponse("Invalid email format", 400, "VALIDATION_ERROR");
+  }
 
   // Lockout check
   const lock = await readEmailLockout(db, email);

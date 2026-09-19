@@ -60,10 +60,21 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     if (!mounted) return;
     setState(() => _submitting = false);
     if (ok) {
-      // OTP flow: go directly to Reset Password (OTP + New Password) with email
-      // per spec: Forgot Password -> Enter email -> Generate OTP -> Gmail -> Enter OTP
+      // OTP flow: go directly to Reset Password (OTP + New Password).
+      // SECURITY: the URL carries the opaque reset token (64 hex chars), never
+      // the email — query strings leak into browser history, access logs,
+      // analytics and the Referer header of third-party requests.
+      final token = notifier.resetToken;
       context.go(
-          '${RouteConstants.resetPassword}?email=${Uri.encodeComponent(email)}');
+        token == null || token.isEmpty
+            ? RouteConstants.resetPassword
+            : '${RouteConstants.resetPassword}?t=$token',
+        // The address rides along in memory only (never in the URL) so the
+        // reset screen can show "code sent to <email>". A reload drops it —
+        // the URL token still authorises the flow, the email is only needed to
+        // resend.
+        extra: email,
+      );
       return;
     }
     final err = ref.read(authProvider).error;

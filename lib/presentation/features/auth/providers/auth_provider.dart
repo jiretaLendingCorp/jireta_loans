@@ -427,10 +427,16 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// Opaque token for the reset flow started by the last successful
+  /// [forgotPassword] call. The reset screen puts it in the URL in place of
+  /// the email (see `_shared/reset_token.ts` on the backend).
+  String? _resetToken;
+  String? get resetToken => _resetToken;
+
   Future<bool> forgotPassword({required String email}) async {
     state = const AsyncLoading();
     try {
-      await _ds.forgotPassword(email: email);
+      _resetToken = await _ds.forgotPassword(email: email);
       state = const AsyncData(null);
       return true;
     } catch (e, s) {
@@ -439,11 +445,14 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<bool> verifyResetOtp(
-      {required String email, required String otp}) async {
+  Future<bool> verifyResetOtp({
+    required String otp,
+    String? email,
+    String? resetToken,
+  }) async {
     state = const AsyncLoading();
     try {
-      await _ds.verifyResetOtp(email: email, otp: otp);
+      await _ds.verifyResetOtp(otp: otp, email: email, resetToken: resetToken);
       state = const AsyncData(null);
       return true;
     } catch (e, s) {
@@ -453,17 +462,19 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }
 
   Future<bool> resetPassword({
-    required String email,
     required String otp,
     required String newPassword,
+    String? email,
+    String? resetToken,
     String? currentPassword,
   }) async {
     state = const AsyncLoading();
     try {
       await _ds.resetPassword(
-        email: email,
         otp: otp,
         newPassword: newPassword,
+        email: email,
+        resetToken: resetToken,
         currentPassword: currentPassword,
       );
       state = const AsyncData(null);
