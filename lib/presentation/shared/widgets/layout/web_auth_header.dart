@@ -6,13 +6,62 @@ import '../../../../core/constants/asset_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 
+/// A single link in the [WebAuthHeader] navigation.
+///
+/// Pass a list of these through [WebAuthHeader.navItems] when a page needs its
+/// own section links (the public landing page, for example). Leaving
+/// [WebAuthHeader.navItems] null keeps the default About / Support / Contact
+/// set, so the sign-in and registration screens are unaffected.
+class WebAuthNavItem {
+  final String label;
+  final VoidCallback? onTap;
+
+  /// Draws the gold underline permanently — used for the section the visitor
+  /// is currently reading.
+  final bool isActive;
+
+  const WebAuthNavItem({
+    required this.label,
+    this.onTap,
+    this.isActive = false,
+  });
+}
+
 /// Premium, modern header for unauthenticated web screens.
 ///
 /// Clean white surface with subtle shadow, animated entrance, hover
-/// interactions, and no secured / shield badges.
+/// interactions, and no secured / shield badges. One component serves every
+/// public screen — sign in, registration and the landing page.
 class WebAuthHeader extends StatefulWidget {
   final bool showRegisterAction;
-  const WebAuthHeader({super.key, this.showRegisterAction = true});
+
+  /// Renders the outlined sign-in button ahead of the primary CTA.
+  final bool showSignInAction;
+
+  /// Text of the primary (filled) CTA.
+  final String registerLabel;
+
+  /// Text of the outlined sign-in button.
+  final String signInLabel;
+
+  /// Section links. Null keeps the default About / Support / Contact links.
+  final List<WebAuthNavItem>? navItems;
+
+  /// Below 860px a menu button replaces the links; the page renders its own
+  /// panel beneath the header when the callback fires.
+  final VoidCallback? onCompactMenuTap;
+  final bool compactMenuOpen;
+
+  const WebAuthHeader({
+    super.key,
+    this.showRegisterAction = true,
+    this.showSignInAction = false,
+    this.registerLabel = 'Sign up',
+    this.signInLabel = 'Sign in',
+    this.navItems,
+    this.onCompactMenuTap,
+    this.compactMenuOpen = false,
+  });
 
   @override
   State<WebAuthHeader> createState() => _WebAuthHeaderState();
@@ -48,6 +97,15 @@ class _WebAuthHeaderState extends State<WebAuthHeader>
     final width = MediaQuery.sizeOf(context).width;
     final isCompact = width < 640;
     final isMedium = width >= 640 && width < 860;
+    final items = widget.navItems;
+
+    // Narrow layouts swap the section links for a menu button.
+    final menuButton = items != null && widget.onCompactMenuTap != null
+        ? _CompactMenuButton(
+            open: widget.compactMenuOpen,
+            onTap: widget.onCompactMenuTap!,
+          )
+        : null;
 
     return FadeTransition(
       opacity: _fade,
@@ -79,20 +137,66 @@ class _WebAuthHeaderState extends State<WebAuthHeader>
                     _BrandLockup(isCompact: isCompact),
                     const Spacer(),
                     if (!isCompact && !isMedium) ...[
-                      _NavLink(label: 'About', onTap: () => _showComingSoon(context)),
-                      const SizedBox(width: 4),
-                      _NavLink(label: 'Support', onTap: () => _showSupportSheet(context)),
-                      const SizedBox(width: 4),
-                      _NavLink(label: 'Contact', onTap: () => _showContactSheet(context)),
+                      if (items != null)
+                        for (final item in items) ...[
+                          _NavLink(
+                            label: item.label,
+                            active: item.isActive,
+                            onTap: item.onTap ?? () {},
+                          ),
+                          const SizedBox(width: 4),
+                        ]
+                      else ...[
+                        _NavLink(label: 'About', onTap: () => _showComingSoon(context)),
+                        const SizedBox(width: 4),
+                        _NavLink(label: 'Support', onTap: () => _showSupportSheet(context)),
+                        const SizedBox(width: 4),
+                        _NavLink(label: 'Contact', onTap: () => _showContactSheet(context)),
+                      ],
                       const SizedBox(width: 16),
-                      _CtaButton(showRegister: widget.showRegisterAction),
+                      if (widget.showSignInAction) ...[
+                        _CtaButton(
+                          showRegister: false,
+                          label: widget.signInLabel,
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      if (widget.showRegisterAction)
+                        _CtaButton(
+                          showRegister: true,
+                          label: widget.registerLabel,
+                        ),
                     ] else if (isMedium) ...[
-                      _NavLink(label: 'Support', onTap: () => _showSupportSheet(context)),
-                      const SizedBox(width: 12),
-                      _CtaButton(showRegister: widget.showRegisterAction, compact: true),
+                      if (items == null) ...[
+                        _NavLink(label: 'Support', onTap: () => _showSupportSheet(context)),
+                        const SizedBox(width: 12),
+                      ],
+                      if (widget.showSignInAction) ...[
+                        _CtaButton(
+                          showRegister: false,
+                          label: widget.signInLabel,
+                          compact: true,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (widget.showRegisterAction)
+                        _CtaButton(
+                          showRegister: true,
+                          label: widget.registerLabel,
+                          compact: true,
+                        ),
+                      if (menuButton != null) ...[
+                        const SizedBox(width: 8),
+                        menuButton,
+                      ],
+                    ] else if (menuButton != null) ...[
+                      // compact, page-managed links: the menu carries the CTAs,
+                      // so the bar itself only needs the button.
+                      menuButton,
                     ] else ...[
                       // compact: only CTA
-                      if (widget.showRegisterAction) _CompactCta(),
+                      if (widget.showRegisterAction)
+                        _CompactCta(label: widget.registerLabel),
                     ],
                   ],
                 ),
@@ -271,7 +375,12 @@ class _BrandLockup extends StatelessWidget {
 class _NavLink extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
-  const _NavLink({required this.label, required this.onTap});
+  final bool active;
+  const _NavLink({
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
   @override
   State<_NavLink> createState() => _NavLinkState();
 }
@@ -280,6 +389,7 @@ class _NavLinkState extends State<_NavLink> {
   bool _hovered = false;
   @override
   Widget build(BuildContext context) {
+    final highlighted = _hovered || widget.active;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -301,14 +411,16 @@ class _NavLinkState extends State<_NavLink> {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: _hovered ? AppColors.deepNavy : AppColors.textSecondary,
+                  color: highlighted
+                      ? AppColors.deepNavy
+                      : AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 2),
               AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 height: 2,
-                width: _hovered ? 16 : 0,
+                width: highlighted ? 16 : 0,
                 decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(1)),
               ),
             ],
@@ -322,7 +434,12 @@ class _NavLinkState extends State<_NavLink> {
 class _CtaButton extends StatefulWidget {
   final bool showRegister;
   final bool compact;
-  const _CtaButton({required this.showRegister, this.compact = false});
+  final String? label;
+  const _CtaButton({
+    required this.showRegister,
+    this.compact = false,
+    this.label,
+  });
   @override
   State<_CtaButton> createState() => _CtaButtonState();
 }
@@ -346,7 +463,7 @@ class _CtaButtonState extends State<_CtaButton> {
               padding: EdgeInsets.symmetric(horizontal: widget.compact ? 14 : 18, vertical: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: Text('Sign in', style: TextStyle(fontSize: widget.compact ? 12.5 : 13, fontWeight: FontWeight.w700)),
+            child: Text(widget.label ?? 'Sign in', style: TextStyle(fontSize: widget.compact ? 12.5 : 13, fontWeight: FontWeight.w700)),
           ),
         ),
       );
@@ -376,7 +493,7 @@ class _CtaButtonState extends State<_CtaButton> {
               padding: EdgeInsets.symmetric(horizontal: widget.compact ? 16 : 20, vertical: 11),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: Text('Sign up', style: TextStyle(fontSize: widget.compact ? 12.5 : 13, fontWeight: FontWeight.w700, letterSpacing: 0.1)),
+            child: Text(widget.label ?? 'Sign up', style: TextStyle(fontSize: widget.compact ? 12.5 : 13, fontWeight: FontWeight.w700, letterSpacing: 0.1)),
           ),
         ),
       ),
@@ -385,8 +502,45 @@ class _CtaButtonState extends State<_CtaButton> {
 }
 
 class _CompactCta extends StatefulWidget {
+  final String? label;
+  const _CompactCta({this.label});
   @override
   State<_CompactCta> createState() => _CompactCtaState();
+}
+
+/// Menu button shown below the tablet breakpoint when the page supplies its
+/// own section links.
+class _CompactMenuButton extends StatelessWidget {
+  final bool open;
+  final VoidCallback onTap;
+
+  const _CompactMenuButton({required this.open, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: open ? 'Close menu' : 'Open menu',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: open ? AppColors.deepNavy.withValues(alpha: 0.06) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE9E9EE)),
+          ),
+          child: Icon(
+            open ? Icons.close_rounded : Icons.menu_rounded,
+            size: 20,
+            color: AppColors.deepNavy,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _CompactCtaState extends State<_CompactCta> {
@@ -405,7 +559,7 @@ class _CompactCtaState extends State<_CompactCta> {
         child: TextButton(
           onPressed: () => context.go(RouteConstants.webRegister),
           style: TextButton.styleFrom(foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
-          child: const Text('Sign up', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+          child: Text(widget.label ?? 'Sign up', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
         ),
       ),
     );

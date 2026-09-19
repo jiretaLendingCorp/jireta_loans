@@ -14,7 +14,7 @@ class AppConfig {
   static const String locale = 'en_PH';
   static const String timezone = 'Asia/Manila';
 
-  // ── Android APK download (web login page) ──────────────────────────────
+  // ── Android APK download (landing page) ──────────────────────────────
   // Naka-host ang APK sa GitHub Releases ng repo (asset name:
   // `jireta-loans.apk`), HINDI sa `web/downloads/`. Dahilan: ang release APK
   // ay ~141 MB — lampas sa 100 MB na file limit ng GitHub at sa 50 MB na file

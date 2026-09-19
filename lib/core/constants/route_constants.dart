@@ -3,6 +3,10 @@ class RouteConstants {
   RouteConstants._();
 
   static const String splash = '/';
+
+  /// Public marketing / entry page shown to visitors who are not signed in.
+  /// Purely presentational — it hands off to the routes below.
+  static const String landing = '/landing';
   static const String terms = '/terms';
   static const String webLogin = '/login';
   static const String webRegister = '/register';

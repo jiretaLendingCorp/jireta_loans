@@ -145,7 +145,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         }
       }
     } else {
-      context.go(loginRoute);
+      // Signed-out visitors land on the public marketing page instead of the
+      // login form. Its "Sign In" / "Get Started" buttons route into the
+      // existing auth screens (platform aware).
+      context.go(RouteConstants.landing);
     }
   }
 

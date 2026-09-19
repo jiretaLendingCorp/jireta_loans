@@ -4,14 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
-import '../../../shared/utils/file_downloader.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
@@ -251,15 +249,13 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
       backgroundColor: const Color(0xFFF6F7FB),
       body: Stack(
         children: [
-          // Centered login form — no blue split panel. Nasa ibaba ng form ang
-          // "Get the Jireta Mobile App" APK download section.
+          // Centered login form — no blue split panel. Ang APK download ay
+          // nasa landing page na (Devices section), wala na rito.
           _FormPanel(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 loginCard,
-                const SizedBox(height: 18),
-                const _ApkDownloadSection(),
               ],
             ),
           ),
@@ -842,180 +838,4 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Get the Jireta Mobile App — APK download (very bottom of the login page)
-// ─────────────────────────────────────────────────────────────────────────────
 
-class _ApkDownloadSection extends StatelessWidget {
-  const _ApkDownloadSection();
-
-  Future<void> _download(BuildContext context) async {
-    // Hindi ito nagre-redirect sa ibang page — naka-trigger lang ang browser
-    // download ng APK mula sa `AppConfig.apkDownloadUrl` (GitHub Releases).
-    //
-    // Sinusuri ng `downloadFromUrl` kung tunay na file ang nasa URL: kapag HTML
-    // ang binalik (hal. nawawalang asset o SPA fallback), hindi itutuloy at
-    // malinaw na error ang ipapakita — mas mabuti kaysa HTML na akala ng user
-    // ay APK.
-    final ok = await downloadFromUrl(
-      AppConfig.apkDownloadUrl,
-      filename: AppConfig.apkFileName,
-    );
-    if (ok || !context.mounted) return;
-    context.showErrorToast(
-      'The Android app is not available for download right now. '
-      'Please try again later.',
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Walang puting card box — ang nilalaman lang (icon, title, description,
-    // Download APK) ang nakikita, nakahanay sa lapad ng login card sa itaas.
-    // Vertical padding lang ang natitira para may agwat sa form.
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: AppColors.deepNavy.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.android_rounded,
-                    size: 19, color: AppColors.deepNavy),
-              ),
-              const SizedBox(width: 10),
-              const Flexible(
-                child: Text(
-                  'Get the Jireta Mobile App',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy,
-                    letterSpacing: -0.1,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Download the Jireta Android app for a faster and more convenient experience.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12.5,
-              height: 1.5,
-              color: AppColors.textSecondary.withValues(alpha: 0.95),
-            ),
-          ),
-          const SizedBox(height: 14),
-          _ApkDownloadButton(onTap: () => _download(context)),
-        ],
-      ),
-    );
-  }
-}
-
-/// Download APK na button — parehong gradient at hover/press animation ng
-/// Login CTA para natural na bahagi ng page.
-class _ApkDownloadButton extends StatefulWidget {
-  final VoidCallback onTap;
-  const _ApkDownloadButton({required this.onTap});
-
-  @override
-  State<_ApkDownloadButton> createState() => _ApkDownloadButtonState();
-}
-
-class _ApkDownloadButtonState extends State<_ApkDownloadButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          scale: _pressed ? 0.98 : (_hovered ? 1.01 : 1.0),
-          duration: const Duration(milliseconds: 140),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOut,
-            // Fit lang sa nilalaman (hindi wide) — nakasentro sa ilalim ng
-            // description; ang horizontal padding ang bumubuo ng lapad.
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF0D1B2A),
-                  Color(0xFF1E3A5F),
-                  Color(0xFF0D1B2A),
-                ],
-              ),
-              boxShadow: _hovered
-                  ? [
-                      BoxShadow(
-                          color:
-                              AppColors.deepNavy.withValues(alpha: 0.28),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10)),
-                      BoxShadow(
-                          color: AppColors.gold.withValues(alpha: 0.12),
-                          blurRadius: 12),
-                    ]
-                  : [
-                      BoxShadow(
-                          color:
-                              AppColors.deepNavy.withValues(alpha: 0.16),
-                          blurRadius: 12,
-                          offset: const Offset(0, 5)),
-                    ],
-            ),
-            child: const Row(
-              // MainAxisSize.min — kung hindi, pinupuno ng Row ang buong
-              // lapad ng card at nagiging wide ang button.
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.download_rounded, size: 18, color: Colors.white),
-                SizedBox(width: 8),
-                Text(
-                  'Download APK',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -19,6 +19,7 @@ import '../../presentation/features/auth/screens/splash_screen.dart';
 import '../../presentation/features/auth/screens/terms_conditions_screen.dart';
 import '../../presentation/features/auth/screens/web_login_screen.dart';
 import '../../presentation/features/auth/screens/web_register_screen.dart';
+import '../../presentation/features/landing/screens/landing_screen.dart';
 import '../../presentation/features/employee/ci/screens/emp_ci_details_screen.dart';
 import '../../presentation/features/employee/ci/screens/emp_ci_list_screen.dart';
 import '../../presentation/features/employee/collections/screens/emp_collection_details_screen.dart';
@@ -188,7 +189,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final connAsync = ref.read(connectivityProvider);
       final connVal = connAsync.valueOrNull;
       final connLoading = connAsync.isLoading;
+      // The public landing page is a marketing page: it must stay reachable
+      // even when the device cannot reach the network (nothing on it is
+      // fetched from the backend).
       const offlineExempt = [
+        RouteConstants.landing,
         RouteConstants.forgotPassword,
         RouteConstants.resetPassword,
       ];
@@ -211,6 +216,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       final publicRoutes = [
         RouteConstants.splash,
+        RouteConstants.landing,
         RouteConstants.webLogin,
         RouteConstants.webRegister,
         RouteConstants.mobileLogin,
@@ -219,8 +225,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.resetPassword,
       ];
 
+      // Any private route a signed-out visitor asks for now lands on the
+      // public marketing page, which presents the Sign In / Get Started CTAs.
       if (!isAuthenticated && !publicRoutes.contains(path)) {
-        return loginRoute;
+        return RouteConstants.landing;
       }
 
       // Both /login (email) and /mobile-login (OTP) are public on all
@@ -280,6 +288,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.splash,
           builder: (ctx, s) => const SplashScreen()),
+      GoRoute(
+          path: RouteConstants.landing,
+          builder: (ctx, s) => const LandingScreen()),
       GoRoute(
           path: RouteConstants.terms,
           builder: (ctx, s) => const TermsConditionsScreen()),
