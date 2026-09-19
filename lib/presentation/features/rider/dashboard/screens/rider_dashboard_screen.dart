@@ -12,6 +12,7 @@ import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../dashboard/providers/rider_dashboard_provider.dart';
@@ -73,11 +74,18 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       ],
       body: state.isLoading
           ? _buildShimmer()
-          : RefreshIndicator(
+          : MobileRefresh(
               color: AppColors.riderGreen,
+              // Silent loads: kapag hindi, mag-i-flash ang shimmer sa gitna ng
+              // pull-down gesture dahil nagiging `isLoading = true` ang
+              // dashboard at napapalitan ang RefreshIndicator mismo.
               onRefresh: () async {
-                await ref.read(riderDashboardProvider.notifier).refresh();
-                await ref.read(riderProfileProvider.notifier).refresh();
+                await ref
+                    .read(riderDashboardProvider.notifier)
+                    .load(silent: true);
+                await ref
+                    .read(riderProfileProvider.notifier)
+                    .loadProfile(silent: true);
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),

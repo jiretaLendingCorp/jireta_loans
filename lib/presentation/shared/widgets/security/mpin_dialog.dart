@@ -321,20 +321,20 @@ class _MpinDialogState extends State<MpinDialog> {
 
   String get _title {
     if (_step == _Step.create) {
-      return _isSetup && _verifiedCurrent ? 'New MPIN' : 'Set MPIN';
+      return _isSetup && _verifiedCurrent ? 'New MPIN' : 'Create 4-Digit MPIN';
     }
     if (_step == _Step.confirm) return 'Confirm MPIN';
     return _isSetup ? 'Current MPIN' : 'Enter MPIN';
   }
 
-  String get _subtitle {
+  /// `null` kapag wala nang dapat ipaliwanag — hindi na inuulit ang nasa title.
+  String? get _subtitle {
     switch (_step) {
       case _Step.create:
-        // May `reason` sa "required" flow ng SubmissionGuard (walang device
-        // password) — iyon ang ipinapakita para malinaw kung bakit kailangan.
-        return widget.reason ??
-            'Create a 4-digit MPIN. You will use it to confirm your submissions '
-                'when your phone has no screen lock or biometrics.';
+        // Sa "required" flow ng SubmissionGuard (walang device password) may
+        // `reason` — iyon lang ang kailangang ipakita, at hindi na kailangan
+        // ang paliwanag dahil nasa title na ang "Create 4-Digit MPIN".
+        return widget.reason;
       case _Step.confirm:
         return 'Re-enter your MPIN to confirm.';
       case _Step.current:
@@ -384,15 +384,17 @@ class _MpinDialogState extends State<MpinDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                _subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 1.45,
-                  color: context.cTextSecondary,
+              if (_subtitle != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _subtitle!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: context.cTextSecondary,
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 18),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -47,6 +48,10 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
     Future.microtask(() => ref.read(lenderLoanProvider.notifier).loadLoans());
   }
 
+  /// SILENT load — walang skeleton flash habang nagre-refresh.
+  Future<void> _refresh() =>
+      ref.read(lenderLoanProvider.notifier).loadLoans(silent: true);
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderLoanProvider);
@@ -65,29 +70,36 @@ class _State extends ConsumerState<LenderLoanHistoryScreen> {
                   child: ShimmerLoader(height: 90, borderRadius: 12)),
             )
           : state.loans.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.receipt_long_outlined,
-                          size: 64,
-                          color: AppColors.textTertiary.withValues(alpha: 0.5)),
-                      const SizedBox(height: 16),
-                      const Text('No transactions yet',
-                          style: TextStyle(
-                              color: AppColors.textSecondary, fontSize: 15)),
-                      const SizedBox(height: 6),
-                      const Text('Your loan transactions will appear here',
-                          style: TextStyle(
-                              color: AppColors.textTertiary, fontSize: 12)),
-                    ],
+              // Naka-scroll ang empty state para may magawang pull-down.
+              ? MobileRefresh(
+                  color: AppColors.lenderBlue,
+                  fill: true,
+                  onRefresh: _refresh,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.receipt_long_outlined,
+                            size: 64,
+                            color:
+                                AppColors.textTertiary.withValues(alpha: 0.5)),
+                        const SizedBox(height: 16),
+                        const Text('No transactions yet',
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 15)),
+                        const SizedBox(height: 6),
+                        const Text('Your loan transactions will appear here',
+                            style: TextStyle(
+                                color: AppColors.textTertiary, fontSize: 12)),
+                      ],
+                    ),
                   ),
                 )
-              : RefreshIndicator(
+              : MobileRefresh(
                   color: AppColors.lenderBlue,
-                  onRefresh: () =>
-                      ref.read(lenderLoanProvider.notifier).loadLoans(),
+                  onRefresh: _refresh,
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: state.loans.length,
                     itemBuilder: (_, i) => _LoanCard(

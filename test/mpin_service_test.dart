@@ -259,7 +259,7 @@ void main() {
       await tester.tap(find.text('open'));
       await _pumpFrames(tester);
 
-      expect(find.text('Set MPIN'), findsOneWidget);
+      expect(find.text('Create 4-Digit MPIN'), findsOneWidget);
       await _typePin(tester, '1234');
       expect(find.text('Confirm MPIN'), findsOneWidget);
 

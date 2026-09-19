@@ -10,6 +10,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/string_extensions.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../providers/rider_collection_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -69,12 +70,15 @@ class _RiderBorrowerInfoScreenState
     final gcash = col.lenderGcash.isEmpty ? '—' : col.lenderGcash;
     final addresses = col.lenderAddresses;
 
-    return RefreshIndicator(
+    // [MobileRefresh] = pull-down na may tunog + haptic feedback.
+    return MobileRefresh(
       color: AppColors.riderGreen,
+      // Silent: hindi nagiging `isLoading` kaya hindi nag-flash ng shimmer
+      // habang nakabitin ang pull-down spinner.
       onRefresh: () async {
         await ref
             .read(riderCollectionProvider.notifier)
-            .loadDetails(widget.collectionId);
+            .loadDetails(widget.collectionId, silent: true);
       },
       child: ListView(
         padding: EdgeInsets.all(16),

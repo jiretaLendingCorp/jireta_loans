@@ -8,6 +8,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
@@ -108,13 +109,15 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
           Expanded(
             child: state.isLoading
                 ? const ShimmerLoader()
-                : RefreshIndicator(
+                : MobileRefresh(
                     color: AppColors.riderGreen,
-                    onRefresh: () =>
-                        ref.read(riderCiProvider.notifier).refresh(),
+                    onRefresh: _refresh,
                     child: state.investigations.isEmpty
-                        ? const EmptyStateWidget(
-                            message: 'No CI assignments found')
+                        // Naka-scroll para gumana pa rin ang pull-down kahit
+                        // walang laman ang listahan.
+                        ? const RefreshableFill(
+                            child: EmptyStateWidget(
+                                message: 'No CI assignments found'))
                         : ListView.separated(
                             physics: const AlwaysScrollableScrollPhysics(),
                             // Siksik na listahan — mas maliit na side/top padding
@@ -136,6 +139,11 @@ class _RiderCiListScreenState extends ConsumerState<RiderCiListScreen>
       ),
     );
   }
+
+  /// SILENT refresh — hindi nag-flash ng shimmer habang nagre-refresh, kaya
+  /// tuloy-tuloy ang pull-down gesture.
+  Future<void> _refresh() =>
+      ref.read(riderCiProvider.notifier).load(silent: true);
 }
 
 class _CiCard extends StatelessWidget {

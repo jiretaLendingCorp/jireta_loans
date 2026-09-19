@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/notification_model.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
@@ -67,12 +68,17 @@ class RiderNotificationsScreen extends ConsumerWidget {
       ],
       body: state.isLoading
           ? _buildSkeleton()
-          : RefreshIndicator(
+          : MobileRefresh(
               color: AppColors.riderGreen,
+              // Silent load para hindi mag-flash ng skeleton habang
+              // nakabitin ang pull-down spinner.
               onRefresh: () =>
-                  ref.read(riderNotificationProvider.notifier).refresh(),
+                  ref.read(riderNotificationProvider.notifier).load(silent: true),
               child: state.notifications.isEmpty
-                  ? const EmptyStateWidget(message: 'No notifications yet')
+                  // Naka-scroll para gumana pa rin ang pull-down kahit walang
+                  // laman ang listahan.
+                  ? const RefreshableFill(
+                      child: EmptyStateWidget(message: 'No notifications yet'))
                   // Malapit na sa dulo → kunin ang SUSUNOD na page, para
                   // lumabas din ang mas lumang notifications (dating page 1
                   // lang ang kinukuha, kaya 20 items lang ang nakikita).

@@ -7,6 +7,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -136,13 +137,19 @@ class _RiderCollectionListScreenState
                     ),
                   )
                 : state.collections.isEmpty
-                    ? _buildEmpty()
-                    : RefreshIndicator(
+                    // Empty state pa rin ang pull-able — hindi kailangang
+                    // maghintay ng laman bago makapag-refresh.
+                    ? MobileRefresh(
                         color: AppColors.riderGreen,
-                        onRefresh: () => ref
-                            .read(riderCollectionProvider.notifier)
-                            .refresh(),
+                        fill: true,
+                        onRefresh: _refresh,
+                        child: _buildEmpty(),
+                      )
+                    : MobileRefresh(
+                        color: AppColors.riderGreen,
+                        onRefresh: _refresh,
                         child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                           itemCount: state.collections.length,
                           itemBuilder: (_, i) =>
@@ -154,6 +161,11 @@ class _RiderCollectionListScreenState
       ),
     );
   }
+
+  /// SILENT refresh — walang skeleton flash habang nakabitin ang pull-down
+  /// spinner, at hindi nawawala sa tree ang `RefreshIndicator`.
+  Future<void> _refresh() =>
+      ref.read(riderCollectionProvider.notifier).load(silent: true);
 
   Widget _buildEmpty() {
     return Center(

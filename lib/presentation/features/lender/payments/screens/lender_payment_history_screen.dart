@@ -6,6 +6,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
@@ -59,6 +60,12 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
     super.dispose();
   }
 
+  /// SILENT refresh — walang ShimmerLoader flash sa gitna ng pull-down, at
+  /// hindi nawawala ang RefreshIndicator habang tumatakbo ang load.
+  Future<void> _refresh() => ref
+      .read(lenderPaymentProvider.notifier)
+      .loadPayments(page: 1, silent: true);
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderPaymentProvider);
@@ -109,18 +116,26 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
                           ],
                         ),
                       ))
+                    // Empty at error: naka-scroll para may magawang pull-down
+                    // kahit walang laman ang listahan.
                     : filtered.isEmpty
-                        ? state.payments.isEmpty
-                            ? const _NoTransactionsState()
-                            : _EmptyFiltered(onClear: () {
-                                _searchCtrl.clear();
-                                notifier.setSearch('');
-                                notifier.setMethodFilter('all');
-                              })
-                        : RefreshIndicator(
+                        ? MobileRefresh(
                             color: AppColors.lenderBlue,
-                            onRefresh: () => notifier.refreshHistory(),
+                            fill: true,
+                            onRefresh: _refresh,
+                            child: state.payments.isEmpty
+                                ? const _NoTransactionsState()
+                                : _EmptyFiltered(onClear: () {
+                                    _searchCtrl.clear();
+                                    notifier.setSearch('');
+                                    notifier.setMethodFilter('all');
+                                  }),
+                          )
+                        : MobileRefresh(
+                            color: AppColors.lenderBlue,
+                            onRefresh: _refresh,
                             child: ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                               itemCount: filtered.length,
                               itemBuilder: (ctx, i) => _PaymentCard(

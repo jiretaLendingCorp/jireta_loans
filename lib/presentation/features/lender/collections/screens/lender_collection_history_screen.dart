@@ -8,6 +8,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -52,6 +53,10 @@ class _State extends ConsumerState<LenderCollectionHistoryScreen> {
         () => ref.read(lenderCollectionProvider.notifier).loadList());
   }
 
+  /// SILENT load — walang ShimmerLoader flash habang nagre-refresh.
+  Future<void> _refresh() =>
+      ref.read(lenderCollectionProvider.notifier).loadList(silent: true);
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderCollectionProvider);
@@ -63,11 +68,17 @@ class _State extends ConsumerState<LenderCollectionHistoryScreen> {
       body: state.isLoading
           ? const ShimmerLoader()
           : state.hasError
-              ? Center(child: Text('Failed to load: ${state.error}'))
-              : RefreshIndicator(
+              // Naka-scroll: may magagawang pull-down upang subukang muli
+              // kahit error pa lang ang laman.
+              ? MobileRefresh(
                   color: AppColors.lenderBlue,
-                  onRefresh: () =>
-                      ref.read(lenderCollectionProvider.notifier).loadList(),
+                  fill: true,
+                  onRefresh: _refresh,
+                  child: Center(child: Text('Failed to load: ${state.error}')),
+                )
+              : MobileRefresh(
+                  color: AppColors.lenderBlue,
+                  onRefresh: _refresh,
                   child: _buildBody(state.value ?? {'items': [], 'total': 0}),
                 ),
     );
@@ -76,14 +87,19 @@ class _State extends ConsumerState<LenderCollectionHistoryScreen> {
   Widget _buildBody(Map<String, dynamic> data) {
     final items = (data['items'] as List?) ?? [];
     if (items.isEmpty) {
-      return const EmptyStateWidget(
-        icon: Icons.local_shipping_outlined,
-        title: 'No Collections Yet',
-        subtitle:
-            'Collection visits will appear here once a rider is assigned to collect your payment.',
+      // Naka-scroll (RefreshableFill) para hindi mawala ang pull-down kahit
+      // walang laman ang listahan — nasa loob na ito ng MobileRefresh.
+      return const RefreshableFill(
+        child: EmptyStateWidget(
+          icon: Icons.local_shipping_outlined,
+          title: 'No Collections Yet',
+          subtitle:
+              'Collection visits will appear here once a rider is assigned to collect your payment.',
+        ),
       );
     }
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       itemCount: items.length,
       itemBuilder: (ctx, i) => _CollectionCard(

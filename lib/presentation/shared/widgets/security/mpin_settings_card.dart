@@ -1,9 +1,11 @@
 // lib/presentation/shared/widgets/security/mpin_settings_card.dart
 //
-// Ang "MPIN" row na lumalabas sa Profile ng rider at lender. Isang tap lang
-// para mag-set (o magpalit) ng 4-digit MPIN. Ang palitan ay dumadaan muna sa
-// verification ng lumang MPIN kaya hindi ito mababago ng ibang tao kahit
-// bukas ang app.
+// Ang "MPIN" rows na lumalabas sa Profile ng rider at lender:
+//   * "Set MPIN"    — unang pag-set, o pagpalit kung may naka-set na;
+//   * "Reset MPIN"  — i-off ang MPIN (lumalabas lang kapag may naka-set).
+//
+// Ang palit at ang reset ay parehong dumadaan muna sa verification ng
+// kasalukuyang MPIN kaya hindi ito mababago ng ibang tao kahit bukas ang app.
 import 'package:flutter/material.dart';
 
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -84,16 +86,37 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
     );
   }
 
-  String get _subtitle {
-    switch (_isSet) {
-      case null:
-        return 'Checking…';
-      case true:
-        final remaining = _quota?.remaining ?? MpinService.maxChangesPerWindow;
-        return 'On — 4-digit MPIN is set · $remaining change${remaining == 1 ? '' : 's'} left (15 days)';
-      default:
-        return 'Off — set a 4-digit MPIN for your submissions';
-    }
+  /// Nagpapa-verify muna ng kasalukuyang MPIN bago ito i-off. Kapag nakalimutan
+  /// na ito, hindi rito ma-reset — kailangan ng tulong ng support.
+  Future<void> _reset() async {
+    if (_isSet != true) return;
+    // Kapag naubos na ang palit sa 15-day window, walang MPIN na maiiwan ang
+    // user matapos mag-reset at hindi siya makakapag-set ng bago — sabihan na
+    // siya bago pa ito mangyari.
+    final blocked = (_quota?.remaining ?? MpinService.maxChangesPerWindow) <= 0;
+    final resetIn = _quota?.resetIn;
+    final verified = await showMpinVerifyDialog(
+      context,
+      reason: blocked
+          ? 'Enter your current MPIN to reset it. Note: you have used all '
+              '${MpinService.maxChangesPerWindow} changes for now, so you '
+              'cannot set a new MPIN until ${resetIn == null ? 'later' : 'in ${_formatReset(resetIn)}'}.'
+          : 'Enter your current MPIN to reset it. Your MPIN will be turned '
+              'off and you can set a new one anytime.',
+      mpin: _service,
+    );
+    if (!mounted || !verified) return;
+    await _service.clear();
+    await _load();
+    if (!mounted) return;
+    context.showSnackBarAsToast(
+      const SnackBar(
+        content: Text(
+          'Your MPIN has been reset. Set a new one anytime from this screen.',
+        ),
+        backgroundColor: AppColors.info,
+      ),
+    );
   }
 
   String _formatReset(Duration d) {
@@ -112,9 +135,15 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
       ModernMenuItem(
         icon: Icons.lock_outline_rounded,
         title: _isSet == true ? 'Change MPIN' : 'Set MPIN',
-        subtitle: _subtitle,
         onTap: _isSet == null ? () {} : _open,
       ),
+      // Kapag wala pang MPIN, walang mabe-reset — itago na lang ang row.
+      if (_isSet == true)
+        ModernMenuItem(
+          icon: Icons.lock_reset_rounded,
+          title: 'Reset MPIN',
+          onTap: _reset,
+        ),
     ]);
   }
 }

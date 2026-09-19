@@ -96,15 +96,15 @@ class _LenderAccountUpgradeSubmitScreenState
   bool get _hasValidIdBack => _validIdBackFile != null;
   bool get _hasValidIdComplete => _hasValidIdFront && _hasValidIdBack;
 
-  // Only the Valid Government ID is REQUIRED; the rest are optional supporting
-  // documents ("ang i-require lang ay valid government ID").
+  // REQUIRED: Valid Government ID, Mayor's Permit, at Face Recognition
+  // (may `*` sa label). Ang Selfie with ID at Birth Certificate ay optional
+  // supporting documents pa rin.
   final Map<String, String> _docLabels = {
     'valid_id': 'Valid Government ID *',
     'selfie': 'Selfie with ID',
-    'mayors_permit': "Mayor's Permit",
+    'mayors_permit': "Mayor's Permit *",
     'birth_certificate': 'Birth Certificate',
-    // 00149: face recognition — optional muna, hindi required.
-    'face_recognition': 'Face Recognition',
+    'face_recognition': 'Face Recognition *',
   };
 
   final Map<String, String> _docHints = {
@@ -339,7 +339,12 @@ class _LenderAccountUpgradeSubmitScreenState
       builder: (_) => _SourcePickerSheet(
         title: _docLabels[docType]!,
         onCamera: () => Navigator.of(context).pop('camera'),
-        onGallery: () => Navigator.of(context).pop('gallery'),
+        // Valid Government ID: CAMERA/SCANNER lang ang pinapayagan — tinago
+        // ang "From Gallery" para hindi makapasok ang lumang litrato/screenshot
+        // ng ID (kailangan live na scan para sa front + back).
+        onGallery: docType == 'valid_id'
+            ? null
+            : () => Navigator.of(context).pop('gallery'),
       ),
     );
     if (!mounted) return;
@@ -392,6 +397,9 @@ class _LenderAccountUpgradeSubmitScreenState
 
   Future<void> _pickFromGallery(String docType) async {
     if (docType == 'valid_id') {
+      // HINDI na ito naaabot mula sa UI — tinanggal na ang "From Gallery" para
+      // sa Valid Government ID (camera scan lang ang tinatanggap). Naiwan ang
+      // handler para sa mga lumang deep-link/back-compat na tawag.
       // Single Valid ID document: accept up to 2 images (front + back).
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -550,13 +558,30 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   String? _docError(String key) {
-    // Only the Valid Government ID is required — every other card is optional.
-    return null;
+    if (!_showDocsError) return null;
+    if (_selectedFiles[key] != null) return null;
+    switch (key) {
+      case 'mayors_permit':
+        return "Mayor's Permit is required";
+      case 'face_recognition':
+        // Sa platform na walang live face scan (web/desktop) hindi ito
+        // masasatisfy kaya hindi rin ito hinihinging requirement doon.
+        return FaceVerificationScreen.isSupported
+            ? 'Face Recognition is required'
+            : null;
+      default:
+        // Selfie with ID at Birth Certificate ay optional pa rin.
+        return null;
+    }
   }
 
   bool get _hasMissingDocs {
-    // Valid Government ID (front + back) lang ang kailangan sa submit.
-    return !_hasValidIdComplete;
+    // Required: Valid Government ID (front + back), Mayor's Permit, at Face
+    // Recognition. Ang Selfie with ID at Birth Certificate ay optional.
+    return !_hasValidIdComplete ||
+        _selectedFiles['mayors_permit'] == null ||
+        (FaceVerificationScreen.isSupported &&
+            _selectedFiles['face_recognition'] == null);
   }
 
   /// Preview a just-picked local file (image) inside a modal so the lender can
@@ -646,6 +671,8 @@ class _LenderAccountUpgradeSubmitScreenState
     // Docs show inline error text below each card (no toast — same as fields).
     if (_hasMissingDocs) {
       setState(() => _showDocsError = true);
+      // Pabalik sa itaas ng step para agad makita ang unang kulang na card.
+      _scrollToTop();
       return;
     }
     // Full validation across all 3 steps — no toast here since every text/
@@ -1092,6 +1119,11 @@ class _LenderAccountUpgradeSubmitScreenState
         const SizedBox(height: 8),
         const Text(
           'Files must be JPG, PNG, or PDF under 5MB.',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Documents marked with * are required.',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 20),
@@ -1812,12 +1844,15 @@ class _StepDot extends StatelessWidget {
 class _SourcePickerSheet extends StatelessWidget {
   final String title;
   final VoidCallback onCamera;
-  final VoidCallback onGallery;
+
+  /// `null` = itago ang "From Gallery" (hal. Valid Government ID, kung saan
+  /// camera scan lang ang tinatanggap).
+  final VoidCallback? onGallery;
 
   const _SourcePickerSheet({
     required this.title,
     required this.onCamera,
-    required this.onGallery,
+    this.onGallery,
   });
 
   @override
@@ -1838,9 +1873,12 @@ class _SourcePickerSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Choose how you want to provide this document.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            Text(
+              onGallery == null
+                  ? 'Capture this document using the camera.'
+                  : 'Choose how you want to provide this document.',
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
             Row(
@@ -1848,18 +1886,20 @@ class _SourcePickerSheet extends StatelessWidget {
                 Expanded(
                   child: _SourceOption(
                     icon: Icons.camera_alt_outlined,
-                    label: 'Take Photo',
+                    label: onGallery == null ? 'Scan ID' : 'Take Photo',
                     onTap: onCamera,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SourceOption(
-                    icon: Icons.folder_outlined,
-                    label: 'From Gallery',
-                    onTap: onGallery,
+                if (onGallery != null) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _SourceOption(
+                      icon: Icons.folder_outlined,
+                      label: 'From Gallery',
+                      onTap: onGallery!,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],

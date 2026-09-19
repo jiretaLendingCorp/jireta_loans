@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/string_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_ci_provider.dart';
@@ -80,7 +81,8 @@ class _RiderCiBorrowerInfoScreenState
         [];
     final emergencyContacts = lender?['emergency_contacts'] as List? ?? [];
 
-    return RefreshIndicator(
+    // [MobileRefresh] = pull-down na may tunog + haptic feedback.
+    return MobileRefresh(
       color: AppColors.riderGreen,
       onRefresh: () async =>
           ref.read(riderCiProvider.notifier).loadDetails(widget.ciId),

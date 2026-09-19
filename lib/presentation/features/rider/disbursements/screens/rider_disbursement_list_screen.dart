@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/disbursement_model.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_disbursement_provider.dart';
@@ -71,12 +72,18 @@ class _RiderDisbursementListScreenState
               ),
             )
           : state.disbursements.isEmpty
-              ? _buildEmpty()
-              : RefreshIndicator(
+              // Naka-scroll ang empty state para may magawang pull-down.
+              ? MobileRefresh(
                   color: AppColors.riderGreen,
-                  onRefresh: () =>
-                      ref.read(riderDisbursementProvider.notifier).refresh(),
+                  fill: true,
+                  onRefresh: _refresh,
+                  child: _buildEmpty(),
+                )
+              : MobileRefresh(
+                  color: AppColors.riderGreen,
+                  onRefresh: _refresh,
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: state.disbursements.length,
                     itemBuilder: (_, i) =>
@@ -85,6 +92,10 @@ class _RiderDisbursementListScreenState
                 ),
     );
   }
+
+  /// SILENT refresh — walang ShimmerLoader flash habang nag-re-refresh.
+  Future<void> _refresh() =>
+      ref.read(riderDisbursementProvider.notifier).load(silent: true);
 
   Widget _buildEmpty() {
     return Center(

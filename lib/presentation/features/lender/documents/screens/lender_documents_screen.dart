@@ -7,6 +7,7 @@ import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/document_viewer.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -51,6 +52,10 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
         () => ref.read(lenderDocumentsProvider.notifier).loadDocuments());
   }
 
+  /// SILENT load — walang ShimmerLoader flash habang nagre-refresh.
+  Future<void> _refresh() =>
+      ref.read(lenderDocumentsProvider.notifier).loadDocuments(silent: true);
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderDocumentsProvider);
@@ -68,17 +73,23 @@ class _State extends ConsumerState<LenderDocumentsScreen> {
       body: state.isLoading
           ? const ShimmerLoader()
           : state.documents.isEmpty
-              ? const EmptyStateWidget(
-                  icon: Icons.folder_outlined,
-                  title: 'No Documents Uploaded',
-                  subtitle:
-                      'Upload your account upgrade documents and loan requirements to get started.',
-                )
-              : RefreshIndicator(
+              // Naka-scroll ang empty state para may magawang pull-down.
+              ? MobileRefresh(
                   color: AppColors.lenderBlue,
-                  onRefresh: () =>
-                      ref.read(lenderDocumentsProvider.notifier).refresh(),
+                  fill: true,
+                  onRefresh: _refresh,
+                  child: const EmptyStateWidget(
+                    icon: Icons.folder_outlined,
+                    title: 'No Documents Uploaded',
+                    subtitle:
+                        'Upload your account upgrade documents and loan requirements to get started.',
+                  ),
+                )
+              : MobileRefresh(
+                  color: AppColors.lenderBlue,
+                  onRefresh: _refresh,
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     itemCount: state.documents.length,
                     itemBuilder: (ctx, i) => _DocumentCard(

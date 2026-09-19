@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -80,10 +81,13 @@ class _LenderAccountUpgradeStatusScreenState
       centerTitle: true,
       body: state.isLoading
           ? const ShimmerLoader()
-          : RefreshIndicator(
+          : MobileRefresh(
               color: AppColors.lenderBlue,
-              onRefresh: () =>
-                  ref.read(lenderAccountUpgradeProvider.notifier).loadStatus(),
+              // Silent: hindi nagiging `isLoading` kaya hindi napapalitan ng
+              // skeleton ang RefreshIndicator habang nagre-refresh.
+              onRefresh: () => ref
+                  .read(lenderAccountUpgradeProvider.notifier)
+                  .loadStatus(silent: true),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),

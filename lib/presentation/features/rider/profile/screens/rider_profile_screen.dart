@@ -9,6 +9,7 @@ import '../../../../../core/config/app_config.dart';
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -59,6 +60,11 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
 
   void _openEditProfile() => context.push(RouteConstants.riderEditProfile);
 
+  /// SILENT reload — walang skeleton flash habang nakabitin ang pull-down
+  /// spinner, kaya nananatili rin ang naka-render na profile.
+  Future<void> _refresh() =>
+      ref.read(riderProfileProvider.notifier).loadProfile(silent: true);
+
   Future<void> _logout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
     // No confirmation modal. Flow: button loading → logout → success modal
@@ -91,7 +97,11 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
           ? _buildSkeleton()
           : state.error != null && state.user == null
               ? _buildError(state.error!)
-              : _buildBody(state),
+              : MobileRefresh(
+                  color: _accent,
+                  onRefresh: _refresh,
+                  child: _buildBody(state),
+                ),
     );
   }
 
@@ -176,6 +186,9 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
     final status = _statusStyle(context, user?.accountStatus);
 
     return SingleChildScrollView(
+      // Laging naka-scrollable: kapag mas maikli sa screen ang nilalaman,
+      // walang overscroll kaya hindi gagana ang pull-to-refresh.
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

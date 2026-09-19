@@ -9,6 +9,7 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_button.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_loan_provider.dart';
@@ -78,11 +79,13 @@ class _LenderLoanDetailsScreenState
               ? const Center(
                   child: Text('Loan not found',
                       style: TextStyle(color: AppColors.textSecondary)))
-              : RefreshIndicator(
+              : MobileRefresh(
                   color: AppColors.lenderBlue,
+                  // Silent: hindi nagiging `isLoading` kaya hindi napapalitan
+                  // ng skeleton ang RefreshIndicator habang nagre-refresh.
                   onRefresh: () => ref
                       .read(lenderLoanProvider.notifier)
-                      .loadLoanDetails(widget.loanId),
+                      .loadLoanDetails(widget.loanId, silent: true),
                   child: SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),

@@ -13,6 +13,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../../data/models/disbursement_model.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_history_provider.dart';
@@ -106,7 +107,10 @@ class _RiderHistoryScreenState extends ConsumerState<RiderHistoryScreen> {
             child: _HistoryList<_HistoryEntry>(
               items: entries,
               isLoading: state.isLoading,
-              onRefresh: () => ref.read(riderHistoryProvider.notifier).refresh(),
+              // Silent load: hindi na kailangang mag-flash ng shimmer habang
+              // nakabitin ang pull-down spinner.
+              onRefresh: () =>
+                  ref.read(riderHistoryProvider.notifier).load(silent: true),
               emptyText: 'No history yet',
               itemBuilder: (e) => e.card,
             ),
@@ -217,36 +221,44 @@ class _HistoryList<T> extends StatelessWidget {
       );
     }
     if (items.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.riderGreen.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
+      // Naka-scroll: kailangan ito para gumana ang pull-to-refresh kahit
+      // walang laman ang history.
+      return MobileRefresh(
+        color: AppColors.riderGreen,
+        fill: true,
+        onRefresh: onRefresh,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.riderGreen.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.history_rounded,
+                    size: 38, color: AppColors.riderGreen),
               ),
-              child: Icon(Icons.history_rounded,
-                  size: 38, color: AppColors.riderGreen),
-            ),
-            const SizedBox(height: 14),
-            Text(emptyText,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: context.cTextPrimary)),
-            const SizedBox(height: 6),
-            Text('Finished tasks will show up here.',
-                style: TextStyle(fontSize: 12.5, color: context.cTextSecondary)),
-          ],
+              const SizedBox(height: 14),
+              Text(emptyText,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: context.cTextPrimary)),
+              const SizedBox(height: 6),
+              Text('Finished tasks will show up here.',
+                  style: TextStyle(fontSize: 12.5, color: context.cTextSecondary)),
+            ],
+          ),
         ),
       );
     }
-    return RefreshIndicator(
+    return MobileRefresh(
       color: AppColors.riderGreen,
       onRefresh: onRefresh,
       child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: items.length,
         itemBuilder: (_, i) => itemBuilder(items[i]),

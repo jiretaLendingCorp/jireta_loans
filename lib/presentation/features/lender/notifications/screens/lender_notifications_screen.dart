@@ -7,6 +7,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_notification_provider.dart';
@@ -50,6 +51,11 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
         () => ref.read(lenderNotificationProvider.notifier).load());
   }
 
+  /// SILENT load — walang skeleton flash habang nagre-refresh, kaya tuloy ang
+  /// pull-down gesture at hindi nawawala ang RefreshIndicator.
+  Future<void> _refresh() =>
+      ref.read(lenderNotificationProvider.notifier).load(silent: true);
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(lenderNotificationProvider);
@@ -74,17 +80,23 @@ class _State extends ConsumerState<LenderNotificationsScreen> {
       body: state.isLoading
           ? _buildSkeleton()
           : state.notifications.isEmpty
-              ? const EmptyStateWidget(
-                  icon: Icons.notifications_none,
-                  title: 'No Notifications',
-                  subtitle:
-                      'Loan updates, payment reminders, and alerts will appear here.',
-                )
-              : RefreshIndicator(
+              // Naka-scroll ang empty state para may magawang pull-down.
+              ? MobileRefresh(
                   color: AppColors.lenderBlue,
-                  onRefresh: () =>
-                      ref.read(lenderNotificationProvider.notifier).load(),
+                  fill: true,
+                  onRefresh: _refresh,
+                  child: const EmptyStateWidget(
+                    icon: Icons.notifications_none,
+                    title: 'No Notifications',
+                    subtitle:
+                        'Loan updates, payment reminders, and alerts will appear here.',
+                  ),
+                )
+              : MobileRefresh(
+                  color: AppColors.lenderBlue,
+                  onRefresh: _refresh,
                   child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(0, 8, 0, 108),
                     itemCount: state.notifications.length,
                     separatorBuilder: (_, __) =>

@@ -16,6 +16,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../../data/models/payment_model.dart';
 import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
@@ -227,10 +228,17 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
       navItems: _riderNavItems,
       body: state.isLoading || showLoanLoader
           ? const _LenderDashboardSkeleton()
-          : RefreshIndicator(
+          : MobileRefresh(
+              // Silent loads: kapag hindi, magiging `isLoading = true` ang
+              // dashboard sa gitna ng pull-down at mapapalitan ng skeleton ang
+              // RefreshIndicator mismo — nawawala ang spinner at ang gesture.
               onRefresh: () async {
-                await ref.read(lenderDashboardProvider.notifier).load();
-                await ref.read(lenderLoanProvider.notifier).loadLoans();
+                await ref
+                    .read(lenderDashboardProvider.notifier)
+                    .load(silent: true);
+                await ref
+                    .read(lenderLoanProvider.notifier)
+                    .loadLoans(silent: true);
               },
               color: AppColors.lenderBlue,
               child: FadeTransition(

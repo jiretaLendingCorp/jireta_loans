@@ -10,6 +10,7 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../../data/models/loan_schedule_model.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/lender_payment_provider.dart';
@@ -65,6 +66,23 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
     if (!mounted) return;
     setState(() => _resolving = false);
     ref.read(lenderPaymentProvider.notifier).loadPayments();
+  }
+
+  /// Pull-to-refresh: SILENT na bersyon ng [_load] — hindi nito ginagalaw ang
+  /// `_resolving` (na nagpapakita ng skeleton) at hindi nagiging `isLoading`
+  /// ang mga provider, kaya tuloy-tuloy ang pull-down gesture at hindi
+  /// nawawala ang RefreshIndicator habang naglo-load.
+  Future<void> _refresh() async {
+    await ref.read(lenderLoanProvider.notifier).loadLoans(silent: true);
+    if (!mounted) return;
+    final loan = _pickLoan(ref.read(lenderLoanProvider));
+    if (loan != null) {
+      await ref
+          .read(lenderLoanProvider.notifier)
+          .loadLoanDetails(loan.id, silent: true);
+    }
+    if (!mounted) return;
+    await ref.read(lenderPaymentProvider.notifier).loadPayments(silent: true);
   }
 
   /// The lender's relevant loan for the schedule. ONLY a disbursed loan
@@ -221,6 +239,7 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                       child: schedules.isEmpty
                           ? _NoScheduleState(
                               onRetry: _load,
+                              onRefresh: _refresh,
                               onContactUs: () {
                                 context.showSnackBarAsToast(
                                   const SnackBar(
@@ -230,8 +249,9 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                                 );
                               },
                             )
-                          : RefreshIndicator(
-                              onRefresh: _load,
+                          : MobileRefresh(
+                              color: AppColors.lenderBlue,
+                              onRefresh: _refresh,
                               child: ListView.separated(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 padding:
@@ -260,13 +280,24 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
 
 class _NoScheduleState extends StatelessWidget {
   final Future<void> Function() onRetry;
+  final Future<void> Function() onRefresh;
   final VoidCallback onContactUs;
-  const _NoScheduleState({required this.onRetry, required this.onContactUs});
+  const _NoScheduleState({
+    required this.onRetry,
+    required this.onRefresh,
+    required this.onContactUs,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
+    // May sariling scrollable na ito (SingleChildScrollView sa ibaba) kaya
+    // basta mapalibutan ng RefreshIndicator — gumagana ang pull-down kahit
+    // walang pang schedule.
+    return MobileRefresh(
+      color: AppColors.lenderBlue,
+      onRefresh: onRefresh,
+      child: Center(
+        child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
         child: Column(
@@ -334,6 +365,7 @@ class _NoScheduleState extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -11,6 +11,7 @@ import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
+import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../../shared/widgets/security/mpin_settings_card.dart';
@@ -65,6 +66,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     });
   }
 
+  /// SILENT reload — walang skeleton flash habang nakabitin ang pull-down
+  /// spinner, kaya nananatili rin ang naka-render na profile.
+  Future<void> _refresh() =>
+      ref.read(lenderProfileProvider.notifier).loadProfile(silent: true);
+
   @override
   Widget build(BuildContext context) {
     final profileState = ref.watch(lenderProfileProvider);
@@ -76,7 +82,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           ? const _ProfileSkeleton()
           : profileState.user == null
               ? _buildError(profileState.error)
-              : _buildProfile(profileState.user!),
+              : MobileRefresh(
+                  color: _accent,
+                  onRefresh: _refresh,
+                  child: _buildProfile(profileState.user!),
+                ),
     );
   }
 
@@ -126,6 +136,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     final status = _statusStyle(accountStatus);
 
     return SingleChildScrollView(
+      // Laging naka-scrollable: kapag mas maikli sa screen ang profile, walang
+      // overscroll kaya hindi gagana ang pull-to-refresh.
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,7 +180,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               ModernMenuItem(
                 icon: Icons.verified_outlined,
                 title: 'Complete Verification',
-                subtitle: 'Unlock loan applications',
                 onTap: () =>
                     context.push(RouteConstants.lenderAccountUpgradeStatus),
               ),
@@ -231,9 +243,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               ModernMenuItem(
                 icon: Icons.notifications_active_outlined,
                 title: 'Push Notifications',
-                subtitle: settings.pushNotificationsEnabled
-                    ? 'On — alerts are sent to this device'
-                    : 'Off — no push alerts on this device',
                 onTap: () => notifier
                     .setPushNotifications(!settings.pushNotificationsEnabled),
                 trailing: Switch.adaptive(
@@ -255,7 +264,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             ModernMenuItem(
               icon: Icons.description_outlined,
               title: 'Terms & Conditions',
-              subtitle: 'Loan terms and policies',
               onTap: () => _showSheet(
                 title: 'Terms & Conditions',
                 icon: Icons.description_outlined,
@@ -286,7 +294,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             ModernMenuItem(
               icon: Icons.privacy_tip_outlined,
               title: 'Privacy Policy',
-              subtitle: 'How we protect your data',
               onTap: () => _showSheet(
                 title: 'Privacy Policy',
                 icon: Icons.privacy_tip_outlined,
@@ -309,7 +316,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             ModernMenuItem(
               icon: Icons.support_agent_outlined,
               title: 'Help Center',
-              subtitle: 'FAQs and support guide',
               onTap: () => _showSheet(
                 title: 'Help Center',
                 icon: Icons.support_agent_outlined,
@@ -332,7 +338,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             ModernMenuItem(
               icon: Icons.info_outline_rounded,
               title: 'About Jireta',
-              subtitle: 'Since 1966',
               onTap: () => _showSheet(
                 title: 'About Jireta',
                 icon: Icons.info_outline_rounded,

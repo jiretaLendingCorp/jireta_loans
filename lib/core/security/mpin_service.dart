@@ -211,6 +211,12 @@ class MpinService {
 
   /// Binubura ang MPIN (kasama ang salt, attempts at lockout) para sa
   /// kasalukuyang naka-log in na user.
+  ///
+  /// Sadyang HINDI ginalaw ang 15-day change window at ang bilang ng palit —
+  /// kung hindi, magiging daan ito para lampasan ang
+  /// [maxChangesPerWindow] (reset → set ulit = walang katapusang palit).
+  /// Bunga: kapag naubos na ang limitasyon, hindi makakapag-set ng bagong MPIN
+  /// ang user hanggang mag-reset ang window (ipinapaalam ito ng UI).
   Future<void> clear() async {
     final scope = await _scope();
     for (final key in [
