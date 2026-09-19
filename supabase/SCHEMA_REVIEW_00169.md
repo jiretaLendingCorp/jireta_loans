@@ -4,45 +4,6 @@ Date: 2026-09-19
 Scope: `supabase/migrations/00001` → `00168` inspected; fixes delivered **forward-only** in `00169`.
 Constraint honoured: no redesign, no data deletion, no edits to already-applied migrations, no breaking changes to edge functions / Flutter / RLS / reports.
 
-## Deployment status — APPLIED and verified (2026-09-19)
-
-Applied to `jiretas_db` (`lcelzrvpqwlbeccrwpkp`, ap-northeast-1) via `supabase db push --linked --yes`.
-Remote was at 00168 with 102 migrations applied, so `00169` was the only pending migration.
-
-| Verification | Result |
-|---|---|
-| Recorded in `supabase_migrations.schema_migrations` | yes |
-| `schema_integrity_findings` table | created |
-| New unique indexes (3) | all created and enforcing |
-| Superseded narrow indexes (2) | dropped, none left behind |
-| `trg_payments_loan_consistency` | installed |
-| Helper functions | 5 installed |
-| **Open findings** | **0** (data was clean on every pre-flight check) |
-| Deprecated varchar lookup columns still present | 12/12 intact — nothing dropped |
-| Total FOREIGN KEY constraints | 183 |
-| Critical FKs missing (21 sampled via `has_fk`) | 0 |
-
-### Enforcement proven on the live database
-
-Each new rule was exercised with a transaction-scoped fixture that was rolled back; nothing leaked
-(probe row counts verified 0 afterwards):
-
-| Probe | Attempt | Result |
-|---|---|---|
-| A | Payment on Loan A's schedule linked to Loan B's assignment | rejected `23514` by `enforce_payment_loan_consistency()` |
-| B | Second active collection assignment for one schedule | rejected `23505` by `uq_collection_assignments_active_schedule` |
-| C | Second active credit investigation for one loan | rejected `23505` by `uq_credit_investigations_active_loan` |
-| D | Second disbursement for one loan | rejected `23505` by `uq_disbursements_one_per_loan` |
-
-Note: probe B first tripped the pre-existing `collection_assignments_rider_required_unless_unassigned_request`
-CHECK because `collection_assignments.status_id` has a column DEFAULT that the sync trigger lets override a
-supplied `status` code on INSERT. That is existing behaviour the edge functions already work around by sending
-`status_id: null`; re-running the probe CHECK-compliantly reached — and was blocked by — the new index.
-
-At deploy time the project held 9 users / 7 lender profiles / 2 employee profiles and **no loan
-transactions at all** (0 loans, 0 schedules, 0 payments, 0 disbursements, 0 CIs), i.e. it is a
-development/staging database rather than live production data.
-
 ## How this was verified (read this first)
 
 | Check | Status |

@@ -122,9 +122,7 @@ RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
       AND i.indisunique
       AND i.indpred IS NULL
       AND (
-        -- attname is type `name`; cast to text so the array comparison
-        -- has a matching operator (name[] = text[] does not exist).
-        SELECT array_agg(a.attname::text ORDER BY a.attname::text)
+        SELECT array_agg(a.attname ORDER BY a.attname)
         FROM generate_subscripts(i.indkey, 1) s
         JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[s]
         WHERE a.attnum > 0
