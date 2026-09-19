@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/philippines_address_field.dart';
 import '../providers/hm_lender_provider.dart';
 
 class CreateLenderModal extends ConsumerStatefulWidget {
@@ -18,6 +19,7 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
   final _lastCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _dobCtrl = TextEditingController();
+  final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
   String _gender = 'male';
   String _civilStatus = 'single';
   bool _loading = false;
@@ -151,6 +153,17 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  // Primary home address (addresses table) — kapareho ng
+                  // Create Employee / Create Rider forms.
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Address',
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(height: 8),
+                  PhilippinesAddressField(key: _addressKey),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -232,10 +245,12 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!(_addressKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;
     });
+    final address = _addressKey.currentState;
     try {
       await ref.read(hmLenderProvider.notifier).createLender({
         'first_name': _firstCtrl.text.trim(),
@@ -244,6 +259,10 @@ class _CreateLenderModalState extends ConsumerState<CreateLenderModal> {
         'gender': _gender,
         'civil_status': _civilStatus,
         'dob': _dobCtrl.text.trim(),
+        'street_address': address?.street,
+        'barangay': address?.barangay,
+        'city': address?.city,
+        'province': address?.province,
       });
       if (mounted) Navigator.pop(context);
     } catch (e) {

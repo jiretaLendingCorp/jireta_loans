@@ -155,9 +155,13 @@ class UserModel extends UserEntity {
       accountStatus: _resolveNullableCode(json, 'account_status', 'account_status_id', 'user_account_statuses') ?? 'active',
       forcePasswordChange: parseBool(json['force_password_change'], fallback: false),
       profilePhotoUrl: json['profile_photo_url'],
-      lastLoginAt: json['last_login_at'] != null
-          ? DateTime.parse(json['last_login_at'])
-          : null,
+      // `last_login_at` ay TOTOONG UTC instant (isinusulat ng auth-login /
+      // auth-otp / auth-google gamit ang `nowManilaISO()` = `new Date()
+      // .toISOString()`, at `DEFAULT now()` para sa legacy rows) — kaya dapat
+      // dumaan sa `parseManila` (+8h) tulad ng `created_at`. Kung raw
+      // `DateTime.parse` lang, 8 oras na mas maaga ang naipapakitang
+      // "Last login" (hal. 12:04 AM imbes na 8:04 AM).
+      lastLoginAt: parseManila(json['last_login_at']),
       createdAt: json['created_at'] != null
           ? parseManila(json['created_at'])!
           : DateTime.now(),

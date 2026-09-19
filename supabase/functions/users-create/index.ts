@@ -633,6 +633,12 @@ async function handleCreateLender(req: Request) {
     return errorResponse('Failed to create lender profile', 500, 'SERVER_ERROR');
   }
 
+  // Primary home address (addresses table) — ang Create Lender form ng HM at
+  // Employee ay kumukuha na ng structured Philippine address; dati ay wala itong
+  // naka-save kaya "—" ang Address sa lender profile/details hanggang may
+  // mag-submit sa walk-in (In-Office Step 2) o Account Upgrade wizard.
+  await insertPrimaryAddress(db, newUser.id, body);
+
   await db.from('password_history').insert({
     user_id: newUser.id,
     password_hash: await hashPassword(newUser.id, lenderDefaultPassword),

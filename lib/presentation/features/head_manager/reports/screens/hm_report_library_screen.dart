@@ -184,6 +184,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
         state.templates.isNotEmpty ? state.templates : _defaultTemplates();
     if (templates.isEmpty) {
       return Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
             color: Colors.white,
@@ -227,6 +228,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   Widget _buildHistory(BuildContext context, _ReportState state) {
     if (state.history.isEmpty) {
       return Container(
+        // Full width — kung hindi, nag-shrink-wrap lang ito sa haba ng text
+        // dahil `CrossAxisAlignment.start` ang parent Column.
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
         decoration: BoxDecoration(
             color: Colors.white,

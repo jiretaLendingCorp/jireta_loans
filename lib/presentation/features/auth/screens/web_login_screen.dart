@@ -258,11 +258,8 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 loginCard,
-                // HIDDEN: "Get the Jireta Mobile App" / Download APK card — hindi
-                // na ipinapakita sa login page. Nasa code pa rin ang
-                // `_ApkDownloadSection` kung ibabalik ito.
-                // const SizedBox(height: 18),
-                // const _ApkDownloadSection(),
+                const SizedBox(height: 18),
+                const _ApkDownloadSection(),
               ],
             ),
           ),
@@ -849,7 +846,6 @@ class _FieldLabel extends StatelessWidget {
 // Get the Jireta Mobile App — APK download (very bottom of the login page)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ignore: unused_element
 class _ApkDownloadSection extends StatelessWidget {
   const _ApkDownloadSection();
 
@@ -874,21 +870,12 @@ class _ApkDownloadSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Walang puting card box — ang nilalaman lang (icon, title, description,
+    // Download APK) ang nakikita, nakahanay sa lapad ng login card sa itaas.
+    // Vertical padding lang ang natitira para may agwat sa form.
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFECEEF3)),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.deepNavy.withValues(alpha: 0.05),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 18),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -973,8 +960,10 @@ class _ApkDownloadButtonState extends State<_ApkDownloadButton> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             curve: Curves.easeOut,
-            width: double.infinity,
+            // Fit lang sa nilalaman (hindi wide) — nakasentro sa ilalim ng
+            // description; ang horizontal padding ang bumubuo ng lapad.
             height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 32),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               gradient: const LinearGradient(
@@ -1006,6 +995,9 @@ class _ApkDownloadButtonState extends State<_ApkDownloadButton> {
                     ],
             ),
             child: const Row(
+              // MainAxisSize.min — kung hindi, pinupuno ng Row ang buong
+              // lapad ng card at nagiging wide ang button.
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.download_rounded, size: 18, color: Colors.white),

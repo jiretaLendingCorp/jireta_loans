@@ -2,6 +2,7 @@
 // Website layout: wide 2-column on desktop (left summary + right details),
 // single-column on mobile. Walang Log out dito — nasa top-bar avatar menu na.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -10,11 +11,13 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/formatters.dart';
+import '../../../../../core/utils/validators.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/forms/app_date_picker.dart';
+import '../../../../shared/widgets/philippines_address_field.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../../shared/widgets/profile_avatar_upload.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -29,6 +32,26 @@ class EmpProfileScreen extends ConsumerStatefulWidget {
 
 class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
   static const _accent = AppColors.employeeOrange;
+
+  // Kaparehong value sets ng employee_profiles CHECK constraints
+  // (male/female/other, single/married/widowed/separated) — nakikita sa
+  // Personal Details ng My Profile.
+  static const List<String> _genderOptions = ['Male', 'Female', 'Other'];
+  static const List<String> _civilStatusOptions = [
+    'Single',
+    'Married',
+    'Widowed',
+    'Separated',
+  ];
+
+  /// Pinakamahabang pinapayagang pangalan / phone sa Edit Profile — kapareho ng
+  /// `users` table columns at ng ibang profile forms (edit_user_modal).
+  static const int _nameMaxLength = 100;
+  static const int _phoneMaxLength = 11;
+
+  /// Letters (may accent), space, hyphen, apostrophe at period lang — para sa
+  /// "Ma. Cristina", "O'Brien", "Delos-Santos".
+  static final RegExp _namePattern = RegExp(r"^[A-Za-zÑñÁÉÍÓÚáéíóúÜü .'-]+$");
 
   final _currentPassCtrl = TextEditingController();
   final _newPassCtrl = TextEditingController();
@@ -781,10 +804,20 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     final first = TextEditingController(text: user.firstName);
     final middle = TextEditingController(text: user.middleName ?? '');
     final last = TextEditingController(text: user.lastName);
+    final email = TextEditingController(text: user.email ?? '');
     final phone = TextEditingController(text: user.phoneNumber ?? '');
     final formKey = GlobalKey<FormState>();
+    final addressKey = GlobalKey<PhilippinesAddressFieldState>();
     var saving = false;
     DateTime? dob = user.dateOfBirth;
+    var gender = _normalizeOption(user.gender, _genderOptions);
+    var civilStatus = _normalizeOption(user.civilStatus, _civilStatusOptions);
+    // Ang address lang ang ipapadala kapag aktwal na ginalaw — kung hindi,
+    // mananatili ang nakatagong primary home address (hindi ito mababakante).
+    var addressTouched = false;
+    // Kapag wala pang naka-save na address, kailangang kumpleto ito bago
+    // mag-save (may `*` ang mga label ng address cascade).
+    final addressRequired = user.formattedAddress.trim().isEmpty;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -795,7 +828,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
           title: const Text('Edit Profile',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           content: SizedBox(
-            width: 420,
+            width: 560,
             child: Form(
               key: formKey,
               child: SingleChildScrollView(
@@ -805,45 +838,109 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                     Row(
                       children: [
                         Expanded(
-                            child: TextFormField(
-                                controller: first,
-                                decoration: const InputDecoration(
-                                    labelText: 'First name',
-                                    border: OutlineInputBorder()),
-                                validator: (v) =>
-                                    (v ?? '').trim().isEmpty ? 'Required' : null)),
+                          child: TextFormField(
+                            controller: first,
+                            maxLength: _nameMaxLength,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: _dialogDeco('First name'),
+                            validator: (v) => _validateName(v, 'First name',
+                                isRequired: true),
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
-                            child: TextFormField(
-                                controller: middle,
-                                decoration: const InputDecoration(
-                                    labelText: 'Middle name',
-                                    border: OutlineInputBorder()))),
+                          child: TextFormField(
+                            controller: middle,
+                            maxLength: _nameMaxLength,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: _dialogDeco('Middle name'),
+                            validator: (v) =>
+                                _validateName(v, 'Middle name'),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                        controller: last,
-                        decoration: const InputDecoration(
-                            labelText: 'Last name',
-                            border: OutlineInputBorder()),
-                        validator: (v) =>
-                            (v ?? '').trim().isEmpty ? 'Required' : null),
+                      controller: last,
+                      maxLength: _nameMaxLength,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: _dialogDeco('Last name'),
+                      validator: (v) =>
+                          _validateName(v, 'Last name', isRequired: true),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: email,
+                      readOnly: true,
+                      decoration: _dialogDeco('Email'),
+                    ),
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: phone,
                       keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'Phone (09xxxxxxxxx)',
-                        border: OutlineInputBorder(),
-                      ),
+                      maxLength: _phoneMaxLength,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      decoration: _dialogDeco('Phone (09xxxxxxxxx)'),
+                      validator: _validatePhone,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: gender,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Gender',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _genderOptions
+                                .map((g) =>
+                                    DropdownMenuItem(value: g, child: Text(g)))
+                                .toList(),
+                            onChanged: (v) => setDlg(() => gender = v),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: civilStatus,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Civil status',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _civilStatusOptions
+                                .map((c) =>
+                                    DropdownMenuItem(value: c, child: Text(c)))
+                                .toList(),
+                            onChanged: (v) => setDlg(() => civilStatus = v),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     AppDatePicker(
                       label: 'Date of birth',
                       value: dob,
+                      firstDate: DateTime(1900),
                       lastDate: DateTime.now(),
                       onChanged: (d) => setDlg(() => dob = d),
+                    ),
+                    const SizedBox(height: 12),
+                    // Kaparehong source of truth ng Personal Details — ang
+                    // primary home address sa `addresses` table.
+                    PhilippinesAddressField(
+                      key: addressKey,
+                      label: 'Address',
+                      initialStreet: user.streetAddress,
+                      initialProvince: user.province,
+                      initialCity: user.city,
+                      initialBarangay: user.barangay,
+                      onChanged: (_) => addressTouched = true,
                     ),
                   ],
                 ),
@@ -867,8 +964,17 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                       if (!(formKey.currentState?.validate() ?? false)) {
                         return;
                       }
+                      if ((addressTouched || addressRequired) &&
+                          !(addressKey.currentState?.validate() ?? false)) {
+                        return;
+                      }
                       setDlg(() => saving = true);
                       final birthDate = dob;
+                      final addr = addressKey.currentState;
+                      // Final locals para ma-promote ang nullable values sa
+                      // loob ng collection-if (hindi na-promote ang `var`).
+                      final chosenGender = gender;
+                      final chosenCivilStatus = civilStatus;
                       final ok = await ref
                           .read(empProfileProvider.notifier)
                           .updateProfile({
@@ -880,12 +986,24 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                         'phone_number': phone.text.trim().isEmpty
                             ? null
                             : phone.text.trim(),
-                        if (birthDate != null)
-                          'employee_profile': {
+                        // Nested — hindi flat, para hindi ito mapagkamalang
+                        // lender payload ng users-manage handler.
+                        'employee_profile': {
+                          if (chosenGender != null)
+                            'gender': chosenGender.toLowerCase(),
+                          if (chosenCivilStatus != null)
+                            'civil_status': chosenCivilStatus.toLowerCase(),
+                          if (birthDate != null)
                             'date_of_birth': birthDate
                                 .toIso8601String()
                                 .substring(0, 10),
-                          },
+                        },
+                        if (addressTouched && addr != null) ...{
+                          'street_address': addr.street,
+                          'barangay': addr.barangay ?? '',
+                          'city': addr.city ?? '',
+                          'province': addr.province ?? '',
+                        },
                       });
                       if (ctx.mounted) Navigator.pop(ctx, ok);
                     },
@@ -905,6 +1023,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     first.dispose();
     middle.dispose();
     last.dispose();
+    email.dispose();
     phone.dispose();
     if (!mounted) return;
     if (saved == true) {
@@ -937,6 +1056,54 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
       user.suffix,
     ].where((e) => e != null && e.toString().trim().isNotEmpty).toList();
     return parts.isEmpty ? '—' : parts.join(' ');
+  }
+
+  /// Pare-parehong decoration ng Edit Profile fields — nakahide ang counter
+  /// text dahil nasa loob ito ng dialog (gumagawa ng extra na linya).
+  InputDecoration _dialogDeco(String label, {String? errorText}) =>
+      InputDecoration(
+        labelText: label,
+        counterText: '',
+        errorText: errorText,
+        border: const OutlineInputBorder(),
+      );
+
+  /// Pangalan: required kapag sinabi, letters/spaces/punctuation lang, at may
+  /// limitasyon sa haba para tugma sa `users.first_name/middle_name/last_name`.
+  String? _validateName(String? value, String label,
+      {bool isRequired = false}) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return isRequired ? '$label is required' : null;
+    if (v.length > _nameMaxLength) {
+      return '$label is too long (max $_nameMaxLength characters)';
+    }
+    if (!_namePattern.hasMatch(v)) {
+      return "Letters, spaces and . ' - only";
+    }
+    return null;
+  }
+
+  /// Optional ang phone sa My Profile (puwedeng bakante), pero kapag may
+  /// nakasulat, kailangang valid na PH mobile number (09xxxxxxxxx).
+  String? _validatePhone(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return null;
+    if (v.length != _phoneMaxLength) {
+      return 'Phone number must be $_phoneMaxLength digits (09xxxxxxxxx)';
+    }
+    return AppValidators.phone(v);
+  }
+
+  /// Itinutugma ang stored enum value (hal. `male`, `prefer_not_to_say`) sa
+  /// exact na dropdown option label. Kung walang tugma, `null` — kung hindi,
+  /// nag-a-assert ang DropdownButtonFormField kapag wala sa items ang value.
+  String? _normalizeOption(String? value, List<String> options) {
+    final key = (value ?? '').trim().toLowerCase();
+    if (key.isEmpty) return null;
+    for (final opt in options) {
+      if (opt.toLowerCase() == key) return opt;
+    }
+    return null;
   }
 
   String _formatLabel(dynamic value) {

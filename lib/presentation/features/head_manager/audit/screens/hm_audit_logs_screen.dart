@@ -420,7 +420,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              _labeledRow('TABLE', log['table_name'] as String? ?? '-'),
+              _labeledRow('MODULE', log['table_name'] as String? ?? '-'),
               const SizedBox(height: 8),
               _labeledRow('TIMESTAMP', _formatDateTime(log['created_at'])),
               if (isExpanded) ...[const Divider(height: 24), _buildDetails(log)],
@@ -608,7 +608,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
         children: [
           Expanded(flex: 2, child: Text('ACTION', style: s)),
           Expanded(flex: 3, child: Text('PERFORMED BY', style: s)),
-          Expanded(flex: 2, child: Text('TABLE', style: s)),
+          Expanded(flex: 2, child: Text('MODULE', style: s)),
           Expanded(flex: 2, child: Text('TIMESTAMP', style: s)),
           Expanded(flex: 1, child: Text('', style: s)),
         ],

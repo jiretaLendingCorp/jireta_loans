@@ -48,7 +48,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
       actions: [
         ElevatedButton.icon(
           onPressed: () => _showRegisterModal(context),
-          icon: const Icon(Icons.person_add_outlined, size: 18),
+          icon: const Icon(Icons.person_add, size: 18),
           label: const Text('Create Lender'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.lenderBlue,

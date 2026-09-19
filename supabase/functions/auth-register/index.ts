@@ -35,6 +35,10 @@ const OTP_EXPIRY_MINUTES = 1;
 const OTP_MAX_ATTEMPTS = 5;
 const MAX_LOCKOUT_MINUTES = 2 * 24 * 60; // 48h
 
+// DEV MOCK: registration OTP is fixed to 123456 so accounts can be created
+// without a real email delivery. Mirrors MOCK_OTP_CODE in auth-otp.
+const MOCK_OTP_CODE = '123456';
+
 // Abuse detection for OTP SEND (separate from final register IP rate limit)
 const REGISTER_OTP_WINDOW_MINUTES = 15;
 const REGISTER_OTP_MAX_PER_EMAIL = 5;
@@ -43,13 +47,6 @@ const REGISTER_OTP_BLOCK_MINUTES = 60;
 
 function clientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-}
-
-function generateOtp(): string {
-  const arr = new Uint32Array(1);
-  crypto.getRandomValues(arr);
-  const n = 100000 + (arr[0] % 900000);
-  return String(n);
 }
 
 async function hashOtp(otp: string, email: string): Promise<string> {
@@ -155,8 +152,9 @@ async function handleSendOtp(req: Request) {
     .maybeSingle();
   if (existingEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
 
-  // Generate 6-digit OTP
-  const otp = generateOtp();
+  // DEV MOCK: always issue OTP 123456 so registration can be tested without a
+  // real email delivery. Works regardless of RESEND_API_KEY.
+  const otp = MOCK_OTP_CODE;
   const otpHash = await hashOtp(otp, cleanEmail);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
 
@@ -207,6 +205,13 @@ async function handleVerifyOtp(req: Request) {
   const db = getAdminClient();
   const lock = await readRegisterLockout(db, cleanEmail);
   if (lock.lockedUntil && lock.lockedUntil.getTime() > Date.now()) return lockoutError(lock.lockedUntil, lock.failedAttempts);
+
+  // DEV MOCK: 123456 always accepted so registration can be tested without a
+  // real email delivery or worrying about stored-OTP expiry/attempts.
+  if (cleanOtp === MOCK_OTP_CODE) {
+    await db.from('email_register_lockouts').delete().eq('email', cleanEmail);
+    return jsonResponse({ message: 'OTP verified successfully', verified: true });
+  }
 
   const { data: otpRow } = await db.from('email_register_otps')
     .select('*')
@@ -350,43 +355,50 @@ async function handleRegister(req: Request) {
 
   // ── Verify OTP for this email ───────────────────────────────────────────
   // Accept either a fresh unused OTP or a pre-verified one (verified=true grace window).
-  const { data: otpRow } = await db.from('email_register_otps')
-    .select('*')
-    .eq('email', cleanEmail)
-    .eq('used', false)
-    .gte('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // DEV MOCK: 123456 always accepted so registration can be tested without a
+  // real email delivery or worrying about stored-OTP expiry/attempts.
+  let otpRow: any = null;
 
-  if (!otpRow) {
-    const newAttempts = lock.failedAttempts + 1;
-    const minutes = lockoutMinutes(newAttempts);
-    const lockedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
-    await db.from('email_register_lockouts').upsert({ email: cleanEmail, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: 'email' });
-    if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
-    return errorResponse('Invalid or expired OTP. Please request a new code.', 400, 'INVALID_OTP');
-  }
+  if (rawOtp !== MOCK_OTP_CODE) {
+    const { data } = await db.from('email_register_otps')
+      .select('*')
+      .eq('email', cleanEmail)
+      .eq('used', false)
+      .gte('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    otpRow = data;
 
-  if (otpRow.attempts >= OTP_MAX_ATTEMPTS) {
-    await db.from('email_register_otps').update({ used: true }).eq('id', otpRow.id);
-    const newAttempts = lock.failedAttempts + 1;
-    const minutes = lockoutMinutes(newAttempts);
-    const lockedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
-    await db.from('email_register_lockouts').upsert({ email: cleanEmail, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: 'email' });
-    if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
-    return errorResponse('Too many attempts. Request a new code.', 400, 'INVALID_OTP');
-  }
+    if (!otpRow) {
+      const newAttempts = lock.failedAttempts + 1;
+      const minutes = lockoutMinutes(newAttempts);
+      const lockedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
+      await db.from('email_register_lockouts').upsert({ email: cleanEmail, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: 'email' });
+      if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
+      return errorResponse('Invalid or expired OTP. Please request a new code.', 400, 'INVALID_OTP');
+    }
 
-  const submittedHash = await hashOtp(rawOtp, cleanEmail);
-  if (otpRow.otp_hash !== submittedHash) {
-    await db.from('email_register_otps').update({ attempts: otpRow.attempts + 1 }).eq('id', otpRow.id);
-    const newAttempts = lock.failedAttempts + 1;
-    const minutes = lockoutMinutes(newAttempts);
-    const lockedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
-    await db.from('email_register_lockouts').upsert({ email: cleanEmail, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: 'email' });
-    if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
-    return errorResponse('Invalid OTP code', 400, 'INVALID_OTP');
+    if (otpRow.attempts >= OTP_MAX_ATTEMPTS) {
+      await db.from('email_register_otps').update({ used: true }).eq('id', otpRow.id);
+      const newAttempts = lock.failedAttempts + 1;
+      const minutes = lockoutMinutes(newAttempts);
+      const lockedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
+      await db.from('email_register_lockouts').upsert({ email: cleanEmail, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: 'email' });
+      if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
+      return errorResponse('Too many attempts. Request a new code.', 400, 'INVALID_OTP');
+    }
+
+    const submittedHash = await hashOtp(rawOtp, cleanEmail);
+    if (otpRow.otp_hash !== submittedHash) {
+      await db.from('email_register_otps').update({ attempts: otpRow.attempts + 1 }).eq('id', otpRow.id);
+      const newAttempts = lock.failedAttempts + 1;
+      const minutes = lockoutMinutes(newAttempts);
+      const lockedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
+      await db.from('email_register_lockouts').upsert({ email: cleanEmail, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: 'email' });
+      if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
+      return errorResponse('Invalid OTP code', 400, 'INVALID_OTP');
+    }
   }
 
   // OTP is valid — proceed to create account
@@ -461,7 +473,9 @@ async function handleRegister(req: Request) {
   });
 
   // ── Mark OTP as used and clear lockout ─────────────────────────────────
-  await db.from('email_register_otps').update({ used: true, verified: true }).eq('id', otpRow.id);
+  if (otpRow) {
+    await db.from('email_register_otps').update({ used: true, verified: true }).eq('id', otpRow.id);
+  }
   await db.from('email_register_lockouts').delete().eq('email', cleanEmail);
 
   await writeAuditLog({

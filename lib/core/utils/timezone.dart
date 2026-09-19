@@ -39,10 +39,18 @@ DateTime ensureManila(DateTime dt) {
 /// Manila. Pure dates ("2026-09-04") and already-local strings carry no
 /// timezone marker and are returned unchanged.
 ///
-/// NOTE: columns written via the `now_manila()` DB helper (e.g. `updated_at`
-/// via `set_updated_at()`, `last_login_at`) store Manila wall time *as UTC*,
-/// so they must NOT go through this helper — pass them through
-/// `DateTime.tryParse` instead.
+/// NOTE: ang mga column na isinusulat ng `now_manila()` DB helper (e.g.
+/// `updated_at` via `set_updated_at()`) ay Manila wall time na naka-label na
+/// UTC, kaya HINDI sila dapat dumaan dito — `DateTime.tryParse` lang.
+///
+/// KABALIGTARAN nito ang `last_login_at`: isinusulat ito ng Edge Functions
+/// (`auth-login` / `auth-otp` / `auth-google`) gamit ang `nowManilaISO()` na
+/// `new Date().toISOString()` — isang TOTOONG UTC instant — kaya kailangan
+/// itong dumaan sa [parseManila] tulad ng `created_at`.
+/// TODO(backend): ang `fn_auth_update_last_login()` trigger (00120) ay
+/// gumagamit pa rin ng `now_manila()`, kaya kapag ang auth_logs row ay
+/// na-insert nang WALANG kasunod na explicit update, Manila-wall-as-UTC ang
+/// naiiwan. Ipantay sana ito sa `NOW()` para iisang convention na lang.
 DateTime? parseManila(dynamic value) {
   if (value == null) return null;
   final dt = DateTime.tryParse(value.toString());

@@ -3,8 +3,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -51,11 +49,9 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildQuickActions(context),
-                    const SizedBox(height: 28),
                     _buildSectionTitle(
                       Icons.people_rounded,
-                      'My Performance Metrics — $periodLabel',
+                      'Performance — $periodLabel',
                       dashState.selectedDate != null
                           ? 'Your activity on selected date'
                           : 'Your activity within the selected month',
@@ -102,8 +98,6 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          const ShimmerLoader(height: 100),
-          const SizedBox(height: 16),
           Row(
             children: List.generate(
               4,
@@ -129,61 +123,6 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    final actions = [
-      _QuickAction(
-        Icons.storefront_outlined,
-        'In-Office',
-        AppColors.deepNavy,
-        () => context.go(RouteConstants.empInOffice),
-      ),
-      _QuickAction(
-        Icons.person_add_outlined,
-        'Create Lender',
-        AppColors.lenderBlue,
-        () => context.go(RouteConstants.empLenders),
-      ),
-      _QuickAction(
-        Icons.description_outlined,
-        'Loan Records',
-        AppColors.warning,
-        () => context.go(RouteConstants.empLoans),
-      ),
-      _QuickAction(
-        Icons.verified_user_outlined,
-        'Lender Account Upgrade',
-        AppColors.info,
-        () => context.go(RouteConstants.empAccountUpgrade),
-      ),
-      _QuickAction(
-        Icons.payments_outlined,
-        'Record Payment',
-        AppColors.riderGreen,
-        () => context.go(RouteConstants.empPayments),
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns =
-            constraints.maxWidth >= 900 ? 5 : constraints.maxWidth >= 600 ? 3 : 2;
-        const spacing = 12.0;
-        final cardWidth =
-            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: actions
-              .map((a) => SizedBox(
-                    width: cardWidth,
-                    child: _QuickActionCard(action: a),
-                  ))
-              .toList(),
-        );
-      },
     );
   }
 
@@ -321,95 +260,6 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
               .toList(),
         );
       },
-    );
-  }
-}
-
-class _QuickAction {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _QuickAction(this.icon, this.label, this.color, this.onTap);
-}
-
-class _QuickActionCard extends StatefulWidget {
-  final _QuickAction action;
-  const _QuickActionCard({required this.action});
-
-  @override
-  State<_QuickActionCard> createState() => _QuickActionCardState();
-}
-
-class _QuickActionCardState extends State<_QuickActionCard> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: InkWell(
-        onTap: widget.action.onTap,
-        borderRadius: BorderRadius.zero,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          decoration: BoxDecoration(
-            color: _hover
-                ? widget.action.color.withValues(alpha: 0.08)
-                : Colors.white,
-            borderRadius: BorderRadius.zero,
-            border: Border.all(
-              color: _hover
-                  ? widget.action.color.withValues(alpha: 0.4)
-                  : AppColors.border,
-            ),
-            boxShadow: _hover
-                ? [
-                    BoxShadow(
-                      color: widget.action.color.withValues(alpha: 0.15),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: widget.action.color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.zero,
-                ),
-                child: Icon(
-                  widget.action.icon,
-                  size: 18,
-                  color: widget.action.color,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.action.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _hover ? widget.action.color : AppColors.textPrimary,
-                  ),
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 12,
-                color: _hover ? widget.action.color : AppColors.textTertiary,
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

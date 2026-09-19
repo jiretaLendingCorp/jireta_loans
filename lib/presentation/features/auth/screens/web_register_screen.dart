@@ -243,6 +243,26 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
     }
   }
 
+  /// Validates the step-1 details without using the step-1 `Form`.
+  ///
+  /// The form is unmounted while the OTP step is showing, so
+  /// `_formKey.currentState` is null there — reading it with `!` threw and
+  /// silently swallowed the Verify tap. Validate the controllers
+  /// directly instead. Returns the first error message, or null when valid.
+  String? _validateDetails() {
+    final firstError = AppValidators.required(_firstNameCtrl.text, 'First name');
+    if (firstError != null) return firstError;
+    final lastError = AppValidators.required(_lastNameCtrl.text, 'Last name');
+    if (lastError != null) return lastError;
+    if (_emailDuplicationError != null) return _emailDuplicationError;
+    final emailError = AppValidators.email(_emailCtrl.text);
+    if (emailError != null) return emailError;
+    final passwordError = AppValidators.password(_passwordCtrl.text);
+    if (passwordError != null) return passwordError;
+    return AppValidators.confirmPassword(
+        _confirmPasswordCtrl.text, _passwordCtrl.text);
+  }
+
   Future<void> _verifyAndRegister() async {
     final otp = _otp;
     if (otp.length != 6) {
@@ -261,10 +281,12 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
       });
       return;
     }
-    // Re-validate form (password etc) before creating account
-    if (!_formKey.currentState!.validate()) {
+    // Re-validate the collected details before creating the account. Never use
+    // `_formKey` here — its Form is not mounted on the OTP step.
+    final detailsError = _validateDetails();
+    if (detailsError != null) {
       setState(() => _otpStep = false);
-      context.showSnackBarAsToast(const SnackBar(content: Text('Please correct the form details first.'), backgroundColor: AppColors.error));
+      context.showSnackBarAsToast(SnackBar(content: Text(detailsError), backgroundColor: AppColors.error));
       return;
     }
 
@@ -294,9 +316,15 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
     } else {
       final isEmailDup = AppValidators.isEmailDuplicateError(repoError);
       if (isEmailDup) {
-        setState(() => _emailDuplicationError = AppValidators.duplicateEmailMessage);
-        setState(() => _otpStep = false);
-        _formKey.currentState!.validate();
+        setState(() {
+          _emailDuplicationError = AppValidators.duplicateEmailMessage;
+          _otpStep = false;
+        });
+        // The step-1 Form only re-mounts on the next frame, so validate after it
+        // is back in the tree — calling it with `!` here threw on a null state.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _formKey.currentState?.validate();
+        });
       }
       final lockSecs = ref.read(authProvider.notifier).extractOtpLockoutSeconds(repoError);
       if (lockSecs != null && lockSecs > 0) {
@@ -680,7 +708,7 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
             ),
           const SizedBox(height: 22),
           _PrimaryButton(
-            label: 'Verify & Register',
+            label: 'Verify',
             loading: _verifying,
             onPressed: (_verifying ||
                     _lockSecondsLeft > 0 ||
@@ -717,28 +745,6 @@ class _WebRegisterScreenState extends ConsumerState<WebRegisterScreen> {
                     _lockSecondsLeft > 0 ? 'Resend locked' : 'Resend code',
                     style: const TextStyle(
                         fontSize: 12.5, fontWeight: FontWeight.w700)),
-          ),
-          const Divider(height: 28, color: Color(0xFFECEEF3)),
-          TextButton(
-            onPressed: () {
-              _resendTimer?.cancel();
-              setState(() {
-                _otpStep = false;
-                _otpError = null;
-                _otpExpired = false;
-                _secondsLeft = 0;
-              });
-              for (final c in _otpControllers) {
-                c.clear();
-              }
-            },
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              foregroundColor: AppColors.textSecondary,
-              shape: const RoundedRectangleBorder(),
-            ),
-            child: const Text('← Edit details',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
