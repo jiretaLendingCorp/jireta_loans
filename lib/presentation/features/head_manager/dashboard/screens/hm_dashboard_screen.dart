@@ -11,6 +11,7 @@ import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/month_filter_dropdown.dart';
+import '../../../../shared/widgets/profile/personal_details_dialog.dart';
 import '../providers/hm_dashboard_provider.dart';
 import '../widgets/hm_activity_feed.dart';
 import '../widgets/hm_ai_insights_panel.dart';
@@ -25,6 +26,17 @@ class HmDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Bagong head manager account: bago makapagpatuloy sa dashboard, required
+    // muna nilang punan ang personal details sa dialog.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      runStaffProfileOnboarding(context, ref);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashState = ref.watch(hmDashboardProvider);

@@ -1149,7 +1149,12 @@ class _LenderAccountUpgradeSubmitScreenState
                     assetPath: _docAssetIcons[e.key],
                     file: e.value,
                     onPick: () => _pickFile(e.key),
-                    onView: () => _previewFile(e.value),
+                    // Face Recognition: WALANG "View" button — hindi ito
+                    // ini-upload na file kundi live face scan, kaya walang
+                    // file preview na dapat ipakita.
+                    onView: e.key == 'face_recognition'
+                        ? null
+                        : () => _previewFile(e.value),
                     errorText: _docError(e.key),
                   ),
                 )),

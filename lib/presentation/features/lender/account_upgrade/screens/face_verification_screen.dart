@@ -282,18 +282,6 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen>
     };
   }
 
-  IconData get _directionIcon {
-    return switch (_direction) {
-      'up' => Icons.arrow_upward,
-      'down' => Icons.arrow_downward,
-      'left' => Icons.arrow_back,
-      'right' => Icons.arrow_forward,
-      'closer' => Icons.add_rounded,
-      'back' => Icons.remove_rounded,
-      _ => Icons.face_retouching_natural_rounded,
-    };
-  }
-
   void _startCountdown() {
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -411,123 +399,89 @@ class _FaceVerificationScreenState extends State<FaceVerificationScreen>
 
   // ── Scanning: live camera + face oval ────────────────────────────────────
   Widget _buildScanning() {
+    // Walang header/caption sa itaas — ang buong screen ay camera preview, at
+    // ang validation guidance ay nasa ilalim mismo ng oval.
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Face Verification',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary,
-              letterSpacing: 0.5,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_cameraReady && _controller != null)
+              CameraPreview(_controller!)
+            else
+              const ColoredBox(color: _navy),
+            // Oval face guide overlay
+            CustomPaint(
+              painter: _OvalPainter(ok: _faceOk, scanCtrl: _scanCtrl),
             ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Position your face inside the oval and hold steady for a few seconds.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (_cameraReady && _controller != null)
-                    CameraPreview(_controller!)
-                  else
-                    const ColoredBox(color: _navy),
-                  // Oval face guide overlay
-                  CustomPaint(
-                    painter: _OvalPainter(ok: _faceOk, scanCtrl: _scanCtrl),
-                  ),
-                  if (_cameraUnavailable)
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.no_photography_outlined,
-                              color: Colors.white70, size: 40),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Camera unavailable on this device',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                          const SizedBox(height: 14),
-                          ElevatedButton.icon(
-                            onPressed: _capture,
-                            icon: const Icon(Icons.photo_camera_outlined,
-                                size: 18),
-                            label: const Text('Take photo'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.lenderBlue,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
-                        ],
+            if (_cameraUnavailable)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.no_photography_outlined,
+                        color: Colors.white70, size: 40),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Camera unavailable on this device',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      onPressed: _capture,
+                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                      label: const Text('Take photo'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.lenderBlue,
+                        foregroundColor: Colors.white,
                       ),
                     ),
-                  // Capturing countdown badge
-                  if (_countdown > 0)
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 14),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'Capturing in $_countdown…',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _faceOk ? AppColors.success : AppColors.border,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  _faceOk ? Icons.check_circle : _directionIcon,
-                  color: _faceOk ? AppColors.success : AppColors.lenderBlue,
-                  size: 20,
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
+              ),
+            // Capturing countdown badge
+            if (_countdown > 0)
+              Align(
+                alignment: Alignment.topCenter,
+                child: Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Text(
-                    _hint,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _faceOk ? AppColors.success : AppColors.textPrimary,
+                    'Capturing in $_countdown…',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-              ],
+              ),
+            // Validation guidance — nasa ilalim mismo ng oval para agad itong
+            // makita ng user habang nakatutok sa camera. Text lang, walang icon.
+            Align(
+              alignment: const Alignment(0, 0.62),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28),
+                child: Text(
+                  _hint,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: _faceOk ? AppColors.success : Colors.white,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -123,6 +123,30 @@ class SecureStorage {
     }
   }
 
+  // ── Staff profile onboarding (required Personal Details dialog) ──────────
+  // NOTE: HINDI ito kasama sa [_allKeys] — kailangang manatili ang flag kahit
+  // mag-logout/logout-clear, para pagka-login ulit ng parehong account ay
+  // hindi na muling lumabas ang required na Personal Details dialog.
+  static String _profileOnboardingKey(String userId) =>
+      'profile_onboarding_done_$userId';
+
+  static Future<bool> isProfileOnboardingDone(String userId) async {
+    if (userId.isEmpty) return false;
+    try {
+      final v = await _storage.read(key: _profileOnboardingKey(userId));
+      return v == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> markProfileOnboardingDone(String userId) async {
+    if (userId.isEmpty) return;
+    try {
+      await _storage.write(key: _profileOnboardingKey(userId), value: 'true');
+    } catch (_) {}
+  }
+
   static Future<void> saveSessionStartedAt(DateTime time) =>
       _withQueue(() async {
         try {

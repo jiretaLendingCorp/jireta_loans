@@ -8,6 +8,7 @@ import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/month_filter_dropdown.dart';
+import '../../../../shared/widgets/profile/personal_details_dialog.dart';
 import '../providers/emp_dashboard_provider.dart';
 
 class EmpDashboardScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,17 @@ class EmpDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Bagong employee account: bago makapagpatuloy sa dashboard, required muna
+    // nilang punan ang personal details sa dialog.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      runStaffProfileOnboarding(context, ref);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashState = ref.watch(empDashboardProvider);
