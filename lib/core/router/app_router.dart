@@ -225,10 +225,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.resetPassword,
       ];
 
-      // Any private route a signed-out visitor asks for now lands on the
-      // public marketing page, which presents the Sign In / Get Started CTAs.
+      // Any private route a signed-out visitor asks for: web lands on the
+      // public marketing page (Sign In / Get Started CTAs), native mobile
+      // goes straight to the mobile login form.
       if (!isAuthenticated && !publicRoutes.contains(path)) {
-        return RouteConstants.landing;
+        return kIsWeb ? RouteConstants.landing : RouteConstants.mobileLogin;
+      }
+
+      // The marketing page is web-only — a signed-out native-mobile visitor
+      // that lands on it is sent to the mobile login form instead.
+      if (!kIsWeb && !isAuthenticated && path == RouteConstants.landing) {
+        return RouteConstants.mobileLogin;
       }
 
       // Both /login (email) and /mobile-login (OTP) are public on all
