@@ -516,7 +516,10 @@ deno_version = 2
 #   RESEND_API_KEY      — required for sending OTP + reset emails via Resend (https://resend.com/api-keys)
 #                         Set in cloud: `supabase secrets set RESEND_API_KEY=re_xxx` or Dashboard → Edge Functions → Secrets.
 #                         If unset (local dev), OTP is logged to console and viewable in `supabase logs`.
-#   RESEND_FROM_EMAIL   — verified sender address (e.g. noreply@jiretaloanscorp.com). Defaults to onboarding@resend.dev (only sends to account owner until domain verified).
+#   RESEND_FROM_EMAIL   — REQUIRED in cloud: sender on a domain verified in Resend (the domain mail.jireta.com is verified,
+#                         so use e.g. noreply@mail.jireta.com). If unset it falls back to onboarding@resend.dev,
+#                         which Resend only delivers to the account owner's own inbox — every other recipient gets
+#                         403 "testing domain restriction", and no OTP/reset mail arrives to real employees.
 #   RESEND_FROM_NAME    — display name for the sender (default: "Jireta Loans").
 #   APP_URL             — web app origin used for redirect (e.g. https://app.jiretaloanscorp.com). Defaults to https://app.jiretaloanscorp.com.
 #   SITE_URL            — alias for APP_URL.

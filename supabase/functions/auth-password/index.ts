@@ -32,9 +32,13 @@ const PASSWORD_HISTORY_LIMIT = 5;
 
 // Abuse detection
 const FORGOT_WINDOW_MINUTES = 15;
-const FORGOT_MAX_PER_EMAIL = 3;
-const FORGOT_MAX_PER_IP = 10;
-const FORGOT_BLOCK_MINUTES = 60;
+// Resending is a normal part of the flow (a code only lives for a minute), so
+// the cap must leave room for a few resends — otherwise the user trips the
+// limit and "Resend code" stays broken for a whole hour.
+const FORGOT_MAX_PER_EMAIL = 10;
+const FORGOT_MAX_PER_IP = 50;
+// Short block: enough to stop flooding, short enough to retry soon after.
+const FORGOT_BLOCK_MINUTES = 15;
 
 // OTP settings (per spec: 6-digit, hashed, 1 min expiry, 5 attempts)
 // deno-lint-ignore no-unused-vars
@@ -84,6 +88,16 @@ function lockoutError(lockedUntil: Date, attempts: number): Response {
   });
 }
 
+function forgotRateLimitError(retryAfterSeconds: number, scope: "email" | "device"): Response {
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  const label = scope === "email"
+    ? `Too many reset requests for this account. Try again in ${minutes} minute(s).`
+    : `Too many reset requests from this device. Try again in ${minutes} minute(s).`;
+  return errorResponse(label, 429, "PASSWORD_RESET_RATE_LIMITED", {
+    retry_after_seconds: retryAfterSeconds,
+  });
+}
+
 const DEFAULT_ACTION = "forgot-password";
 
 serve(async (req) => {
@@ -122,21 +136,21 @@ async function handleForgotPassword(req: Request) {
 
   // Block checks
   const emailBlock = await checkBlock(`forgot:${cleanEmail}`);
-  if (emailBlock.blocked) return errorResponse("Too many reset requests for this account. Try again in an hour.", 429, "PASSWORD_RESET_RATE_LIMITED");
+  if (emailBlock.blocked) return forgotRateLimitError(emailBlock.retryAfterSeconds ?? FORGOT_BLOCK_MINUTES * 60, "email");
   const ipBlock = await checkBlock(`forgot:ip:${ip}`);
-  if (ipBlock.blocked) return errorResponse("Too many reset requests from this device. Try again later.", 429, "PASSWORD_RESET_RATE_LIMITED");
+  if (ipBlock.blocked) return forgotRateLimitError(ipBlock.retryAfterSeconds ?? FORGOT_BLOCK_MINUTES * 60, "device");
 
   const { allowed } = await checkRateLimit({ key: `forgot_password:${cleanEmail}`, maxAttempts: FORGOT_MAX_PER_EMAIL, windowMinutes: FORGOT_WINDOW_MINUTES });
   if (!allowed) {
     await blockKey({ key: `forgot:${cleanEmail}`, reason: "Multiple password reset requests", minutes: FORGOT_BLOCK_MINUTES });
     await recordSecurityEvent({ eventType: "password_reset_suspicious", key: `forgot:${cleanEmail}`, ipAddress: ip, detail: { attempts: FORGOT_MAX_PER_EMAIL } });
-    return errorResponse("Too many reset requests for this account. Try again in an hour.", 429, "PASSWORD_RESET_RATE_LIMITED");
+    return forgotRateLimitError(FORGOT_BLOCK_MINUTES * 60, "email");
   }
   const ipResult = await checkRateLimit({ key: `forgot:ip:${ip}`, maxAttempts: FORGOT_MAX_PER_IP, windowMinutes: FORGOT_WINDOW_MINUTES });
   if (!ipResult.allowed) {
     await blockKey({ key: `forgot:ip:${ip}`, reason: "Password reset flooding", minutes: FORGOT_BLOCK_MINUTES });
     await recordSecurityEvent({ eventType: "password_reset_suspicious", key: `forgot:ip:${ip}`, ipAddress: ip, detail: { attempts: FORGOT_MAX_PER_IP } });
-    return errorResponse("Too many reset requests from this device. Try again later.", 429, "PASSWORD_RESET_RATE_LIMITED");
+    return forgotRateLimitError(FORGOT_BLOCK_MINUTES * 60, "device");
   }
 
   const db = getAdminClient();
@@ -178,8 +192,18 @@ async function handleForgotPassword(req: Request) {
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
   if (resendApiKey) {
     const sendResult = await sendPasswordResetOtpEmail({ to: cleanEmail, otp, recipientName });
-    if (!sendResult.ok) console.error("[forgot-password] Resend OTP failed:", sendResult.error);
-    else console.log(`[forgot-password] OTP via Resend sent to ${cleanEmail} id=${sendResult.id}`);
+    if (!sendResult.ok) {
+      // NOTE: we still answer with the generic "if an account exists..." body —
+      // returning an error here would tell an attacker which emails are registered.
+      // The failure is loud in the logs instead.
+      console.error(
+        `[forgot-password] Resend OTP failed [${sendResult.kind ?? "http_error"}] status=${sendResult.status ?? "n/a"}:`,
+        sendResult.error,
+        "— check RESEND_API_KEY and RESEND_FROM_EMAIL (a sender on a domain verified in Resend is required; onboarding@resend.dev is rejected for other recipients with 403).",
+      );
+    } else {
+      console.log(`[forgot-password] OTP via Resend sent to ${cleanEmail} id=${sendResult.id}`);
+    }
   } else {
     // Local dev — log OTP so Inbucket/console can see it
     console.log(`[forgot-password] OTP for ${cleanEmail} is ${otp} (RESEND_API_KEY not set, not emailed)`);

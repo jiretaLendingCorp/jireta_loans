@@ -5,9 +5,13 @@
 //
 // Expects the Supabase secret `RESEND_API_KEY` to be set (Dashboard →
 // Edge Functions → Secrets or `supabase secrets set RESEND_API_KEY=...`).
-// Optional secrets / env:
+// Secrets / env:
 //
-//   RESEND_FROM_EMAIL  — verified sender address (e.g. noreply@jiretaloanscorp.com)
+//   RESEND_FROM_EMAIL  — REQUIRED in production: a sender on a domain verified
+//                        in Resend (e.g. noreply@mail.jireta.com). When unset we
+//                        fall back to onboarding@resend.dev, which Resend only
+//                        delivers to the account owner — every other recipient
+//                        gets HTTP 403 "testing domain restriction".
 //   RESEND_FROM_NAME   — display name (default: "Jireta Loans")
 //   APP_URL            — web app origin used for reset links (default: https://app.jiretaloanscorp.com)
 //
@@ -24,6 +28,92 @@ export interface SendResetEmailParams {
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Builds the `from` header ("Name <email>") for Resend.
+ *
+ * Resend rejects the shared testing sender `onboarding@resend.dev` for any
+ * recipient other than the Resend account owner, so the fallback below is only
+ * useful when someone is testing with their own inbox — warn loudly instead of
+ * letting every OTP silently bounce with a 403.
+ */
+export function resolveFromAddress(): string {
+  const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("RESEND_FROM");
+  const fromName = Deno.env.get("RESEND_FROM_NAME") ?? "Jireta Loans";
+  if (!fromEmail) {
+    console.warn(
+      "[email] RESEND_FROM_EMAIL is not set — falling back to onboarding@resend.dev. " +
+      "Resend only delivers from that address to the account owner's own inbox; " +
+      "all other recipients get 403 'testing domain restriction'. Set RESEND_FROM_EMAIL " +
+      "to an address on a verified domain (e.g. noreply@mail.jireta.com).",
+    );
+    return `${fromName} <onboarding@resend.dev>`;
+  }
+  // Resend requires `from` in the form `Name <email>` when a name is used.
+  return fromEmail.includes("<") ? fromEmail : `${fromName} <${fromEmail}>`;
+}
+
+/** Why a Resend send failed — callers turn this into a user-facing hint. */
+export type EmailFailureKind =
+  | "no_api_key"
+  | "invalid_api_key"
+  | "sender_not_verified"
+  | "recipient_rejected"
+  | "rate_limited"
+  | "timeout"
+  | "http_error";
+
+export interface SendEmailResult {
+  ok: boolean;
+  id?: string;
+  error?: string;
+  /** Upstream HTTP status from Resend, when there was a response. */
+  status?: number;
+  /** Coarse cause, so callers can explain the failure instead of guessing. */
+  kind?: EmailFailureKind;
+}
+
+const FAILURE_HINTS: Record<EmailFailureKind, string> = {
+  no_api_key: "set the RESEND_API_KEY secret on the Supabase project",
+  invalid_api_key: "RESEND_API_KEY is missing or revoked — create a new key in Resend",
+  sender_not_verified:
+    "set RESEND_FROM_EMAIL to an address on a domain verified in Resend — " +
+    "onboarding@resend.dev only delivers to the Resend account owner's own inbox",
+  recipient_rejected: "Resend rejected the recipient address",
+  rate_limited: "Resend rate limit reached",
+  timeout: "Resend did not answer within 10s",
+  http_error: "see the Resend error body above",
+};
+
+export function classifyResendFailure(status: number, body: string): EmailFailureKind {
+  const text = body.toLowerCase();
+  if (status === 401) return "invalid_api_key";
+  if (status === 403) {
+    if (text.includes("api key")) return "invalid_api_key";
+    // "Testing domain restriction" means the sender is still
+    // onboarding@resend.dev; any other 403 is an unverified sender domain.
+    return "sender_not_verified";
+  }
+  if (status === 422) return "recipient_rejected";
+  if (status === 429) return "rate_limited";
+  return "http_error";
+}
+
+function failureLog(
+  label: string,
+  status: number,
+  kind: EmailFailureKind,
+  from: string,
+  to: string,
+  body: string,
+): string {
+  return `[email] Resend ${label} ${status} [${kind}] from=${from} to=${to}: ${body} — ${FAILURE_HINTS[kind]}`;
+}
+
+function classifyFetchError(msg: string): EmailFailureKind {
+  const lower = msg.toLowerCase();
+  return lower.includes("abort") || lower.includes("timeout") ? "timeout" : "http_error";
 }
 
 function buildResetHtml(resetLink: string, recipientName?: string): string {
@@ -167,15 +257,13 @@ This code expires in 1 minute and can only be used once. If you didn't request t
 — Jireta Loans & Credit Corp 1966`;
 }
 
-export async function sendPasswordResetOtpEmail(params: SendOtpEmailParams): Promise<{ ok: boolean; id?: string; error?: string }> {
+export async function sendPasswordResetOtpEmail(params: SendOtpEmailParams): Promise<SendEmailResult> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) {
     console.warn("[email] RESEND_API_KEY not set — skipping Resend send");
     return { ok: false, error: "RESEND_API_KEY not configured" };
   }
-  const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
-  const fromName = Deno.env.get("RESEND_FROM_NAME") ?? "Jireta Loans";
-  const from = fromEmail.includes("<") ? fromEmail : `${fromName} <${fromEmail}>`;
+  const from = resolveFromAddress();
   const html = buildOtpHtml(params.otp, params.recipientName);
   const text = buildOtpText(params.otp);
   try {
@@ -194,8 +282,9 @@ export async function sendPasswordResetOtpEmail(params: SendOtpEmailParams): Pro
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error(`[email] Resend OTP failed ${res.status}: ${body}`);
-      return { ok: false, error: `${res.status} ${body}`.slice(0, 500) };
+      const kind = classifyResendFailure(res.status, body);
+      console.error(failureLog("OTP failed", res.status, kind, from, params.to, body));
+      return { ok: false, error: `${res.status} ${body}`.slice(0, 500), status: res.status, kind };
     }
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
     const id = (data as { id?: string })?.id;
@@ -203,8 +292,9 @@ export async function sendPasswordResetOtpEmail(params: SendOtpEmailParams): Pro
     return { ok: true, id };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[email] Resend OTP fetch error:", msg);
-    return { ok: false, error: msg };
+    const kind = classifyFetchError(msg);
+    console.error(`[email] Resend OTP fetch error [${kind}]:`, msg);
+    return { ok: false, error: msg, kind };
   }
 }
 
@@ -342,15 +432,13 @@ This code expires in 1 minute and can only be used once. If you didn't attempt t
 — Jireta Loans & Credit Corp 1966`;
 }
 
-export async function sendRegistrationOtpEmail(params: SendOtpEmailParams): Promise<{ ok: boolean; id?: string; error?: string }> {
+export async function sendRegistrationOtpEmail(params: SendOtpEmailParams): Promise<SendEmailResult> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) {
     console.warn("[email] RESEND_API_KEY not set — skipping Resend registration OTP send");
     return { ok: false, error: "RESEND_API_KEY not configured" };
   }
-  const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
-  const fromName = Deno.env.get("RESEND_FROM_NAME") ?? "Jireta Loans";
-  const from = fromEmail.includes("<") ? fromEmail : `${fromName} <${fromEmail}>`;
+  const from = resolveFromAddress();
   const html = buildRegisterOtpHtml(params.otp, params.recipientName);
   const text = buildRegisterOtpText(params.otp);
   try {
@@ -369,8 +457,9 @@ export async function sendRegistrationOtpEmail(params: SendOtpEmailParams): Prom
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error(`[email] Resend register OTP failed ${res.status}: ${body}`);
-      return { ok: false, error: `${res.status} ${body}`.slice(0, 500) };
+      const kind = classifyResendFailure(res.status, body);
+      console.error(failureLog("register OTP failed", res.status, kind, from, params.to, body));
+      return { ok: false, error: `${res.status} ${body}`.slice(0, 500), status: res.status, kind };
     }
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
     const id = (data as { id?: string })?.id;
@@ -378,20 +467,19 @@ export async function sendRegistrationOtpEmail(params: SendOtpEmailParams): Prom
     return { ok: true, id };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[email] Resend register OTP fetch error:", msg);
-    return { ok: false, error: msg };
+    const kind = classifyFetchError(msg);
+    console.error(`[email] Resend register OTP fetch error [${kind}]:`, msg);
+    return { ok: false, error: msg, kind };
   }
 }
 
-export async function sendLoginOtpEmail(params: SendOtpEmailParams): Promise<{ ok: boolean; id?: string; error?: string }> {
+export async function sendLoginOtpEmail(params: SendOtpEmailParams): Promise<SendEmailResult> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) {
     console.warn("[email] RESEND_API_KEY not set — skipping Resend login OTP send");
     return { ok: false, error: "RESEND_API_KEY not configured" };
   }
-  const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
-  const fromName = Deno.env.get("RESEND_FROM_NAME") ?? "Jireta Loans";
-  const from = fromEmail.includes("<") ? fromEmail : `${fromName} <${fromEmail}>`;
+  const from = resolveFromAddress();
   const html = buildLoginOtpHtml(params.otp, params.recipientName);
   const text = buildLoginOtpText(params.otp);
   try {
@@ -410,8 +498,9 @@ export async function sendLoginOtpEmail(params: SendOtpEmailParams): Promise<{ o
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error(`[email] Resend login OTP failed ${res.status}: ${body}`);
-      return { ok: false, error: `${res.status} ${body}`.slice(0, 500) };
+      const kind = classifyResendFailure(res.status, body);
+      console.error(failureLog("login OTP failed", res.status, kind, from, params.to, body));
+      return { ok: false, error: `${res.status} ${body}`.slice(0, 500), status: res.status, kind };
     }
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
     const id = (data as { id?: string })?.id;
@@ -419,8 +508,9 @@ export async function sendLoginOtpEmail(params: SendOtpEmailParams): Promise<{ o
     return { ok: true, id };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[email] Resend login OTP fetch error:", msg);
-    return { ok: false, error: msg };
+    const kind = classifyFetchError(msg);
+    console.error(`[email] Resend login OTP fetch error [${kind}]:`, msg);
+    return { ok: false, error: msg, kind };
   }
 }
 
@@ -429,17 +519,14 @@ export async function sendLoginOtpEmail(params: SendOtpEmailParams): Promise<{ o
  * Returns true on 2xx, false otherwise (caller should log and optionally
  * fall back to Supabase's built-in email).
  */
-export async function sendPasswordResetEmail(params: SendResetEmailParams): Promise<{ ok: boolean; id?: string; error?: string }> {
+export async function sendPasswordResetEmail(params: SendResetEmailParams): Promise<SendEmailResult> {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) {
     console.warn("[email] RESEND_API_KEY not set — skipping Resend send");
     return { ok: false, error: "RESEND_API_KEY not configured" };
   }
 
-  const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") ?? Deno.env.get("RESEND_FROM") ?? "onboarding@resend.dev";
-  const fromName = Deno.env.get("RESEND_FROM_NAME") ?? "Jireta Loans";
-  // Resend requires `from` in the form `Name <email>` when a name is used.
-  const from = fromEmail.includes("<") ? fromEmail : `${fromName} <${fromEmail}>`;
+  const from = resolveFromAddress();
 
   const html = buildResetHtml(params.resetLink, params.recipientName);
   const text = buildResetText(params.resetLink);
@@ -464,8 +551,9 @@ export async function sendPasswordResetEmail(params: SendResetEmailParams): Prom
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.error(`[email] Resend failed ${res.status}: ${body}`);
-      return { ok: false, error: `${res.status} ${body}`.slice(0, 500) };
+      const kind = classifyResendFailure(res.status, body);
+      console.error(failureLog("send failed", res.status, kind, from, params.to, body));
+      return { ok: false, error: `${res.status} ${body}`.slice(0, 500), status: res.status, kind };
     }
 
     const data = await res.json().catch(() => ({} as Record<string, unknown>));
@@ -474,7 +562,8 @@ export async function sendPasswordResetEmail(params: SendResetEmailParams): Prom
     return { ok: true, id };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[email] Resend fetch error:", msg);
-    return { ok: false, error: msg };
+    const kind = classifyFetchError(msg);
+    console.error(`[email] Resend fetch error [${kind}]:`, msg);
+    return { ok: false, error: msg, kind };
   }
 }

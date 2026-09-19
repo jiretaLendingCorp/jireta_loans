@@ -35,15 +35,60 @@ const OTP_EXPIRY_MINUTES = 1;
 const OTP_MAX_ATTEMPTS = 5;
 const MAX_LOCKOUT_MINUTES = 2 * 24 * 60; // 48h
 
-// DEV MOCK: registration OTP is fixed to 123456 so accounts can be created
-// without a real email delivery. Mirrors MOCK_OTP_CODE in auth-otp.
-const MOCK_OTP_CODE = '123456';
-
 // Abuse detection for OTP SEND (separate from final register IP rate limit)
 const REGISTER_OTP_WINDOW_MINUTES = 15;
-const REGISTER_OTP_MAX_PER_EMAIL = 5;
-const REGISTER_OTP_MAX_PER_IP = 20;
-const REGISTER_OTP_BLOCK_MINUTES = 60;
+// A resend is a normal part of the flow (the code only lives for a minute and
+// delivery can take a while), so the cap has to leave room for a handful of
+// resends instead of blocking the user for an hour after the third try.
+const REGISTER_OTP_MAX_PER_EMAIL = 10;
+const REGISTER_OTP_MAX_PER_IP = 50;
+// Short block: enough to stop flooding, short enough that a legitimate user
+// can retry shortly after tripping it.
+const REGISTER_OTP_BLOCK_MINUTES = 15;
+
+function generateOtp(): string {
+  // Cryptographically random 6-digit code — there is no fixed/mock code.
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return String(100000 + (arr[0] % 900000));
+}
+
+function otpRateLimitError(retryAfterSeconds: number, scope: 'email' | 'device'): Response {
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  const label = scope === 'email'
+    ? `Too many OTP requests for this email. Try again in ${minutes} minute(s).`
+    : `Too many OTP requests from this device. Try again in ${minutes} minute(s).`;
+  return errorResponse(label, 429, 'REGISTER_OTP_RATE_LIMITED', {
+    retry_after_seconds: retryAfterSeconds,
+  });
+}
+
+/**
+ * Turns a Resend failure into a message the register screen can act on.
+ * Used only when the email could not be handed to Resend at all — without this
+ * the client just saw "code sent" while nothing was ever delivered.
+ */
+function emailFailureMessage(result: { kind?: string; status?: number }): string {
+  const fromEmail = Deno.env.get('RESEND_FROM_EMAIL') ?? Deno.env.get('RESEND_FROM');
+  switch (result.kind) {
+    case 'no_api_key':
+      return 'Email delivery is not configured on the server (RESEND_API_KEY is missing).';
+    case 'invalid_api_key':
+      return 'Email delivery is not configured on the server (Resend rejected the API key).';
+    case 'sender_not_verified':
+      return fromEmail
+        ? `Resend rejected the sender "${fromEmail}": that address is not on a verified domain. Use a sender on a verified domain (e.g. noreply@mail.jireta.com).`
+        : 'RESEND_FROM_EMAIL is not set, so mail is sent from onboarding@resend.dev — Resend only delivers that to the account owner. Set RESEND_FROM_EMAIL to an address on a verified domain (e.g. noreply@mail.jireta.com).';
+    case 'recipient_rejected':
+      return 'Resend rejected this email address. Please check it and try again.';
+    case 'rate_limited':
+      return 'Too many emails were requested. Please wait a minute and try again.';
+    case 'timeout':
+      return 'The email service timed out. Please try again.';
+    default:
+      return 'We could not send the verification code to this email. Please check the address or try again later.';
+  }
+}
 
 function clientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
@@ -127,21 +172,21 @@ async function handleSendOtp(req: Request) {
 
   // Blocks
   const emailBlock = await checkBlock(`register-otp:${cleanEmail}`);
-  if (emailBlock.blocked) return errorResponse('Too many OTP requests for this email. Try again in an hour.', 429, 'REGISTER_OTP_RATE_LIMITED');
+  if (emailBlock.blocked) return otpRateLimitError(emailBlock.retryAfterSeconds ?? REGISTER_OTP_BLOCK_MINUTES * 60, 'email');
   const ipBlock = await checkBlock(`register-otp:ip:${ip}`);
-  if (ipBlock.blocked) return errorResponse('Too many OTP requests from this device. Try again later.', 429, 'REGISTER_OTP_RATE_LIMITED');
+  if (ipBlock.blocked) return otpRateLimitError(ipBlock.retryAfterSeconds ?? REGISTER_OTP_BLOCK_MINUTES * 60, 'device');
 
   const { allowed } = await checkRateLimit({ key: `register_otp:${cleanEmail}`, maxAttempts: REGISTER_OTP_MAX_PER_EMAIL, windowMinutes: REGISTER_OTP_WINDOW_MINUTES });
   if (!allowed) {
     await blockKey({ key: `register-otp:${cleanEmail}`, reason: 'Multiple registration OTP requests', minutes: REGISTER_OTP_BLOCK_MINUTES });
     await recordSecurityEvent({ eventType: 'register_otp_rate_limited', key: `register-otp:${cleanEmail}`, ipAddress: ip, detail: { attempts: REGISTER_OTP_MAX_PER_EMAIL } });
-    return errorResponse('Too many OTP requests for this email. Try again in an hour.', 429, 'REGISTER_OTP_RATE_LIMITED');
+    return otpRateLimitError(REGISTER_OTP_BLOCK_MINUTES * 60, 'email');
   }
   const ipResult = await checkRateLimit({ key: `register_otp:ip:${ip}`, maxAttempts: REGISTER_OTP_MAX_PER_IP, windowMinutes: REGISTER_OTP_WINDOW_MINUTES });
   if (!ipResult.allowed) {
     await blockKey({ key: `register-otp:ip:${ip}`, reason: 'Registration OTP flooding', minutes: REGISTER_OTP_BLOCK_MINUTES });
     await recordSecurityEvent({ eventType: 'register_otp_rate_limited', key: `register-otp:ip:${ip}`, ipAddress: ip, detail: { attempts: REGISTER_OTP_MAX_PER_IP } });
-    return errorResponse('Too many OTP requests from this device. Try again later.', 429, 'REGISTER_OTP_RATE_LIMITED');
+    return otpRateLimitError(REGISTER_OTP_BLOCK_MINUTES * 60, 'device');
   }
 
   // Duplicate check — surface 409 before we generate OTP
@@ -152,9 +197,9 @@ async function handleSendOtp(req: Request) {
     .maybeSingle();
   if (existingEmail) return errorResponse('Email already registered', 409, 'DUPLICATE');
 
-  // DEV MOCK: always issue OTP 123456 so registration can be tested without a
-  // real email delivery. Works regardless of RESEND_API_KEY.
-  const otp = MOCK_OTP_CODE;
+  // Fresh random code; the insert below invalidates any previous unused code so
+  // "Resend" always swaps in a code that actually works.
+  const otp = generateOtp();
   const otpHash = await hashOtp(otp, cleanEmail);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
 
@@ -183,8 +228,18 @@ async function handleSendOtp(req: Request) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   if (resendApiKey) {
     const sendResult = await sendRegistrationOtpEmail({ to: cleanEmail, otp, recipientName });
-    if (!sendResult.ok) console.error('[auth-register] Resend register OTP failed:', sendResult.error);
-    else console.log(`[auth-register] OTP via Resend sent to ${cleanEmail} id=${sendResult.id}`);
+    if (!sendResult.ok) {
+      console.error(
+        `[auth-register] Resend register OTP failed [${sendResult.kind ?? 'http_error'}] status=${sendResult.status ?? 'n/a'}:`,
+        sendResult.error,
+      );
+      // The code never reached the inbox, so burn it and report the failure —
+      // returning "code sent" here is what made a 403 from Resend look like a
+      // dead resend button on the register screen.
+      await db.from('email_register_otps').update({ used: true }).eq('email', cleanEmail).eq('used', false);
+      return errorResponse(emailFailureMessage(sendResult), 502, 'EMAIL_SEND_FAILED');
+    }
+    console.log(`[auth-register] OTP via Resend sent to ${cleanEmail} id=${sendResult.id}`);
   } else {
     console.log(`[auth-register] OTP for ${cleanEmail} is ${otp} (RESEND_API_KEY not set, not emailed)`);
   }
@@ -205,13 +260,6 @@ async function handleVerifyOtp(req: Request) {
   const db = getAdminClient();
   const lock = await readRegisterLockout(db, cleanEmail);
   if (lock.lockedUntil && lock.lockedUntil.getTime() > Date.now()) return lockoutError(lock.lockedUntil, lock.failedAttempts);
-
-  // DEV MOCK: 123456 always accepted so registration can be tested without a
-  // real email delivery or worrying about stored-OTP expiry/attempts.
-  if (cleanOtp === MOCK_OTP_CODE) {
-    await db.from('email_register_lockouts').delete().eq('email', cleanEmail);
-    return jsonResponse({ message: 'OTP verified successfully', verified: true });
-  }
 
   const { data: otpRow } = await db.from('email_register_otps')
     .select('*')
@@ -355,11 +403,10 @@ async function handleRegister(req: Request) {
 
   // ── Verify OTP for this email ───────────────────────────────────────────
   // Accept either a fresh unused OTP or a pre-verified one (verified=true grace window).
-  // DEV MOCK: 123456 always accepted so registration can be tested without a
-  // real email delivery or worrying about stored-OTP expiry/attempts.
+  // Every code is checked against the hashed DB row — there is no bypass code.
   let otpRow: any = null;
 
-  if (rawOtp !== MOCK_OTP_CODE) {
+  {
     const { data } = await db.from('email_register_otps')
       .select('*')
       .eq('email', cleanEmail)
