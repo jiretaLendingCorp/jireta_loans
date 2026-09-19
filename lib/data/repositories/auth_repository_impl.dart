@@ -46,8 +46,14 @@ class AuthRepositoryImpl implements IAuthRepository {
     required String email,
     required String otp,
     required String newPassword,
+    String? currentPassword,
   }) =>
-      _ds.resetPassword(email: email, otp: otp, newPassword: newPassword);
+      _ds.resetPassword(
+        email: email,
+        otp: otp,
+        newPassword: newPassword,
+        currentPassword: currentPassword,
+      );
 
   @override
   Future<void> resetPasswordWithToken({

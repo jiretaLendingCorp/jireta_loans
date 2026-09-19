@@ -290,6 +290,7 @@ async function handleResetPassword(req: Request) {
   const email = sanitizeString(body["email"] ?? "").toLowerCase();
   const otp = sanitizeString((body["otp"] ?? body["code"] ?? body["token"]) as unknown);
   const new_password = body["new_password"] as string | undefined;
+  const current_password = sanitizeString(body["current_password"] ?? "");
 
   if (!email || !otp || !new_password) {
     return errorResponse("Email, OTP and new_password are required", 400, "VALIDATION_ERROR");
@@ -334,6 +335,41 @@ async function handleResetPassword(req: Request) {
     await db.from("email_otp_lockouts").upsert({ email, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: "email" });
     if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
     return errorResponse("Invalid OTP code", 400, "INVALID_OTP");
+  }
+
+  // ── Current password check ─────────────────────────────────────────────────
+  // The OTP proves the requester owns the mailbox; this proves they still know
+  // the existing password, so a mailbox-only compromise cannot silently take
+  // over the account. Optional for backwards compatibility with clients that
+  // predate the field, but always enforced when the client sends it.
+  if (current_password) {
+    const anonClient = getAnonClient();
+    const { error: signInError } = await anonClient.auth.signInWithPassword({
+      email,
+      password: current_password,
+    });
+    if (signInError) {
+      const detail = (signInError.message ?? "").toLowerCase();
+      // GoTrue throttling is not a wrong password — do not burn a lockout slot.
+      if (detail.includes("rate limit") || detail.includes("too many")) {
+        return errorResponse(
+          "Too many attempts. Please try again in a few minutes.",
+          429,
+          "RATE_LIMITED",
+        );
+      }
+      // Wrong password counts toward the same lockout as wrong OTP attempts,
+      // so the reset endpoint cannot be used to brute-force the password.
+      const newAttempts = lock.failedAttempts + 1;
+      const minutes = lockoutMinutes(newAttempts);
+      const lockedUntil = minutes > 0 ? new Date(Date.now() + minutes * 60000) : null;
+      await db.from("email_otp_lockouts").upsert({ email, failed_attempts: newAttempts, locked_until: lockedUntil?.toISOString() ?? null, updated_at: new Date().toISOString() }, { onConflict: "email" });
+      console.warn(`[reset-password] current password rejected for ${email} (attempt ${newAttempts})`);
+      if (lockedUntil) return lockoutError(lockedUntil, newAttempts);
+      // NOTE: 400 (not 401) — a 401 would trip the client's session-expiry
+      // interceptor and log the user out on a plain form validation error.
+      return errorResponse("Current password is incorrect.", 400, "INVALID_CURRENT_PASSWORD");
+    }
   }
 
   // OTP correct — get user

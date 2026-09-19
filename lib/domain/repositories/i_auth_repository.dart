@@ -9,8 +9,12 @@ abstract class IAuthRepository {
       {required String currentPassword, required String newPassword});
   Future<void> forgotPassword({required String email});
   Future<void> verifyResetOtp({required String email, required String otp});
-  Future<void> resetPassword(
-      {required String email, required String otp, required String newPassword});
+  Future<void> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+    String? currentPassword,
+  });
   // Legacy token-based reset kept for backwards compat (not used by new OTP flow)
   Future<void> resetPasswordWithToken(
       {required String token, required String newPassword});
