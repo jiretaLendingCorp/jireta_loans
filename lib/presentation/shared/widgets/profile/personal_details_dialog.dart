@@ -33,9 +33,9 @@ import '../philippines_address_field.dart';
 /// nakukumpleto ng account ang kanilang personal details, ipakita ang REQUIRED
 /// dialog bago sila makapagpatuloy sa dashboard.
 ///
-/// Ito ang reliable na gate: hindi naaasa sa `force_password_change` (na
-/// `false` na kapag nakapag-change na ng password), kaya siguradong lalabas
-/// ito sa unang pagpasok ng staff account sa dashboard.
+/// DASHBOARD-ONLY gate: huwag itong tawagin sa ForceChangePasswordScreen.
+/// Flow: login → /force-change-password (password lang) → logout → login
+/// ulit → dashboard → dito lang lalabas ang dialog.
 Future<void> runStaffProfileOnboarding(
     BuildContext context, WidgetRef ref) async {
   final authState = ref.read(authStateProvider);
@@ -43,6 +43,9 @@ Future<void> runStaffProfileOnboarding(
   final isStaff = role == AppConstants.roleHeadManager ||
       role == AppConstants.roleEmployee;
   if (!isStaff) return;
+  // Kapag naka-force-change-password pa, sa /force-change-password dapat
+  // ang user — hindi dito sa dashboard magpapakita ng dialog.
+  if (authState.forcePasswordChange) return;
   final userId = authState.user?.id ?? (await SecureStorage.getUserId() ?? '');
   if (userId.isEmpty) return;
   if (await SecureStorage.isProfileOnboardingDone(userId)) return;
@@ -81,16 +84,20 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
   ];
 
   final _phoneCtrl = TextEditingController();
+  final _firstCtrl = TextEditingController();
+  final _middleCtrl = TextEditingController();
+  final _lastCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   // Keys ng bawat field — para ma-scroll pabalik sa pinaka-unang field na may
   // red validation error kapag pinindot ang Save.
+  final _firstKey = GlobalKey();
+  final _lastKey = GlobalKey();
   final _phoneKey = GlobalKey();
   final _genderKey = GlobalKey();
   final _civilKey = GlobalKey();
   final _dobKey = GlobalKey();
   final _addressKey = GlobalKey<PhilippinesAddressFieldState>();
 
-  String _fullName = '';
   String _email = '';
   String? _gender;
   String? _civilStatus;
@@ -105,6 +112,8 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
   // Validation errors sa bawat field — inline silang ipinapakita sa card ng
   // kaukulang input, at awtomatikong nawawala pagkalipas ng 3 segundo.
   bool _showErrors = false;
+  String? _firstError;
+  String? _lastError;
   String? _phoneError;
   String? _genderError;
   String? _civilError;
@@ -122,6 +131,9 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
     _errorTimer?.cancel();
     _scrollCtrl.dispose();
     _phoneCtrl.dispose();
+    _firstCtrl.dispose();
+    _middleCtrl.dispose();
+    _lastCtrl.dispose();
     super.dispose();
   }
 
@@ -146,17 +158,49 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
   }
 
   void _applyProfile(UserModel user) {
-    _fullName = [
-      user.firstName,
-      user.middleName,
-      user.lastName,
-      user.suffix,
-    ].where((p) => p != null && p.trim().isNotEmpty).join(' ');
+    // Editable na ang pangalan dito (dati read-only na full name) — para
+    // maitama ng bagong head manager / employee ang kanilang pangalan
+    // bago magpatuloy sa dashboard.
+    //
+    // BLANKO ang dummy placeholders na nilalagay pag-create ng account
+    // (e.g. First="Head", Last="Manager") — hindi sila pre-filled, kaya
+    // required na itype ng user ang tunay na pangalan.
+    _firstCtrl.text = _cleanName(user.firstName);
+    _middleCtrl.text = _cleanName(user.middleName);
+    _lastCtrl.text = _cleanName(user.lastName);
     _email = user.email ?? '';
     _phoneCtrl.text = user.phoneNumber ?? '';
     _gender = _pick(_genders, user.gender);
     _civilStatus = _pick(_civilStatuses, user.civilStatus);
     _dob = user.dateOfBirth;
+  }
+
+  /// Dummy placeholders mula sa account creation (hindi tunay na pangalan).
+  /// Kapag ganito ang naka-save, ibablanko sa dialog para mapilitang mag-type
+  /// ng tunay na pangalan ang user.
+  static const _namePlaceholders = {
+    'head',
+    'manager',
+    'head manager',
+    'headmanager',
+    'admin',
+    'administrator',
+    'employee',
+    'staff',
+    'test',
+    'user',
+    'new',
+    'unknown',
+    'n/a',
+    'na',
+    '-',
+  };
+
+  String _cleanName(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return '';
+    if (_namePlaceholders.contains(v.toLowerCase())) return '';
+    return v;
   }
 
   /// Ibinalik ang normalized value kapag kasama ito sa listahan ng dropdown
@@ -168,6 +212,11 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
 
   /// Kinukwenta ang kasalukuyang validation errors para sa inline display.
   void _computeErrors() {
+    _firstError = _firstCtrl.text.trim().isEmpty
+        ? 'First name is required'
+        : null;
+    _lastError =
+        _lastCtrl.text.trim().isEmpty ? 'Last name is required' : null;
     _phoneError = AppValidators.phone(_phoneCtrl.text.trim());
     _genderError =
         (_gender == null || _gender!.isEmpty) ? 'Gender is required' : null;
@@ -193,8 +242,12 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
   /// Ini-scroll pabalik ang form sa PINAKA-UNANG field na may red validation
   /// error, para agad itong makita ng user imbes na nakatago sa ibaba.
   void _scrollToFirstError(bool addressOk) {
-    final GlobalKey? key = _phoneError != null
-        ? _phoneKey
+    final GlobalKey? key = _firstError != null
+        ? _firstKey
+        : _lastError != null
+            ? _lastKey
+            : _phoneError != null
+                ? _phoneKey
         : _genderError != null
             ? _genderKey
             : _civilError != null
@@ -233,7 +286,9 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
     // Ipakita agad ang inline errors ng address field (Region/Province/City/
     // Barangay/Street) bago kunin ang resulta nito.
     final addressOk = _addressKey.currentState?.validate() ?? false;
-    final hasFieldErrors = _phoneError != null ||
+    final hasFieldErrors = _firstError != null ||
+        _lastError != null ||
+        _phoneError != null ||
         _genderError != null ||
         _civilError != null ||
         _dobError != null;
@@ -248,6 +303,9 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
     setState(() => _saving = true);
     final addr = _addressKey.currentState;
     final payload = <String, dynamic>{
+      'first_name': _firstCtrl.text.trim(),
+      'last_name': _lastCtrl.text.trim(),
+      'middle_name': _middleCtrl.text.trim(),
       'phone_number': _phoneCtrl.text.trim(),
       'employee_profile': {
         'gender': _gender,
@@ -453,9 +511,39 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
                   ),
                   const SizedBox(height: 14),
                 ],
-                const _FieldLabel('Full Name'),
+                const _FieldLabel('First Name'),
                 const SizedBox(height: 8),
-                _readOnlyRow(_fullName.isEmpty ? '—' : _fullName),
+                TextFormField(
+                  key: _firstKey,
+                  controller: _firstCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  maxLength: 50,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: _dec('Enter first name',
+                      errorText: _fieldError(_firstError)),
+                ),
+                const SizedBox(height: 16),
+                const _FieldLabel('Middle Name (optional)'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _middleCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  maxLength: 50,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: _dec('Enter middle name'),
+                ),
+                const SizedBox(height: 16),
+                const _FieldLabel('Last Name'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: _lastKey,
+                  controller: _lastCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  maxLength: 50,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: _dec('Enter last name',
+                      errorText: _fieldError(_lastError)),
+                ),
                 const SizedBox(height: 16),
                 const _FieldLabel('Email Address'),
                 const SizedBox(height: 8),
@@ -644,7 +732,7 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
     );
   }
 
-  /// Read-only na display ng Full Name / Email — kaparehong hugis ng input.
+  /// Read-only na display ng Email — kaparehong hugis ng input.
   Widget _readOnlyRow(String value) {
     return Container(
       width: double.infinity,

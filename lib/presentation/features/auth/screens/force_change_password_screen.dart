@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../shared/widgets/profile/personal_details_dialog.dart';
 import '../providers/auth_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -45,10 +44,6 @@ class _ForceChangePasswordScreenState
   bool _confirmHovered = false;
   bool _btnHovered = false;
 
-  /// Isang beses lang ipapakita ang Personal Details dialog sa loob ng screen
-  /// na ito (para hindi ito mag-reopen sa bawat rebuild).
-  bool _personalDetailsShown = false;
-
   @override
   void initState() {
     super.initState();
@@ -56,20 +51,11 @@ class _ForceChangePasswordScreenState
     for (final f in [_currentFocus, _newFocus, _confirmFocus]) {
       f.addListener(_onFocusChange);
     }
-    // FIRST LOGIN — bagong head manager / employee account: dito sila
-    // dumederecho pagka-login (force change password guard). Bago pa man ang
-    // password form — at bago ang dashboard — REQUIRED na punan muna ang
-    // personal details sa dialog. Ito ang pinaka-reliable na lugar dahil hindi
-    // na umaaabot ang login screen (inaalis agad ito ng router redirect).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showPersonalDetailsDialog();
-    });
-  }
-
-  Future<void> _showPersonalDetailsDialog() async {
-    if (!mounted || _personalDetailsShown) return;
-    _personalDetailsShown = true;
-    await PersonalDetailsDialog.show(context);
+    // NOTE: walang PersonalDetailsDialog dito. Ang staff onboarding dialog
+    // ay sa dashboard lang lumalabas (HmDashboardScreen /
+    // EmpDashboardScreen via runStaffProfileOnboarding) — i.e. pagkatapos
+    // mag-force-change-password + muling mag-login. Kapag dito ito
+    // ipinakita, matatakpan ang password form sa /force-change-password.
   }
 
   void _onFocusChange() {
