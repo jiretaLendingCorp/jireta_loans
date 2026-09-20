@@ -123,6 +123,11 @@ void main() {
       service = MpinService(storage: storage);
     });
 
+    test('tatlong attempts lang bago ma-lock', () {
+      // Sadyang 3 (hindi 5) — mahigpit na dahil 4-digit lang ang MPIN.
+      expect(MpinService.maxAttempts, 3);
+    });
+
     test('isValidFormat accepts only 4 digits', () {
       expect(MpinService.isValidFormat('1234'), isTrue);
       expect(MpinService.isValidFormat('0000'), isTrue);

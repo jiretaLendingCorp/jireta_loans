@@ -12,6 +12,10 @@ class RouteConstants {
   static const String webRegister = '/register';
   static const String mobileLogin = '/mobile-login';
   static const String otpVerify = '/otp-verify';
+
+  /// Rider / lender: required na pag-set ng 4-digit MPIN pagkatapos ng OTP.
+  /// Ito na ang gagamitin sa susunod na login.
+  static const String mpinSetup = '/mpin-setup';
   static const String forceChangePassword = '/force-change-password';
   static const String forgotPassword = '/forgot-password';
   static const String resetPassword = '/reset-password';

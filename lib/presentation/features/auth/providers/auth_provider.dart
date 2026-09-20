@@ -312,6 +312,18 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         userId: userData['id'],
         role: userData['role'],
       );
+      // Tandaan ang numerong ito: sa susunod na pagbukas ng app, ito na ang
+      // ipapakita sa itaas ng MPIN screen (hindi na kailangan ng OTP).
+      await SecureStorage.saveLoginPhone(
+        (userData['phone_number'] as String?) ?? phone,
+      );
+      // Itinala rin kung KANINONG account ang naka-lock sa device na ito, para
+      // kahit mawala ang session (expire / revoke / clearAll) ay hindi mawawala
+      // ang MPIN screen na may numero para sa rider / lender.
+      await SecureStorage.saveLoginOwner(
+        userId: '${userData['id'] ?? ''}',
+        role: '${userData['role'] ?? ''}',
+      );
       await SecureStorage.saveSessionStartedAt(
           JwtParser.sessionStartFromToken(token));
       await SecureStorage.saveLastActivity(DateTime.now().toUtc());
@@ -530,6 +542,21 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     // seconds, and AuthState.isLoggingOut is only set once it starts.
     _authState.setLoggingOut();
     try {
+      // ── Rider / lender na may MPIN sa device na ito: "Logout" = LOCK ──────
+      // Hindi tinatapos ang session (walang server logout / supabase sign-out)
+      // para ang MPIN mismo ang makapag-unlock pagkatapos. Ito ang dahilan kung
+      // bakit hindi na lumalabas ang "Session expired" kapag ipinasok muli ang
+      // MPIN pagkatapos mag-logout — at hindi na kailangang hintayin ang 10
+      // minutong idle bago pa makapasok ulit.
+      final lockOnly = await _authState.hasMpinLockForCurrentUser();
+      if (kDebugMode) {
+        debugPrint('[MPIN] logout → lockOnly=$lockOnly '
+            '(true = hindi tinatapos ang session)' );
+      }
+      if (lockOnly) {
+        await _authState.lockForMpinUnlock();
+        return;
+      }
       try {
         await _ds.logout();
       } catch (_) {}

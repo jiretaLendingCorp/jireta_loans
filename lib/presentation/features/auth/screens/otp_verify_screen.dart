@@ -6,14 +6,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/security/mpin_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
+/// Ang dinadaang argumento ng [RouteConstants.otpVerify] (`GoRouterState.extra`).
+///
+/// Ang `resetMpin` ay para sa "Reset MPIN" mula sa MPIN screen ng login page —
+/// ipinapakita nito ang label na iyon dito sa OTP screen para malinaw sa user
+/// na hindi ito ordinaryong login kundi pag-reset ng MPIN.
+class OtpFlowArgs {
+  const OtpFlowArgs({required this.phone, this.resetMpin = false});
+
+  final String phone;
+  final bool resetMpin;
+}
+
 class OtpVerifyScreen extends ConsumerStatefulWidget {
   final String phone;
-  const OtpVerifyScreen({super.key, required this.phone});
+
+  /// True kapag galing sa "Reset MPIN" — nagbabago ang titulo/label ng screen.
+  final bool resetMpin;
+
+  const OtpVerifyScreen({
+    super.key,
+    required this.phone,
+    this.resetMpin = false,
+  });
 
   @override
   ConsumerState<OtpVerifyScreen> createState() => _OtpVerifyScreenState();
@@ -151,22 +172,41 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     setState(() => _loading = false);
     if (ok) {
       final state = ref.read(authStateProvider);
-      if (state.forcePasswordChange) {
-        final role = state.role;
-        if (role == AppConstants.roleRider || role == AppConstants.roleLender) {
-          switch (role) {
-            case AppConstants.roleRider:
-              context.go(RouteConstants.riderDashboard);
-              break;
-            case AppConstants.roleLender:
-              context.go(RouteConstants.lenderDashboard);
-              break;
-            default:
-              context.go(RouteConstants.mobileLogin);
-          }
-        } else {
-          context.go(RouteConstants.forceChangePassword);
+      final role = state.role;
+      final isRiderOrLender = role == AppConstants.roleRider ||
+          role == AppConstants.roleLender;
+      // ── Rider / lender (mobile): palaging dumadaan muna sa MPIN ──────────
+      // Hindi ito deretsong pumapasok sa dashboard pagkatapos ng OTP:
+      //   * wala pang MPIN  → MPIN setup (ito na ang gagamitin sa susunod);
+      //   * may MPIN na     → "locked" state, kaya ang MPIN screen na may
+      //                       numerong ginamit ang lalabas (pagkatapos ng
+      //                       tamang MPIN pa lang makakapasok sa dashboard).
+      // Kapareho ito ng nangyayari sa pagbukas muli ng app pagkatapos itong
+      // isara, kaya iisa ang takbo ng dalawang pagkakataon.
+      if (isRiderOrLender) {
+        // Sa "Reset MPIN" na takbo, NGAYON pa lang (pagkatapos ng matagumpay na
+        // OTP) binubura ang lumang MPIN. Kung nag-back ang user bago ito,
+        // hindi nasisira ang dating MPIN at babalik siya sa MPIN screen na may
+        // numero — hindi sa "Mobile Number" form.
+        if (widget.resetMpin) {
+          try {
+            await ref.read(mpinServiceProvider).clear();
+          } catch (_) {}
+          if (!mounted) return;
         }
+        final hasMpin = await ref.read(mpinServiceProvider).isSet();
+        if (!mounted) return;
+        if (!hasMpin) {
+          context.go(RouteConstants.mpinSetup);
+          return;
+        }
+        await ref.read(authStateProvider.notifier).lockForMpinUnlock();
+        if (!mounted) return;
+        context.go(RouteConstants.mobileLogin);
+        return;
+      }
+      if (state.forcePasswordChange) {
+        context.go(RouteConstants.forceChangePassword);
       } else {
         final role = state.role;
         switch (role) {
@@ -785,9 +825,42 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                               top: 32.0 - keyboardInset * 0.5,
                               left: 20,
                               right: 20,
-                              child: const Column(
+                              child: Column(
                                 children: [
-                                  Text(
+                                  // Malinaw na ito ay pag-reset ng MPIN, hindi
+                                  // ordinaryong login.
+                                  if (widget.resetMpin) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold
+                                            .withValues(alpha: 0.16),
+                                        borderRadius:
+                                            BorderRadius.circular(99),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.lock_reset_rounded,
+                                              size: 13,
+                                              color: AppColors.deepNavy),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Reset MPIN',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.8,
+                                              color: AppColors.deepNavy,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                  ],
+                                  const Text(
                                     'Verify OTP',
                                     style: TextStyle(
                                       fontSize: 24,
@@ -796,10 +869,15 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                       height: 1.2,
                                     ),
                                   ),
-                                  SizedBox(height: 6),
+                                  const SizedBox(height: 6),
                                   Text(
-                                    'We sent a 6-digit code to your phone.',
-                                    style: TextStyle(
+                                    widget.resetMpin
+                                        ? 'We sent a 6-digit code to reset '
+                                            'your MPIN.'
+                                        : 'We sent a 6-digit code to your '
+                                            'phone.',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
                                       fontSize: 13,
                                       color: AppColors.textSecondary,
                                     ),

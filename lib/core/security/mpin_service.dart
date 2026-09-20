@@ -80,7 +80,8 @@ class MpinService {
   static const int pinLength = 4;
 
   /// Ilang maling attempt bago pansamantalang i-lock ang MPIN input.
-  static const int maxAttempts = 5;
+  /// (Tatlo lang — mahigpit na ito dahil 4-digit lang ang MPIN.)
+  static const int maxAttempts = 3;
 
   /// Tagal ng lockout pagkatapos maubos ang attempts.
   static const Duration lockoutDuration = Duration(seconds: 60);
@@ -131,6 +132,11 @@ class MpinService {
       throw ArgumentError('MPIN must be exactly $pinLength digits');
     }
     final scope = await _scope();
+    // Itanda ang scope na ito — dito hahanapin ang MPIN kapag nawala na ang
+    // lahat ng session key (hal. pagkatapos ng logout).
+    try {
+      await _storage.write(key: _lastScopeKey, value: scope);
+    } catch (_) {}
 
     final everSet = (await _storage.read(key: _setupDoneKey(scope))) == '1';
     if (everSet) {
@@ -229,23 +235,72 @@ class MpinService {
         await _storage.delete(key: key);
       } catch (_) {}
     }
+    // Kapag ito mismo ang nasa dulo ng `_lastScopeKey`, alisin na rin — wala na
+    // namang MPIN sa scope na iyon.
+    try {
+      if (await _storage.read(key: _lastScopeKey) == scope) {
+        await _storage.delete(key: _lastScopeKey);
+      }
+    } catch (_) {}
     AppLogger.i('[MPIN] MPIN cleared for scope=$scope');
   }
 
   // ── Internals ────────────────────────────────────────────────────────────
 
-  /// Ang user id ang scope ng bawat key. Bago ang unang successful na
-  /// login (o sa web na hindi pa naka-hydrate) `guest` ang gamit para hindi
-  /// mag-crash — normal nang wala pang MPIN sa ganoong state.
+  /// Ang user id ang scope ng bawat key.
+  ///
+  /// Kapag nawala na ang session key (hal. na-expire o na-revoke ang session,
+  /// o na-`clearAll`), ginagamit ang natandaang "lock owner" ng device — ang
+  /// huling rider / lender na nag-log in. Sa ganoon, hindi nawawala ang MPIN
+  /// dahil lang sa session: ang MPIN screen pa rin ang unang lalabas.
+  ///
+  /// Bago ang unang successful na login (o sa web na hindi pa naka-hydrate)
+  /// `guest` ang gamit para hindi mag-crash — normal nang wala pang MPIN sa
+  /// ganoong state.
   Future<String> _scope() async {
     try {
       final id = await SecureStorage.getUserId();
       if (id != null && id.trim().isNotEmpty) return id.trim();
+      final owner = await SecureStorage.getLoginOwnerId();
+      if (owner != null && owner.trim().isNotEmpty) return owner.trim();
+      // Natandaang scope (nakatago tuwing `setMpin`) — para sa mga install na
+      // wala pang owner record, o kung nabura ang lahat ng session key.
+      final last = await _storage.read(key: _lastScopeKey);
+      if (last != null && last.trim().isNotEmpty) return last.trim();
+      // Huling pag-asa: hanapin mismo sa storage kung aling scope ang may
+      // naka-save na MPIN.
+      final found = await _scopeWithSavedMpin();
+      if (found != null) return found;
     } catch (_) {}
     return 'guest';
   }
 
-  String _hashKey(String scope) => 'app_mpin_hash_$scope';
+  /// Hahanapin sa storage ang natitirang MPIN hash at ibabalik ang scope nito.
+  /// Ginagamit lang kapag wala nang userId / owner record (hal. pagkatapos ng
+  /// logout o ng mas lumang install) — kung hindi, hindi na makikita ang MPIN at
+  /// "Mobile Number" form ang lalabas imbes na "Enter MPIN".
+  Future<String?> _scopeWithSavedMpin() async {
+    try {
+      final all = await _storage.readAll();
+      final match = all.entries.firstWhere(
+        (e) => e.key.startsWith(_hashPrefix) && e.value.isNotEmpty,
+        orElse: () => const MapEntry('', ''),
+      );
+      final scope = match.key.substring(_hashPrefix.length);
+      if (scope.isEmpty || scope == 'guest') return null;
+      return scope;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static const String _hashPrefix = 'app_mpin_hash_';
+
+  /// Key na nagtatanda kung anong scope ang huling ginamit ng MPIN. Kasama ito
+  /// sa mga MPIN key, kaya hindi ito nabubura ng `SecureStorage.clearAll()`.
+  static const String _lastScopeKey = 'app_mpin_last_scope';
+
+  String _hashKey(String scope) => '$_hashPrefix$scope';
   String _saltKey(String scope) => 'app_mpin_salt_$scope';
   String _failKey(String scope) => 'app_mpin_fails_$scope';
   String _lockKey(String scope) => 'app_mpin_lock_$scope';

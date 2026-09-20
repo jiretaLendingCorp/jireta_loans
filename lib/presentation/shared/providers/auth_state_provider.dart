@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/role_constants.dart';
 import '../../../core/security/jwt_parser.dart';
+import '../../../core/security/mpin_service.dart';
 import '../../../core/security/session_events.dart';
 import '../../../core/security/session_ping.dart';
 import '../../../core/security/session_refresher.dart';
@@ -124,17 +125,36 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _scheduleExpiryCheck();
   }
 
-  Future<void> initialize() async {
+  /// [unlockedByMpin] = tinawag ito pagkatapos ng tamang MPIN sa login page,
+  /// kaya hindi na kailangang humingi muli ng MPIN.
+  Future<void> initialize({bool unlockedByMpin = false}) async {
     final revision = _authRevision;
     state = state.copyWith(isLoading: true);
     try {
       // ── 10-minute idle session check ───────────────────────────────────
       // hasValidSession now checks both token existence AND idle expiry.
       final hasSession = await SecureStorage.hasValidSession();
+      if (kDebugMode) {
+        // Isang linya lang: ito ang lahat ng kailangan para malaman kung bakit
+        // hindi naka-authenticate pagkatapos ng MPIN unlock.
+        final token = await SecureStorage.getAccessToken();
+        final refresh = await SecureStorage.getRefreshToken();
+        final dbgUserId = await SecureStorage.getUserId();
+        final dbgRole = await SecureStorage.getUserRole();
+        final dbgOwnerId = await SecureStorage.getLoginOwnerId();
+        final dbgIdle = await SecureStorage.getRemainingIdleTime();
+        debugPrint('[JWT] initialize: hasSession=$hasSession '
+            'token=${token != null} refresh=${refresh != null} '
+            'userId=$dbgUserId role=$dbgRole ownerId=$dbgOwnerId '
+            'idle=${dbgIdle?.inSeconds}s unlockedByMpin=$unlockedByMpin');
+      }
       if (revision != _authRevision || !mounted) return;
       if (hasSession) {
         final userId = await SecureStorage.getUserId();
-        final role = await SecureStorage.getUserRole();
+        // Fallback sa natandaang "lock owner" kung nabura na ang session role —
+        // kailangan ito para hindi mawala ang MPIN lock ng rider / lender.
+        final role = await SecureStorage.getUserRole() ??
+            await SecureStorage.getLoginOwnerRole();
         if (revision != _authRevision || !mounted) return;
         if (userId != null &&
             role != null &&
@@ -216,7 +236,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
                   case SessionRefreshResult.authRejected:
                     if (kDebugMode) {
                       debugPrint(
-                          '[JWT] initialize: soft refresh rejected → hard logout');
+                          '[JWT] initialize: soft refresh REJECTED (401 o idle) → hard logout');
                     }
                     AppLogger.debug(
                         '[JWT] initialize: soft refresh rejected → clear');
@@ -250,6 +270,17 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
             }
           }
 
+          // Rider / lender (mobile) na may 4-digit MPIN: HINDI awtomatikong
+          // pumapasok sa dashboard. Naka-lock ang app — sa pagbukas nito ay
+          // ang login page (na may numero sa itaas) ang unang lalabas, MPIN
+          // muna. Ang [unlockedByMpin] ang nagbibigay-daan pagkatapos ng
+          // tamang MPIN.
+          if (!unlockedByMpin && !kIsWeb && await _hasMpinLock(role: role)) {
+            if (revision != _authRevision || !mounted) return;
+            await _lockForMpin();
+            return;
+          }
+
           state = AuthState(
             isAuthenticated: true,
             user: UserModel(
@@ -268,6 +299,11 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         }
       }
       if (revision != _authRevision || !mounted) return;
+      if (kDebugMode) {
+        debugPrint('[JWT] initialize → HINDI naka-authenticate: walang valid na '
+            'session (kulang ang tokens / userId / role, o na-expire ang idle). '
+            'unlockedByMpin=$unlockedByMpin');
+      }
       state = const AuthState(isAuthenticated: false);
     } catch (e) {
       if (kDebugMode) debugPrint('[JWT] initialize error: $e');
@@ -360,6 +396,14 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       // "This account is already signed in on another device."
       await SessionRevoker.revoke();
       await SecureStorage.clearAll();
+      // SADYANG hindi binubura ang natandaang numero at ang MPIN lock owner:
+      // para sa rider / lender, ang MPIN na ang paraan ng pagpasok — kaya kahit
+      // ma-close o maka-sign out, ang "Enter MPIN" screen (na may numero) pa rin
+      // ang unang lalabas sa pagbukas ng app. Ang tanging paraan para
+      // makalimutan ito ay ang "Use another number" sa MPIN screen (o ang
+      // Reset MPIN + bagong OTP). Wala nang session/tokens pagkatapos ng
+      // logout, kaya kung hindi ma-restore ang session, babalik pa rin sa
+      // mobile number + OTP.
     } finally {
       if (mounted) {
         state = const AuthState(isAuthenticated: false, isLoggingOut: false);
@@ -505,14 +549,108 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Idle 10-minute expiry: session MUST end, require re-login.
+  /// Idle 10-minute expiry.
+  ///
+  /// Rider / lender na MAY naka-set nang 4-digit MPIN: i-LOCK lang ang app
+  /// sa halip na tuluyang i-logout — hindi binubura ang tokens at userId, at
+  /// ang MPIN ang mag-u-unlock (tingnan ang [MobileLoginScreen]). Ito ang
+  /// dahilan kung bakit "MPIN na lang" ang hihingin sa susunod na login.
+  ///
+  /// Walang MPIN (o staff role) → dating behavior: hard logout at kailangan
+  /// ng OTP/password muli.
   Future<void> _onIdleExpired() async {
+    if (await _hasMpinLock()) {
+      // Natapos ang session pero may MPIN: i-lock lang (hindi i-logout) at
+      // ipakita ang "Session Ended / please log in again" na modal bago ang
+      // MPIN screen.
+      await _lockForMpin(notify: true);
+      return;
+    }
     if (kDebugMode) {
       debugPrint(
           '[JWT] idle 10m session expired → hard logout, require re-login');
     }
     AppLogger.debug('[JWT] idle 10m expired → hard logout');
     await _onSessionExpired();
+  }
+
+  /// True kapag rider / lender ang naka-log in at may naka-set nang MPIN sa
+  /// device na ito — iyon ang senyales na "i-lock, huwag i-logout".
+  ///
+  /// Kailangang maipasa ang [role] mula sa secure storage sa panahon ng
+  /// `initialize()` — doon kasi wala pang laman ang `state.user` (null ang
+  /// `state.role` sa cold start).
+  Future<bool> _hasMpinLock({String? role}) async {
+    final effectiveRole =
+        role ?? state.role ?? await SecureStorage.getLoginOwnerRole();
+    final isMobileRole = effectiveRole == AppConstants.roleRider ||
+        effectiveRole == AppConstants.roleLender;
+    if (!isMobileRole) {
+      // Malinaw na staff role → hindi ito nilo-lock ng MPIN.
+      if (effectiveRole != null) {
+        if (kDebugMode) {
+          debugPrint('[MPIN] hasMpinLock=false (staff role=$effectiveRole)');
+        }
+        return false;
+      }
+      // Wala nang role record kahit saan (hal. nabura ng logout o ng mas
+      // lumang install): kung may natandaang numero naman at may MPIN,
+      // i-lock pa rin sa halip na tuluyang i-logout — para ang "Enter MPIN"
+      // na may switch number pa rin ang lumabas.
+      if (await SecureStorage.getLoginPhone() == null) {
+        if (kDebugMode) {
+          debugPrint('[MPIN] hasMpinLock=false (walang role at walang numero)');
+        }
+        return false;
+      }
+    }
+    try {
+      final isSet = await MpinService().isSet();
+      if (kDebugMode) {
+        debugPrint(
+            '[MPIN] hasMpinLock=$isSet (role=$effectiveRole, lockOnly check)');
+      }
+      return isSet;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[MPIN] hasMpinLock=false (isSet error: $e)');
+      return false;
+    }
+  }
+
+  /// Inilalagay ang app sa "locked" state: hindi na authenticated (para
+  /// tumalon pabalik sa login/MPIN screen ang router) pero hindi ginagalaw
+  /// ang secure storage — kailangan pa ng userId (scope ng MPIN) at ng refresh
+  /// token para makapasok ulit gamit ang MPIN.
+  ///
+  /// Pampubliko ito dahil ginagamit din ng MPIN setup screen: pagkatapos
+  /// ma-set ang MPIN, dumadaan muna ang user sa MPIN screen ng login page
+  /// (kasama ang numerong ginamit) bago makarating sa dashboard.
+  Future<void> lockForMpinUnlock() => _lockForMpin();
+
+  /// True kapag rider / lender na may MPIN sa device na ito.
+  ///
+  /// Ginagamit ito ng [AuthNotifier.logout]: para sa kanila, ang "Logout" ay
+  /// LOCK lang (hindi tinatapos ang session) — kaya pagkatapos mag-logout ay
+  /// hindi lang basta "Enter MPIN" ang lalabas, kundi **gagana** rin agad ito
+  /// nang walang "session expired" at walang hintay na 10 minuto.
+  Future<bool> hasMpinLockForCurrentUser() => _hasMpinLock();
+
+  /// [notify] = `true` kapag NATAPOS talaga ang session (10-minute idle limit),
+  /// kaya dapat may "Session Ended" na modal bago ang MPIN screen. Mananatiling
+  /// `false` sa pagbukas lang ng app at pagkatapos ng MPIN setup — doon ay
+  /// tahimik lang na naka-lock.
+  Future<void> _lockForMpin({bool notify = false}) async {
+    _expiryTimer?.cancel();
+    _isRefreshing = false;
+    if (!mounted) return;
+    AppLogger.debug('[JWT] idle 10m expired → locked for MPIN unlock');
+    if (kDebugMode) {
+      debugPrint('[JWT] idle 10m expired → MPIN lock (session kept)');
+    }
+    state = state.copyWith(
+      isAuthenticated: false,
+      securityMessage: notify ? kSessionEndedMessage : null,
+    );
   }
 
   /// Soft JWT expiry within the 10m window: try refresh WITHOUT extending idle.

@@ -13,6 +13,7 @@ import '../../presentation/features/rider/live_tracking/screens/rider_live_track
 import '../../presentation/features/auth/screens/force_change_password_screen.dart';
 import '../../presentation/features/auth/screens/forgot_password_screen.dart';
 import '../../presentation/features/auth/screens/mobile_login_screen.dart';
+import '../../presentation/features/auth/screens/mpin_setup_screen.dart';
 import '../../presentation/features/auth/screens/otp_verify_screen.dart';
 import '../../presentation/features/auth/screens/reset_password_screen.dart';
 import '../../presentation/features/auth/screens/splash_screen.dart';
@@ -255,8 +256,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // The one-time post-login Terms page is an authenticated overlay:
         // logged-in users may stay on it (it pops back to the dashboard
         // after acceptance) instead of being bounced to their dashboard.
+        // Same for the required MPIN setup right after OTP verification —
+        // kailangang manatili ito hangga't hindi naka-set ang MPIN.
         if (path != RouteConstants.forceChangePassword &&
             path != RouteConstants.terms &&
+            path != RouteConstants.mpinSetup &&
             !publicRoutes.contains(path)) {
           return redirectForRole(path, authState.role);
         }
@@ -271,9 +275,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           RouteConstants.forgotPassword,
           RouteConstants.resetPassword,
         ];
+        // ── Rider / lender MPIN handoff ─────────────────────────────────
+        // Pagkatapos ng `verifyOtp` ay naka-authenticated na ang rider /
+        // lender, PERO hindi pa sila dapat itulak sa dashboard: ang OTP
+        // screen mismo ang nagdadala sa kanila sa MPIN step (setup kung wala
+        // pa, o MPIN screen na may numero kung naka-set na). Kung hahayaan
+        // ang router na tumalon dito, mabubuksan ang dashboard — at doon
+        // lumalabas ang Terms & Conditions — bago pa man makarating sa MPIN.
+        final isMpinHandoff =
+            path == RouteConstants.otpVerify &&
+                (authState.role == AppConstants.roleRider ||
+                    authState.role == AppConstants.roleLender);
+
         if (publicRoutes.contains(path) &&
             !resetFlowRoutes.contains(path) &&
-            !authState.forcePasswordChange) {
+            !authState.forcePasswordChange &&
+            !isMpinHandoff) {
           final role = authState.role;
           switch (role) {
             case AppConstants.roleHeadManager:
@@ -312,8 +329,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           builder: (ctx, s) => const MobileLoginScreen()),
       GoRoute(
           path: RouteConstants.otpVerify,
-          builder: (ctx, s) =>
-              OtpVerifyScreen(phone: s.extra as String? ?? '')),
+          builder: (ctx, s) {
+            // Ang `extra` ay String (ordinaryong login) o [OtpFlowArgs]
+            // (hal. "Reset MPIN" na galing sa MPIN screen ng login page).
+            final extra = s.extra;
+            if (extra is OtpFlowArgs) {
+              return OtpVerifyScreen(
+                phone: extra.phone,
+                resetMpin: extra.resetMpin,
+              );
+            }
+            return OtpVerifyScreen(phone: extra as String? ?? '');
+          }),
+      GoRoute(
+          path: RouteConstants.mpinSetup,
+          builder: (ctx, s) => const MpinSetupScreen()),
       GoRoute(
           path: RouteConstants.forceChangePassword,
           builder: (ctx, s) => const ForceChangePasswordScreen()),

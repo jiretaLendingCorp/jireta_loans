@@ -1,5 +1,6 @@
 // lib/presentation/features/auth/screens/mobile_login_screen.dart
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,13 +9,19 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/security/mpin_login_gate.dart';
+import '../../../../core/security/mpin_service.dart';
+import '../../../../core/security/secure_storage.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
+import '../../../shared/widgets/dialogs/loading_dialog.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../shared/widgets/legal_links.dart';
 import '../../../shared/widgets/offline_toast.dart';
+import '../../../shared/widgets/security/mpin_keypad.dart';
 import '../providers/auth_provider.dart';
+import 'otp_verify_screen.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class MobileLoginScreen extends ConsumerStatefulWidget {
@@ -27,8 +34,10 @@ class MobileLoginScreen extends ConsumerStatefulWidget {
 class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     with SingleTickerProviderStateMixin {
   final _phoneCtrl = TextEditingController();
+  // Lokal na 10-digit na numero (9XX XXX XXXX). Ang `+63` ay prefix na lang sa
+  // field — hindi na kailangang i-type ng user ang `0` o ang `+63`.
   final _phoneMask = MaskTextInputFormatter(
-    mask: '#### ### ####',
+    mask: '### ### ####',
     filter: {'#': RegExp(r'[0-9]')},
   );
 
@@ -41,6 +50,30 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   bool _googleFlowCancelled = false;
   Timer? _lockTimer;
   int _lockSecondsLeft = 0;
+
+  // ── MPIN unlock (rider / lender) ─────────────────────────────────────────
+  // Kapag naka-lock ang app (10-min idle) at may naka-set nang MPIN para sa
+  // huling numerong ginamit, MPIN na lang ang hihingin — nasa itaas ang
+  // numerong iyon, at ang digits ay ipinapasok sa 4 na tuldok + keypad.
+  bool _mpinChecking = true;
+  bool _showMpin = false;
+
+  /// True kapag may naka-set nang MPIN para sa natandaang numero — kahit nasa
+  /// "Mobile Number" form na (pagkatapos ng "Use another number"), hindi na
+  /// dapat makalabas ang system back nang hindi dumadaan sa MPIN screen.
+  bool _hasMpin = false;
+  String? _mpinPhone;
+  String? _mpinError;
+  bool _mpinBusy = false;
+  int _mpinLockSeconds = 0;
+  Timer? _mpinLockTimer;
+
+  /// Auto-hide ng validation message (hal. "Incorrect MPIN") — 3 segundo lang.
+  Timer? _mpinErrorTimer;
+
+  /// Tagal bago kusang mawala ang mensahe ng maling MPIN.
+  static const _mpinErrorDuration = Duration(seconds: 3);
+  final MpinPadController _padController = MpinPadController();
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -64,6 +97,18 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     );
     _fadeController.forward();
     _lifecycleListener = AppLifecycleListener(onResume: _onAppResumed);
+    _resolveMpinMode();
+    // May nakabinbing "Session Ended" na mensahe (hal. nag-expire ang session
+    // habang nasa dashboard, kung kaya't hindi pa nasasalo ng `ref.listen` sa
+    // ibaba) — ipakita ito sa unang frame. Ang OK nito ay maghahayag ng MPIN
+    // screen na may numero sa likod.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final pending = ref.read(authStateProvider).securityMessage;
+      if (pending == null || pending.trim().isEmpty) return;
+      ref.read(authStateProvider.notifier).clearSecurityMessage();
+      _showSecurityNotice(pending);
+    });
   }
 
   @override
@@ -71,14 +116,254 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     _phoneCtrl.dispose();
     _fadeController.dispose();
     _lockTimer?.cancel();
+    _mpinLockTimer?.cancel();
+    _mpinErrorTimer?.cancel();
+    _padController.dispose();
     _lifecycleListener.dispose();
     super.dispose();
   }
 
+  // ── MPIN unlock ──────────────────────────────────────────────────────────
+
+  /// Tinitingnan kung dapat na MPIN ang hihingin sa page na ito: rider/lender
+  /// ang huling naka-log in, may natandaang numero, at may naka-set nang MPIN
+  /// sa device na ito.
+  Future<void> _resolveMpinMode() async {
+    // Lahat ng desisyon (natandaang numero + owner role + naka-set na MPIN) ay
+    // nasa [MpinLoginGate] — hindi na nakakalat dito, at nasusubukan sa tests.
+    final choice = await MpinLoginGate(
+      mpin: ref.read(mpinServiceProvider),
+    ).resolve();
+    if (!mounted) return;
+    setState(() {
+      _mpinChecking = false;
+      _mpinPhone = choice.phone;
+      _hasMpin = choice.showMpin;
+      _showMpin = choice.showMpin;
+    });
+  }
+
+  /// Ang system back button: habang may naka-set na MPIN, hindi ito
+  /// nagpapalabas sa login page — ibinabalik ito sa MPIN screen na may numero
+  /// sa itaas.
+  void _onLoginPageBack(bool didPop, Object? result) {
+    if (didPop) return; // pinayagan na ng [PopScope.canPop] — huwag hadlangan
+    if (!_hasMpin) return;
+    if (_showMpin) return; // nasa MPIN screen na — manatili dito
+    setState(() {
+      _showMpin = true;
+      _mpinError = null;
+    });
+  }
+
+  /// Nagpapatakbo ng MPIN at ibinabalik ang session kapag tama.
+  ///
+  /// Ang MPIN ay lokal lang (hindi kailanman ipinapadala sa server), kaya ang
+  /// pag-unlock ay: i-reset ang idle window (kagaya ng aktibidad) at muling
+  /// buhayin ang session mula sa nakaimbak na refresh token. Kung expired na
+  /// talaga ang token, saka lang babalik sa OTP login.
+  Future<void> _submitMpin(String pin) async {
+    if (_mpinBusy || _mpinLockSeconds > 0) return;
+    _cancelMpinErrorTimer();
+    setState(() {
+      _mpinBusy = true;
+      _mpinError = null;
+    });
+    // Naka-center na loading MODAL lang ang ipinapakita — hindi maliit na
+    // spinner sa ilalim ng keypad, at hindi rin full-screen na loading ng buong
+    // app. Nananatili ito hanggang matapos ang pag-restore ng session, kaya
+    // isang tuloy-tuloy na loading lang ang nakikita: modal → dashboard.
+    final hideLoading = showLoadingOverlay(context);
+    late final MpinVerifyResult result;
+    try {
+      result = await ref.read(mpinServiceProvider).verify(pin);
+    } catch (_) {
+      hideLoading();
+      if (!mounted) return;
+      setState(() => _mpinBusy = false);
+      _showMpinError('Something went wrong. Please try again.');
+      _padController.clear();
+      return;
+    }
+    // Mali ang MPIN (o naka-lock / wala nang MPIN) — isara agad ang modal para
+    // makita ang error sa screen.
+    if (result.status != MpinStatus.success) hideLoading();
+    if (!mounted) return;
+
+    switch (result.status) {
+      case MpinStatus.success:
+        await SecureStorage.saveLastActivity(DateTime.now().toUtc());
+        if (kDebugMode) {
+          final token = await SecureStorage.getAccessToken();
+          final userId = await SecureStorage.getUserId();
+          final role = await SecureStorage.getUserRole();
+          final idle = await SecureStorage.getRemainingIdleTime();
+          debugPrint('[MPIN] unlock: token=${token != null} userId=$userId '
+              'role=$role idle=${idle?.inSeconds}s');
+        }
+        await ref
+            .read(authStateProvider.notifier)
+            .initialize(unlockedByMpin: true);
+        // Isara ang modal bago lumipat — kung hindi, mananatili ito sa ibabaw
+        // ng dashboard (walang sasara nito kapag na-dispose na ang screen).
+        hideLoading();
+        if (!mounted) return;
+        // Kapag na-restore ang session, awtomatikong idadala na ng router sa
+        // dashboard ang naka-authenticate na user.
+        if (ref.read(authStateProvider).isAuthenticated) {
+          if (kDebugMode) debugPrint('[MPIN] unlock → authenticated ✓');
+          return;
+        }
+        // Hindi na ma-repair ang session (expired/invalid refresh token na ang
+        // nakaimbak) — bumalik sa mobile number + OTP.
+        if (kDebugMode) {
+          debugPrint('[MPIN] unlock → BIGO: hindi na-restore ang session');
+        }
+        setState(() {
+          _mpinBusy = false;
+          _showMpin = false;
+        });
+        _padController.clear();
+        _showError('Session expired. Please log in with your mobile number.');
+        return;
+
+      case MpinStatus.wrong:
+        final left = result.attemptsLeft ?? 0;
+        setState(() => _mpinBusy = false);
+        _showMpinError(left > 0
+            ? 'Incorrect MPIN. $left attempt${left == 1 ? '' : 's'} left.'
+            : 'Incorrect MPIN.');
+        _padController.clear();
+        return;
+
+      case MpinStatus.locked:
+        // Ang lock countdown ay mananatili hangga't naka-lock (nila-clear ito
+        // ng `_startMpinLock` kapag natapos na) — hindi ito awtomatikong
+        // nawawala pagkatapos ng 3 segundo.
+        _cancelMpinErrorTimer();
+        setState(() {
+          _mpinBusy = false;
+          _mpinError = 'Too many attempts.';
+        });
+        _startMpinLock(result.lockRemaining ?? MpinService.lockoutDuration);
+        _padController.clear();
+        return;
+
+      case MpinStatus.notSet:
+        // Nabura na pala ang MPIN — bumalik sa OTP login.
+        setState(() {
+          _mpinBusy = false;
+          _mpinError = null;
+          _hasMpin = false;
+          _showMpin = false;
+        });
+        return;
+    }
+  }
+
+  /// Ipinapakita ang mensahe ng maling MPIN, tapos kusang tinatanggal ito
+  /// pagkatapos ng [_mpinErrorDuration] (3 segundo) — para hindi ito manatiling
+  /// nakabitin habang nagta-type muli ang user.
+  void _showMpinError(String message) {
+    _mpinErrorTimer?.cancel();
+    setState(() => _mpinError = message);
+    _mpinErrorTimer = Timer(_mpinErrorDuration, () {
+      if (!mounted) return;
+      setState(() => _mpinError = null);
+    });
+  }
+
+  void _cancelMpinErrorTimer() {
+    _mpinErrorTimer?.cancel();
+    _mpinErrorTimer = null;
+  }
+
+  void _startMpinLock(Duration remaining) {
+    _mpinLockTimer?.cancel();
+    setState(() => _mpinLockSeconds = remaining.inSeconds.clamp(1, 600));
+    _mpinLockTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_mpinLockSeconds <= 1) {
+        t.cancel();
+        setState(() {
+          _mpinLockSeconds = 0;
+          _mpinError = null;
+        });
+      } else {
+        setState(() => _mpinLockSeconds--);
+      }
+    });
+  }
+
+  String get _mpinLockLabel {
+    final m = _mpinLockSeconds ~/ 60;
+    final s = _mpinLockSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  /// Lumabas sa MPIN view at bumalik sa "Mobile Number" form (hal. ibang
+  /// account ang gustong gamitin).
+  void _useAnotherNumber() {
+    setState(() {
+      _showMpin = false;
+      _mpinError = null;
+    });
+    // Kalimutan ang naka-lock na numero (at ang owner nito) para sa susunod na
+    // pagbukas ng app ay ang "Mobile Number" form na ang lumabas — hindi na ang
+    // MPIN screen ng lumang numero. Mananatili pa rin ang MPIN ng account:
+    // makikita ulit ito kapag nakapasok muli gamit ang OTP (ibinalik ng
+    // `verifyOtp` ang parehong numero at owner).
+    unawaited(SecureStorage.clearLoginPhone());
+    unawaited(SecureStorage.clearLoginOwner());
+  }
+
+  /// Nagpapadala ng bagong OTP at dinadala ang user sa Verify OTP — doon lang
+  /// siya muling makakapag-set ng bagong MPIN. (Walang Semaphore API pa sa
+  /// ngayon, kaya `123456` ang tinatanggap na code ng backend.)
+  ///
+  /// Sadyang HINDI pa binubura dito ang lumang MPIN: kung mag-back ang user
+  /// bago matapos (o hindi matuloy ang reset), mananatili ang dating MPIN at
+  /// babalik siya sa MPIN screen na may numero — imbes na maiwang walang MPIN
+  /// nang hindi sinasadya. Ang pagbura ay nangyayari pagkatapos ng matagumpay
+  /// na OTP verification, bago ang bagong MPIN setup.
+  Future<void> _resetMpin() async {
+    final phone = _mpinPhone;
+    if (_mpinBusy || phone == null || phone.isEmpty) return;
+    setState(() {
+      _mpinBusy = true;
+      _mpinError = null;
+    });
+    // Naka-center na loading modal habang nagsasagawa ng bagong OTP.
+    final hideLoading = showLoadingOverlay(context);
+    // Bagong OTP bago ang muling pag-set — best effort lang; may "Resend code"
+    // naman sa OTP screen kung hindi umabot ang SMS.
+    try {
+      await ref.read(authProvider.notifier).sendOtp(phone: phone);
+    } catch (_) {}
+    hideLoading();
+    if (!mounted) return;
+    setState(() => _mpinBusy = false);
+    // `resetMpin: true` → ipapakita sa Verify OTP screen na pag-reset ng MPIN
+    // ang ginagawa, hindi ordinaryong login.
+    context.go(
+      RouteConstants.otpVerify,
+      extra: OtpFlowArgs(phone: phone, resetMpin: true),
+    );
+  }
+
+  /// Ang lokal na 10-digit na naipasok (hal. `9123456789`).
   String get _rawPhone => _phoneMask.getUnmaskedText();
 
+  /// Ang numerong ipinapadala sa API. Kailangang `09XXXXXXXXX` (11 digit) ang
+  /// tinatanggap ng backend, kaya idinadagdag dito ang nangungunang `0` — sa UI
+  /// lang naka-`+63` ang numero.
+  String get _apiPhone => '0$_rawPhone';
+
   bool get _isPhoneValid =>
-      _rawPhone.length == 11 && _rawPhone.startsWith('09');
+      _rawPhone.length == 10 && _rawPhone.startsWith('9');
 
   bool get _isOnline => ref.read(connectivityProvider).valueOrNull ?? true;
 
@@ -100,18 +385,20 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   Future<void> _sendOtp() async {
     if (!_isOnline || _lockSecondsLeft > 0) return;
     if (!_isPhoneValid) {
-      _showError('Enter a valid Philippine mobile number (09XXXXXXXXX).');
+      _showError(
+        'Enter a valid Philippine mobile number (+63 9XX XXX XXXX).',
+      );
       return;
     }
     // Dismiss the keyboard right away so the loading state / next screen is
     // not covered by it.
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _loading = true);
-    final ok = await ref.read(authProvider.notifier).sendOtp(phone: _rawPhone);
+    final ok = await ref.read(authProvider.notifier).sendOtp(phone: _apiPhone);
     if (!mounted) return;
     setState(() => _loading = false);
     if (ok) {
-      context.go(RouteConstants.otpVerify, extra: _rawPhone);
+      context.go(RouteConstants.otpVerify, extra: _apiPhone);
     } else {
       final err = ref.read(authProvider).error;
       final lockSecs =
@@ -372,6 +659,259 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  /// Ang MPIN view: nasa itaas ang numerong ginamit sa login, ang 4 na tuldok,
+  /// at ang numeric keypad na may nakabox na numero sa ibaba.
+  Widget _buildMpinView() {
+    final phone = _mpinPhone ?? '';
+    final locked = _mpinLockSeconds > 0;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.white,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F8FA),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Top bar: menu right-aligned (kapareho ng login page)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _buildInfoMenuButton(),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      // ── Brand ──
+                      const Text(
+                        'Jireta Loans',
+                        style: TextStyle(
+                          fontFamily: 'PlayfairDisplay',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.deepNavy,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        '& CREDIT CORP 1966',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.6,
+                          color: AppColors.gold,
+                        ),
+                      ),
+                      // Ibaba ang "Enter MPIN" mula sa brand header.
+                      const SizedBox(height: 112),
+
+                      // ── "Enter MPIN" + numero + 4 na tuldok: nasa LABAS
+                      // ng card — ang keypad lang ang nasa loob nito. ──
+                      const Center(
+                        child: Text(
+                          'Enter MPIN',
+                          style: TextStyle(
+                            fontFamily: 'PlayfairDisplay',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Numero na ginamit sa login ──
+                      // Ang "Use another number" ay nasa numerong ito:
+                      // i-tap ito (ang switch icon) para bumalik sa
+                      // "Mobile Number" form.
+                      if (phone.isNotEmpty)
+                        Center(
+                          child: Tooltip(
+                            message: 'Use another number',
+                            child: Material(
+                              color: const Color(0xFFF2F3F7),
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                onTap: _mpinBusy ? null : _useAnotherNumber,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: const Color(0xFFE3E5EB)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Watawat ng Pilipinas — tugma sa `+63`
+                                      // na prefix ng numero.
+                                      const Text('🇵🇭',
+                                          style: TextStyle(fontSize: 15)),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        formatMpinPhone(phone),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.4,
+                                          color: AppColors.deepNavy,
+                                          fontFeatures: [
+                                            FontFeature.tabularFigures()
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      // Modern switch icon — i-tap para
+                                      // lumipat sa ibang numero.
+                                      Container(
+                                        width: 24,
+                                        height: 24,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.deepNavy
+                                              .withValues(alpha: 0.08),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.swap_horiz_rounded,
+                                          size: 16,
+                                          color: AppColors.deepNavy,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 20),
+
+                      // ── 4 na tuldok ──
+                      Center(
+                        child: MpinDots(
+                          controller: _padController,
+                          hasError: _mpinError != null && !locked,
+                        ),
+                      ),
+
+                      // ── Mensahe ng maling MPIN: sa ILALIM ng 4 na tuldok.
+                      // Nakalaan ang espasyo (14 + 38) para hindi gumalaw ang
+                      // keypad kapag lumabas ang mensahe — at kusang nawawala
+                      // ito pagkatapos ng 3 segundo (tingnan ang
+                      // `_showMpinError`). ──
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        height: 38,
+                        child: (_mpinError != null && !locked)
+                            ? Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.error_outline_rounded,
+                                        size: 15, color: AppColors.error),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        _mpinError!,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        style: const TextStyle(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.3,
+                                          color: AppColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : null,
+                      ),
+
+                      // Nasa ibaba ang keypad — may pagitan sa mga tuldok.
+                      const SizedBox(height: 126),
+
+                      // ── Keypad (walang card) + Reset MPIN ──
+                      Column(
+                        children: [
+                          MpinKeypadField(
+                            controller: _padController,
+                            enabled: !_mpinBusy && !locked,
+                            hasError: _mpinError != null && !locked,
+                            // Nasa itaas na (sa ilalim ng "Enter MPIN") ang
+                            // 4 na tuldok.
+                            showDots: false,
+                            onCompleted: _submitMpin,
+                          ),
+
+                          if (locked) ...[
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                const Icon(Icons.timer_rounded,
+                                    size: 16, color: AppColors.error),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Too many attempts. Try again in '
+                                    '$_mpinLockLabel.',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.error,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+
+                          // Nasa gitna ng screen na loading modal ang
+                          // ipinapakita habang nag-ve-verify/nag-reset.
+                          const SizedBox(height: 14),
+                          Center(
+                            child: TextButton(
+                              onPressed: _mpinBusy ? null : _resetMpin,
+                              child: const Text(
+                                'Reset MPIN',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.2,
+                                  color: AppColors.deepNavy,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Single-active-session: if the previous session was revoked by a newer
@@ -387,12 +927,31 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       },
     );
     final authState = ref.watch(authStateProvider);
-    if (authState.isLoading || authState.isAuthenticated) {
+    // Habang nag-u-unlock gamit ang MPIN (naka-`_mpinBusy`) ang loading modal
+    // sa gitna ang ipinapakita — hindi ang full-screen na loading ng buong app.
+    if ((authState.isLoading || authState.isAuthenticated) && !_mpinBusy) {
       return const Scaffold(
         backgroundColor: AppColors.deepNavy,
         body: Center(
           child: CircularProgressIndicator(color: AppColors.gold),
         ),
+      );
+    }
+
+    // Habang tinitingnan kung MPIN na ang hihingin sa page na ito, huwag munang
+    // ipakita ang phone form para hindi ito kumislap bago mag-switch.
+    if (_mpinChecking) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7F8FA),
+        body: SizedBox.shrink(),
+      );
+    }
+    if (_showMpin) {
+      // Nasa MPIN lock screen — hindi ito nilalabasan ng system back.
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: _onLoginPageBack,
+        child: _buildMpinView(),
       );
     }
 
@@ -406,6 +965,16 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         isOnline &&
         _lockSecondsLeft == 0;
 
+    // Habang may naka-set na MPIN, ang system back ay hindi nagpapalabas ng
+    // app: ibinabalik ito sa MPIN screen na may numero sa itaas.
+    return PopScope(
+      canPop: !_hasMpin,
+      onPopInvokedWithResult: _onLoginPageBack,
+      child: _buildLoginForm(canSendOtp, isOnline),
+    );
+  }
+
+  Widget _buildLoginForm(bool canSendOtp, bool isOnline) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -517,7 +1086,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                   controller: _phoneCtrl,
                                                   keyboardType:
                                                       TextInputType.phone,
-                                                  maxLength: 13,
+                                                  maxLength: 12,
                                                   inputFormatters: [_phoneMask],
                                                   style: const TextStyle(
                                                     fontSize: 16,
@@ -528,7 +1097,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                   onChanged: (_) =>
                                                       setState(() {}),
                                                   decoration: InputDecoration(
-                                                    hintText: '09XX XXX XXXX',
+                                                    hintText: '912 345 6789',
                                                     hintStyle: TextStyle(
                                                       fontSize: 15,
                                                       fontWeight:
@@ -548,19 +1117,61 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                             .symmetric(
                                                             horizontal: 14,
                                                             vertical: 16),
-                                                    prefixIcon: Padding(
+                                                    // +63 (Pilipinas) — lokal
+                                                    // na 10-digit na numero
+                                                    // (9XXX XXX XXX) ang type.
+                                                    prefixIcon: const Padding(
                                                       padding:
-                                                          const EdgeInsets.only(
-                                                              left: 16,
-                                                              right: 10),
-                                                      child: Icon(
-                                                        Icons.phone_rounded,
-                                                        size: 19,
-                                                        color: _isPhoneValid
-                                                            ? AppColors.deepNavy
-                                                            : AppColors
-                                                                .textTertiary,
+                                                          EdgeInsets.only(
+                                                              left: 14,
+                                                              right: 6),
+                                                      child: Row(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          Text('🇵🇭',
+                                                              style: TextStyle(
+                                                                  fontSize:
+                                                                      16)),
+                                                          SizedBox(width: 6),
+                                                          Text(
+                                                            '+63',
+                                                            style: TextStyle(
+                                                              fontSize: 15,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                              color: AppColors
+                                                                  .deepNavy,
+                                                              letterSpacing:
+                                                                  0.4,
+                                                            ),
+                                                          ),
+                                                          SizedBox(width: 8),
+                                                          // Manipis na
+                                                          // divider sa
+                                                          // pagitan ng
+                                                          // prefix at
+                                                          // numero.
+                                                          SizedBox(
+                                                            width: 1,
+                                                            height: 20,
+                                                            child: DecoratedBox(
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: Color(
+                                                                    0xFFD9DCE4),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          SizedBox(width: 6),
+                                                        ],
                                                       ),
+                                                    ),
+                                                    prefixIconConstraints:
+                                                        const BoxConstraints(
+                                                      minWidth: 0,
+                                                      minHeight: 0,
                                                     ),
                                                     suffixIcon: _phoneCtrl
                                                             .text.isNotEmpty

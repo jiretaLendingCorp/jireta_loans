@@ -246,6 +246,91 @@ class SecureStorage {
     }
   }
 
+  // ── MPIN login: natatandaang numero ───────────────────────────────────────
+  // Ang numerong huling ginamit sa mobile (OTP) login. Sadyang HINDI kasama sa
+  // [_allKeys] — kailangang manatili ito kahit mag-`clearAll` (idle lock /
+  // forced logout), para sa susunod na pagbukas ng app ay MPIN na lang ang
+  // hihingin ng rider/lender at ang numerong ito ang ipapakita sa itaas.
+  static const _loginPhoneKey = 'login_phone_number';
+
+  static Future<void> saveLoginPhone(String phone) => _withQueue(() async {
+        try {
+          await _storage.write(key: _loginPhoneKey, value: phone);
+        } catch (_) {}
+      });
+
+  static Future<String?> getLoginPhone() async {
+    try {
+      final raw = await _storage.read(key: _loginPhoneKey);
+      if (raw == null || raw.trim().isEmpty) return null;
+      return raw.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> clearLoginPhone() async {
+    try {
+      await _storage.delete(key: _loginPhoneKey);
+    } catch (_) {}
+  }
+
+  // ── MPIN lock: sino ang huling naka-log in sa device na ito ───────────────
+  // Kasama rin sa mga HINDI binubura ng [clearAll]. Ang MPIN ay lock ng device
+  // para sa huling rider / lender account — hindi ito dapat mawala dahil lang
+  // nag-expire o nabura ang session. Ito ang fallback kapag wala nang laman ang
+  // `userId` / `role` na session keys, kaya nananatiling MPIN screen (na may
+  // numero) ang unang lumalabas sa pagbukas ng app.
+  static const _loginOwnerIdKey = 'login_owner_user_id';
+  static const _loginOwnerRoleKey = 'login_owner_role';
+
+  /// Itinatala ang account na nag-lock sa device (rider / lender).
+  static Future<void> saveLoginOwner({
+    required String userId,
+    required String role,
+  }) =>
+      _withQueue(() async {
+        if (userId.trim().isEmpty || role.trim().isEmpty) return;
+        try {
+          await Future.wait([
+            _storage.write(key: _loginOwnerIdKey, value: userId.trim()),
+            _storage.write(key: _loginOwnerRoleKey, value: role.trim()),
+          ]);
+        } catch (_) {}
+      });
+
+  /// Ang user id ng huling rider / lender login — scope ng MPIN kapag nawala
+  /// na ang session key.
+  static Future<String?> getLoginOwnerId() async {
+    try {
+      final raw = await _storage.read(key: _loginOwnerIdKey);
+      if (raw == null || raw.trim().isEmpty) return null;
+      return raw.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Ang role ng huling rider / lender login — fallback kapag nabura na ang
+  /// session role.
+  static Future<String?> getLoginOwnerRole() async {
+    try {
+      final raw = await _storage.read(key: _loginOwnerRoleKey);
+      if (raw == null || raw.trim().isEmpty) return null;
+      return raw.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> clearLoginOwner() async {
+    for (final key in [_loginOwnerIdKey, _loginOwnerRoleKey]) {
+      try {
+        await _storage.delete(key: key);
+      } catch (_) {}
+    }
+  }
+
   // ── Backwards-compat shims (old callers still invoke these) ───────────────
   static Future<Duration?> getRemainingSessionTime() => getRemainingIdleTime();
   static Future<bool> isAbsoluteSessionExpired() => isIdleExpired();
