@@ -116,10 +116,13 @@ class _WideFooter extends StatelessWidget {
             children: [
               const Text('Explore', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white)),
               const SizedBox(height: 14),
-              _FooterLink(label: 'About Us', onTap: () => _showSnack(context, 'About Us — coming soon')),
+              // Tanging ang may TOTOONG nilalaman (Privacy Policy at Terms &
+              // Conditions) ang nananatili. Ang mga placeholder na
+              // ("About Us", "Help Center") ay inalis — dating nagpapakita ang
+              // mga iyon ng "— coming soon" na snackbar. Inutos ng user:
+              // WALANG "Coming Soon" sa landing page.
               _FooterLink(label: 'Privacy Policy', onTap: () => _showLegal(context, isTerms: false)),
               _FooterLink(label: 'Terms & Conditions', onTap: () => _showLegal(context, isTerms: true)),
-              _FooterLink(label: 'Help Center', onTap: () => _showSnack(context, 'Help Center — contact your administrator')),
             ],
           ),
         ),
@@ -141,12 +144,6 @@ class _WideFooter extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  static void _showSnack(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: AppColors.deepNavy, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
     );
   }
 
@@ -172,10 +169,10 @@ class _CompactFooter extends StatelessWidget {
         Wrap(
           spacing: 14, runSpacing: 8,
           children: [
+            // Placeholder na "Help Center" / "About Us" ay inalis — dating may
+            // "— coming soon" na snackbar ang mga iyon.
             _FooterLink(label: 'Privacy Policy', onTap: null),
             _FooterLink(label: 'Terms & Conditions', onTap: null),
-            _FooterLink(label: 'Help Center', onTap: null),
-            _FooterLink(label: 'About Us', onTap: null),
           ],
         ),
         SizedBox(height: 18),
@@ -216,9 +213,10 @@ class _FooterLinkState extends State<_FooterLink> {
                   showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => const _LegalSheet(isTerms: false));
                 } else if (widget.label.contains('Terms')) {
                   showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => const _LegalSheet(isTerms: true));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${widget.label} — coming soon'), backgroundColor: AppColors.deepNavy, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))));
                 }
+                // WALANG "— coming soon" na fallback (inutos ng user): ang
+                // ibang label na wala namang tunay na nilalaman ay hindi na
+                // nagpapakita ng kahit anong mensahe.
               },
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 140),

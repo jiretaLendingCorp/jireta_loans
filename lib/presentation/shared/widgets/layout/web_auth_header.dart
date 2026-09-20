@@ -147,8 +147,9 @@ class _WebAuthHeaderState extends State<WebAuthHeader>
                           const SizedBox(width: 4),
                         ]
                       else ...[
-                        _NavLink(label: 'About', onTap: () => _showComingSoon(context)),
-                        const SizedBox(width: 4),
+                        // Ang "About" (placeholder na nagpapakita ng
+                        // "— coming soon") ay inalis — inutos ng user na WALANG
+                        // "Coming Soon" sa public na web pages.
                         _NavLink(label: 'Support', onTap: () => _showSupportSheet(context)),
                         const SizedBox(width: 4),
                         _NavLink(label: 'Contact', onTap: () => _showContactSheet(context)),
@@ -204,18 +205,6 @@ class _WebAuthHeaderState extends State<WebAuthHeader>
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('About page — coming soon'),
-        backgroundColor: AppColors.deepNavy,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -354,16 +343,12 @@ class _BrandLockup extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 3),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(width: 14, height: 1.2, color: AppColors.gold.withValues(alpha: 0.9)),
-                const SizedBox(width: 6),
-                Text(
-                  isCompact ? 'LOANS & CREDIT · 1966' : 'LOANS & CREDIT CORP · 1966',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 1.35),
-                ),
-              ],
+            // Ang gintong "——" na linya sa unahan ng subtitle ay inalis
+            // (inutos ng user) — ang teksto na lang ang natitira sa ilalim
+            // ng "JIRETA".
+            Text(
+              isCompact ? 'LOANS & CREDIT · 1966' : 'LOANS & CREDIT CORP · 1966',
+              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 1.35),
             ),
           ],
         ),

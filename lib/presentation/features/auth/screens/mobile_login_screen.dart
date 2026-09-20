@@ -961,10 +961,17 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     }
 
     // Habang tinitingnan kung MPIN na ang hihingin sa page na ito, huwag munang
-    // ipakita ang phone form para hindi ito kumislap bago mag-switch. Branded
-    // din ito para tuloy-tuloy ang hitsura mula sa splash.
+    // ipakita ang phone form para hindi ito kumislap bago mag-switch.
+    //
+    // MAHALAGA: TAHIMIK na background lang ito — HINDI na branded loading.
+    // Dating ang BrandedLoadingScreen (logo + JIRETA + gold progress bar) ang
+    // ipinapakita dito, at dahil kapareho ito ng tunay na splash, ang dating
+    // sa user ay "dalawang splash" pagka-open ng app. Ang landas na iyon ay
+    // bihira na lang ding maabot: ang splash screen, OTP screen, at MPIN setup
+    // ay nagpapasa na ng [MpinLoginChoice] (handoff), kaya alam na agad ng
+    // screen na ito kung ano ang lalabas.
     if (_mpinChecking) {
-      return const BrandedLoadingScreen();
+      return const Scaffold(backgroundColor: Color(0xFFF7F8FA));
     }
     if (_showMpin) {
       // Nasa MPIN lock screen — hindi ito nilalabasan ng system back.

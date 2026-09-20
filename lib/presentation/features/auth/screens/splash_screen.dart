@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/asset_constants.dart';
+import '../../../../core/security/mpin_login_gate.dart';
+import '../../../../core/security/mpin_service.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
@@ -148,9 +150,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       // Signed-out visitors: web lands on the public marketing page (its
       // "Sign In" / "Get Started" buttons route into the auth screens),
       // while native mobile goes straight to the mobile login form.
-      context.go(kIsWeb
-          ? RouteConstants.landing
-          : RouteConstants.mobileLogin);
+      if (kIsWeb) {
+        context.go(RouteConstants.landing);
+        return;
+      }
+      // ── Mobile: bakit "dalawang splash"? ─────────────────────────────────
+      // Ang login page ay kailangang malaman kung MPIN o OTP form ang lalabas,
+      // at dati ay doon pa lang ito nagbabasa ng secure storage — habang
+      // naghihintay, isang BUONG screen na kapareho ng splash (logo, JIRETA,
+      // gold progress bar) ang ipinapakita. Kaya may sumusunod na "splash" pa
+      // pagkatapos ng tunay na splash.
+      //
+      // Ngayon, DITO pa lang (habang tumatakbo pa ang 2.2s na splash) ay
+      // tinitingnan na ito, at ipinapasa sa login page — kaya deretso agad sa
+      // MPIN screen o OTP form ang unang frame, walang pangalawang splash.
+      final choice = await MpinLoginGate(
+        mpin: ref.read(mpinServiceProvider),
+      ).resolve();
+      if (!mounted) return;
+      context.go(RouteConstants.mobileLogin, extra: choice);
     }
   }
 
