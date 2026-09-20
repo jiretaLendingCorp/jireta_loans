@@ -739,23 +739,9 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                       // Ibaba ang "Enter MPIN" mula sa brand header.
                       const SizedBox(height: 112),
 
-                      // ── "Enter MPIN" + numero + 4 na tuldok: nasa LABAS
-                      // ng card — ang keypad lang ang nasa loob nito. ──
-                      const Center(
-                        child: Text(
-                          'Enter MPIN',
-                          style: TextStyle(
-                            fontFamily: 'PlayfairDisplay',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.deepNavy,
-                            height: 1.1,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
                       // ── Numero na ginamit sa login ──
+                      // PINAKATAAS ito (inutos ng user): sa ilalim agad ng brand
+                      // header, at nasa ITAAS ng "Enter MPIN" at ng 4 na tuldok.
                       // Ang "Use another number" ay nasa numerong ito:
                       // i-tap ito (ang switch icon) para bumalik sa
                       // "Mobile Number" form.
@@ -821,7 +807,25 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                             ),
                           ),
                         ),
-                      const SizedBox(height: 20),
+                      // Bahagyang ibinaba mula sa numero (inutos ng user).
+                      const SizedBox(height: 32),
+
+                      // ── "Enter MPIN" — nasa ITAAS ng 4 na tuldok (inutos ng
+                      // user). Nasa LABAS ito ng card; ang keypad lang ang nasa
+                      // loob. ──
+                      const Center(
+                        child: Text(
+                          'Enter MPIN',
+                          style: TextStyle(
+                            fontFamily: 'PlayfairDisplay',
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
 
                       // ── 4 na tuldok ──
                       Center(

@@ -2,7 +2,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, LengthLimitingTextInputFormatter, SystemUiOverlayStyle;
@@ -14,6 +14,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../features/lender/profile/providers/lender_profile_provider.dart';
+import '../../../../core/security/secure_storage.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../providers/auth_provider.dart';
 import 'verify_email_screen.dart';
@@ -53,13 +54,9 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
     super.dispose();
   }
 
-  /// Per-account key suffix (same pattern as the per-account terms flag) so
-  /// the name captured after acceptance lands on the right lender's upgrade
-  /// form even on a shared device.
-  String get _accountKeySuffix {
-    final userId = ref.read(authStateProvider).user?.id ?? '';
-    return userId.isEmpty ? '' : '_$userId';
-  }
+  // NOTE: ang per-account na suffix ay kinukuwenta na LANANG sa loob ng
+  // `_saveNameAndGoHome` (may fallback sa `SecureStorage.getUserId()`), para
+  // iisa lang ang pinagmulan nito dito at sa Verify Your Email screen.
 
   Future<void> _accept() async {
     if (!_accepted || !_privacyAccepted) return;
@@ -93,8 +90,16 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _savingName = true);
     final prefs = await SharedPreferences.getInstance();
-    final suffix = _accountKeySuffix;
-    final userId = ref.read(authStateProvider).user?.id ?? '';
+    // Ang per-account na key ay dapat galing sa PAREHONG pinagmulan sa lahat ng
+    // screen. Kapag walang `user` sa state (hal. na-restore lang na session na
+    // may token at role), gamitin ang userId na naka-save sa SecureStorage —
+    // kung hindi ay walang suffix na naisusulat dito, at HINDI ito mababasa ng
+    // Verify Your Email screen (doon, "hindi nag-save" ang pakiramdam).
+    var userId = ref.read(authStateProvider).user?.id ?? '';
+    if (userId.isEmpty) {
+      userId = await SecureStorage.getUserId() ?? '';
+    }
+    final suffix = userId.isEmpty ? '' : '_$userId';
     final firstName = _firstNameCtrl.text.trim();
     final middleName = _middleNameCtrl.text.trim();
     final lastName = _lastNameCtrl.text.trim();
@@ -129,13 +134,29 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
         : defaultTargetPlatform == TargetPlatform.iOS
             ? 'ios'
             : 'android';
-    await ref.read(lenderProfileProvider.notifier).updateProfile({
+    // ── PANGALAN muna, tapos EMAIL sa HIWALAY na tawag ────────────────────
+    // Ang email ay may uniqueness check sa server (409 DUPLICATE kapag may
+    // ibang account nang gumagamit nito, 400 kapag hindi tanggap ang format).
+    // Kapag isang tawag lang ang ginawa, ISASAMA ANG PANGALAN SA PAGTANGGI —
+    // kaya kahit balido ang pangalan ay hindi ito nai-save ("hindi nag-save
+    // ang Fill In Information").
+    final nameOk =
+        await ref.read(lenderProfileProvider.notifier).updateProfile({
       'first_name': firstName,
       if (middleName.isNotEmpty) 'middle_name': middleName,
       'last_name': lastName,
       if (suffixName.isNotEmpty) 'suffix': suffixName,
-      'email': email,
     });
+    var emailOk = false;
+    if (email.isNotEmpty) {
+      emailOk = await ref.read(lenderProfileProvider.notifier).updateProfile(
+            {'email': email},
+          );
+    }
+    if (kDebugMode) {
+      debugPrint('[FILL-IN] save (Continue) name=$nameOk email=$emailOk '
+          'error=${ref.read(lenderProfileProvider).error}');
+    }
     await ref.read(authProvider.notifier).acceptTerms(
           deviceId: 'default-device',
           platform: platform,

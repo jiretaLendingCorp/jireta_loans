@@ -12,15 +12,23 @@
 // kailangang mag-navigate pabalik.
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/security/secure_storage.dart';
+import '../../lender/dashboard/providers/lender_dashboard_provider.dart';
+import '../../lender/profile/providers/lender_profile_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/widgets/branded_loading_screen.dart';
+import '../../../shared/widgets/dialogs/loading_dialog.dart';
 import '../providers/auth_provider.dart';
 
 /// Ang ipinapasa ng "Continue" ng Fill In Information papunta sa screen na ito.
@@ -67,6 +75,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
   String? _error;
   bool _resending = false;
   bool _verified = false;
+
+  /// Habang tinitingnan ng "Verify Email" button kung na-tap na ang link.
+  bool _verifying = false;
   int _cooldownLeft = 0;
 
   /// Link mode (galing sa email) o handoff mode (pagkatapos ng Continue).
@@ -130,16 +141,156 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     if (_verified) return;
     final ok = await ref.read(authProvider.notifier).isEmailVerified();
     if (!mounted || !ok || _verified) return;
+    await _onVerifiedGoHome();
+  }
+
+  /// Ang "Verify Email" button: tsekin AGAD (hindi maghintay ng 5 segundo) kung
+  /// na-tap na ang link sa email. Kapag oo → i-save ang Fill In Information at
+  /// dumiretso sa home; kung hindi pa → malinaw na mensahe.
+  Future<void> _verifyNow() async {
+    if (_verifying || _verified) return;
+    setState(() {
+      _verifying = true;
+      _error = null;
+    });
+    final ok = await ref.read(authProvider.notifier).isEmailVerified();
+    if (!mounted) return;
+    setState(() => _verifying = false);
+    if (!ok) {
+      setState(() => _error =
+          'Hindi pa naka-verify ang email mo. Paki-tap ang link na ipinadala '
+          'namin sa ${_email.isEmpty ? 'email address mo' : _email}, tapos '
+          'pindutin muli ang Verify Email.');
+      return;
+    }
+    await _onVerifiedGoHome();
+  }
+
+  /// Kapag na-verify na ang email: isinusulat muna ang Fill In Information ng
+  /// lender, tapos naka-center na modal loading, tapos HOME (dashboard).
+  Future<void> _onVerifiedGoHome() async {
+    if (_verified) return;
     setState(() {
       _verified = true;
       _error = null;
     });
     _pollTimer?.cancel();
     _cooldownTimer?.cancel();
-    // Maikling paghinto para makita ang "Verified" state bago lumipat.
-    await Future.delayed(const Duration(milliseconds: 900));
+    // ── Save sa oras ng verification (inutos ng user) ──────────────────
+    // Hindi na hinihintay pang makarating sa dashboard ang update: isinusulat
+    // dito ang pangalan / email na na-fill in, kaya siguradong naka-save ang
+    // impormasyon bago ang paglipat. (Naisulat na rin ito noong "Continue";
+    // idempotent lang ang pagsulat muli kaya walang masisira.)
+    final saved = await _saveFilledInInformation();
+    if (kDebugMode) {
+      debugPrint('[VERIFY-EMAIL] na-verify na → save=$saved, papunta sa home');
+    }
+    if (!mounted) return;
+    final hideLoading = showLoadingOverlay(context, text: 'Verifying…');
+    await Future.delayed(const Duration(milliseconds: 1400));
+    hideLoading();
     if (!mounted) return;
     context.go(RouteConstants.lenderDashboard);
+  }
+
+  /// Isinusulat (idempotent) ang "Fill In Information" ng lender — pangalan at
+  /// email — sa oras na ma-verify ang email.
+  ///
+  /// ANG TOTOONG BUG NA NA-AYOS DITO: ang na-fill in na datos ay naka-save sa
+  /// `SharedPreferences` sa ilalim ng **per-account na key** na gawa mula sa
+  /// `authState.user?.id` (`lender_first_name_<userId>`). Kapag **`user` ay
+  /// null** sa sandaling iyon (hal. na-restore lang na session na may token at
+  /// role, o nag-lock ang MPIN) ay walang suffix na naisulat — samantalang dito
+  /// sa Verify Your Email screen ay iba naman ang nakuha kaya HINDI ito natagpuan
+  /// at TAHIMIK na umalis ang save ("hindi nag-sasave").
+  ///
+  /// Ngayon: (1) sinusubukan ang per-account na key, (2) ang walang-suffix na
+  /// key, at (3) ang `SecureStorage` na userId para sa suffix — at NILALAGAY SA
+  /// LOG ang bawat desisyon at ang resulta, para hindi na bulag sa susunod.
+  /// Hindi rin tinatawag muli ang terms acceptance (naisulat na iyon noong
+  /// Continue — doble lang ang record kung uulitin).
+  Future<bool> _saveFilledInInformation() async {
+    try {
+      var userId = ref.read(authStateProvider).user?.id ?? '';
+      if (userId.isEmpty) {
+        // Fallback: ang estado ay maaaring wala pang `user` kahit may session.
+        userId = await SecureStorage.getUserId() ?? '';
+      }
+      final suffix = userId.isEmpty ? '' : '_$userId';
+      final prefs = await SharedPreferences.getInstance();
+
+      /// Per-account na key muna; kung blangko, ang lumang walang-suffix na key
+      /// (doon naisulat kapag walang `user` noong Continue).
+      String pick(String key) {
+        final withSuffix = (prefs.getString('$key$suffix') ?? '').trim();
+        if (withSuffix.isNotEmpty || suffix.isEmpty) return withSuffix;
+        return (prefs.getString(key) ?? '').trim();
+      }
+
+      final firstName = pick(AppConstants.lenderFirstNameKey);
+      final middleName = pick(AppConstants.lenderMiddleNameKey);
+      final lastName = pick(AppConstants.lenderLastNameKey);
+      final suffixName = pick(AppConstants.lenderSuffixKey);
+      var email = pick(AppConstants.lenderEmailKey);
+      // Huling fallback: ang email ng account mismo (kung doon ipinadala ang
+      // verification link, iyon na ang tamang email).
+      if (email.isEmpty) {
+        email = (ref.read(authStateProvider).user?.email ?? '').trim();
+      }
+
+      if (firstName.isEmpty && lastName.isEmpty && email.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[VERIFY-EMAIL] walang ma-save (suffix="$suffix"): '
+              'walang first/last name at email sa prefs');
+        }
+        return false;
+      }
+
+      // ── (1) PANGALAN muna, hiwalay sa email ──────────────────────────
+      // ANG TOTOONG DAHILAN NG "HINDI NAG-SAVE": ang email ay may
+      // **uniqueness check sa server** — kung may ibang account nang gumagamit
+      // nito (409 DUPLICATE), o tinanggihan ang format (400), ang BUONG tawag
+      // ay nabibigo. Kapag isang tawag lang ang ginawa, ISASAMA ANG PANGALAN
+      // SA PAGTANGGI — kaya kahit balido ang pangalan ay hindi ito nai-save sa
+      // database. Ngayon, dalawa ang tawag: hindi na maaapektuhan ng problema
+      // sa email ang pag-save ng pangalan.
+      final namePayload = <String, dynamic>{
+        if (firstName.isNotEmpty) 'first_name': firstName,
+        if (middleName.isNotEmpty) 'middle_name': middleName,
+        if (lastName.isNotEmpty) 'last_name': lastName,
+        if (suffixName.isNotEmpty) 'suffix': suffixName,
+      };
+      var nameSaved = false;
+      if (namePayload.isNotEmpty) {
+        nameSaved = await ref
+            .read(lenderProfileProvider.notifier)
+            .updateProfile(namePayload);
+      }
+
+      // ── (2) EMAIL — hiwalay na tawag ────────────────────────────────────
+      var emailSaved = false;
+      if (email.isNotEmpty) {
+        emailSaved = await ref
+            .read(lenderProfileProvider.notifier)
+            .updateProfile({'email': email});
+      }
+
+      if (kDebugMode) {
+        debugPrint('[VERIFY-EMAIL] save fill-in name=$nameSaved '
+            'email=$emailSaved payload=$namePayload email="$email" '
+            'error=${ref.read(lenderProfileProvider).error}');
+      }
+      if (nameSaved || emailSaved) {
+        // Ang Home ay nag-load na BAGO pa na-fill in ang info, kaya kung hindi
+        // ito i-refresh ay luma/blanko pa ang pangalan doon kahit naka-save na.
+        unawaited(ref.read(lenderDashboardProvider.notifier).refresh());
+      }
+      return nameSaved || emailSaved;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[VERIFY-EMAIL] save fill-in error: $e');
+      // Hindi hadlang sa pagpasok: naisulat na rin ang datos noong Continue.
+      return false;
+    }
   }
 
   Future<void> _resend() async {
@@ -441,7 +592,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   // phone.
                   const Spacer(),
 
-                  // ── Resend Email ──
+                  // ── RESEND EMAIL (primary) ──
+                  // Ito na naman ang naka-primary na button (inutos ng user) —
+                  // nagpapadala ito ng bagong verification link. Ang "Verify"
+                  // na aksyon ay nasa text button sa ibaba, at may 5-segundong
+                  // tahimik na pagsusuri pa rin pagkatapos i-tap ang link.
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -495,17 +650,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                             ),
                     ),
                   ),
-                  // Walang "Waiting for verification…" na spinner dito. Tahimik
-                  // pa ring sinusuri ng screen (bawat 5 segundo) kung na-tap na
-                  // ang link, kaya tuloy pa rin ito sa dashboard nang kusa —
-                  // pero walang nakikitang loading (inutos ng user).
-                  //
-                  // WALANG pagitan sa "Resend Email" at sa button na ito (inutos
-                  // ng user) — diretso ito sa ilalim nito. `shrinkWrap` ang tap
-                  // target at nabawasan ang padding para totoong dikit ang
-                  // hitsura, hindi lang maliit ang puwang.
+                  // ── Ibinalik (inutos ng user) ──
+                  // Ito ang nagsasagawa ng "verify" — tinitignan AGAD kung
+                  // na-tap na ang link sa email.
                   TextButton(
-                    onPressed: _verified ? null : _checkVerified,
+                    onPressed:
+                        (_verifying || _verified) ? null : _verifyNow,
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.deepNavy,
                       minimumSize: Size.zero,
@@ -513,9 +663,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 4),
                     ),
-                    child: const Text(
-                      "I've already verified. Check again",
-                      style: TextStyle(
+                    child: Text(
+                      _verifying
+                          ? 'Verifying...'
+                          : "I've already verified. Check again",
+                      style: const TextStyle(
                           fontSize: 12.5, fontWeight: FontWeight.w700),
                     ),
                   ),
