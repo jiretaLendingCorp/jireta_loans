@@ -6,12 +6,15 @@
 //
 // Ipinapakita sa itaas ang numerong ginamit sa login, at ang MPIN ay ipinapasok
 // sa 4 na tuldok + numeric keypad (walang system keyboard).
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/security/mpin_login_gate.dart';
 import '../../../../core/security/mpin_service.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -38,6 +41,23 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
   bool _busy = false;
   String? _phone;
 
+  /// Auto-hide ng mga pansamantalang mensahe (hal. "MPIN did not match.") —
+  /// 3 segundo lang, para hindi ito manatiling nakabitin habang nagta-type
+  /// muli ang user.
+  Timer? _errorTimer;
+
+  /// Tagal bago kusang mawala ang mensaheng tulad ng hindi pagtutugma ng MPIN.
+  static const _errorVisibleDuration = Duration(seconds: 3);
+
+  /// Ang nakalaang taas ng slot ng mensahe sa ilalim ng 4 na tuldok. Nakalaan
+  /// ito kahit walang mensahe para hindi gumalaw ang keypad.
+  static const _errorSlotMinHeight = 38.0;
+
+  /// Pagitan ng 4 na tuldok at ng keypad. Ang dating 196 ay binawasan ng
+  /// `_errorSlotMinHeight + 14` (ang slot ng mensahe), kaya kapareho pa rin ng
+  /// dating posisyon ang keypad.
+  static const _dotsToKeypadGap = 144.0;
+
   @override
   void initState() {
     super.initState();
@@ -46,8 +66,20 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
 
   @override
   void dispose() {
+    _errorTimer?.cancel();
     _padController.dispose();
     super.dispose();
+  }
+
+  /// Ipinapakita ang mensahe sa ilalim ng 4 na tuldok, tapos kusang tinatanggal
+  /// pagkatapos ng [_errorVisibleDuration] (3 segundo).
+  void _showError(String message) {
+    _errorTimer?.cancel();
+    setState(() => _error = message);
+    _errorTimer = Timer(_errorVisibleDuration, () {
+      if (!mounted) return;
+      setState(() => _error = null);
+    });
   }
 
   Future<void> _loadPhone() async {
@@ -73,10 +105,10 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
 
     if (pin != _firstEntry) {
       setState(() {
-        _error = 'MPIN did not match. Please enter it again.';
         _firstEntry = '';
         _step = _SetupStep.create;
       });
+      _showError('MPIN did not match. Please enter it again.');
       _padController.clear();
       return;
     }
@@ -101,6 +133,9 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
     } on MpinChangeLimitException catch (e) {
       hideLoading();
       if (!mounted) return;
+      // Nananatili ang mensaheng ito (hindi ito kusang nawawala) — kaya dapat
+      // kanselahin ang anumang naka-pending na auto-hide timer.
+      _errorTimer?.cancel();
       setState(() {
         _busy = false;
         _error = 'Limit reached: you can only change your MPIN '
@@ -113,6 +148,7 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
     } catch (_) {
       hideLoading();
       if (!mounted) return;
+      _errorTimer?.cancel();
       setState(() {
         _busy = false;
         _error = 'Could not save your MPIN. Please try again.';
@@ -126,7 +162,13 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
   Future<void> _goToLoginWithMpin() async {
     await ref.read(authStateProvider.notifier).lockForMpinUnlock();
     if (!mounted) return;
-    context.go(RouteConstants.mobileLogin);
+    // Handoff: alam na ng login page ang numero at ang bagong naka-set na MPIN,
+    // kaya deretso agad ito sa MPIN screen — walang splash-look na loading sa
+    // gitna ng MPIN setup at ng login page.
+    context.go(
+      RouteConstants.mobileLogin,
+      extra: MpinLoginChoice(showMpin: true, phone: _phone),
+    );
   }
 
   /// "3 days and 4 hours" / "5 hours" / "12 minutes".
@@ -268,8 +310,42 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
                             hasError: _error != null,
                           ),
                         ),
+                        // ── Validation message: nasa ILALIM ng 4 na tuldok ──
+                        // (dati ay nasa ibaba pa ng keypad). Nakalaan ang
+                        // taas kahit walang mensahe, kaya hindi gumagalaw ang
+                        // keypad kapag lumabas o nawala ito.
+                        const SizedBox(height: 14),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(
+                              minHeight: _errorSlotMinHeight),
+                          child: _error == null
+                              ? const SizedBox.shrink()
+                              : Center(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.error_outline_rounded,
+                                          size: 16, color: AppColors.error),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          _error!,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.35,
+                                            color: AppColors.error,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                        ),
+
                         // Nasa ibaba ang keypad — may pagitan sa mga tuldok.
-                        const SizedBox(height: 196),
+                        const SizedBox(height: _dotsToKeypadGap),
 
                         // ── Keypad (walang card sa likod nito) ──
                         Center(
@@ -283,27 +359,6 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
                             onCompleted: _onCompleted,
                           ),
                         ),
-                        if (_error != null) ...[
-                          const SizedBox(height: 18),
-                          Row(
-                            children: [
-                              const Icon(Icons.error_outline_rounded,
-                                  size: 16, color: AppColors.error),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _error!,
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.35,
-                                    color: AppColors.error,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
                         const SizedBox(height: 24),
                       ],
                     ),

@@ -9,10 +9,13 @@
 // hindi kailangan ng platform plugin sa test.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jireta_loans/core/security/mpin_service.dart';
+import 'package:jireta_loans/presentation/features/auth/screens/mpin_setup_screen.dart';
 import 'package:jireta_loans/presentation/shared/widgets/security/mpin_dialog.dart';
+import 'package:jireta_loans/presentation/shared/widgets/security/mpin_keypad.dart';
 
 /// In-memory na kapalit ng `FlutterSecureStorage`.
 class _MemorySecureStorage extends FlutterSecureStorage {
@@ -299,6 +302,82 @@ void main() {
 
       expect(find.text('Walang password ang phone mo — mag-set ng MPIN.'),
           findsOneWidget);
+    });
+
+    testWidgets('ang "did not match" ay kusang nawawala pagkatapos ng 3s',
+        (tester) async {
+      final service = MpinService(storage: _MemorySecureStorage());
+      await tester.pumpWidget(_host((context) async {
+        await showMpinSetupDialog(context, mpin: service);
+      }));
+      await tester.tap(find.text('open'));
+      await _pumpFrames(tester);
+
+      await _typePin(tester, '1234');
+      await _typePin(tester, '4321');
+      expect(find.textContaining('did not match'), findsOneWidget);
+
+      // Pagkalipas ng 3 segundo (4 na pump para sigurado), kusang nawawala.
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.textContaining('did not match'), findsNothing);
+      // Bumalik sa unang hakbang — handa sa bagong MPIN.
+      expect(find.text('Create 4-Digit MPIN'), findsOneWidget);
+    });
+  });
+
+  group('MpinSetupScreen', () {
+    /// Pinipindot ang mga keypad key ayon sa pagkakasunod-sunod.
+    Future<void> tapKeys(WidgetTester tester, List<String> keys) async {
+      for (final key in keys) {
+        await tester.tap(find.text(key));
+        await tester.pump();
+      }
+      await tester.pump();
+    }
+
+    Future<void> pumpSetup(WidgetTester tester, MpinService service) async {
+      // Sapat ang taas para hindi matakpan ng scroll view ang keypad.
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [mpinServiceProvider.overrideWithValue(service)],
+          child: const MaterialApp(home: MpinSetupScreen()),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets(
+        'ang "did not match" ay nasa ILALIM ng 4 na tuldok at nawawala sa 3s',
+        (tester) async {
+      final service = MpinService(storage: _MemorySecureStorage());
+      await pumpSetup(tester, service);
+
+      expect(find.text('Create Your MPIN'), findsOneWidget);
+      await tapKeys(tester, ['1', '2', '3', '4']);
+      expect(find.text('Confirm MPIN'), findsOneWidget);
+
+      // Hindi tugma ang kumpirmasyon → lumalabas ang mensahe.
+      await tapKeys(tester, ['4', '3', '2', '1']);
+      expect(find.textContaining('did not match'), findsOneWidget);
+
+      // Nasa ILALIM ito ng 4 na tuldok (at nasa ITAAS ng keypad) — dati ay nasa
+      // ibaba pa ng keypad ang mensahe.
+      final dotsY = tester.getCenter(find.byType(MpinDots)).dy;
+      final errorY = tester.getCenter(find.textContaining('did not match')).dy;
+      final keypadY = tester.getCenter(find.byType(MpinKeypadField)).dy;
+      expect(errorY, greaterThan(dotsY));
+      expect(errorY, lessThan(keypadY));
+
+      // Pagkalipas ng 3 segundo, kusang nawawala.
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.textContaining('did not match'), findsNothing);
+      // Hindi pa na-save ang MPIN dahil hindi natuloy ang kumpirmasyon.
+      expect(await service.isSet(), isFalse);
     });
   });
 }

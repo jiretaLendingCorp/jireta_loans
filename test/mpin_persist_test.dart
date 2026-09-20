@@ -113,10 +113,13 @@ void main() {
           reason: 'Dapat may numero para sa switch number sa MPIN screen');
     });
 
-    test('OTP form kapag wala nang session (tunay na natapos/na-revoke)',
+    test('MPIN screen pa rin kahit wala nang session (na-expire / na-revoke)',
         () async {
-      // May MPIN at numero pa — pero WALA nang tokens na maibabalik ng MPIN.
-      // Sa ganoon, hindi dapat ipangako ng app ang MPIN na tiyak na bibigo.
+      // May MPIN at numero pa — wala nang tokens na maibabalik ng MPIN. Sa
+      // bagong panuntunan, "Enter MPIN" pa rin ang unang lalabas (hindi ang
+      // Send OTP form): ang MPIN screen mismo ang magsasabi kapag hindi na
+      // ma-restore ang session. Dati, isang logout/expire lang ay
+      // PERMANENTENG naka-OTP na ang app kahit may MPIN pa ang device.
       await SecureStorage.saveLoginPhone('09171234567');
       await SecureStorage.saveLoginOwner(userId: 'u-1', role: 'lender');
       await MpinService().setMpin('1234');
@@ -124,7 +127,10 @@ void main() {
       await SecureStorage.clearLoginOwner();
 
       final choice = await MpinLoginGate().resolve();
-      expect(choice.showMpin, isFalse);
+      expect(choice.showMpin, isTrue,
+          reason: 'Laging Enter MPIN, kahit wala nang session');
+      expect(choice.phone, '09171234567',
+          reason: 'Kasama pa rin ang numero para sa switch number');
     });
 
     test('MPIN screen kahit wala pang owner record (lumang install)', () async {

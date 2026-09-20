@@ -17,7 +17,23 @@
 
 const DEV_ALLOWED_ORIGIN = "*";
 
-function allowedOrigins(): string[] {
+// Mga origin na PALAGING pinapayagan, bukod pa sa CORS_ALLOWED_ORIGINS env var.
+// Ito ang production web domain ng Jireta Loans (www at bare, at ang /login
+// page nito). Kailangan itong nasa allow list dahil kapag hindi, bino-block ng
+// browser ang LAHAT ng API response (ACAO:null) at ang app ay nagrereport ng
+// "No Internet Connection" kahit maayos naman ang network.
+//
+// Nasa code ito (hindi lang sa secret) para hindi mawala kapag na-overwrite ang
+// CORS_ALLOWED_ORIGINS — ligtas itong dagdag dahil ang env var ay pinagsasama
+// dito, hindi pinapalitan.
+const BUILT_IN_ALLOWED_ORIGINS: string[] = [
+  "https://www.jireta.com",
+  "https://jireta.com",
+  "https://app.jiretaloanscorp.com",
+];
+
+/** Ang mga origin na nasa CORS_ALLOWED_ORIGINS secret (WALANG built-ins). */
+function configuredOrigins(): string[] {
   const raw = Deno.env.get("CORS_ALLOWED_ORIGINS");
   if (!raw || raw.trim() === "") return [];
   return raw
@@ -26,14 +42,34 @@ function allowedOrigins(): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Bukas/dev na mode: walang naka-set na CORS_ALLOWED_ORIGINS, o `*` mismo.
+ * Pinananatili nito ang dating pag-uugali — kapag hindi naka-configure, `*` ang
+ * isinasagot para patuloy na gumana ang local web/testing. Mahalagang suriin
+ * ito KESA sa haba ng listahan, dahil ang built-ins ay laging nasa listahan
+ * ngayon (kung hindi, mawawala ang wildcard sa local dev).
+ */
+function corsUnrestricted(): boolean {
+  const configured = configuredOrigins();
+  return configured.length === 0 || configured.includes("*");
+}
+
+/**
+ * Ang buong allow list: CORS_ALLOWED_ORIGINS + ang built-in na production
+ * origin. Ang `*` ay nananatiling nag-iisa (wildcard mode).
+ */
+function allowedOrigins(): string[] {
+  if (corsUnrestricted()) return [DEV_ALLOWED_ORIGIN];
+  return [...new Set([...configuredOrigins(), ...BUILT_IN_ALLOWED_ORIGINS])];
+}
+
 // The value stamped on every JSON response. When CORS is restricted the
 // deployment's own web origin is used (single-origin in practice); when
 // unconfigured `*` keeps local web/dev working. Mobile apps ignore CORS.
 // deno-lint-ignore no-unused-vars
 function defaultAllowOrigin(): string {
-  const configured = allowedOrigins();
-  if (configured.length === 0) return DEV_ALLOWED_ORIGIN;
-  return configured[0];
+  if (corsUnrestricted()) return DEV_ALLOWED_ORIGIN;
+  return allowedOrigins()[0];
 }
 
 export const corsHeaders: Record<string, string> = {
@@ -56,14 +92,12 @@ export function handleCors(req: Request): Response | null {
 // Preflight/OPTIONS response: echo the request's own Origin back only when it
 // is on the allow list (a browser rejects a comma-joined ACAO list).
 export function corsHeadersFor(req: Request): Record<string, string> {
-  const configured = allowedOrigins();
-  // Unconfigured (local dev) → wildcard
-  if (configured.length === 0) return { ...corsHeaders };
-  // Support '*' wildcard in env
-  if (configured.includes("*")) return { ...corsHeaders };
+  const allowed = allowedOrigins();
+  // Unconfigured (local dev) o `*` → wildcard
+  if (allowed.includes(DEV_ALLOWED_ORIGIN)) return { ...corsHeaders };
   const reqOrigin = req.headers.get("Origin");
-  const allowed = reqOrigin && configured.includes(reqOrigin);
-  const origin = allowed ? reqOrigin! : "null";
+  const isAllowed = reqOrigin != null && allowed.includes(reqOrigin);
+  const origin = isAllowed ? reqOrigin! : "null";
   return { ...corsHeaders, "Access-Control-Allow-Origin": origin };
 }
 
@@ -75,19 +109,24 @@ export function corsHeadersFor(req: Request): Record<string, string> {
 // were always blocked despite being in CORS_ALLOWED_ORIGINS.
 function getCorsHeaders(req?: Request): Record<string, string> {
   if (!req) {
-    const configured = allowedOrigins();
-    if (configured.length === 0 || configured.includes("*")) {
+    const allowed = allowedOrigins();
+    if (allowed.includes(DEV_ALLOWED_ORIGIN)) {
       return { ...corsHeaders };
     }
     // Legacy path: no req to inspect. Returning '*' unblocks all configured
     // origins (secure enough for this app) and fixes the production
     // "cannot connect to server (CORS)" that survived the jireta migration.
     // Once all call sites pass `req`, this branch becomes dead code.
-    if (configured.length > 1) return { ...corsHeaders };
-    // Single origin configured → keep strict
+    //
+    // Tandaan: ang haba dito ay kasama na ang built-in na production origin,
+    // kaya ang branch na ito ay wildcard kahit isang origin lang ang nasa
+    // secret. Sinadya ito — ang tanging paraan para siguradong gumana ang
+    // www.jireta.com sa LEGACY call sites (na hindi pa nagpapasa ng `req`).
+    if (allowed.length > 1) return { ...corsHeaders };
+    // Isang origin lang (walang built-in) → keep strict
     return {
       ...corsHeaders,
-      "Access-Control-Allow-Origin": configured[0],
+      "Access-Control-Allow-Origin": allowed[0],
     };
   }
   return corsHeadersFor(req);

@@ -17,6 +17,7 @@ import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/dialogs/loading_dialog.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../shared/widgets/branded_loading_screen.dart';
 import '../../../shared/widgets/legal_links.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../../../shared/widgets/security/mpin_keypad.dart';
@@ -25,7 +26,19 @@ import 'otp_verify_screen.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class MobileLoginScreen extends ConsumerStatefulWidget {
-  const MobileLoginScreen({super.key});
+  const MobileLoginScreen({super.key, this.handoff});
+
+  /// Alam na ang sagot kung MPIN ba ang hihingin — galing ito sa OTP verify o
+  /// sa MPIN setup, na parehong may numerong hawak na at alam kung may naka-set
+  /// nang MPIN.
+  ///
+  /// BAKIT: kung wala ito, muling binabasa ng screen na ito ang secure storage
+  /// (`MpinLoginGate.resolve`) bago nito malaman kung MPIN o OTP form ang
+  /// lalabas — at habang naghihintay, isang BUONG screen na kapareho ng splash
+  /// ang ipinapakita. Kaya pagkatapos ng "Verify OTP" na loading ay may
+  /// "splash" pa ulit bago ang MPIN screen. Sa handoff na ito, direkta na ang
+  /// MPIN screen sa unang frame — walang paghihintay, walang splash.
+  final MpinLoginChoice? handoff;
 
   @override
   ConsumerState<MobileLoginScreen> createState() => _MobileLoginScreenState();
@@ -97,7 +110,17 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     );
     _fadeController.forward();
     _lifecycleListener = AppLifecycleListener(onResume: _onAppResumed);
-    _resolveMpinMode();
+    // May handoff (galing OTP / MPIN setup) → hindi na kailangang mag-load:
+    // ipakita agad ang MPIN screen na may numerong ginamit.
+    final handoff = widget.handoff;
+    if (handoff != null) {
+      _mpinChecking = false;
+      _showMpin = handoff.showMpin;
+      _hasMpin = handoff.showMpin;
+      _mpinPhone = handoff.phone;
+    } else {
+      _resolveMpinMode();
+    }
     // May nakabinbing "Session Ended" na mensahe (hal. nag-expire ang session
     // habang nasa dashboard, kung kaya't hindi pa nasasalo ng `ref.listen` sa
     // ibaba) — ipakita ito sa unang frame. Ang OK nito ay maghahayag ng MPIN
@@ -808,25 +831,37 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                         ),
                       ),
 
-                      // ── Mensahe ng maling MPIN: sa ILALIM ng 4 na tuldok.
+                      // ── Mga mensahe: sa ILALIM ng 4 na tuldok ──
+                      // Dalawa ang pwedeng lumabas dito:
+                      //   • maling MPIN ("Incorrect MPIN. 2 attempts left.")
+                      //     — kusang nawawala pagkatapos ng 3 segundo
+                      //     (tingnan ang `_showMpinError`),
+                      //   • lockout ("Too many attempts. Try again in …")
+                      //     — nananatili hangga't naka-lock.
                       // Nakalaan ang espasyo (14 + 38) para hindi gumalaw ang
-                      // keypad kapag lumabas ang mensahe — at kusang nawawala
-                      // ito pagkatapos ng 3 segundo (tingnan ang
-                      // `_showMpinError`). ──
+                      // keypad kapag lumabas ang mensahe. ──
                       const SizedBox(height: 14),
                       SizedBox(
                         height: 38,
-                        child: (_mpinError != null && !locked)
+                        child: (locked || _mpinError != null)
                             ? Center(
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.error_outline_rounded,
-                                        size: 15, color: AppColors.error),
+                                    Icon(
+                                      locked
+                                          ? Icons.timer_rounded
+                                          : Icons.error_outline_rounded,
+                                      size: 15,
+                                      color: AppColors.error,
+                                    ),
                                     const SizedBox(width: 6),
                                     Flexible(
                                       child: Text(
-                                        _mpinError!,
+                                        locked
+                                            ? 'Too many attempts. Try again '
+                                                'in $_mpinLockLabel.'
+                                            : _mpinError!,
                                         textAlign: TextAlign.center,
                                         maxLines: 2,
                                         style: const TextStyle(
@@ -859,27 +894,9 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                             onCompleted: _submitMpin,
                           ),
 
-                          if (locked) ...[
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                const Icon(Icons.timer_rounded,
-                                    size: 16, color: AppColors.error),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Too many attempts. Try again in '
-                                    '$_mpinLockLabel.',
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.error,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                          // Ang "Too many attempts. Try again in …" ay nasa
+                          // ITAAS na ngayon — sa ilalim ng 4 na tuldok, kasama
+                          // ng mensahe ng maling MPIN.
 
                           // Nasa gitna ng screen na loading modal ang
                           // ipinapakita habang nag-ve-verify/nag-reset.
@@ -929,22 +946,21 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     final authState = ref.watch(authStateProvider);
     // Habang nag-u-unlock gamit ang MPIN (naka-`_mpinBusy`) ang loading modal
     // sa gitna ang ipinapakita — hindi ang full-screen na loading ng buong app.
+    //
+    // Sa ibang pagkakataon (nagre-restore pa ang session pagka-open ng app, o
+    // naka-authenticated na at papunta pa lang sa dashboard), ang BRANDED na
+    // loading ang ipinapakita — logo + JIRETA + gold progress bar, kapareho ng
+    // splash. Dati, hubad na spinper sa navy na screen ito, kaya parang
+    // "loading screen" ang sumalubong sa user imbes na ang splash.
     if ((authState.isLoading || authState.isAuthenticated) && !_mpinBusy) {
-      return const Scaffold(
-        backgroundColor: AppColors.deepNavy,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.gold),
-        ),
-      );
+      return const BrandedLoadingScreen();
     }
 
     // Habang tinitingnan kung MPIN na ang hihingin sa page na ito, huwag munang
-    // ipakita ang phone form para hindi ito kumislap bago mag-switch.
+    // ipakita ang phone form para hindi ito kumislap bago mag-switch. Branded
+    // din ito para tuloy-tuloy ang hitsura mula sa splash.
     if (_mpinChecking) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF7F8FA),
-        body: SizedBox.shrink(),
-      );
+      return const BrandedLoadingScreen();
     }
     if (_showMpin) {
       // Nasa MPIN lock screen — hindi ito nilalabasan ng system back.

@@ -420,6 +420,11 @@ verify_jwt = false
 verify_jwt = false
 [functions.auth-session]
 verify_jwt = false
+[functions.auth-email-verify]
+# verify_jwt = false: ?fn=confirm ang binubuksan ng LINK sa email (browser, walang
+# JWT), samantalang ang ?fn=send / ?fn=status ay nagpapatunay ng user sa loob ng
+# function gamit ang requireAuth().
+verify_jwt = false
 [functions.ci-manage]
 verify_jwt = true
 [functions.ci-submit]

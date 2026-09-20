@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/security/mpin_login_gate.dart';
 import '../../../../core/security/mpin_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
@@ -202,7 +203,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         }
         await ref.read(authStateProvider.notifier).lockForMpinUnlock();
         if (!mounted) return;
-        context.go(RouteConstants.mobileLogin);
+        // Ipinapasa ang nalalaman na natin — ang numero at ang katotohanang may
+        // naka-set nang MPIN — kaya deretso agad sa MPIN screen ang login page.
+        // Kung wala ito, muli pa itong nagbabasa ng secure storage at isang
+        // buong screen na kapareho ng splash ang lumalabas bago ang MPIN.
+        context.go(
+          RouteConstants.mobileLogin,
+          extra: MpinLoginChoice(showMpin: true, phone: widget.phone),
+        );
         return;
       }
       if (state.forcePasswordChange) {

@@ -567,3 +567,147 @@ export async function sendPasswordResetEmail(params: SendResetEmailParams): Prom
     return { ok: false, error: msg, kind };
   }
 }
+
+// ── Email address verification (LINK, hindi OTP) ────────────────────────────
+// Ginagamit ng auth-email-verify?fn=send pagkatapos ng "Fill In Information"
+// modal ng lender. Ang pag-tap sa link (hindi isang 6-digit code) ang
+// nagpapatunay ng email address.
+export interface SendVerificationEmailParams {
+  to: string;
+  /** Ang buong URL na bubuksan ng user — nagpapatunay ito sa server kapag pinindot. */
+  verifyLink: string;
+  recipientName?: string;
+  /** Ilang minuto bago ma-expire ang link (display lang sa email). */
+  expiresInMinutes?: number;
+}
+
+function buildEmailVerifyHtml(
+  verifyLink: string,
+  recipientName?: string,
+  expiresInMinutes = 60,
+): string {
+  const safeLink = escapeHtml(verifyLink);
+  const greeting = recipientName ? `Hi ${escapeHtml(recipientName)},` : 'Hi,';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:Inter,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:24px 0;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+        <tr>
+          <td style="background:#0f1f3c;padding:24px 28px;text-align:center;">
+            <div style="font-family:Playfair Display,serif;font-size:20px;font-weight:700;color:#d4a017;letter-spacing:0.5px;">JIRETA LOANS</div>
+            <div style="font-size:11px;color:#ffffff99;letter-spacing:1.2px;text-transform:uppercase;margin-top:4px;">Credit Corp 1966</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px;">
+            <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f1f3c;">Verify your email address</h2>
+            <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">${greeting}</p>
+            <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">
+              Please confirm that this email address belongs to you. Click the button below to verify it. This link expires in <strong>${expiresInMinutes} minute(s)</strong> and can only be used once — walang code na ita-type, isang tap lang.
+            </p>
+            <table cellpadding="0" cellspacing="0" style="margin:20px 0 16px;">
+              <tr>
+                <td align="center" style="border-radius:8px;background:#d4a017;">
+                  <a href="${safeLink}" target="_blank" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:700;color:#0f1f3c;text-decoration:none;border-radius:8px;">Verify Email Address</a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:16px 0 8px;font-size:12px;line-height:1.5;color:#6b7280;">
+              If the button doesn't work, copy and paste this URL into your browser:
+            </p>
+            <p style="margin:0 0 16px;word-break:break-all;font-size:12px;line-height:1.5;">
+              <a href="${safeLink}" target="_blank" style="color:#0f1f3c;text-decoration:underline;">${safeLink}</a>
+            </p>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>
+            <p style="margin:0;font-size:12px;line-height:1.5;color:#9ca3af;">
+              If you didn't add this address to your Jireta Loans account, you can safely ignore this email — nothing will be verified.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f9fafb;padding:16px 28px;text-align:center;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;font-size:11px;color:#9ca3af;">&copy; ${new Date().getFullYear()} Jireta Loans &amp; Credit Corp. All rights reserved.</p>
+            <p style="margin:4px 0 0;font-size:11px;color:#9ca3af;">This is an automated message, please do not reply.</p>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:12px 0 0;font-size:11px;color:#9ca3af;text-align:center;">Sent via Resend &bull; Jireta Loans Transactional Mail</p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildEmailVerifyText(
+  verifyLink: string,
+  expiresInMinutes = 60,
+): string {
+  return `Verify your Jireta Loans email address
+
+Please confirm that this email address belongs to you. Open the link below to verify it. This link expires in ${expiresInMinutes} minute(s) and can only be used once.
+
+${verifyLink}
+
+If you didn't add this address to your account, you can safely ignore this email.
+
+— Jireta Loans & Credit Corp 1966`;
+}
+
+/**
+ * Ipinapadala ang email-verification LINK sa pamamagitan ng Resend.
+ * Kapareho ng ibang senders dito: 2xx = ok, at ang failure ay may `kind` para
+ * maipaliwanag nang tama sa app (hal. RESEND_API_KEY na kulang).
+ */
+export async function sendEmailVerificationEmail(
+  params: SendVerificationEmailParams,
+): Promise<SendEmailResult> {
+  const apiKey = Deno.env.get('RESEND_API_KEY');
+  if (!apiKey) {
+    console.warn('[email] RESEND_API_KEY not set — skipping Resend email verification send');
+    return { ok: false, error: 'RESEND_API_KEY not configured' };
+  }
+
+  const from = resolveFromAddress();
+  const expires = params.expiresInMinutes ?? 60;
+  const html = buildEmailVerifyHtml(params.verifyLink, params.recipientName, expires);
+  const text = buildEmailVerifyText(params.verifyLink, expires);
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [params.to],
+        subject: 'Verify your Jireta Loans email address',
+        html,
+        text,
+        tags: [{ name: 'category', value: 'email_verification' }],
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      const kind = classifyResendFailure(res.status, body);
+      console.error(failureLog('email verification failed', res.status, kind, from, params.to, body));
+      return { ok: false, error: `${res.status} ${body}`.slice(0, 500), status: res.status, kind };
+    }
+
+    const data = await res.json().catch(() => ({} as Record<string, unknown>));
+    const id = (data as { id?: string })?.id;
+    console.log(`[email] Resend email verification sent to ${params.to} id=${id ?? 'unknown'}`);
+    return { ok: true, id };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const kind = classifyFetchError(msg);
+    console.error(`[email] Resend email verification fetch error [${kind}]:`, msg);
+    return { ok: false, error: msg, kind };
+  }
+}

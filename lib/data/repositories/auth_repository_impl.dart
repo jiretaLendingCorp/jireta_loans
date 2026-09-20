@@ -74,4 +74,15 @@ class AuthRepositoryImpl implements IAuthRepository {
   @override
   Future<Map<String, dynamic>> refreshSession({required String refreshToken}) =>
       _ds.refreshSession(refreshToken: refreshToken);
+
+  @override
+  Future<void> sendEmailVerification({required String email}) =>
+      _ds.sendEmailVerification(email: email);
+
+  @override
+  Future<bool> isEmailVerified() => _ds.isEmailVerified();
+
+  @override
+  Future<void> confirmEmailVerification({required String token}) =>
+      _ds.confirmEmailVerification(token: token);
 }

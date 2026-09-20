@@ -170,28 +170,14 @@ class FcmService {
         }
       }
 
-      // ── Token lifecycle ────────────────────────────────────────────────
-      // Kung naka-OFF ang push sa Profile settings, huwag i-register ang
-      // token (at i-deactivate kung dati itong naka-register).
-      if (!await isPushEnabled()) {
-        AppLogger.debug('[FCM] Push disabled by user — skipping token setup');
-        await unregister();
-        return;
-      }
-
-      _token = await _messaging.getToken();
-      if (_token != null) {
-        AppLogger.debug('[FCM] Token acquired');
-        await _registerToken(_token!);
-      }
-
-      _messaging.onTokenRefresh.listen((newToken) async {
-        _token = newToken;
-        AppLogger.debug('[FCM] Token refreshed');
-        await _registerToken(newToken);
-      });
-
-      // ── Message handlers ───────────────────────────────────────────────
+      // ── Message handlers: LAGING naka-wire ─────────────────────────────
+      // MAHALAGA: hindi ito dapat i-skip kahit naka-OFF ang push sa Profile.
+      // Dati, agad na `return` dito kapag naka-OFF ang setting sa pagbukas ng
+      // app — kaya kahit i-switch ON sa Profile, hindi na nakakabit ang
+      // foreground display at ang tap-to-open. Kailangan pa ng buong restart
+      // bago gumana ulit ang push, kaya "hindi gumagana kapag na switch
+      // on/off". Ang Profile preference ay para LAN sa token registration.
+      //
       // Foreground: FCM does not display the message itself → show a local
       // notification. The data payload carries the existing notification's
       // id so taps deep-link to the same screen as the in-app entry.
@@ -200,6 +186,20 @@ class FcmService {
       // App opened from a notification (background → foreground, or
       // terminated → cold start after onBackgroundMessage).
       FirebaseMessaging.onMessageOpenedApp.listen(_handleOpenedMessage);
+
+      // Token refresh — dito rin sinusunod ang Profile preference. Kung hindi,
+      // ang bagong token na na-generate pagkatapos ng `deleteToken()` sa "OFF"
+      // ay awtomatikong maire-register at mabubuhay muli ang push kahit pinatay
+      // ito ng user.
+      _messaging.onTokenRefresh.listen((newToken) async {
+        _token = newToken;
+        AppLogger.debug('[FCM] Token refreshed');
+        if (!await isPushEnabled()) {
+          AppLogger.debug('[FCM] Token refreshed habang OFF ang push — skip');
+          return;
+        }
+        await _registerToken(newToken);
+      });
 
       // Cold start from a terminated-state notification tap. Deferred until
       // the router is attached (app.dart) so navigation actually works.
@@ -210,6 +210,21 @@ class FcmService {
         } else {
           _handleOpenedMessage(initial);
         }
+      }
+
+      // ── Token registration (depende sa Profile preference) ─────────────
+      // Naka-OFF sa Profile: hindi nagre-register ng token (at hindi rin
+      // binubura, para hindi ito muling likhain sa bawat pagbukas ng app — ang
+      // tunay na cleanup ay ginagawa ng `disable()` mula sa settings).
+      if (!await isPushEnabled()) {
+        AppLogger.debug('[FCM] Push disabled by user — skipping token setup');
+        return;
+      }
+
+      _token = await _messaging.getToken();
+      if (_token != null) {
+        AppLogger.debug('[FCM] Token acquired');
+        await _registerToken(_token!);
       }
     } catch (e) {
       AppLogger.error('[FCM] Init failed: $e');
@@ -259,6 +274,14 @@ class FcmService {
   /// user. Called after login and on token refresh.
   Future<void> syncWithUser() async {
     if (!isSupportedPlatform) return;
+    // Sinusunod ang Profile preference. Kung hindi ito tse-tsek dito, bawat
+    // login (`setAuthenticated`) ay muling nagre-register ng token — kaya ang
+    // push na pinatay ng user sa Profile ay tahimik na bumabalik pagkatapos
+    // niyang mag-login muli (o pagka-restore ng session sa pagbukas ng app).
+    if (!await isPushEnabled()) {
+      AppLogger.debug('[FCM] Push OFF sa Profile — skip token sync');
+      return;
+    }
     try {
       final token = _token ?? await _messaging.getToken();
       if (token == null) return;
@@ -283,12 +306,21 @@ class FcmService {
     }
   }
 
-  /// Deactivates this device's token on logout so the user stops receiving
-  /// pushes on this device.
+  /// Deactivates this device's token on logout / push-OFF so the user stops
+  /// receiving pushes on this device.
+  ///
+  /// Dati, agad itong umaalis kapag `_token == null` (hal. naka-OFF ang push
+  /// sa pagbukas, o hindi pa tumakbo ang `initialize()`). Bunga: nananatiling
+  /// ACTIVE ang row sa `user_devices` — patuloy na tumatanggap ng push ang
+  /// device para sa naunang account. Ngayon, kinukuha muna ang tunay na token
+  /// (kung wala pa sa memory) para tunay itong ma-deactivate sa server.
   Future<void> unregister() async {
-    if (!isSupportedPlatform || _token == null) return;
+    if (!isSupportedPlatform) return;
     try {
-      await sl<DeviceTokenRemoteDataSource>().unregister(token: _token!);
+      final token = _token ?? await _messaging.getToken();
+      if (token == null) return;
+      _token = token;
+      await sl<DeviceTokenRemoteDataSource>().unregister(token: token);
     } catch (e) {
       AppLogger.error('[FCM] Token unregister failed: $e');
     }
@@ -307,11 +339,20 @@ class FcmService {
   }
 
   /// Push ON — kunin (o i-refresh) ang token at i-register sa backend.
+  ///
+  /// Pagkatapos ng `disable()` ay na-delete ang token (`deleteToken()`), kaya
+  /// walang laman ang `_token` at sariwang token ang kinukuha dito. Ang mga
+  /// message handler ay hindi na kailangang i-wire muli — laging naka-wire na
+  /// sila sa `initialize()` (tingnan ang paliwanag doon).
   Future<void> enable() async {
     if (!isSupportedPlatform) return;
     try {
+      // Sariwang token: huwag gamitin ang dating hawak kung na-delete na ito.
       final token = _token ?? await _messaging.getToken();
-      if (token == null) return;
+      if (token == null) {
+        AppLogger.error('[FCM] enable failed: walang makuha na token');
+        return;
+      }
       _token = token;
       await _registerToken(token);
       AppLogger.debug('[FCM] Push enabled');
@@ -326,11 +367,11 @@ class FcmService {
   Future<void> disable() async {
     if (!isSupportedPlatform) return;
     try {
-      final token = _token ?? await _messaging.getToken();
-      if (token != null) {
-        _token = token;
-        await unregister();
-      }
+      // I-deactivate muna sa backend (habang may token pa), tapos i-delete ang
+      // token sa device — kaya hindi na ito makakatanggap ng push kahit
+      // naka-login pa. Ang `unregister()` ang kukuha ng token kung wala pa
+      // ito sa memory (hal. naka-OFF na sa pagbukas ng app).
+      await unregister();
       await _messaging.deleteToken();
       _token = null;
       AppLogger.debug('[FCM] Push disabled');

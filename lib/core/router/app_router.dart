@@ -18,6 +18,7 @@ import '../../presentation/features/auth/screens/otp_verify_screen.dart';
 import '../../presentation/features/auth/screens/reset_password_screen.dart';
 import '../../presentation/features/auth/screens/splash_screen.dart';
 import '../../presentation/features/auth/screens/terms_conditions_screen.dart';
+import '../../presentation/features/auth/screens/verify_email_screen.dart';
 import '../../presentation/features/auth/screens/web_login_screen.dart';
 import '../../presentation/features/auth/screens/web_register_screen.dart';
 import '../../presentation/features/landing/screens/landing_screen.dart';
@@ -117,6 +118,51 @@ import '../../presentation/shared/providers/auth_state_provider.dart';
 import '../../presentation/shared/providers/connectivity_provider.dart';
 import '../constants/app_constants.dart';
 import '../constants/route_constants.dart';
+import '../security/mpin_login_gate.dart';
+
+/// Ang redirect na gagawin kapag **offline** (o hindi pa kumpirmado) ang
+/// internet.
+///
+/// BUG NA NA-AYOS DITO: dating ibinabalik ang MOBILE na user sa `/splash`
+/// kapag `connVal == false` — kahit nasa MPIN o Verify OTP screen na siya.
+///
+/// Bakit "laging" itong nangyayari:
+///   * Ang reachability probe ay tumatakbo **bawat 5 segundo** na may **4s
+///     timeout**, at isang bigo lang ay `false` na agad.
+///   * Ang `connVal` ay **nananatiling `false`** hanggang sa susunod na
+///     matagumpay na probe (hanggang ~5 segundo).
+///   * Sa loob ng bintanang iyon, ang **anumang** `router.refresh()` ay
+///     tumatakbo muli ang redirect — at ang paglipat ng OTP → MPIN at
+///     MPIN → login ay parehong nagbabago ng auth state, kaya tumatawag ito
+///     ng `router.refresh()`.
+///   Kaya sa sandaling may isang blip sa network, ang sumunod na paglipat ay
+///   bumubulaga sa splash.
+///
+/// Ang SPLASH ay **LAUNCH screen lamang**: kapag nakaalis na ang user dito,
+/// hindi na ito ibinabalik ng redirect. Kung offline pa sa pagbukas, ang
+/// splash mismo ang hindi umaalis (tingnan ang `_waitingForConnection` sa
+/// `SplashScreen`) hangga't wala pang internet — kaya nananatili pa rin ang
+/// dating ugali sa launch. Ang login / MPIN / OTP screens ay may sariling
+/// offline banner, at ang naka-authenticate ay may global offline overlay.
+///
+/// [authenticatedTarget] — kung saan dapat manatili ang naka-authenticated na
+/// user (dashboard ng kanyang role). `null` ito kapag wala pang session, o
+/// kapag nasa one-time setup / public route siya — sa mga kasong iyon, hindi
+/// siya ginagalaw.
+///
+/// Web: hindi magagamit ang app offline, kaya ang splash pa rin ang gate.
+String? offlineRedirect({
+  required bool isWeb,
+  required String path,
+  required String? authenticatedTarget,
+}) {
+  if (isWeb) {
+    return path == RouteConstants.splash ? null : RouteConstants.splash;
+  }
+  // ── Mobile ──────────────────────────────────────────────────────────
+  if (path == RouteConstants.splash) return null;
+  return authenticatedTarget;
+}
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   // NOTE: The GoRouter instance is created ONCE and kept stable. Auth state is
@@ -198,21 +244,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.forgotPassword,
         RouteConstants.resetPassword,
       ];
-      if (!connLoading && connVal == false && !offlineExempt.contains(path)) {
-        if (kIsWeb) {
-          return path == RouteConstants.splash ? null : RouteConstants.splash;
-        }
-        // Mobile: allow splash itself to show even offline; let SplashScreen
-        // decide whether to wait (unauthenticated) or proceed (authenticated).
-        if (path == RouteConstants.splash) return null;
-        if (authState.isAuthenticated) {
-          return redirectForRole(path, authState.role);
-        }
-        // Unauthenticated mobile offline: keep on splash (shows offline toast)
-        // instead of jumping straight to login, so branding is visible.
-        return path == RouteConstants.splash ? null : RouteConstants.splash;
-      }
-
       final isAuthenticated = authState.isAuthenticated;
 
       final publicRoutes = [
@@ -224,7 +255,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.otpVerify,
         RouteConstants.forgotPassword,
         RouteConstants.resetPassword,
+        // Branded na Verify Email page — buksan ito ng LINK sa email
+        // (`https://www.jireta.com/verify-email?t=...`), kaya kailangang
+        // maabot kahit hindi pa naka-log in (kapareho ng reset-password).
+        RouteConstants.verifyEmail,
       ];
+
+      // Mga route na BAHAGI PA ng one-time setup pagkatapos mag-login: hindi
+      // dapat itulak ang user sa dashboard habang naroon pa siya (kahit
+      // mag-refresh ang router, o mawalan ng internet sa gitna ng setup).
+      const setupRoutes = [
+        RouteConstants.forceChangePassword,
+        RouteConstants.terms,
+        RouteConstants.mpinSetup,
+        RouteConstants.verifyEmail,
+      ];
+
+      if (!connLoading && connVal == false && !offlineExempt.contains(path)) {
+        return offlineRedirect(
+          isWeb: kIsWeb,
+          path: path,
+          // Mananatili sa screen ng kanyang role kapag naka-authenticate at
+          // hindi nasa setup/public route. Kung hindi, hindi siya gagalawin.
+          authenticatedTarget: isAuthenticated &&
+                  !setupRoutes.contains(path) &&
+                  !publicRoutes.contains(path)
+              ? redirectForRole(path, authState.role)
+              : null,
+        );
+      }
 
       // Any private route a signed-out visitor asks for: web lands on the
       // public marketing page (Sign In / Get Started CTAs), native mobile
@@ -258,10 +317,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // after acceptance) instead of being bounced to their dashboard.
         // Same for the required MPIN setup right after OTP verification —
         // kailangang manatili ito hangga't hindi naka-set ang MPIN.
-        if (path != RouteConstants.forceChangePassword &&
-            path != RouteConstants.terms &&
-            path != RouteConstants.mpinSetup &&
-            !publicRoutes.contains(path)) {
+        // (Kasama sa `setupRoutes` ang Verify Your Email — bahagi pa rin ito ng
+        // one-time setup ng lender, kaya hindi ito dapat itulak sa dashboard
+        // bago pa makumpirma ang email.)
+        if (!setupRoutes.contains(path) && !publicRoutes.contains(path)) {
           return redirectForRole(path, authState.role);
         }
 
@@ -287,8 +346,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 (authState.role == AppConstants.roleRider ||
                     authState.role == AppConstants.roleLender);
 
+        // ── Verify Email: HINDI dapat i-bounce sa dashboard ─────────────
+        // Ang `/verify-email` ay nasa `publicRoutes` dahil kailangang mabuksan
+        // ito ng LINK sa email kahit hindi naka-log in (tulad ng
+        // reset-password). Pero kapag NAKA-LOG IN naman ang lender
+        // (pagkatapos ng "Continue" sa Fill In Information), hindi ito dapat
+        // itulak ng bloke sa ibaba sa `/lender/dashboard` — kung hindi, hindi
+        // lalabas ang Verify Your Email screen.
         if (publicRoutes.contains(path) &&
             !resetFlowRoutes.contains(path) &&
+            path != RouteConstants.verifyEmail &&
             !authState.forcePasswordChange &&
             !isMpinHandoff) {
           final role = authState.role;
@@ -319,6 +386,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.terms,
           builder: (ctx, s) => const TermsConditionsScreen()),
       GoRoute(
+          path: RouteConstants.verifyEmail,
+          builder: (ctx, s) {
+            // Ang `extra` ay [VerifyEmailArgs] (email + posibleng error mula sa
+            // unang pagpapadala); kung wala, ang email ng account ang gagamitin.
+            final extra = s.extra;
+            return VerifyEmailScreen(
+              args: extra is VerifyEmailArgs ? extra : null,
+              // Ang `t` ay ang token mula sa LINK sa email — nasa query string
+              // ito ng branded na /verify-email page. May fallback sa Uri.base
+              // (kapareho ng reset-password flow) para sa web.
+              token: s.uri.queryParameters['t'] ??
+                  Uri.base.queryParameters['t'],
+            );
+          }),
+      GoRoute(
           path: RouteConstants.webLogin,
           builder: (ctx, s) => const WebLoginScreen()),
       GoRoute(
@@ -326,7 +408,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           builder: (ctx, s) => const WebRegisterScreen()),
       GoRoute(
           path: RouteConstants.mobileLogin,
-          builder: (ctx, s) => const MobileLoginScreen()),
+          builder: (ctx, s) => MobileLoginScreen(
+                // Galing OTP verify / MPIN setup: alam na ang numero at kung
+                // may naka-set nang MPIN, kaya deretso na sa MPIN screen —
+                // walang splash-look na loading sa gitna ng dalawang screen.
+                handoff: s.extra is MpinLoginChoice
+                    ? s.extra as MpinLoginChoice
+                    : null,
+              )),
       GoRoute(
           path: RouteConstants.otpVerify,
           builder: (ctx, s) {

@@ -9,6 +9,36 @@ class UserRemoteDataSource {
   final DioClient _client;
   UserRemoteDataSource(this._client);
 
+  /// Isinasama sa TOP LEVEL ang nested na `employee_profiles` /
+  /// `rider_profiles` / `lender_profiles` ng tugon ng
+  /// `users-manage?fn=get-profile` (pinapanatili pa rin ang nested na key).
+  ///
+  /// BUG na inaayos nito: ang [UserModel.fromJson] ay TOP-LEVEL ang binabasa
+  /// (`json['gender']`, `json['civil_status']`, `json['date_of_birth']`,
+  /// `json['position']`) pero NESTED ang isinasagot ng server. Kung hindi ito
+  /// i-flatten, laging `null` ang gender / civil status / date of birth ng
+  /// head manager at employee — kaya hindi sila na-pre-fill sa Personal
+  /// Details dialog at hindi rin malaman kung kumpleto na ang account.
+  static Map<String, dynamic> flattenRoleProfile(Map<String, dynamic> row) {
+    final merged = <String, dynamic>{...row};
+    for (final key in const [
+      'employee_profiles',
+      'rider_profiles',
+      'lender_profiles',
+    ]) {
+      final raw = row[key];
+      // Ang embed ay pwedeng List o Map (depende sa cardinality).
+      final obj = raw is List ? (raw.isEmpty ? null : raw.first) : raw;
+      if (obj is Map) {
+        for (final entry in obj.entries) {
+          // `putIfAbsent` — huwag patungan ang may laman nang top-level value.
+          merged.putIfAbsent(entry.key, () => entry.value);
+        }
+      }
+    }
+    return merged;
+  }
+
   Future<Map<String, dynamic>> createEmployee(Map<String, dynamic> data) async {
     final res = await _client.post(
       ApiEndpoints.usersCreateEmployee,
@@ -61,7 +91,7 @@ class UserRemoteDataSource {
         AppLogger.e('[UserRemote] getProfile user is null, raw=$raw userId=$userId');
         throw DioException(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), message: 'User not found', response: Response(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), statusCode: 404, data: raw));
       }
-      return UserModel.fromJson(data as Map<String, dynamic>);
+      return UserModel.fromJson(flattenRoleProfile(data as Map<String, dynamic>));
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       final body = e.response?.data;

@@ -20,6 +20,17 @@ class ApiEndpoints {
   static const String authTermsAccept = 'auth-session?fn=terms-accept';
   static const String authGoogle = 'auth-google?fn=exchange';
 
+  // Email verification ng email na inilagay sa "Fill In Information" — LINK
+  // ang ipinapadala sa email (hindi OTP code).
+  static const String authEmailVerifySend = 'auth-email-verify?fn=send';
+  static const String authEmailVerifyStatus = 'auth-email-verify?fn=status';
+
+  /// Kinukumpirma ang token na galing sa LINK ng email — ito ang tinatawag ng
+  /// branded na `/verify-email?t=...` page (www.jireta.com). Hindi kailangan
+  /// ng login: ang token mismo ang nagpapatunay.
+  static const String authEmailVerifyConfirm =
+      'auth-email-verify?fn=confirm-json';
+
   // Users
   static const String usersCreateEmployee = 'users-create?fn=create-employee';
   static const String usersCreateRider = 'users-create?fn=create-rider';

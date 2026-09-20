@@ -228,4 +228,40 @@ class AuthRemoteDataSource {
       },
     );
   }
+
+  /// Ipinapadala ang email-verification LINK (hindi OTP) sa [email]. Ang server
+  /// ang gumagawa ng one-time token at ang Resend ang nagpapadala ng mail; dito
+  /// lang sa app ipinapaalam kung umubra. Nagre-throw ito ng [DioException] na
+  /// may mensahe ng server para maisauli sa user kung bakit hindi natuloy
+  /// (hal. hindi pa naka-configure ang email sending).
+  Future<void> sendEmailVerification({required String email}) async {
+    await _client.post(
+      ApiEndpoints.authEmailVerifySend,
+      data: {'email': email},
+    );
+  }
+
+  /// Kinukumpirma ang token na galing sa link ng email (branded na
+  /// `/verify-email?t=...` page sa web app). Hindi kailangan ng naka-login na
+  /// session — ang token mismo ang nagpapatunay kaya ligtas itong tawagin
+  /// kahit naka-log out (hal. binuksan ng lender ang link sa browser).
+  /// Nagre-throw ng [DioException] na may mensahe ng server kapag bigo (hal.
+  /// expired o nagamit na ang link).
+  Future<void> confirmEmailVerification({required String token}) async {
+    await _client.get(
+      ApiEndpoints.authEmailVerifyConfirm,
+      queryParams: {'t': token},
+    );
+  }
+
+  /// Kung verified na ba ang email ng naka-login na account. Sa `false`
+  /// (hindi pa, o hindi mabasa ang tugon) ay nananatili ang user sa Verify
+  /// Your Email screen — hindi ito naghuhulog ng error para hindi makagambala
+  /// ang pansamantalang network glitch.
+  Future<bool> isEmailVerified() async {
+    final res = await _client.get(ApiEndpoints.authEmailVerifyStatus);
+    final raw = res.data;
+    if (raw is! Map<String, dynamic>) return false;
+    return raw['verified'] == true;
+  }
 }

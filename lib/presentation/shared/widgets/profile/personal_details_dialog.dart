@@ -29,6 +29,50 @@ import '../../providers/auth_state_provider.dart';
 import '../dialogs/success_dialog.dart';
 import '../philippines_address_field.dart';
 
+/// Dummy placeholders na inilalagay ng users-create kapag ginawa ang staff
+/// account (hal. First="Head", Last="Manager"). Hindi tunay na pangalan.
+const _namePlaceholders = {
+  'head',
+  'manager',
+  'head manager',
+  'headmanager',
+  'admin',
+  'administrator',
+  'employee',
+  'staff',
+  'test',
+  'user',
+  'new',
+  'unknown',
+  'n/a',
+  'na',
+  '-',
+};
+
+/// `true` kapag placeholder (o blangko) ang pangalan — kailangang itype ng user
+/// ang tunay na pangalan sa dialog.
+bool _isPlaceholderName(String? value) {
+  final v = (value ?? '').trim();
+  return v.isEmpty || _namePlaceholders.contains(v.toLowerCase());
+}
+
+/// Kumpleto na ba sa SERVER ang required na detalye ng staff?
+///
+/// Ito ang mga field na kailangang punan sa [PersonalDetailsDialog] (pangalan,
+/// telepono, kasarian, civil status, petsa ng kapanganakan). Ginagamit ito
+/// bilang "source of truth" para hindi na muling lumabas ang dialog kapag
+/// kumpleto na ang account sa server — kahit pa mawala o hindi ma-persist ang
+/// local flag.
+bool staffProfileDetailsComplete(UserModel user) {
+  final hasName = !_isPlaceholderName(user.firstName) &&
+      !_isPlaceholderName(user.lastName);
+  final hasPhone = (user.phoneNumber ?? '').trim().isNotEmpty;
+  final hasGender = (user.gender ?? '').trim().isNotEmpty;
+  final hasCivilStatus = (user.civilStatus ?? '').trim().isNotEmpty;
+  final hasDob = user.dateOfBirth != null;
+  return hasName && hasPhone && hasGender && hasCivilStatus && hasDob;
+}
+
 /// Tinatawag sa dashboard entry ng head manager / employee: kung hindi pa
 /// nakukumpleto ng account ang kanilang personal details, ipakita ang REQUIRED
 /// dialog bago sila makapagpatuloy sa dashboard.
@@ -49,6 +93,26 @@ Future<void> runStaffProfileOnboarding(
   final userId = authState.user?.id ?? (await SecureStorage.getUserId() ?? '');
   if (userId.isEmpty) return;
   if (await SecureStorage.isProfileOnboardingDone(userId)) return;
+
+  // ── Self-heal: suriin ang SERVER bago magpakita ───────────────────────
+  // BUG: ang tanging senyales ng "tapos na" ay ang LOCAL flag. Kapag hindi ito
+  // na-persist (tinatanggap ng secure storage ang write nang tahimik, o ibang
+  // device ang gamit), **paulit-ulit na lumalabas ang dialog sa bawat login**
+  // kahit matagal nang kumpleto ang account.
+  //
+  // Ngayon, kung kumpleto na ang required na detalye sa account, hindi na ito
+  // ipinapakita — minamarkahan na lang para tuluyang hindi na bumalik.
+  try {
+    final profile = await sl<UserRemoteDataSource>().getProfile();
+    if (staffProfileDetailsComplete(profile)) {
+      await SecureStorage.markProfileOnboardingDone(userId);
+      return;
+    }
+  } catch (_) {
+    // Offline / hindi makuha ang profile → ipakita pa rin ang dialog kapag
+    // hindi pa naka-marka (mas mabuting hilingin kaysa i-skip nang mali).
+  }
+
   if (!context.mounted) return;
   await PersonalDetailsDialog.show(context);
 }
@@ -177,31 +241,10 @@ class _PersonalDetailsDialogState extends ConsumerState<PersonalDetailsDialog> {
 
   /// Dummy placeholders mula sa account creation (hindi tunay na pangalan).
   /// Kapag ganito ang naka-save, ibablanko sa dialog para mapilitang mag-type
-  /// ng tunay na pangalan ang user.
-  static const _namePlaceholders = {
-    'head',
-    'manager',
-    'head manager',
-    'headmanager',
-    'admin',
-    'administrator',
-    'employee',
-    'staff',
-    'test',
-    'user',
-    'new',
-    'unknown',
-    'n/a',
-    'na',
-    '-',
-  };
-
-  String _cleanName(String? value) {
-    final v = (value ?? '').trim();
-    if (v.isEmpty) return '';
-    if (_namePlaceholders.contains(v.toLowerCase())) return '';
-    return v;
-  }
+  /// ng tunay na pangalan ang user. Nasa itaas na ng file ang listahan
+  /// ([_namePlaceholders]) para magamit din ng "tapos na ba?" check.
+  String _cleanName(String? value) =>
+      _isPlaceholderName(value) ? '' : (value ?? '').trim();
 
   /// Ibinalik ang normalized value kapag kasama ito sa listahan ng dropdown
   /// (kung hindi, `null` — kailangan itong piliin muli ng user).

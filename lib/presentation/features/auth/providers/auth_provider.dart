@@ -532,6 +532,56 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// Ipinapadala ang email-verification LINK (hindi OTP code) sa [email].
+  ///
+  /// Ang `null` na isinasauli ay tagumpay; kung hindi, ang mensahe ng server
+  /// (hal. hindi pa naka-configure ang email sending) — kailangang makita ito
+  /// ng user nang tapat, hindi ang tahimik na `catch (_) {}` ng [acceptTerms],
+  /// dahil ang tanging paraan para makalampas sa Verify Your Email screen ay
+  /// ang pag-tap sa link sa email.
+  Future<String?> sendEmailVerification({required String email}) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.sendEmailVerification(email: email);
+      state = const AsyncData(null);
+      return null;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return extractErrorMessage(e);
+    }
+  }
+
+  /// Kinukumpirma ang email gamit ang token na galing sa LINK sa email.
+  ///
+  /// `null` ang isinasauli kapag tagumpay; kung hindi, ang mensahe ng server
+  /// (hal. "Link expired", "Link already used") — hindi kailangan ng session
+  /// dito, dahil ang token mismo ang nagpapatunay.
+  Future<String?> confirmEmailVerification({required String token}) async {
+    state = const AsyncLoading();
+    try {
+      await _ds.confirmEmailVerification(token: token);
+      state = const AsyncData(null);
+      return null;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return extractErrorMessage(e);
+    }
+  }
+
+  /// Kung na-tap na ng user ang verification link sa email niya.
+  ///
+  /// Sa anumang error ay `false` ang isinasauli — hindi ito naghuhulog habang
+  /// nag-a-auto-check, dahil ang pansamantalang network glitch ay hindi dapat
+  /// maglabas ng error sa screen (nananatili lang ang user dito at muling
+  /// susuri sa susunod na tsek).
+  Future<bool> isEmailVerified() async {
+    try {
+      return await _ds.isEmailVerified();
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     // Expose loading via AsyncValue so any watcher can react to
     // authProvider.isLoading. The pressed logout button itself shows the

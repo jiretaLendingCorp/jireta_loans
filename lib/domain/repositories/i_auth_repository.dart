@@ -28,4 +28,12 @@ abstract class IAuthRepository {
       {required String token, required String newPassword});
   Future<void> logout();
   Future<Map<String, dynamic>> refreshSession({required String refreshToken});
+
+  /// Verification ng email na inilagay sa "Fill In Information" — isang LINK
+  /// ang ipinapadala sa email (hindi OTP code) at iyon ang nagpapatunay.
+  Future<void> sendEmailVerification({required String email});
+  Future<bool> isEmailVerified();
+
+  /// Kinukumpirma ang token mula sa link ng email (walang kailangang session).
+  Future<void> confirmEmailVerification({required String token});
 }

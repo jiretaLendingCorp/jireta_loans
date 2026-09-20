@@ -16,6 +16,11 @@
 // Ang (1) at (2) ay sadyang hindi binubura ng `SecureStorage.clearAll()`, kaya
 // kahit natapos na ang session (logout, expired, revoked) ay MPIN pa rin ang
 // unang lumalabas — hindi ang OTP form.
+//
+// SADYANG WALANG tsek dito kung may natitirang session: laging "Enter MPIN" ang
+// unang lalabas basta may natandaang numero at may naka-set na MPIN. Kung
+// talagang tapos na ang session, ang MPIN screen mismo ang magsasabi nito at
+// dadalhin ang user sa mobile number + OTP.
 import '../constants/app_constants.dart';
 import 'mpin_service.dart';
 import 'secure_storage.dart';
@@ -48,16 +53,14 @@ class MpinLoginGate {
       if (phone == null || isKnownStaffRole) {
         return MpinLoginChoice(showMpin: false, phone: phone);
       }
-      // Kailangan may naka-store pang session (refresh token) na maibabalik ng
-      // MPIN. Kapag wala na (tunay nang tapos/na-revoke ang session, o hard
-      // logout ang nangyari), walang maibabalik ang MPIN — mas tapat na ang
-      // "Mobile Number" + Send OTP na form ang lumabas kaysa MPIN na tiyak na
-      // bigong mag-restore.
-      final hasStoredSession =
-          (await SecureStorage.getRefreshToken()) != null;
-      if (!hasStoredSession) {
-        return MpinLoginChoice(showMpin: false, phone: phone);
-      }
+      // TSEK: hindi na sinusuri dito kung may natitirang session (refresh
+      // token). Dati ay sinusuri ito — at iyon ang dahilan kung bakit,
+      // pagkatapos ng ISANG logout o na-expire na session, permanenteng ang
+      // "Mobile Number" + Send OTP na form na ang lumalabas kahit may MPIN
+      // pa ang device (at kahit ilang beses pang isara at buksan ang app).
+      // Kahilingan mismo ng user: laging "Enter MPIN" na may switch number.
+      // Kapag wala nang ma-restore, sasabihin ito ng MPIN screen pagkatapos
+      // ipasok ang MPIN at doon dadalhin ang user sa OTP.
       final hasMpin = await _mpin.isSet();
       return MpinLoginChoice(showMpin: hasMpin, phone: phone);
     } catch (_) {

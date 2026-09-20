@@ -108,6 +108,15 @@ class _MpinDialogState extends State<MpinDialog> {
   Timer? _lockTimer;
   int _lockSecondsLeft = 0;
 
+  /// Auto-hide ng pansamantalang mensahe (hal. "MPIN did not match.") —
+  /// 3 segundo lang, para hindi ito manatiling nakabitin habang nagta-type
+  /// muli ang user. Ang mga dapat manatili (lockout, limitasyon sa pagbabago,
+  /// hindi na-save) ay hindi gumagamit nito.
+  Timer? _errorTimer;
+
+  /// Tagal bago kusang mawala ang mensaheng tulad ng hindi pagtutugma ng MPIN.
+  static const _errorVisibleDuration = Duration(seconds: 3);
+
   bool get _isSetup => widget.mode == MpinDialogMode.setup;
 
   @override
@@ -124,6 +133,7 @@ class _MpinDialogState extends State<MpinDialog> {
 
   @override
   void dispose() {
+    _errorTimer?.cancel();
     _lockTimer?.cancel();
     for (final c in _controllers) {
       c.dispose();
@@ -164,6 +174,17 @@ class _MpinDialogState extends State<MpinDialog> {
       } else {
         setState(() => _lockSecondsLeft--);
       }
+    });
+  }
+
+  /// Ipinapakita ang mensahe sa ilalim ng 4 na kahon, tapos kusang tinatanggal
+  /// pagkatapos ng [_errorVisibleDuration] (3 segundo).
+  void _showTransientError(String message) {
+    _errorTimer?.cancel();
+    setState(() => _error = message);
+    _errorTimer = Timer(_errorVisibleDuration, () {
+      if (!mounted) return;
+      setState(() => _error = null);
     });
   }
 
@@ -269,10 +290,10 @@ class _MpinDialogState extends State<MpinDialog> {
   Future<void> _confirmNew(String pin) async {
     if (pin != _firstEntry) {
       setState(() {
-        _error = 'MPIN did not match. Please enter it again.';
         _firstEntry = '';
         _step = _Step.create;
       });
+      _showTransientError('MPIN did not match. Please enter it again.');
       _clearBoxes();
       return;
     }
@@ -283,6 +304,9 @@ class _MpinDialogState extends State<MpinDialog> {
       Navigator.of(context).pop(true);
     } on MpinChangeLimitException catch (e) {
       if (!mounted) return;
+      // Nananatili ang mensaheng ito — kanselahin ang naka-pending na
+      // auto-hide timer para hindi nito ito mabura pagkalipas ng ilang segundo.
+      _errorTimer?.cancel();
       setState(() {
         _busy = false;
         _error = 'Limit reached: you can only change your MPIN '
@@ -292,6 +316,7 @@ class _MpinDialogState extends State<MpinDialog> {
       _clearBoxes();
     } catch (_) {
       if (!mounted) return;
+      _errorTimer?.cancel();
       setState(() {
         _busy = false;
         _error = 'Could not save your MPIN. Please try again.';

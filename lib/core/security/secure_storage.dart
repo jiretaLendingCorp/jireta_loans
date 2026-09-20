@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../constants/app_constants.dart';
+import '../utils/logger.dart';
 
 class SecureStorage {
   // Serialize all writes to avoid race where old auto-logout's clearAll deletes new second login's tokens
@@ -135,7 +136,8 @@ class SecureStorage {
     try {
       final v = await _storage.read(key: _profileOnboardingKey(userId));
       return v == 'true';
-    } catch (_) {
+    } catch (e) {
+      AppLogger.w('[SecureStorage] isProfileOnboardingDone failed: $e');
       return false;
     }
   }
@@ -144,7 +146,14 @@ class SecureStorage {
     if (userId.isEmpty) return;
     try {
       await _storage.write(key: _profileOnboardingKey(userId), value: 'true');
-    } catch (_) {}
+    } catch (e) {
+      // Dating tahimik na nilalamon — kaya kapag hindi na-persist ang flag,
+      // walang anumang senyales at paulit-ulit na lumalabas ang required na
+      // Personal Details dialog sa bawat login ng head manager / employee.
+      // Ang server-side self-heal (staffProfileDetailsComplete) ang pangunahing
+      // lunas, pero dapat pa ring makita ang error na ito sa logs.
+      AppLogger.w('[SecureStorage] markProfileOnboardingDone failed: $e');
+    }
   }
 
   static Future<void> saveSessionStartedAt(DateTime time) =>

@@ -647,8 +647,13 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     if (kDebugMode) {
       debugPrint('[JWT] idle 10m expired → MPIN lock (session kept)');
     }
+    // Sinasariwa rin ang `isLoggingOut`: kapag LOCK lang ang nangyari (logout
+    // ng rider / lender na may MPIN), hindi dumadaan sa hard-logout path na
+    // nagre-reset nito — kaya dati ay nananatiling `true` ito at naka-disable
+    // ang Log out button sa Profile kahit tapos na ang "logout".
     state = state.copyWith(
       isAuthenticated: false,
+      isLoggingOut: false,
       securityMessage: notify ? kSessionEndedMessage : null,
     );
   }
