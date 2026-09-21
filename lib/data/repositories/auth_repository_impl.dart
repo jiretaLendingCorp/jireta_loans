@@ -51,14 +51,12 @@ class AuthRepositoryImpl implements IAuthRepository {
     required String newPassword,
     String? email,
     String? resetToken,
-    String? currentPassword,
   }) =>
       _ds.resetPassword(
         otp: otp,
         newPassword: newPassword,
         email: email,
         resetToken: resetToken,
-        currentPassword: currentPassword,
       );
 
   @override

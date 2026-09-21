@@ -26,15 +26,12 @@ class ResetPasswordScreen extends ConsumerStatefulWidget {
 class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
-  final _currentCtrl = TextEditingController();
-  final _currentFocus = FocusNode();
   final _newCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   final List<TextEditingController> _otpControllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _otpFocus = List.generate(6, (_) => FocusNode());
 
-  bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
   bool _done = false;
@@ -47,9 +44,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   Timer? _lockTimer;
   bool _otpExpired = false;
   bool _resending = false;
-
-  /// Server-side rejection of the submitted current password (field-level).
-  String? _currentPasswordError;
 
   /// Opaque reset-flow token from the URL (`?t=<64 hex chars>`).
   ///
@@ -135,8 +129,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   @override
   void dispose() {
     _emailCtrl.dispose();
-    _currentCtrl.dispose();
-    _currentFocus.dispose();
     _newCtrl.dispose();
     _confirmCtrl.dispose();
     for (final c in _otpControllers) {
@@ -225,8 +217,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       _resendTimer?.cancel();
       setState(() {
         _otpVerified = true;
-        // A fresh verification invalidates any stale field error from before.
-        _currentPasswordError = null;
       });
       context.showSnackBarAsToast(
         const SnackBar(
@@ -369,13 +359,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       newPassword: newPassword,
       email: hasToken ? null : email,
       resetToken: token,
-      currentPassword: _currentCtrl.text,
     );
     if (!mounted) return;
     if (ok) {
       _resendTimer?.cancel();
       setState(() => _done = true);
-      _currentCtrl.clear();
       _newCtrl.clear();
       _confirmCtrl.clear();
       for (final c in _otpControllers) {
@@ -385,17 +373,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       final err = ref.read(authProvider).error;
       final msg = notifier.extractErrorMessage(err ?? '') ??
           'Failed to reset password. Check OTP or try again.';
-      // Wrong current password → inline field error, stay on this step. Must be
-      // handled before the OTP check below, whose 'invalid' match would
-      // otherwise bounce the user back to re-entering the code.
-      if (notifier.isCurrentPasswordError(err)) {
-        final lockSecs = notifier.extractOtpLockoutSeconds(err ?? '');
-        if (lockSecs != null && lockSecs > 0) _startLockCountdown(lockSecs);
-        setState(() => _currentPasswordError = msg);
-        _formKey.currentState?.validate();
-        _currentFocus.requestFocus();
-        return;
-      }
       // Too many wrong attempts → the server locked this email for a while.
       final lockSecs = notifier.extractOtpLockoutSeconds(err ?? '');
       if (lockSecs != null && lockSecs > 0) _startLockCountdown(lockSecs);
@@ -814,34 +791,6 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          const _FieldLabel('Current Password'),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _currentCtrl,
-            focusNode: _currentFocus,
-            obscureText: _obscureCurrent,
-            maxLength: 128,
-            textInputAction: TextInputAction.next,
-            style: _inputStyle,
-            onChanged: (_) {
-              // Clear the server's rejection as soon as the user retypes.
-              if (_currentPasswordError != null) {
-                setState(() => _currentPasswordError = null);
-              }
-            },
-            decoration: _input(
-              hint: 'Enter current password',
-              icon: Icons.lock_outline_rounded,
-              suffix: _passwordToggle(_obscureCurrent,
-                  () => setState(() => _obscureCurrent = !_obscureCurrent)),
-            ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Current password is required';
-              if (v.length < 8) return 'Password must be at least 8 characters';
-              return _currentPasswordError;
-            },
-          ),
-          const SizedBox(height: 18),
           const _FieldLabel('New Password'),
           const SizedBox(height: 8),
           TextFormField(
@@ -862,14 +811,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
               suffix: _passwordToggle(_obscureNew,
                   () => setState(() => _obscureNew = !_obscureNew)),
             ),
-            validator: (v) {
-              final basic = AppValidators.password(v);
-              if (basic != null) return basic;
-              if (_currentCtrl.text.isNotEmpty && v == _currentCtrl.text) {
-                return 'New password must differ from current';
-              }
-              return null;
-            },
+            validator: AppValidators.password,
           ),
           const SizedBox(height: 10),
           PasswordStrengthIndicator(password: _newCtrl.text),
@@ -897,12 +839,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
             loading: isLoading,
             onPressed: (isLoading || _lockSecondsLeft > 0)
                 ? null
-                : () {
-                    if (_currentPasswordError != null) {
-                      setState(() => _currentPasswordError = null);
-                    }
-                    _submitNewPassword();
-                  },
+                : _submitNewPassword,
           ),
           if (_lockSecondsLeft > 0) ...[
             const SizedBox(height: 16),

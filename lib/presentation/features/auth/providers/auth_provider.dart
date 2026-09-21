@@ -478,7 +478,6 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     required String newPassword,
     String? email,
     String? resetToken,
-    String? currentPassword,
   }) async {
     state = const AsyncLoading();
     try {
@@ -487,7 +486,6 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         newPassword: newPassword,
         email: email,
         resetToken: resetToken,
-        currentPassword: currentPassword,
       );
       state = const AsyncData(null);
       return true;
@@ -757,19 +755,6 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     return isDio ? message : 'An error occurred. Please try again.';
   }
 
-  /// True when the server rejected the *current* password submitted on the
-  /// reset-password step (400 INVALID_CURRENT_PASSWORD / "Current password is
-  /// incorrect."). The reset screen shows this inline under the field instead
-  /// of bouncing the user back to the OTP step.
-  bool isCurrentPasswordError(Object? error) {
-    if (error == null) return false;
-    final text = error is DioException && error.message?.isNotEmpty == true
-        ? error.message!
-        : error.toString();
-    if (text.contains('INVALID_CURRENT_PASSWORD')) return true;
-    final lower = text.toLowerCase();
-    return lower.contains('current password') && lower.contains('incorrect');
-  }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AsyncValue<void>>((

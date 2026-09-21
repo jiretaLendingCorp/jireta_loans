@@ -80,6 +80,14 @@ void main() async {
   );
 
   runApp(const ProviderScope(child: JiretaApp()));
+
+  // ── "Allow notifications" prompt ────────────────────────────────────────
+  // Hinihiling PAGKATAPOS ng unang frame: sa Android 13+ / iOS, kailangan ng
+  // buhay at nakikitang (RESUMED) Activity para lumabas ang system dialog.
+  // Kapag hiniling sa main() BAGO ang runApp() (tulad ng dati sa
+  // FcmService.initialize()), tahimik na hindi lumalabas ang dialog — walang
+  // notification permission ang app, kaya hindi rin lumalabas ang push.
+  FcmService.instance.requestPermissionAfterFirstFrame();
 }
 
 /// Full-screen error shown when the web build was produced without real

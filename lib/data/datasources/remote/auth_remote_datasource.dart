@@ -185,7 +185,6 @@ class AuthRemoteDataSource {
     required String newPassword,
     String? email,
     String? resetToken,
-    String? currentPassword,
   }) async {
     await _client.post(
       ApiEndpoints.authResetPassword,
@@ -196,9 +195,6 @@ class AuthRemoteDataSource {
           'reset_token': resetToken
         else
           'email': email,
-        // Verified server-side against Supabase Auth when supplied.
-        if (currentPassword != null && currentPassword.isNotEmpty)
-          'current_password': currentPassword,
       },
     );
   }

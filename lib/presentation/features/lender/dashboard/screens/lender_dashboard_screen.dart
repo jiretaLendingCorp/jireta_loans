@@ -14,6 +14,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
@@ -49,6 +50,33 @@ class LenderAmountObscuredNotifier extends StateNotifier<bool> {
     await prefs.setBool(_key, state);
   }
 }
+
+/// `true` kapag may nakasulat nang pangalan sa file ang lender — senyales na
+/// kumpleto (o umiiral) na ang account niya.
+///
+/// Hiwalay na function ito (hindi nakabaon sa widget) para masubukan nang
+/// direkta — ito ang pumipigil sa paglabas ng one-time Terms & Conditions +
+/// "Fill In Information" sa isang account na may record na, lalo na kapag ang
+/// login ay dumaan sa MPIN (kung saan stub lang ang user ng auth state).
+bool lenderHasNameOnFile(UserModel user) =>
+    user.firstName.trim().isNotEmpty && user.lastName.trim().isNotEmpty;
+
+/// `true` kapag may account-upgrade record na ang lender (kahit wala pang
+/// pangalan) — nagsasabi rin ito na may account na siya.
+bool lenderHasUpgradeRecord(UserModel user) {
+  final status = (user.accountUpgradeStatus ?? '').trim().toLowerCase();
+  return const {
+    'submitted',
+    'under_review',
+    'verified',
+    'rejected',
+  }.contains(status);
+}
+
+/// `true` kapag may existing nang lender account — hindi na dapat makita ang
+/// one-time Terms & Conditions / "Fill In Information"; deretso na sa Home.
+bool lenderHasExistingAccount(UserModel? user) =>
+    user != null && (lenderHasNameOnFile(user) || lenderHasUpgradeRecord(user));
 
 class LenderDashboardScreen extends ConsumerStatefulWidget {
   const LenderDashboardScreen({super.key});
@@ -125,21 +153,38 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     // account-upgrade record na), hindi na ipapakita ang Terms & Conditions at
     // ang "Fill In Information" modal — para sa mga bagong account lang ito.
     final authUser = ref.read(authStateProvider).user;
-    final hasNameOnFile =
-        (authUser?.firstName ?? '').trim().isNotEmpty &&
-            (authUser?.lastName ?? '').trim().isNotEmpty;
-    final upgradeStatus =
-        (authUser?.accountUpgradeStatus ?? '').toLowerCase();
-    final hasUpgradeRecord = const {
-      'submitted',
-      'under_review',
-      'verified',
-      'rejected',
-    }.contains(upgradeStatus);
-    if (hasNameOnFile || hasUpgradeRecord) return;
+    if (lenderHasExistingAccount(authUser)) return;
+
+    // ── TOTOONG profile ang basehan, hindi lang ang stub ng MPIN unlock ────
+    // Kapag dumaan sa MPIN (switch account, lock, o bagong MPIN setup), STUB
+    // lang ang user na nasa auth state — galing lang ito sa secure storage,
+    // kaya WALANG laman ang `firstName` / `lastName` at walang
+    // `account_upgrade_status`. Kung ang stub lang ang titingnan, lalabas ang
+    // Terms & Conditions + "Fill In Information" kahit matagal nang
+    // kumpletong nasa file ang account. Hinihintay dito ang TOTOONG profile na
+    // galing sa server ([lenderProfileProvider]) — doon nakasulat ang pangalan
+    // ng lender.
+    final profile = await _waitForLenderProfile(userId);
+    if (!mounted) return;
+    if (lenderHasExistingAccount(profile)) return;
 
     if (!mounted || !context.mounted) return;
     context.push(RouteConstants.terms);
+  }
+
+  /// Hinihintay (hanggang ~5s) ang TOTOONG profile ng lender mula sa
+  /// [lenderProfileProvider] bago magdesisyon kung lalabas ang one-time Terms
+  /// & Conditions. `null` kapag hindi ito nag-load (hal. offline) o kapag iba
+  /// pa ang nasa provider (stale na account ng dating login) — sa mga ganong
+  /// kaso, ang nakaimbak na per-account na flag pa rin ang nagsasabi kung
+  /// naipasa na ng account ang terms sa device na ito.
+  Future<UserModel?> _waitForLenderProfile(String userId) async {
+    for (var i = 0; i < 50 && mounted; i++) {
+      final profile = ref.read(lenderProfileProvider).user;
+      if (profile != null && profile.id == userId) return profile;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    return null;
   }
 
   @override

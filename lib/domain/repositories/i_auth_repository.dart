@@ -21,7 +21,6 @@ abstract class IAuthRepository {
     required String newPassword,
     String? email,
     String? resetToken,
-    String? currentPassword,
   });
   // Legacy token-based reset kept for backwards compat (not used by new OTP flow)
   Future<void> resetPasswordWithToken(

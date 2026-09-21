@@ -112,6 +112,15 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
       AppLogger.debug('[Settings] Save push pref failed: $e');
     }
     if (enabled) {
+      // User-initiated ito (naka-ON na ang app), kaya dito hinihiling ang
+      // system "Allow notifications" dialog. Kung denied ang OS permission
+      // (hal. na-deny dati o hindi natapos ang request), walang darating na
+      // push kahit naka-ON ang switch.
+      final granted = await FcmService.instance.requestPermission();
+      if (!granted) {
+        AppLogger.debug(
+            '[Settings] Push ON pero hindi granted ang notification permission');
+      }
       await FcmService.instance.enable();
     } else {
       await FcmService.instance.disable();

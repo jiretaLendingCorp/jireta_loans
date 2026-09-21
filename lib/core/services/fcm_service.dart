@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
@@ -152,23 +153,13 @@ class FcmService {
       }
 
       // ── Permission ─────────────────────────────────────────────────────
-      // iOS/macOS: FirebaseMessaging.requestPermission() shows the prompt.
-      // Android 13+: POST_NOTIFICATIONS runtime permission via the plugin.
-      await _messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        try {
-          await _localNotifications
-              .resolvePlatformSpecificImplementation<
-                  AndroidFlutterLocalNotificationsPlugin>()
-              ?.requestNotificationsPermission();
-        } catch (e) {
-          AppLogger.error('[FCM] Android permission request failed: $e');
-        }
-      }
+      // HINDI dito hinihiling ang permission. Dapat nakabukas at nakikita na
+      // ang app (RESUMED ang Activity) bago lumabas ang "Allow notifications"
+      // dialog ng Android 13+ / iOS. Ang `initialize()` ay tinatawag sa main()
+      // BAGO ang runApp(), kaya tahimik na na-d-drop ang request doon: hindi
+      // lumalabas ang dialog at "denied" agad ang status sa unang bukas.
+      // Ang aktwal na paghingi ay sa `requestPermission()`, pinapatakbo
+      // pagkatapos ng unang frame (main.dart) at mula sa Profile switch.
 
       // ── Message handlers: LAGING naka-wire ─────────────────────────────
       // MAHALAGA: hindi ito dapat i-skip kahit naka-OFF ang push sa Profile.
@@ -229,6 +220,71 @@ class FcmService {
     } catch (e) {
       AppLogger.error('[FCM] Init failed: $e');
     }
+  }
+
+  /// Hinihiling ang OS notification permission — ang "Allow notifications"
+  /// dialog (Android 13+ POST_NOTIFICATIONS at iOS).
+  ///
+  /// Kailangang tumakbo ito habang NAKIKITA ang app: sa Android, ang runtime
+  /// permission request ay kailangan ng buhay (RESUMED) na Activity. Kapag
+  /// hiniling sa main() bago ang `runApp()`, tahimik itong na-d-drop — hindi
+  /// lumalabas ang dialog at parang "denied" agad ang app. Kaya para sa
+  /// startup gamitin ang [requestPermissionAfterFirstFrame].
+  ///
+  /// Idempotent: kapag na-decide na ng user (granted o denied) ay hindi na
+  /// muling magpapakita ng dialog ang OS — ang kasalukuyang status lang ang
+  /// isinasauli.
+  Future<bool> requestPermission() async {
+    if (!isSupportedPlatform) return true;
+    try {
+      final before = await _messaging.getNotificationSettings();
+      AppLogger.debug(
+          '[FCM] Permission before request: ${before.authorizationStatus}');
+
+      final settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      AppLogger.debug(
+          '[FCM] Permission after request: ${settings.authorizationStatus}');
+
+      // Android 13+ fallback: kung hindi pa na-decide, ipapakita rin ng
+      // local-notifications plugin ang parehong system dialog. No-op kung
+      // na-decide na, kaya safe itong tawagin kahit sunod-sunod.
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        try {
+          await _localNotifications
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
+              ?.requestNotificationsPermission();
+        } catch (e) {
+          AppLogger.error('[FCM] Android permission request failed: $e');
+        }
+      }
+
+      final status = settings.authorizationStatus;
+      return status == AuthorizationStatus.authorized ||
+          status == AuthorizationStatus.provisional;
+    } catch (e) {
+      // Hal. hindi natuloy ang Firebase init ([core/no-app]) — huwag ipa-crash
+      // ang app, i-log lang at ituring na walang permission.
+      AppLogger.error('[FCM] requestPermission failed: $e');
+      return false;
+    }
+  }
+
+  /// Hinihiling ang notification permission PAGKATAPOS ng unang frame, para
+  /// nakikita na at RESUMED na ang Activity bago lumabas ang system dialog.
+  /// Ito ang itinatawag sa main() — hindi ang [requestPermission] mismo.
+  void requestPermissionAfterFirstFrame() {
+    if (!isSupportedPlatform) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Munting delay pa: sa ilang device ang request na tumatama sa gitna ng
+      // onResume ay tahimik ding na-da-drop.
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await requestPermission();
+    });
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
