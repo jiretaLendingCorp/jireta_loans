@@ -412,6 +412,12 @@ verify_jwt = false
 verify_jwt = false
 [functions.auth-logout]
 verify_jwt = false
+[functions.auth-mpin]
+# verify_jwt = false: ang function mismo ang nagpapatunay ng user sa loob gamit
+# ang requireAuth() — kailangan ng authenticated na session dahil
+# ACCOUNT-level (server-side) na ngayon ang MPIN. Tugma sa auth-password /
+# auth-session.
+verify_jwt = false
 [functions.auth-otp]
 verify_jwt = false
 [functions.auth-password]

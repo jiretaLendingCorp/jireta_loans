@@ -105,6 +105,11 @@ class _MpinDialogState extends State<MpinDialog> {
   String _firstEntry = '';
   bool _busy = false;
   bool _verifiedCurrent = false;
+
+  /// Ang KASALUKUYANG MPIN na na-verify na sa server (setup-with-current flow).
+  /// Ipinapasa ito sa `setMpin` bilang `currentMpin` — may pangalawang tsek ang
+  /// server bago payagang magpalit (server-side na ang MPIN, hindi na local).
+  String? _verifiedCurrentPin;
   Timer? _lockTimer;
   int _lockSecondsLeft = 0;
 
@@ -256,6 +261,7 @@ class _MpinDialogState extends State<MpinDialog> {
         if (_isSetup) {
           setState(() {
             _verifiedCurrent = true;
+            _verifiedCurrentPin = pin;
             _step = _Step.create;
             _error = null;
           });
@@ -284,6 +290,13 @@ class _MpinDialogState extends State<MpinDialog> {
         // na-verify, isara na lang para makapag-set muli ang caller.
         Navigator.of(context).pop(false);
         break;
+      case MpinStatus.offline:
+        // Server-side na ang verification — hindi ito "maling MPIN".
+        setState(() => _error =
+            'Cannot verify your MPIN right now. Please check your internet '
+            'connection and try again.');
+        _clearBoxes();
+        break;
     }
   }
 
@@ -299,7 +312,7 @@ class _MpinDialogState extends State<MpinDialog> {
     }
     setState(() => _busy = true);
     try {
-      await _service.setMpin(pin);
+      await _service.setMpin(pin, currentMpin: _verifiedCurrentPin);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on MpinChangeLimitException catch (e) {
@@ -319,7 +332,8 @@ class _MpinDialogState extends State<MpinDialog> {
       _errorTimer?.cancel();
       setState(() {
         _busy = false;
-        _error = 'Could not save your MPIN. Please try again.';
+        _error = 'Could not save your MPIN. Please check your internet '
+            'connection and try again.';
       });
       _clearBoxes();
     }

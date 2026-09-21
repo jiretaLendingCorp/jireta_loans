@@ -479,8 +479,13 @@ async function handleGetProfile(req: Request) {
   // (roles.archived_by -> users.id creates a second users<->roles path, so
   // plain `roles(id,name)` throws PGRST "more than one relationship").
   // lender_profiles has single path, plain is fine.
+  // `terms_accepted_at` — SERVER-side na katibayan ng one-time Terms &
+  // Conditions acceptance (isinusulat ng auth-session ?fn=terms-accept). Ito
+  // ang basehan ng app para hindi na ipakita muli ang Terms / Fill In
+  // Information sa existing account (kahit bagong install o bagong device).
   const PROFILE_SELECT = `id, first_name, middle_name, last_name, suffix, email, phone_number, account_status,
       force_password_change, last_login_at, created_at, profile_photo_url,
+      terms_accepted_at,
       roles!users_role_id_fkey(id, name),
       employee_profiles(position, hired_at, gender, civil_status, date_of_birth),
       rider_profiles(vehicle_type, plate_number, drivers_license_number, drivers_license_expiry, vehicle_brand, is_available),

@@ -13,6 +13,7 @@ import '../../data/datasources/remote/account_upgrade_remote_datasource.dart';
 import '../../data/datasources/remote/ai_remote_datasource.dart';
 import '../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../data/datasources/remote/location_remote_datasource.dart';
+import '../../data/datasources/remote/mpin_remote_datasource.dart';
 import '../../data/datasources/remote/notification_remote_datasource.dart';
 import '../../data/datasources/remote/payment_remote_datasource.dart';
 import '../../data/datasources/remote/report_remote_datasource.dart';
@@ -49,6 +50,10 @@ Future<void> setupDependencies() async {
   );
   sl.registerLazySingleton<DeviceTokenRemoteDataSource>(
     () => DeviceTokenRemoteDataSource(sl()),
+  );
+  // Server-side (account-level) MPIN — `auth-mpin` edge function.
+  sl.registerLazySingleton<MpinRemoteDataSource>(
+    () => MpinRemoteDataSource(sl()),
   );
   sl.registerLazySingleton<AccountUpgradeRemoteDataSource>(
     () => AccountUpgradeRemoteDataSource(sl()),

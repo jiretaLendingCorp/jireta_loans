@@ -908,7 +908,7 @@ class _LenderAccountUpgradeSubmitScreenState
       // page (that is for when the screen is reopened later). Habang
       // nagsu-submit (loading ang button) hindi rin dapat sumilip ang status
       // page bago mag-modal at mag-home.
-      if (!_successSubmitted && !_isSubmitting) return _buildSubmittedView(state);
+      if (!_successSubmitted && !_isSubmitting) return _buildSubmittedView();
     }
     // Rejected: 1-month cooldown before resubmit.
     // Still in cooldown → blocked view (text + button only, no icon).
@@ -942,65 +942,20 @@ class _LenderAccountUpgradeSubmitScreenState
     );
   }
 
-  Widget _buildSubmittedView(LenderAccountUpgradeState state) {
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final status = state.status;
-    final isVerified = status == 'verified';
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + bottomInset),
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildStatusBanner(state),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color:
-                  isVerified ? AppColors.successLight : AppColors.warningLight,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: (isVerified ? AppColors.success : AppColors.warning)
-                    .withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  isVerified
-                      ? Icons.verified_user
-                      : Icons.hourglass_top_outlined,
-                  color: isVerified ? AppColors.success : AppColors.warning,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    isVerified
-                        ? 'Your identity has been verified. You can now apply for a loan.'
-                        : 'Your account upgrade is under review. We will notify you once verified.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isVerified ? AppColors.success : AppColors.warning,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          AppButton(
-            label: 'Account Upgrade Status',
-            onPressed: () =>
-                context.push(RouteConstants.lenderAccountUpgradeStatus),
-            color: AppColors.lenderBlue,
-            icon: Icons.timeline_outlined,
-          ),
-          const SizedBox(height: 24),
-        ],
+  Widget _buildSubmittedView() {
+    // Nakasentro (gitna ng screen) ang button — walang banner sa itaas kaya
+    // hindi na kailangang dumikit sa taas.
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: AppButton(
+          label: 'Account Upgrade Status',
+          onPressed: () =>
+              context.push(RouteConstants.lenderAccountUpgradeStatus),
+          color: AppColors.lenderBlue,
+          icon: Icons.timeline_outlined,
+        ),
       ),
     );
   }

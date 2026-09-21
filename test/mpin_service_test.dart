@@ -1,70 +1,134 @@
 // test/mpin_service_test.dart
 //
-// Tests para sa app-level 4-digit MPIN (rider / lender):
-//   * hindi plain-text ang naka-store (SHA-256 + salt),
+// Tests para sa app-level 4-digit MPIN (rider / lender) — SERVER-SIDE na
+// (account-level) ang MPIN ngayon:
+//   * ang server ang nag-iimbak at nagve-verify (hindi na device-local),
 //   * tama ang verify / wrong-attempt counting / lockout,
+//   * humihiwalay ang "offline" (hindi maabot ang server) sa "maling MPIN",
 //   * gumagana ang verify at setup dialog (kasama ang confirm step).
 //
-// Ang device storage ay pinalitan ng in-memory na `_MemorySecureStorage` kaya
-// hindi kailangan ng platform plugin sa test.
+// Ang `MpinRemoteDataSource` ay pinalitan ng in-memory na `_FakeMpinServer`, at
+// ang platform storage ng `SharedPreferences` / `FlutterSecureStorage` ay
+// naka-mock (`setMockInitialValues`), kaya hindi kailangan ng totoong network o
+// device.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jireta_loans/core/security/mpin_service.dart';
+import 'package:jireta_loans/core/security/secure_storage.dart';
+import 'package:jireta_loans/data/datasources/remote/mpin_remote_datasource.dart';
 import 'package:jireta_loans/presentation/features/auth/screens/mpin_setup_screen.dart';
 import 'package:jireta_loans/presentation/shared/widgets/security/mpin_dialog.dart';
 import 'package:jireta_loans/presentation/shared/widgets/security/mpin_keypad.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// In-memory na kapalit ng `FlutterSecureStorage`.
-class _MemorySecureStorage extends FlutterSecureStorage {
-  final Map<String, String> _data = {};
+/// In-memory na kapalit ng server (`auth-mpin` edge function).
+///
+/// Kinokopya nito ang mahahalagang panuntunan ng server: 3 maling attempt →
+/// 60s lockout, at 10 palit sa loob ng 15 araw (ang unang set-up ay libre).
+class _FakeMpinServer implements MpinRemoteDataSource {
+  String? pin;
+  int failedAttempts = 0;
+  int changes = 0;
 
-  /// Para ma-check na hindi plain ang naka-store na MPIN.
-  Map<String, String> get raw => Map.unmodifiable(_data);
+  /// Hanggang kailan naka-lock (pagkatapos maubos ang attempts).
+  DateTime? lockedUntil;
 
-  @override
-  Future<void> write({
-    required String key,
-    required String? value,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async {
-    if (value == null) {
-      _data.remove(key);
-    } else {
-      _data[key] = value;
+  /// Kapag `true`, "hindi maabot ang server" ang lahat ng tawag (offline).
+  bool offline = false;
+
+  static const int maxAttempts = 3;
+  static const int maxChanges = 10;
+  static const Duration lockout = Duration(seconds: 60);
+
+  Never _noConnection() => throw StateError('offline (simulated)');
+
+  int get _lockSecondsLeft {
+    final until = lockedUntil;
+    if (until == null) return 0;
+    final left = until.difference(DateTime.now()).inSeconds;
+    if (left <= 0) {
+      lockedUntil = null;
+      return 0;
     }
+    return left;
   }
 
   @override
-  Future<String?> read({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async =>
-      _data[key];
+  Future<MpinStatusReply> status() async {
+    if (offline) _noConnection();
+    final lockSecs = _lockSecondsLeft;
+    return MpinStatusReply(
+      hasMpin: pin != null,
+      lockRemaining: lockSecs > 0 ? Duration(seconds: lockSecs) : null,
+      attemptsLeft: maxAttempts,
+      changesRemaining: (maxChanges - changes).clamp(0, maxChanges),
+      changeResetIn: changes >= maxChanges ? const Duration(days: 15) : null,
+    );
+  }
 
   @override
-  Future<void> delete({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
+  Future<MpinVerifyReply> verify(String mpin) async {
+    if (offline) _noConnection();
+    if (pin == null) return const MpinVerifyReply(MpinVerifyOutcome.notSet);
+    // Naka-lock: hindi tumatanggap kahit TAMA ang MPIN.
+    final lockSecs = _lockSecondsLeft;
+    if (lockSecs > 0) {
+      return MpinVerifyReply(
+        MpinVerifyOutcome.locked,
+        lockRemaining: Duration(seconds: lockSecs),
+      );
+    }
+    if (mpin == pin) {
+      failedAttempts = 0;
+      return const MpinVerifyReply(MpinVerifyOutcome.success);
+    }
+    failedAttempts++;
+    if (failedAttempts >= maxAttempts) {
+      failedAttempts = 0;
+      lockedUntil = DateTime.now().add(lockout);
+      return const MpinVerifyReply(
+        MpinVerifyOutcome.locked,
+        lockRemaining: lockout,
+      );
+    }
+    return MpinVerifyReply(
+      MpinVerifyOutcome.wrong,
+      attemptsLeft: maxAttempts - failedAttempts,
+    );
+  }
+
+  @override
+  Future<MpinSetReply> setMpin({
+    required String mpin,
+    String? currentMpin,
   }) async {
-    _data.remove(key);
+    if (offline) _noConnection();
+    final isChange = pin != null;
+    if (isChange) {
+      // Ang server ay may pangalawang tsek ng kasalukuyang MPIN.
+      if (currentMpin != pin) {
+        throw StateError('current MPIN mismatch (simulated server rejection)');
+      }
+      if (changes >= maxChanges) {
+        return const MpinSetReply(
+          saved: false,
+          changeLimitRemaining: Duration(days: 15),
+        );
+      }
+      changes++;
+    }
+    pin = mpin;
+    failedAttempts = 0;
+    return const MpinSetReply(saved: true);
+  }
+
+  @override
+  Future<void> reset() async {
+    if (offline) _noConnection();
+    pin = null;
+    failedAttempts = 0;
   }
 }
 
@@ -103,32 +167,28 @@ Future<void> _typePin(WidgetTester tester, String pin) async {
 }
 
 void main() {
-  // Ang `SecureStorage.getUserId()` — gamit ng `MpinService` para i-scope ang
-  // MPIN sa bawat account — ay dumadaan sa platform channel ng
-  // `flutter_secure_storage`. Sa widget test ay walang tumutugon doon, kaya
-  // hinihintay nito nang walang hanggan. I-mock ito para sumagot agad ng
-  // `null` (→ `guest` scope), sapat na para sa mga test sa ibaba.
-  setUpAll(() {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
-      (call) async => null,
-    );
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    // Malinis na device: walang secure storage at walang local na hint.
+    FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({});
   });
 
-  group('MpinService', () {
-    late _MemorySecureStorage storage;
+  group('MpinService (server-side)', () {
+    late _FakeMpinServer server;
     late MpinService service;
 
     setUp(() {
-      storage = _MemorySecureStorage();
-      service = MpinService(storage: storage);
+      server = _FakeMpinServer();
+      service = MpinService(ds: server);
     });
 
     test('tatlong attempts lang bago ma-lock', () {
       // Sadyang 3 (hindi 5) — mahigpit na dahil 4-digit lang ang MPIN.
       expect(MpinService.maxAttempts, 3);
+      expect(MpinService.maxChangesPerWindow, 10);
+      expect(MpinService.changeWindow, const Duration(days: 15));
     });
 
     test('isValidFormat accepts only 4 digits', () {
@@ -140,7 +200,7 @@ void main() {
       expect(MpinService.isValidFormat(''), isFalse);
     });
 
-    test('isSet is false until setMpin is called', () async {
+    test('isSet is false until the MPIN is saved on the account', () async {
       expect(await service.isSet(), isFalse);
       await service.setMpin('1234');
       expect(await service.isSet(), isTrue);
@@ -148,16 +208,8 @@ void main() {
 
     test('setMpin rejects a malformed PIN', () async {
       expect(() => service.setMpin('12'), throwsArgumentError);
+      expect(server.pin, isNull);
       expect(await service.isSet(), isFalse);
-    });
-
-    test('the stored value is never the plain MPIN', () async {
-      await service.setMpin('2468');
-      expect(await service.isSet(), isTrue);
-      for (final value in storage.raw.values) {
-        expect(value.contains('2468'), isFalse,
-            reason: 'May plain-text na MPIN sa storage');
-      }
     });
 
     test('verify succeeds with the correct MPIN', () async {
@@ -185,11 +237,6 @@ void main() {
       final locked = await service.verify('1234');
       expect(locked.status, MpinStatus.locked);
       expect(locked.lockRemaining, isNotNull);
-      expect(await service.lockRemaining(), isNotNull);
-
-      // Naka-lock kahit tama ang MPIN.
-      final duringLock = await service.verify('1234');
-      expect(duringLock.status, MpinStatus.locked);
     });
 
     test('a successful verify clears the failed-attempt counter', () async {
@@ -202,9 +249,19 @@ void main() {
       expect(after.attemptsLeft, MpinService.maxAttempts - 1);
     });
 
-    test('verify reports notSet when no MPIN was ever saved', () async {
+    test('verify reports notSet when the account has no MPIN', () async {
       final result = await service.verify('1234');
       expect(result.status, MpinStatus.notSet);
+    });
+
+    test('verify reports offline (HINDI "wrong") kapag di maabot ang server',
+        () async {
+      await service.setMpin('1234');
+      server.offline = true;
+      final result = await service.verify('1234');
+      expect(result.status, MpinStatus.offline,
+          reason: 'Server-side ang verification — offline ≠ maling MPIN');
+      expect(result.status, isNot(MpinStatus.wrong));
     });
 
     test('clear removes the MPIN', () async {
@@ -213,11 +270,75 @@ void main() {
       expect(await service.isSet(), isFalse);
       expect((await service.verify('1234')).status, MpinStatus.notSet);
     });
+
+    test('changing the MPIN consumes the 15-day quota, unang set-up libre',
+        () async {
+      await service.setMpin('1234');
+      expect(server.changes, 0, reason: 'Ang unang set-up ay hindi binibilang');
+      await service.setMpin('5678', currentMpin: '1234');
+      expect(server.changes, 1);
+      expect((await service.verify('5678')).isSuccess, isTrue);
+    });
+
+    test('setMpin throws MpinChangeLimitException kapag puno na ang quota',
+        () async {
+      await service.setMpin('1234');
+      for (var i = 0; i < MpinService.maxChangesPerWindow; i++) {
+        await service.setMpin('$i$i$i$i', currentMpin: server.pin!);
+      }
+      expect(
+        () => service.setMpin('9999', currentMpin: server.pin!),
+        throwsA(isA<MpinChangeLimitException>()),
+      );
+      final quota = await service.changeQuota();
+      expect(quota.remaining, 0);
+      expect(quota.resetIn, isNotNull);
+    });
+
+    test('changeQuota reports the remaining changes from the server', () async {
+      await service.setMpin('1234');
+      final quota = await service.changeQuota();
+      expect(quota.remaining, MpinService.maxChangesPerWindow);
+      expect(quota.resetIn, isNull);
+    });
+
+    test(
+        'ACCOUNT-level: makikita pa rin ang MPIN kahit bagong install '
+        '(walang lokal na storage)', () async {
+      // Bagong device / wiped device: walang laman ang secure storage at
+      // SharedPreferences, pero may MPIN na ang ACCOUNT sa server.
+      await service.setMpin('1234');
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+
+      final fresh = MpinService(ds: server);
+      expect(await fresh.isSet(), isTrue);
+      expect((await fresh.verify('1234')).isSuccess, isTrue);
+    });
+
+    test(
+        'offline: gamitin ang HULING nalalaman na status (hint), hindi ang '
+        'MPIN mismo', () async {
+      // Kailangan ng user id para may scope ang naka-cache na hint.
+      await SecureStorage.saveUserInfo(userId: 'u-1', role: 'lender');
+      await service.setMpin('1234'); // naka-cache ang hint = true
+      server.offline = true;
+      final offlineService = MpinService(ds: server);
+      expect(await offlineService.isSet(), isTrue,
+          reason: 'Naka-cache na "may MPIN" ang account na ito');
+
+      // Kapag walang naka-cache na hint (bagong install habang offline) ay
+      // hindi na ito magpapanggap na may MPIN.
+      SharedPreferences.setMockInitialValues({});
+      final unknown = MpinService(ds: server);
+      expect(await unknown.isSet(), isFalse);
+    });
   });
 
   group('MpinDialog', () {
     testWidgets('verify pops true for the correct MPIN', (tester) async {
-      final service = MpinService(storage: _MemorySecureStorage());
+      final server = _FakeMpinServer();
+      final service = MpinService(ds: server);
       await service.setMpin('1234');
 
       bool? verified;
@@ -237,7 +358,8 @@ void main() {
 
     testWidgets('verify shows an error and stays open for a wrong MPIN',
         (tester) async {
-      final service = MpinService(storage: _MemorySecureStorage());
+      final server = _FakeMpinServer();
+      final service = MpinService(ds: server);
       await service.setMpin('1234');
 
       bool? verified;
@@ -257,8 +379,27 @@ void main() {
       expect(verified, isTrue);
     });
 
+    testWidgets('verify shows the offline message kapag di maabot ang server',
+        (tester) async {
+      final server = _FakeMpinServer()..offline = true;
+      final service = MpinService(ds: server);
+
+      bool? verified;
+      await tester.pumpWidget(_host((context) async {
+        verified = await showMpinVerifyDialog(context, mpin: service);
+      }));
+      await tester.tap(find.text('open'));
+      await _pumpFrames(tester);
+
+      await _typePin(tester, '1234');
+      expect(verified, isNull);
+      expect(find.textContaining('internet connection'), findsOneWidget);
+      expect(find.textContaining('Incorrect MPIN'), findsNothing);
+    });
+
     testWidgets('setup asks to confirm and saves the MPIN', (tester) async {
-      final service = MpinService(storage: _MemorySecureStorage());
+      final server = _FakeMpinServer();
+      final service = MpinService(ds: server);
 
       bool? saved;
       await tester.pumpWidget(_host((context) async {
@@ -287,9 +428,38 @@ void main() {
       expect((await service.verify('1234')).isSuccess, isTrue);
     });
 
+    testWidgets('change-with-current: ipinapasa ang verified na lumang MPIN',
+        (tester) async {
+      final server = _FakeMpinServer()..pin = '1234';
+      final service = MpinService(ds: server);
+
+      bool? saved;
+      await tester.pumpWidget(_host((context) async {
+        saved = await showMpinSetupDialog(
+          context,
+          requireCurrent: true,
+          mpin: service,
+        );
+      }));
+      await tester.tap(find.text('open'));
+      await _pumpFrames(tester);
+
+      // Kasalukuyang MPIN muna...
+      expect(find.text('Current MPIN'), findsOneWidget);
+      await _typePin(tester, '1234');
+      // ...tapos ang bago (create + confirm).
+      await _typePin(tester, '5678');
+      await _typePin(tester, '5678');
+      await _pumpFrames(tester);
+
+      expect(saved, isTrue);
+      expect(server.pin, '5678');
+      expect(server.changes, 1);
+    });
+
     testWidgets('required-MPIN setup shows the explanation copy',
         (tester) async {
-      final service = MpinService(storage: _MemorySecureStorage());
+      final service = MpinService(ds: _FakeMpinServer());
       await tester.pumpWidget(_host((context) async {
         await showMpinSetupDialog(
           context,
@@ -306,7 +476,7 @@ void main() {
 
     testWidgets('ang "did not match" ay kusang nawawala pagkatapos ng 3s',
         (tester) async {
-      final service = MpinService(storage: _MemorySecureStorage());
+      final service = MpinService(ds: _FakeMpinServer());
       await tester.pumpWidget(_host((context) async {
         await showMpinSetupDialog(context, mpin: service);
       }));
@@ -354,7 +524,7 @@ void main() {
     testWidgets(
         'ang "did not match" ay nasa ILALIM ng 4 na tuldok at nawawala sa 3s',
         (tester) async {
-      final service = MpinService(storage: _MemorySecureStorage());
+      final service = MpinService(ds: _FakeMpinServer());
       await pumpSetup(tester, service);
 
       expect(find.text('Create Your MPIN'), findsOneWidget);

@@ -281,6 +281,16 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
           _showMpin = false;
         });
         return;
+
+      case MpinStatus.offline:
+        // Server-side (account-level) na ang MPIN verification, kaya kailangan
+        // ng internet para makapasok — hindi ito "maling MPIN".
+        setState(() => _mpinBusy = false);
+        _showMpinError(
+            'Cannot verify your MPIN right now. Please check your internet '
+            'connection and try again.');
+        _padController.clear();
+        return;
     }
   }
 

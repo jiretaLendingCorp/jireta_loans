@@ -20,6 +20,14 @@ class ApiEndpoints {
   static const String authTermsAccept = 'auth-session?fn=terms-accept';
   static const String authGoogle = 'auth-google?fn=exchange';
 
+  // MPIN (server-side / account-level). Ang MPIN ay hindi na device-local:
+  // nasa `user_mpins` table ito at ang verification (kasama ang attempts,
+  // lockout at ang 10-palit-sa-15-araw na limitasyon) ay server-side.
+  static const String authMpinStatus = 'auth-mpin?fn=status';
+  static const String authMpinSet = 'auth-mpin?fn=set';
+  static const String authMpinVerify = 'auth-mpin?fn=verify';
+  static const String authMpinReset = 'auth-mpin?fn=reset';
+
   // Email verification ng email na inilagay sa "Fill In Information" — LINK
   // ang ipinapadala sa email (hindi OTP code).
   static const String authEmailVerifySend = 'auth-email-verify?fn=send';

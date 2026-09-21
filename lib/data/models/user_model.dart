@@ -31,6 +31,15 @@ class UserModel extends UserEntity {
   final bool isWalkIn;
   final Map<String, dynamic>? inOfficeApplication;
 
+  /// Kailan tinanggap ang one-time Terms & Conditions / Privacy Policy
+  /// (`users.terms_accepted_at`, isinusulat ng `auth-session ?fn=terms-accept`).
+  ///
+  /// SERVER-side na katibayan ito: kapag may halaga, hindi na muling ipapakita
+  /// ng app ang Terms & Conditions at ang "Fill In Information" — kahit bagong
+  /// install, bagong device, o dumaan sa MPIN (kung saan stub lang ang user ng
+  /// auth state).
+  final DateTime? termsAcceptedAt;
+
   // ── Per-lender payment insights (HM/Employee lender list + details) ──────
   /// CURRENT outstanding balance — sum ng outstanding ng active/overdue loans.
   final double outstandingBalance;
@@ -86,6 +95,7 @@ class UserModel extends UserEntity {
     this.emergencyContacts = const [],
     this.isWalkIn = false,
     this.inOfficeApplication,
+    this.termsAcceptedAt,
     this.outstandingBalance = 0,
     this.activeLoansCount = 0,
     this.settledLoansCount = 0,
@@ -196,6 +206,9 @@ class UserModel extends UserEntity {
               .toList() ??
           const [],
       isWalkIn: json['is_walk_in'] == true || json['isWalkIn'] == true,
+      termsAcceptedAt: json['terms_accepted_at'] != null
+          ? parseManila(json['terms_accepted_at'])
+          : null,
       inOfficeApplication: json['in_office_application'] is Map ? Map<String, dynamic>.from(json['in_office_application'] as Map) : null,
       outstandingBalance:
           (json['outstanding_balance'] as num?)?.toDouble() ?? 0,

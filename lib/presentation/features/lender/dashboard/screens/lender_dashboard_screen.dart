@@ -1,4 +1,5 @@
 // lib/presentation/features/lender/dashboard/screens/lender_dashboard_screen.dart
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,8 @@ import 'package:rive/rive.dart';
 
 import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/extensions/num_extensions.dart';
@@ -149,42 +152,63 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     final perAccountKey = '${AppConstants.termsAcceptedKey}_$userId';
     if (prefs.getBool(perAccountKey) ?? false) return;
 
-    // Kung may existing record na ang lender (may pangalan na sa file, o may
-    // account-upgrade record na), hindi na ipapakita ang Terms & Conditions at
-    // ang "Fill In Information" modal — para sa mga bagong account lang ito.
+    // ── SERVER ang basehan, hindi lang ang device-local flag ────────────────
+    // Ang `users.terms_accepted_at` (isinusulat ng `?fn=terms-accept` sa unang
+    // pag-accept) ang tunay na katibayan ng one-time acceptance: kapag mayroon
+    // na ito, HINDI na muling ipapakita ang Terms & Conditions at ang "Fill In
+    // Information" — kahit bagong install, bagong device, o dumaan sa MPIN
+    // (kung saan STUB lang ang user ng auth state: walang pangalan).
     final authUser = ref.read(authStateProvider).user;
-    if (lenderHasExistingAccount(authUser)) return;
-
-    // ── TOTOONG profile ang basehan, hindi lang ang stub ng MPIN unlock ────
-    // Kapag dumaan sa MPIN (switch account, lock, o bagong MPIN setup), STUB
-    // lang ang user na nasa auth state — galing lang ito sa secure storage,
-    // kaya WALANG laman ang `firstName` / `lastName` at walang
-    // `account_upgrade_status`. Kung ang stub lang ang titingnan, lalabas ang
-    // Terms & Conditions + "Fill In Information" kahit matagal nang
-    // kumpletong nasa file ang account. Hinihintay dito ang TOTOONG profile na
-    // galing sa server ([lenderProfileProvider]) — doon nakasulat ang pangalan
-    // ng lender.
-    final profile = await _waitForLenderProfile(userId);
+    final profile = await _loadLenderProfile(userId);
     if (!mounted) return;
-    if (lenderHasExistingAccount(profile)) return;
+
+    if (profile?.termsAcceptedAt != null) {
+      // I-sync ang local flag para hindi na kailangang magtanong sa server sa
+      // susunod na pagbukas ng app.
+      await prefs.setBool(perAccountKey, true);
+      return;
+    }
+
+    // ── Existing account (may pangalan na sa file o may upgrade record) ─────
+    // "Nagawa na niya ito noong unang bukas ng account niya" — hindi na dapat
+    // ulitin. Profile muna (totoong datos mula sa server), tapos ang nasa auth
+    // state bilang karagdagang senyales.
+    if (lenderHasExistingAccount(profile) ||
+        lenderHasExistingAccount(authUser)) {
+      return;
+    }
+
+    // ── Hindi ma-confirm (offline / bigo ang profile fetch) ─────────────────
+    // Huwag nang mang-istorbo: mas mabuting huwag ipakita ang one-time Terms
+    // kaysa ipakita itong muli sa isang lumang account. Ang bagong account
+    // naman ay dadaan pa rin dito sa susunod na pagbukas (wala pang lokal na
+    // flag at wala pang `terms_accepted_at`).
+    if (profile == null) return;
 
     if (!mounted || !context.mounted) return;
     context.push(RouteConstants.terms);
   }
 
-  /// Hinihintay (hanggang ~5s) ang TOTOONG profile ng lender mula sa
-  /// [lenderProfileProvider] bago magdesisyon kung lalabas ang one-time Terms
-  /// & Conditions. `null` kapag hindi ito nag-load (hal. offline) o kapag iba
-  /// pa ang nasa provider (stale na account ng dating login) — sa mga ganong
-  /// kaso, ang nakaimbak na per-account na flag pa rin ang nagsasabi kung
-  /// naipasa na ng account ang terms sa device na ito.
-  Future<UserModel?> _waitForLenderProfile(String userId) async {
-    for (var i = 0; i < 50 && mounted; i++) {
-      final profile = ref.read(lenderProfileProvider).user;
-      if (profile != null && profile.id == userId) return profile;
-      await Future.delayed(const Duration(milliseconds: 100));
+  /// Kinukuha ang TOTOONG profile ng lender MULA SA SERVER.
+  ///
+  /// Dati, ang `lenderProfileProvider` (AutoDispose) ang hinihintay dito — at
+  /// iyon ang bug: ang `ref.read` sa isang autoDispose provider na walang
+  /// listener ay maaaring malinis agad, kaya `null` ang nakikita ng desisyon at
+  /// BUMABALIK ang Terms & Conditions para sa isang existing account. Ang
+  /// direktang fetch ay deterministic: isang tawag, isang kasagutan.
+  ///
+  /// `null` kapag hindi ito nag-load (hal. offline) o kapag iba ang account na
+  /// nasa provider — sa mga ganong kaso, hindi na ipinapakita ang one-time
+  /// Terms (tingnan ang tawag sa itaas).
+  Future<UserModel?> _loadLenderProfile(String userId) async {
+    try {
+      final profile = await sl<UserRemoteDataSource>().getProfile();
+      if (profile.id == userId) return profile;
+    } catch (e) {
+      if (kDebugMode) debugPrint('[terms] profile fetch failed: $e');
     }
-    return null;
+    final cached = ref.read(lenderProfileProvider).user;
+    return (cached != null && cached.id == userId) ? cached : null;
   }
 
   @override

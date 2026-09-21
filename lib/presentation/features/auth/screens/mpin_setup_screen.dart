@@ -151,7 +151,10 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
       _errorTimer?.cancel();
       setState(() {
         _busy = false;
-        _error = 'Could not save your MPIN. Please try again.';
+        // Server-side (account-level) na ang MPIN — kailangan ng internet para
+        // ito mai-save sa account.
+        _error = 'Could not save your MPIN. Please check your internet '
+            'connection and try again.';
         _firstEntry = '';
         _step = _SetupStep.create;
       });
