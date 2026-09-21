@@ -8,9 +8,13 @@
 //                                        Ito ang tinatawag ng "Resend Email"
 //                                        button sa Verify Your Email screen.
 //   ?fn=confirm   (PUBLIC)             → ito ang binubuksan ng link sa email.
-//                                        Minamarkahan nito ang
-//                                        `users.email_verified_at` at nagbabalik
-//                                        ng simpleng HTML na "verified" page.
+//                                        Isinusulat nito ang verified email sa
+//                                        `public.users.email` KASAMA ng GoTrue
+//                                        `auth.users.email` (+ display metadata),
+//                                        at minamarkahan ang
+//                                        `users.email_verified_at`, bago
+//                                        nagbabalik ng simpleng HTML na
+//                                        "verified" page.
 //   ?fn=status    (kailangan ng auth)  → kung verified na ba ang email ng
 //                                        account, para makaalis na ang app sa
 //                                        Verify Your Email screen.
@@ -20,7 +24,11 @@
 // kaya kahit may makakuha ng database dump ay hindi ma-replay ang link.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { isAuthUser, requireAuth } from '../_shared/auth.ts';
+import {
+  isAuthUser,
+  requireAuth,
+  syncAuthUserIdentity,
+} from '../_shared/auth.ts';
 import {
   corsHeadersFor,
   errorResponse,
@@ -352,9 +360,59 @@ async function confirmToken(req: Request): Promise<ConfirmOutcome> {
   // (ang link na pinindot sa email). Kapag may IBANG account nang gumagamit ng
   // address na ito (`uq_users_email_lower` → 23505), hindi natin aagawin ito:
   // ita-timestamp pa rin ang verification at malinaw na ipapaliwanag sa user.
+  const verifiedEmail = row.email.trim().toLowerCase();
+
+  // ── Pre-check (public side) BAGO galawin ang GoTrue ──────────────────────
+  // Kapareho ng pre-check ng users-manage PATCH: para hindi mabago ang
+  // `auth.users.email` sa isang kaso na tatanggihan din naman ng DB index.
+  const { data: emailOwner } = await db
+    .from('users')
+    .select('id')
+    .eq('email', verifiedEmail)
+    .neq('id', row.user_id)
+    .maybeSingle();
+  if (emailOwner) {
+    await stampEmailVerified(db, row.user_id, nowIso);
+    console.error('[email-verify] verified email already owned by another account', {
+      user_id: row.user_id,
+      owner_id: emailOwner.id,
+    });
+    return emailInUseOutcome(verifiedEmail);
+  }
+
+  // ── I-sync ang VERIFIED email pabalik sa GoTrue (`auth.users.email`) ──────
+  // DATI, `public.users.email` lang ang naisusulat dito. Kaya ang mga
+  // self-registered lender (na may sintetikong `${phone}@jireta.temp` na
+  // credential sa GoTrue) ay nanatiling TEMP sa Supabase Auth dashboard kahit
+  // verified na ang totoong email nila sa app — at:
+  //   • hindi sila makapasok sa Google sign-in (`auth-google` ay tumatanggi sa
+  //     `@jireta.temp`), at
+  //   • hindi magagamit ng GoTrue (email login / recovery) ang totoong address.
+  //
+  // GoTrue muna bago ang `public.users` row — gaya ng sinadya sa users-manage
+  // PATCH — para kung may ibang auth user nang gumagamit ng address, hindi
+  // natin ito isusulat sa alinman sa dalawa.
+  const identity = await syncAuthUserIdentity(db, row.user_id, {
+    email: verifiedEmail,
+  });
+  if (!identity.ok && identity.duplicate) {
+    await stampEmailVerified(db, row.user_id, nowIso);
+    return emailInUseOutcome(verifiedEmail);
+  }
+  if (!identity.ok) {
+    // HINDI fatal: ang `public.users` ang pinagmumulan ng katotohanan para sa
+    // app (display, notifications). Hindi dapat ma-block ang user dahil lang
+    // sa transient GoTrue error — i-log nang malakas at magpatuloy.
+    console.error(
+      '[email-verify] GoTrue email sync failed (non-fatal):',
+      identity.error,
+      { user_id: row.user_id, email: verifiedEmail },
+    );
+  }
+
   const { error: userErr } = await db
     .from('users')
-    .update({ email: row.email, email_verified_at: nowIso })
+    .update({ email: verifiedEmail, email_verified_at: nowIso })
     .eq('id', row.user_id);
   if (userErr) {
     const code = (userErr as unknown as { code?: string }).code ?? '';
@@ -364,14 +422,25 @@ async function confirmToken(req: Request): Promise<ConfirmOutcome> {
       userErr.message,
       { user_id: row.user_id, duplicate },
     );
+    // Naisulat na ang email sa GoTrue pero tinanggihan ng `public.users`
+    // (23505) → ibalik ang dating auth email. Kung hindi, may email ang auth
+    // account na hindi nakarehistro sa app, at "mawawala" ang dating
+    // credential ng account na iyon.
+    if (duplicate) {
+      if (identity.previousEmail) {
+        await syncAuthUserIdentity(db, row.user_id, {
+          email: identity.previousEmail,
+        });
+      } else {
+        console.error(
+          '[email-verify] duplicate on public.users but no previous auth email to roll back to',
+          { user_id: row.user_id, attempted: verifiedEmail },
+        );
+      }
+    }
     // Hindi ko na iisahan ang duplicate: kailangang i-stamp pa rin ang
     // verification (verified naman talaga ang link na pinindot).
-    const { error: stampErr } = await db
-      .from('users')
-      .update({ email_verified_at: nowIso })
-      .eq('id', row.user_id);
-    if (stampErr) {
-      console.error('[email-verify] email_verified_at update failed:', stampErr.message);
+    if (!(await stampEmailVerified(db, row.user_id, nowIso))) {
       return {
         ok: false,
         title: 'Something went wrong',
@@ -379,12 +448,7 @@ async function confirmToken(req: Request): Promise<ConfirmOutcome> {
       };
     }
     return duplicate
-      ? {
-          ok: false,
-          title: 'Email already in use',
-          message:
-            `${row.email} is already registered to another account. Please use a different email address in the app.`,
-        }
+      ? emailInUseOutcome(verifiedEmail)
       : {
           ok: false,
           title: 'Something went wrong',
@@ -395,10 +459,10 @@ async function confirmToken(req: Request): Promise<ConfirmOutcome> {
   console.log(`[email-verify] email verified for user=${row.user_id}`);
   return {
     ok: true,
-    email: row.email,
+    email: verifiedEmail,
     title: 'Successfully Verified',
     message:
-      `Thank you! ${row.email} is now verified. You can close this page and go back to the app.`,
+      `Thank you! ${verifiedEmail} is now verified. You can close this page and go back to the app.`,
   };
 }
 
@@ -425,6 +489,37 @@ async function handleConfirmJson(req: Request) {
     200,
     req,
   );
+}
+
+/** Shared na "Email already in use" na tugon ng confirm. */
+function emailInUseOutcome(email: string): ConfirmOutcome {
+  return {
+    ok: false,
+    title: 'Email already in use',
+    message:
+      `${email} is already registered to another account. Please use a different email address in the app.`,
+  };
+}
+
+/**
+ * I-stamp ang `email_verified_at` kahit hindi naisulat ang email (duplicate ng
+ * ibang account, o GoTrue duplicate). Verified naman talaga ang link na
+ * pinindot, kaya hindi ito dapat ipakita bilang "hindi nag-verify".
+ */
+async function stampEmailVerified(
+  db: ReturnType<typeof getAdminClient>,
+  userId: string,
+  nowIso: string,
+): Promise<boolean> {
+  const { error } = await db
+    .from('users')
+    .update({ email_verified_at: nowIso })
+    .eq('id', userId);
+  if (error) {
+    console.error('[email-verify] email_verified_at update failed:', error.message);
+    return false;
+  }
+  return true;
 }
 
 /**

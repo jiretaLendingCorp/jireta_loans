@@ -11,7 +11,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders, handleCors, jsonResponse, errorResponse, successResponse } from '../_shared/cors.ts';
-import { requireAuth, isAuthUser } from '../_shared/auth.ts';
+import {
+  isAuthUser,
+  requireAuth,
+  syncAuthUserIdentity,
+} from '../_shared/auth.ts';
 import { checkPermission, requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
@@ -226,6 +230,27 @@ async function findOrCreateWalkInLender(
       message: 'Failed to create lender user',
       log: `${logPrefix}: users upsert failed: ${userErr.message}`,
     };
+  }
+
+  // ── I-sync sa GoTrue ang email + Display name ─────────────────────────────
+  // Ang auth user sa ITAAS ay ginawa gamit ang PHONE lang (walang email), kaya
+  // blangko ang Email at `-` ang Display name nito sa Authentication → Users
+  // kahit may email at pangalan na ang `public.users` row (ang mga ito ay
+  // nakolekta ng staff sa walk-in). Ang `public.users` pa rin ang pinagmumulan
+  // ng katotohanan — non-fatal ito, hindi dapat mabigo ang walk-in submission
+  // dahil lang sa GoTrue.
+  const identitySync = await syncAuthUserIdentity(db, newUser.id, {
+    email: (s1 as any).email ?? null,
+    firstName: s1.first_name,
+    lastName: s1.last_name,
+    phone: cleaned,
+  });
+  if (!identitySync.ok) {
+    console.error(`${logPrefix}: GoTrue identity sync failed (non-fatal)`, {
+      lenderId: newUser.id,
+      duplicate: identitySync.duplicate,
+      msg: identitySync.error,
+    });
   }
 
   // Auto-verified: staff collected + checked the documents in person. Upsert

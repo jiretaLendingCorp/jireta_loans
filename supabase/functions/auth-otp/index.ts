@@ -19,9 +19,11 @@ import { guardRateLimit, recordSecurityEvent, blockKey, checkBlock } from '../_s
 import { sanitizeIpAddress } from '../_shared/audit.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
 import {
+  authDisplayMetadata,
   claimActiveSessionDetailed,
   cleanSessionId,
   sessionIdentifierFromToken,
+  syncAuthUserIdentity,
 } from '../_shared/auth.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
@@ -131,6 +133,9 @@ async function selfRegisterLender(db: DbClient, phone: string) {
     phone_confirm: true,
     email_confirm: true,
     app_metadata: { role: 'lender' },
+    // Display name lang ito sa Supabase Auth dashboard (walang pangalan pa ang
+    // self-registered lender — makukuha ito sa Account Upgrade).
+    user_metadata: authDisplayMetadata({ phone }),
   });
   if (authErr || !authUser?.user) return null;
 
@@ -485,12 +490,55 @@ async function handleVerifyOtp(req: Request) {
     const adminUserId = user?.id;
 
     // 1) The auth user may already exist with an unknown password. The phone
-    //    was just OTP-verified, so reset its password (+ temp email) and sign in.
+    //    was just OTP-verified, so reset its password and sign in. Ang email ng
+    //    credential ay hindi na basta ipinapantay sa `tempEmail` — ang totoong
+    //    (verified) email ang itinatago kapag mayroon na (tingnan sa ibaba).
     if (adminUserId) {
+      // HUWAG ibalik sa `tempEmail` ang account na may TOTOONG email. Ang
+      // verified email ay ipinapantay na sa GoTrue ng
+      // `auth-email-verify?fn=confirm` (at ng users-manage PATCH) — kapag
+      // ni-reset natin dito ang credential pabalik sa `@jireta.temp`,
+      // mabubura ang totoong address sa Auth dashboard, mawawala ang
+      // email-based Google sign-in, at babalik ang desync.
+      //
+      // Ang `syncAuthUserIdentity` ang humahawak ng email + display metadata:
+      // kapag may totoong email na, iyon ang isinusulat nito (self-heal din
+      // ito para sa mga existing na desynced account), at hindi nito ginagalaw
+      // ang email kapag duplicate/error — password reset pa rin ang mahalaga.
+      const realEmail = String(user?.email ?? '').trim().toLowerCase();
+      const hasRealEmail = realEmail !== '' &&
+        !realEmail.endsWith('@jireta.temp');
+      const identity = await syncAuthUserIdentity(db, adminUserId, {
+        email: hasRealEmail ? realEmail : tempEmail,
+        phone,
+        firstName: (user as { first_name?: string })?.first_name,
+        lastName: (user as { last_name?: string })?.last_name,
+      });
+      if (!identity.ok) {
+        console.error(
+          '[auth-verify-otp] identity sync failed — password reset lang ang itutuloy',
+          { userId: adminUserId, duplicate: identity.duplicate, msg: identity.error },
+        );
+        if (!hasRealEmail) {
+          // Luma at ligtas na garantiya pa rin ito: kapag WALANG totoong email
+          // na dapat protektahan, siguradong may email credential ang account
+          // para gumana rin ang email fallback ng `signInWithPassword` sa mga
+          // install na hindi tumatanggap ng phone+password.
+          await db.auth.admin
+            .updateUserById(adminUserId, {
+              email: tempEmail,
+              phone_confirm: true,
+              email_confirm: true,
+            })
+            .catch((e) => {
+              console.error('[auth-verify-otp] temp email fallback failed:', e?.message ?? e);
+            });
+        }
+      }
+
       const { error: updErr } = await db.auth.admin
         .updateUserById(adminUserId, {
           password: OTP_PASSWORD(phone),
-          email: tempEmail,
           phone_confirm: true,
           email_confirm: true,
         })
@@ -514,6 +562,11 @@ async function handleVerifyOtp(req: Request) {
           phone_confirm: true,
           email_confirm: true,
           app_metadata: { role: 'lender' },
+          user_metadata: authDisplayMetadata({
+            phone,
+            firstName: (user as { first_name?: string })?.first_name,
+            lastName: (user as { last_name?: string })?.last_name,
+          }),
         })
         .catch((e) => {
           console.error('[auth-verify-otp] createUser error:', e?.message ?? e);

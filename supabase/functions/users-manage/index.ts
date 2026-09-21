@@ -12,7 +12,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
-import { requireAuth, isAuthUser } from '../_shared/auth.ts';
+import {
+  isAuthUser,
+  requireAuth,
+  syncAuthUserIdentity,
+} from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
@@ -225,6 +229,27 @@ async function handleUpdateProfile(req: Request) {
   }
 
   if (Object.keys(updateFields).length > 0) {
+    // ── Display name (Auth dashboard) ayon sa GoTrue metadata ─────────────
+    // Sinusundan din nito ang pangalan: kung hindi, `-` ang nakikita ng staff
+    // sa Authentication → Users kahit na-update na ang profile. Hindi ito
+    // kailangan ng app (sa `public.users` ito nagbabasa) — non-fatal.
+    if (
+      updateFields.first_name !== undefined ||
+      updateFields.last_name !== undefined
+    ) {
+      const identitySync = await syncAuthUserIdentity(db, targetId, {
+        firstName: (updateFields.first_name ?? existing.first_name) as string,
+        lastName: (updateFields.last_name ?? existing.last_name) as string,
+        phone: (updateFields.phone_number ?? existing.phone_number) as string,
+      });
+      if (!identitySync.ok) {
+        console.error('[users-manage] auth metadata sync failed (non-fatal)', {
+          targetId,
+          msg: identitySync.error,
+        });
+      }
+    }
+
     // Keep GoTrue email in sync when the canonical users.email changes.
     // Do it BEFORE the users row so an auth duplicate fails early and we
     // don't end up with a desynced address.  If auth rejects, surface as 409.
@@ -642,7 +667,12 @@ async function handleGetProfile(req: Request) {
     vehicle_brand: rider?.vehicle_brand ?? null,
     vehicle_type: rider?.vehicle_type ?? null,
     is_available: rider?.is_available ?? null,
-    rider_address: rider?.address ?? null,
+    // Ang `address` (00165) ay HINDI kasama sa PROFILE_SELECT — hindi ito
+    // binabasa ng app (buo na ang address sa `street_address`/`barangay`/…
+    // mula sa `addresses` table sa ibaba). Iniwan nating ganito para hindi
+    // sumandal ang get-profile sa isang column na maaaring wala pa sa isang
+    // environment; type-level cast lang ito, walang pagbabago sa runtime.
+    rider_address: (rider as { address?: string | null } | null)?.address ?? null,
     employment_type: lender?.employment_type ?? null,
     employer_name: lender?.employer_name ?? null,
     monthly_income: lender?.monthly_income ?? null,

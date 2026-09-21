@@ -13,6 +13,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
+import { authDisplayMetadata } from '../_shared/auth.ts';
 import {
   sanitizeString,
   validateEmail,
@@ -467,6 +468,13 @@ async function handleRegister(req: Request) {
     password: String(password),
     email_confirm: true,
     app_metadata: { role: 'employee' },
+    // Display name lang ito sa Supabase Auth dashboard (ang app ay sa
+    // `public.users` nagbabasa) — kung wala ito, `-` ang nakikita ng staff.
+    user_metadata: authDisplayMetadata({
+      firstName: sanitizeString(first_name),
+      lastName: sanitizeString(last_name),
+      phone: cleanPhone,
+    }),
   });
 
   if (authErr || !authUser?.user) {

@@ -183,7 +183,10 @@ async function handleGetList(req: Request) {
       const byId = new Map<string, Record<string, unknown>>(
         (insights ?? []).map((r: Record<string, unknown>) => [String(r.lender_id), r]),
       );
-      for (const m of mapped) {
+      // Ang `mapped` ay typed row (walang insight columns) — i-cast ang loop
+      // variable para maisulat ang non-fatal insights dito (type-level lang,
+      // walang pagbabago sa runtime).
+      for (const m of mapped as unknown as Array<Record<string, unknown>>) {
         const ins = byId.get(String(m.id));
         m.outstanding_balance = Number(ins?.outstanding_balance ?? 0);
         m.active_loans_count = Number(ins?.active_loans_count ?? 0);

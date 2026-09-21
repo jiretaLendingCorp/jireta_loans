@@ -12,7 +12,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
-import { requireAuth, isAuthUser } from '../_shared/auth.ts';
+import {
+  authDisplayMetadata,
+  isAuthUser,
+  requireAuth,
+} from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validateEmail, sanitizeString, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
@@ -214,6 +218,13 @@ async function handleCreateEmployee(req: Request) {
     password: DEFAULT_PASSWORD,
     email_confirm: true,
     app_metadata: { role: 'employee' },
+    // Display name lang ito sa Supabase Auth dashboard (hindi ito binabasa ng
+    // app — sa `public.users` ito nagbabasa).
+    user_metadata: authDisplayMetadata({
+      firstName: first_name,
+      lastName: last_name,
+      phone: cleanPhone,
+    }),
   });
 
   if (createErr || !authUser?.user) {
@@ -350,6 +361,11 @@ async function handleCreateHeadManager(req: Request) {
     password: DEFAULT_PASSWORD,
     email_confirm: true,
     app_metadata: { role: 'head_manager' },
+    user_metadata: authDisplayMetadata({
+      firstName: first_name,
+      lastName: last_name,
+      phone: cleanPhone,
+    }),
   });
 
   if (createErr || !authUser?.user) {
@@ -478,6 +494,11 @@ async function handleCreateRider(req: Request) {
     email_confirm: true,
     phone_confirm: true,
     app_metadata: { role: 'rider' },
+    user_metadata: authDisplayMetadata({
+      firstName: first_name,
+      lastName: last_name,
+      phone: phone.trim(),
+    }),
   });
   if (authErr || !authUser.user) {
     if (authErr?.message?.toLowerCase().includes('already') || authErr?.message?.toLowerCase().includes('duplicate')) {
@@ -589,6 +610,11 @@ async function handleCreateLender(req: Request) {
     password: lenderDefaultPassword,
     phone_confirm: true,
     app_metadata: { role: 'lender' },
+    user_metadata: authDisplayMetadata({
+      firstName: first_name,
+      lastName: last_name,
+      phone: phone.trim(),
+    }),
   });
   if (authErr || !authUser.user) {
     console.error('[users-create] lender auth user creation failed:', authErr?.message);

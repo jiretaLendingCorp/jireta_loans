@@ -47,10 +47,10 @@ DateTime ensureManila(DateTime dt) {
 /// (`auth-login` / `auth-otp` / `auth-google`) gamit ang `nowManilaISO()` na
 /// `new Date().toISOString()` — isang TOTOONG UTC instant — kaya kailangan
 /// itong dumaan sa [parseManila] tulad ng `created_at`.
-/// TODO(backend): ang `fn_auth_update_last_login()` trigger (00120) ay
-/// gumagamit pa rin ng `now_manila()`, kaya kapag ang auth_logs row ay
-/// na-insert nang WALANG kasunod na explicit update, Manila-wall-as-UTC ang
-/// naiiwan. Ipantay sana ito sa `NOW()` para iisang convention na lang.
+/// Naipantay na sa `NOW()` ang `fn_auth_update_last_login()` trigger ng
+/// migration 00171 (katulad ng 00156 para sa `active_sessions`), kaya TOTOONG
+/// UTC instant na rin ang isinusulat nito kahit walang kasunod na explicit
+/// update mula sa Edge Function.
 DateTime? parseManila(dynamic value) {
   if (value == null) return null;
   final dt = DateTime.tryParse(value.toString());

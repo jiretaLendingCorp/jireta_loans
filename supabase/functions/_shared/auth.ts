@@ -393,3 +393,143 @@ export function sessionIdentifierFromToken(token: string): string {
 export function isAuthUser(val: AuthUser | Response): val is AuthUser {
   return !(val instanceof Response);
 }
+
+/**
+ * Metadata para sa GoTrue (`auth.users.raw_user_meta_data`) — ito ang
+ * pinagmulan ng **Display name** column sa Supabase Dashboard → Authentication
+ * → Users.
+ *
+ * Hinahango ng Studio ang pangalan mula sa marami-raming key
+ * (`display_name`, `name`, `full_name`, `first_name`, `last_name`), kaya
+ * isinusulat natin ang lahat ng alam natin. Kung wala nito, `-` ang nakikita
+ * ng staff sa dashboard kahit may pangalan naman ang account sa
+ * `public.users`.
+ *
+ * WALANG app logic na umaasa sa metadata na ito (ang app ay sa `public.users`
+ * nagbabasa) — display lang ito para sa dashboard/staff.
+ */
+export function authDisplayMetadata(input: {
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+}): Record<string, string> {
+  const first = (input.firstName ?? '').trim();
+  const last = (input.lastName ?? '').trim();
+  const phone = (input.phone ?? '').trim();
+  const fullName = [first, last].filter(Boolean).join(' ');
+
+  const meta: Record<string, string> = {};
+  if (fullName) {
+    meta.display_name = fullName;
+    meta.name = fullName;
+    meta.full_name = fullName;
+  }
+  if (first) meta.first_name = first;
+  if (last) meta.last_name = last;
+  if (phone) meta.phone = phone;
+  return meta;
+}
+
+/** Resulta ng [syncAuthUserIdentity]. */
+export interface AuthIdentitySync {
+  ok: boolean;
+  /** May IBANG auth user nang gumagamit ng email — hindi ito naisulat. */
+  duplicate: boolean;
+  /** Ang `auth.users.email` BAGO ang sync (para sa rollback). */
+  previousEmail: string | null;
+  error?: string;
+}
+
+/**
+ * Ipinapantay ang `auth.users` (email + display metadata) sa `public.users`.
+ *
+ * Bakit kailangan: ang self-registered lender ay may sintetikong
+ * `${phone}@jireta.temp` na credential sa GoTrue. Kapag na-verify na niya ang
+ * totoong email sa app, `public.users.email` lang ang dating naisusulat — kaya
+ * TEMP pa rin ang nakikita sa Auth dashboard, hindi siya makapasok sa Google
+ * sign-in (`auth-google` ay tumatanggi sa `@jireta.temp`), at hindi magagamit
+ * ng GoTrue (email login / recovery) ang totoong address.
+ *
+ * Tumatanggi ito (`duplicate: true`) kapag may ibang auth user nang gumagamit
+ * ng email, para hindi magkahati ang `public.users` at `auth.users`.
+ */
+export async function syncAuthUserIdentity(
+  db: ReturnType<typeof getAdminClient>,
+  userId: string,
+  patch: {
+    email?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+  },
+): Promise<AuthIdentitySync> {
+  const result: AuthIdentitySync = {
+    ok: true,
+    duplicate: false,
+    previousEmail: null,
+  };
+
+  let currentEmail: string | null = null;
+  let currentMeta: Record<string, unknown> = {};
+  try {
+    const { data, error } = await db.auth.admin.getUserById(userId);
+    if (error) {
+      console.error('[auth-identity] getUserById failed', {
+        userId,
+        msg: error.message,
+      });
+    } else {
+      currentEmail = (data?.user?.email ?? null) as string | null;
+      currentMeta = (data?.user?.user_metadata ?? {}) as Record<string, unknown>;
+    }
+  } catch (e) {
+    console.error('[auth-identity] getUserById threw', { userId, msg: String(e) });
+  }
+  result.previousEmail = currentEmail;
+
+  const update: {
+    email?: string;
+    email_confirm?: boolean;
+    user_metadata?: Record<string, unknown>;
+  } = {};
+
+  const email = (patch.email ?? '').trim().toLowerCase();
+  if (email && email !== (currentEmail ?? '').trim().toLowerCase()) {
+    update.email = email;
+    update.email_confirm = true;
+  }
+
+  // Merge (hindi replace) para hindi mabura ang metadata ng OAuth provider
+  // (hal. avatar/name mula sa Google) sa mga naka-link na account.
+  const additions = authDisplayMetadata(patch);
+  if (Object.keys(additions).length > 0) {
+    update.user_metadata = { ...currentMeta, ...additions };
+  }
+
+  if (Object.keys(update).length === 0) return result;
+
+  try {
+    const { error } = await db.auth.admin.updateUserById(userId, update);
+    if (!error) return result;
+    const msg = (error.message ?? '').toLowerCase();
+    result.ok = false;
+    result.error = error.message;
+    result.duplicate = msg.includes('already') ||
+      msg.includes('duplicate') ||
+      msg.includes('exists') ||
+      msg.includes('registered');
+    console.error('[auth-identity] updateUserById failed', {
+      userId,
+      duplicate: result.duplicate,
+      msg: error.message,
+    });
+  } catch (e) {
+    result.ok = false;
+    result.error = String(e);
+    console.error('[auth-identity] updateUserById threw', {
+      userId,
+      msg: String(e),
+    });
+  }
+  return result;
+}

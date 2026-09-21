@@ -1,7 +1,11 @@
 // supabase/functions/kyc-submit/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { writeAuditLog } from "../_shared/audit.ts";
-import { isAuthUser, requireAuth } from "../_shared/auth.ts";
+import {
+  isAuthUser,
+  requireAuth,
+  syncAuthUserIdentity,
+} from "../_shared/auth.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient } from "../_shared/db.ts";
 import { notifyStaff } from "../_shared/notifications.ts";
@@ -227,6 +231,31 @@ serve(async (req) => {
     }).eq("id", user.id);
     if (userErr) {
       console.error("kyc-submit user update error:", userErr.message);
+    }
+
+    // ── Identity sync (GoTrue) ─────────────────────────────────────────────────
+    // Dito unang nakukuha ng self-registered lender ang totoong email at
+    // pangalan (Account Upgrade). DATI, `public.users` lang ang naisusulat —
+    // kaya sa Authentication → Users ay TEMP (`@jireta.temp`) pa rin ang email
+    // at `-` ang Display name. Ang epekto: hindi makapasok sa Google sign-in
+    // (`auth-google` ay tumatanggi sa `@jireta.temp`) at hindi magagamit ng
+    // GoTrue (email login / recovery) ang totoong address.
+    //
+    // Non-fatal: ang `public.users` ang pinagmumulan ng katotohanan para sa
+    // app — hindi dapat mabigo ang account upgrade dahil lang sa GoTrue.
+    if (p.email || p.first_name || p.last_name) {
+      const identitySync = await syncAuthUserIdentity(db, user.id, {
+        email: p.email ? sanitizeString(p.email).trim().toLowerCase() : null,
+        firstName: sanitizeString(p.first_name),
+        lastName: sanitizeString(p.last_name),
+      });
+      if (!identitySync.ok) {
+        console.error("kyc-submit identity sync failed (non-fatal):", {
+          userId: user.id,
+          duplicate: identitySync.duplicate,
+          msg: identitySync.error,
+        });
+      }
     }
 
     // Upload each document to the account-upgrade-documents storage bucket (service role)

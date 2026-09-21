@@ -1004,7 +1004,7 @@ class _SiteHero extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            SizedBox(
+            const SizedBox(
               width: 400,
               child: Text(
                 'Manage loan applications, approvals, payments, collections, and '
@@ -1013,7 +1013,7 @@ class _SiteHero extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 7.4,
                   height: 1.6,
-                  color: const Color(0xFF667085),
+                  color: Color(0xFF667085),
                 ),
               ),
             ),
