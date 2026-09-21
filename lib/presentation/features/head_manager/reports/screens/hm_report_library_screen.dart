@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:printing/printing.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/report_remote_datasource.dart';
 import '../../../../shared/utils/file_downloader.dart';
 import '../../../../shared/utils/report_exporter.dart';
+import '../../../../shared/widgets/pdf_zoom_viewer.dart';
 import '../../../../shared/widgets/forms/app_date_range_picker.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -716,25 +716,35 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                     border:
                         Border(bottom: BorderSide(color: AppColors.divider)),
                   ),
+                  // Isang row lang: title sa kaliwa, period (date range) sa
+                  // KANAN — tabi mismo ng close button. Dati kasing nasa ilalim
+                  // ng title kaya nagiging dalawang row.
                   child: Row(
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(title,
-                                style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w800)),
-                            Text(
-                              dateRange == null
-                                  ? '${rows.length} record${rows.length == 1 ? '' : 's'}'
-                                  : '${DateFormat('MMM dd, yyyy').format(dateRange.start)} – ${DateFormat('MMM dd, yyyy').format(dateRange.end)}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: AppColors.textSecondary),
-                            ),
-                          ],
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w800),
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: Text(
+                          dateRange == null
+                              ? '${rows.length} record${rows.length == 1 ? '' : 's'}'
+                              : '${DateFormat('MMM dd, yyyy').format(dateRange.start)} – ${DateFormat('MMM dd, yyyy').format(dateRange.end)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.textSecondary),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
                       IconButton(
                           onPressed: () => Navigator.pop(ctx),
                           icon: const Icon(Icons.close_rounded,
@@ -744,21 +754,12 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                 ),
                 // Preview — aktwal na PDF (coupon) na lalabas din kapag
                 // na-download, para eksaktong tugma ang preview sa file.
+                // Pinch-to-zoom na (`PdfZoomViewer`): laging aktibo ang
+                // pinch/wheel/double-tap, hindi katulad ng `PdfPreview` na
+                // kailangan pa ng double-tap bago gumana ang gesture.
                 Expanded(
-                  child: PdfPreview(
-                    build: (format) => buildPdf(title: title, rows: rows),
-                    pdfFileName: '${sanitizeFileName(title)}.pdf',
-                    allowPrinting: false,
-                    allowSharing: false,
-                    canChangePageFormat: false,
-                    canChangeOrientation: false,
-                    canDebug: false,
-                    useActions: false,
-                    padding: EdgeInsets.zero,
-                    previewPageMargin: const EdgeInsets.all(12),
-                    loadingWidget: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
+                  child: PdfZoomViewer(
+                    buildDocument: () => buildPdf(title: title, rows: rows),
                   ),
                 ),
                 // Actions

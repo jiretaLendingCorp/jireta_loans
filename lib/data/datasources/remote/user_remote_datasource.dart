@@ -5,6 +5,24 @@ import '../../../core/network/api_endpoints.dart';
 import '../../../core/utils/logger.dart';
 import '../../models/user_model.dart';
 
+/// Resulta ng [UserRemoteDataSource.getUsersPaged] — ang listahan kasama ang
+/// `meta` na kailangan ng `TablePagination` (kabuuang records at pages). Ang
+/// server (`users-admin?fn=get-list`) ay may `count: 'exact'` + `range()` na,
+/// kaya totoo ang total kahit page-by-page lang ang binabasa.
+class PagedUsers {
+  final List<UserModel> items;
+  final int total;
+  final int totalPages;
+  final int page;
+
+  const PagedUsers({
+    required this.items,
+    required this.total,
+    required this.totalPages,
+    required this.page,
+  });
+}
+
 class UserRemoteDataSource {
   final DioClient _client;
   UserRemoteDataSource(this._client);
@@ -143,6 +161,49 @@ class UserRemoteDataSource {
     return list
         .map((e) => UserModel.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// Paged na bersyon ng [getUsers] — dito lang ibinabalik ang `total` /
+  /// `totalPages` mula sa server, na kailangan para sa pagination footer ng
+  /// People lists (Lenders / All People / Archived / Head Managers / Employees
+  /// / Riders). Ang [getUsers] ay nananatili para sa mga caller na listahan
+  /// lang ang kailangan (dropdown pickers, available riders).
+  Future<PagedUsers> getUsersPaged({
+    String? role,
+    String? status,
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.usersGetList,
+      queryParams: {
+        if (role != null) 'role': role,
+        if (status != null) 'status': status,
+        'page': page,
+        'limit': limit,
+        if (search != null) 'search': search,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
+      },
+    );
+    final raw = (res.data['data'] as List?) ?? [];
+    final items = raw
+        .map((e) => UserModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final total = (res.data['total'] as num?)?.toInt() ?? items.length;
+    final reportedPages = (res.data['totalPages'] as num?)?.toInt();
+    final computedPages =
+        limit <= 0 ? 1 : (total / limit).ceil();
+    final totalPages = reportedPages ?? computedPages;
+    return PagedUsers(
+      items: items,
+      total: total,
+      totalPages: totalPages < 1 ? 1 : totalPages,
+      page: page,
+    );
   }
 
   Future<void> updateProfile(Map<String, dynamic> data) async {

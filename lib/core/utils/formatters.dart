@@ -30,6 +30,18 @@ class AppFormatters {
 
   static String dateTime(DateTime dt) => _datetimeFmt.format(dt);
 
+  /// Timestamp mula sa backend → Manila display, o [fallback] kung wala.
+  ///
+  /// Ang mga TIMESTAMPTZ column ay TOTOONG UTC instants (`DEFAULT NOW()`), kaya
+  /// kailangang dumaan sa [parseManilaValue] bago ipakita — kung hindi, 8 oras
+  /// mali at hilaw na ISO (`2026-09-20T09:29:10`) ang lumalabas sa screen.
+  /// Tumutanggap ito ng ISO string o DateTime (hal. galing provider na
+  /// dumaan na sa `parseManila`).
+  static String dateTimeOr(dynamic value, {String fallback = '—'}) {
+    final dt = parseManilaValue(value);
+    return dt == null ? fallback : dateTime(dt);
+  }
+
   static String time(DateTime dt) => _timeFmt.format(dt);
 
   static String dateInput(DateTime dt) => _dateInputFmt.format(dt);

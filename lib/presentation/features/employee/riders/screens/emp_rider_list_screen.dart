@@ -10,6 +10,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/filter_dropdown.dart';
+import '../../../../shared/widgets/tables/records_pagination.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/emp_rider_provider.dart';
 import '../widgets/emp_create_rider_modal.dart';
@@ -65,7 +66,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
                 ? _buildShimmer()
                 : state.riders.isEmpty
                     ? _buildEmpty()
-                    : _buildTable(state.riders),
+                    : _buildTable(state),
           ),
         ],
       ),
@@ -92,7 +93,7 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
         ),
         trailing: [
           SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-          SearchResultsChip(count: state.riders.length),
+          SearchResultsChip(count: state.total),
           FilterDropdown<String>(
             value: state.statusFilter,
             items: const [
@@ -107,21 +108,35 @@ class _EmpRiderListScreenState extends ConsumerState<EmpRiderListScreen> {
     );
   }
 
-  Widget _buildTable(List<UserModel> riders) {
+  Widget _buildTable(EmpRiderState state) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: ResponsiveListCard(
-        minTableWidth: 820,
-        variant: ResponsiveListVariant.card,
-        columns: const [
-          ResponsiveCol('Name', flex: 3),
-          ResponsiveCol('Phone', flex: 2),
-          ResponsiveCol('Vehicle', flex: 2),
-          ResponsiveCol('Plate', flex: 2),
-          ResponsiveCol('Status', flex: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ResponsiveListCard(
+            minTableWidth: 820,
+            variant: ResponsiveListVariant.card,
+            columns: const [
+              ResponsiveCol('Name', flex: 3),
+              ResponsiveCol('Phone', flex: 2),
+              ResponsiveCol('Vehicle', flex: 2),
+              ResponsiveCol('Plate', flex: 2),
+              ResponsiveCol('Status', flex: 2),
+            ],
+            actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
+            rows: state.riders.map((e) => _buildRow(e)).toList(),
+          ),
+          // Pagination — kapareho ng nasa Loan Records (arrows + navy na
+          // "1 / 2"), sa ilalim ng table, hindi footer bar.
+          const SizedBox(height: 16),
+          RecordsPagination(
+            currentPage: state.page,
+            totalPages: state.totalPages,
+            onPageChange: (p) =>
+                ref.read(empRiderProvider.notifier).setPage(p),
+          ),
         ],
-        actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
-        rows: riders.map((e) => _buildRow(e)).toList(),
       ),
     );
   }

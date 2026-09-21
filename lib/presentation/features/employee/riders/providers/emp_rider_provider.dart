@@ -11,6 +11,7 @@ class EmpRiderState {
   final bool isLoading;
   final String? error;
   final int total;
+  final int totalPages;
   final int page;
   final String search;
   final String statusFilter;
@@ -22,6 +23,7 @@ class EmpRiderState {
     this.isLoading = false,
     this.error,
     this.total = 0,
+    this.totalPages = 1,
     this.page = 1,
     this.search = '',
     this.statusFilter = 'all',
@@ -34,6 +36,7 @@ class EmpRiderState {
     bool? isLoading,
     String? error,
     int? total,
+    int? totalPages,
     int? page,
     String? search,
     String? statusFilter,
@@ -45,6 +48,7 @@ class EmpRiderState {
         isLoading: isLoading ?? this.isLoading,
         error: error,
         total: total ?? this.total,
+        totalPages: totalPages ?? this.totalPages,
         page: page ?? this.page,
         search: search ?? this.search,
         statusFilter: statusFilter ?? this.statusFilter,
@@ -64,7 +68,7 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
   Future<void> load({bool silent = false}) async {
     if (!silent) state = state.copyWith(isLoading: true);
     try {
-      final list = await _ds.getUsers(
+      final paged = await _ds.getUsersPaged(
         role: 'rider',
         status: state.statusFilter == 'all' ? null : state.statusFilter,
         search: state.search.isEmpty ? null : state.search,
@@ -72,10 +76,21 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
+      // Naubos ang huling page (hal. na-archive ang huling row) — bumalik sa
+      // huling page na may laman imbes na blangkong table.
+      if (paged.items.isEmpty && state.page > 1) {
+        state = state.copyWith(page: state.page - 1);
+        return load(silent: true);
+      }
       final filtered = state.statusFilter == 'all'
-          ? list.where((u) => u.accountStatus != 'archived').toList()
-          : list;
-      state = state.copyWith(riders: filtered, isLoading: false);
+          ? paged.items.where((u) => u.accountStatus != 'archived').toList()
+          : paged.items;
+      state = state.copyWith(
+        riders: filtered,
+        isLoading: false,
+        total: paged.total,
+        totalPages: paged.totalPages,
+      );
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
@@ -96,6 +111,12 @@ class EmpRiderStateNotifier extends StateNotifier<EmpRiderState>
   void setStatus(String v) {
     state = state.copyWith(statusFilter: v, page: 1);
     load();
+  }
+
+  /// Pagination footer — `TablePagination` (server-side pages).
+  void setPage(int p) {
+    state = state.copyWith(page: p);
+    load(silent: true);
   }
 
   Future<void> createRider(Map<String, dynamic> data) async {

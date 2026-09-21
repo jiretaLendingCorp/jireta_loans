@@ -332,17 +332,64 @@ async function confirmToken(req: Request): Promise<ConfirmOutcome> {
     console.error('[email-verify] marking used failed:', usedErr.message);
   }
 
+  // ── Isulat ang VERIFIED email sa account — hindi lang `email_verified_at` ──
+  // ANG TOTOONG BUG NA NA-AYOS DITO: ang `email_verifications.email` lang ang
+  // may hawak ng address na kinumpirma ng user. Ang `users.email` ay hindi
+  // kailanman naisusulat dito, kaya kahit "Successfully Verified" ang link ay
+  // NULL pa rin ang `users.email` sa database — "hindi nag-save ang email".
+  //
+  // Sunod-sunod na epekto nito:
+  //   • `?fn=status` → `email: null` kahit verified na.
+  //   • `alreadyVerified()` → LAGING false (NULL ≠ typed email) kaya ang
+  //     muling pag-tap sa link (o ang auto-visit ng Gmail/Outlook scanner) ay
+  //     nagsasabing "Link already used" kahit matagumpay ang verification.
+  //   • Ang app pa lang ang nagsusulat ng `users.email` (update-profile), at
+  //     kapag nabigo iyon (409 DUPLICATE / GoTrue sync) ay walang nag-a-ayos —
+  //     ang link na "verified" na ang nasa email ng user.
+  //
+  // Sa confirm na ito isinusulat ang verified address kasabay ng verification
+  // stamp, dahil ang server na ito ang may hawak ng PINAKA-tunay na pinagmulan
+  // (ang link na pinindot sa email). Kapag may IBANG account nang gumagamit ng
+  // address na ito (`uq_users_email_lower` → 23505), hindi natin aagawin ito:
+  // ita-timestamp pa rin ang verification at malinaw na ipapaliwanag sa user.
   const { error: userErr } = await db
     .from('users')
-    .update({ email_verified_at: nowIso })
+    .update({ email: row.email, email_verified_at: nowIso })
     .eq('id', row.user_id);
   if (userErr) {
-    console.error('[email-verify] email_verified_at update failed:', userErr.message);
-    return {
-      ok: false,
-      title: 'Something went wrong',
-      message: 'We could not save your verification. Please try again.',
-    };
+    const code = (userErr as unknown as { code?: string }).code ?? '';
+    const duplicate = code === '23505';
+    console.error(
+      '[email-verify] users.email save failed:',
+      userErr.message,
+      { user_id: row.user_id, duplicate },
+    );
+    // Hindi ko na iisahan ang duplicate: kailangang i-stamp pa rin ang
+    // verification (verified naman talaga ang link na pinindot).
+    const { error: stampErr } = await db
+      .from('users')
+      .update({ email_verified_at: nowIso })
+      .eq('id', row.user_id);
+    if (stampErr) {
+      console.error('[email-verify] email_verified_at update failed:', stampErr.message);
+      return {
+        ok: false,
+        title: 'Something went wrong',
+        message: 'We could not save your verification. Please try again.',
+      };
+    }
+    return duplicate
+      ? {
+          ok: false,
+          title: 'Email already in use',
+          message:
+            `${row.email} is already registered to another account. Please use a different email address in the app.`,
+        }
+      : {
+          ok: false,
+          title: 'Something went wrong',
+          message: 'We could not save your verification. Please try again.',
+        };
   }
 
   console.log(`[email-verify] email verified for user=${row.user_id}`);
@@ -396,8 +443,13 @@ async function alreadyVerified(
       .eq('id', userId)
       .maybeSingle();
     if (!data?.email_verified_at) return false;
-    return String(data.email ?? '').trim().toLowerCase() ===
-      email.trim().toLowerCase();
+    // Ang `email_verified_at` mismo ang senyales ng verification. Ang dating
+    // paghahambing sa `users.email` ay LAGING false kapag NULL ang email ng
+    // account (bagong lender) — kaya ang paulit-ulit na pag-tap sa link ay
+    // nagpapakitang "Link already used" kahit matagumpay ang verification.
+    // Kapag may naka-save na email, dito lang natin hinihingi ang tugma.
+    const stored = String(data.email ?? '').trim().toLowerCase();
+    return stored === '' || stored === email.trim().toLowerCase();
   } catch (e) {
     console.error('[email-verify] alreadyVerified check failed:', e);
     return false;

@@ -12,6 +12,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/filter_dropdown.dart';
+import '../../../../shared/widgets/tables/records_pagination.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
 import '../providers/hm_head_managers_provider.dart';
 import '../widgets/create_head_manager_modal.dart';
@@ -73,7 +74,7 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
                 ? _shimmer()
                 : state.users.isEmpty
                     ? _empty()
-                    : _table(state.users),
+                    : _table(state),
           ),
         ],
       ),
@@ -100,7 +101,7 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
           ),
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            SearchResultsChip(count: state.users.length),
+            SearchResultsChip(count: state.total),
             FilterDropdown<String>(
               value: state.statusFilter,
               items: const [
@@ -115,19 +116,34 @@ class _HmHeadManagersScreenState extends ConsumerState<HmHeadManagersScreen> {
         ),
       );
 
-  Widget _table(List<UserModel> users) => SingleChildScrollView(
+  Widget _table(HmHeadManagersState state) => SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: ResponsiveListCard(
-          minTableWidth: 760,
-          variant: ResponsiveListVariant.card,
-          columns: const [
-            ResponsiveCol('Name', flex: 3),
-            ResponsiveCol('Email', flex: 3),
-            ResponsiveCol('Phone', flex: 2),
-            ResponsiveCol('Status', flex: 1),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ResponsiveListCard(
+              minTableWidth: 760,
+              variant: ResponsiveListVariant.card,
+              columns: const [
+                ResponsiveCol('Name', flex: 3),
+                ResponsiveCol('Email', flex: 3),
+                ResponsiveCol('Phone', flex: 2),
+                ResponsiveCol('Status', flex: 1),
+              ],
+              actionsCol:
+                  const ResponsiveActionsCol(label: 'Actions', flex: 2),
+              rows: state.users.map((e) => _row(e)).toList(),
+            ),
+            // Pagination — kapareho ng nasa Loan Records (arrows + navy na
+            // "1 / 2"), sa ilalim ng table, hindi footer bar.
+            const SizedBox(height: 16),
+            RecordsPagination(
+              currentPage: state.page,
+              totalPages: state.totalPages,
+              onPageChange: (p) =>
+                  ref.read(hmHeadManagersProvider.notifier).setPage(p),
+            ),
           ],
-          actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
-          rows: users.map((e) => _row(e)).toList(),
         ),
       );
 

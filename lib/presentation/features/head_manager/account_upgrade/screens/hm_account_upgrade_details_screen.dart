@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/formatters.dart';
 import '../../../../../data/datasources/remote/account_upgrade_remote_datasource.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
-import '../../../../shared/widgets/document_viewer.dart';
+import '../../../../shared/widgets/document_preview_dialog.dart';
+import '../../../../shared/utils/account_upgrade_checklist.dart';
 
 class HmAccountUpgradeDetailsScreen extends ConsumerStatefulWidget {
   final String lenderId;
@@ -208,41 +210,27 @@ class _HmAccountUpgradeDetailsScreenState
       }
 
       if (!mounted) return;
-      await showDialog(
-        context: context,
-        builder: (_) => Dialog(
-          backgroundColor: Colors.white,
-          clipBehavior: Clip.antiAlias,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)])),
-                child: Row(children: [
-                  Container(width: 30, height: 30, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(7)), child: const Icon(Icons.insert_drive_file_rounded, color: Colors.white, size: 16)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(_docLabel(docType), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15))),
-                  IconButton(icon: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.14), shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 16, color: Colors.white)), onPressed: () => Navigator.pop(context)),
-                ]),
-              ),
-              Flexible(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: backUrl != null ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Front Side', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-                  const SizedBox(height: 6),
-                  DocumentViewer(url: url, height: 540),
-                ])),
-                const SizedBox(width: 16),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Back Side', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-                  const SizedBox(height: 6),
-                  DocumentViewer(url: backUrl, height: 540),
-                ])),
-              ]) : DocumentViewer(url: url, height: 540))),
-            ]),
+      // Carousel na preview: ISA-ISA ang titignan (Front tapos Back) na may
+      // arrows/swipe/dots at rotate — dating magkatabi kaya maliit at mahirap
+      // basahin ang detalye ng ID.
+      await showDocumentPreviewDialog(
+        context,
+        title: _docLabel(docType),
+        pages: [
+          DocumentPreviewPage(
+            label: backUrl != null ? 'Front Side' : 'Document',
+            url: url,
+            // Ang ID ay landscape na card — auto-landscape kapag portrait ang
+            // na-upload na litrato.
+            autoLandscape: docType.startsWith('valid_id'),
           ),
-        ),
+          if (backUrl != null)
+            DocumentPreviewPage(
+              label: 'Back Side',
+              url: backUrl,
+              autoLandscape: docType.startsWith('valid_id'),
+            ),
+        ],
       );
     } catch (e) {
       if (mounted) showErrorSnackBar(context, 'Failed to open document: $e');
@@ -267,9 +255,12 @@ class _HmAccountUpgradeDetailsScreenState
     final data = _data!;
     final lender = (data['lender'] as Map<String, dynamic>?) ?? {};
     _allDocs = (data['documents'] as List?) ?? [];
-    final docs = _allDocs.where((d) => (d as Map<String, dynamic>)['document_type']?.toString() != 'valid_id_back').toList();
+    // Checklist: LAGING kasama ang lahat ng inaasahang dokumento kahit wala
+    // sa DB, para makita ng reviewer ang "Not submitted" (hal. Face
+    // Recognition na na-skip sa web/desktop) sa halip na basta mawala.
+    final docs = buildAccountUpgradeChecklist(_allDocs);
     final accountUpgradeStatus = (data['account_upgrade_status'] as String?) ?? 'pending';
-    final pendingDocs = docs.where((d) => (d as Map<String, dynamic>)['status'] == 'pending').toList();
+    final pendingDocs = docs.where((item) => item.status == 'pending').toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -278,9 +269,8 @@ class _HmAccountUpgradeDetailsScreenState
         children: [
           LayoutBuilder(builder: (context, constraints) {
             final isNarrow = constraints.maxWidth < 860;
-            final leftColumn = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              _PremiumSectionCard(
-                title: 'Lender Profile',
+            final profileCard = _PremiumSectionCard(
+              title: 'Lender Profile',
                 subtitle: '',
                 icon: Icons.person_rounded,
                 accent: AppColors.lenderBlue,
@@ -289,80 +279,148 @@ class _HmAccountUpgradeDetailsScreenState
                   _InfoRow('Phone', lender['phone_number'] ?? '—'),
                   _InfoRow('Email', lender['email'] ?? '—'),
                   _InfoRow('Address', [lender['street_address'], lender['barangay'], lender['city'], lender['province'], lender['zip_code']].where((e) => e != null && e.toString().isNotEmpty).join(', ').isEmpty ? '—' : [lender['street_address'], lender['barangay'], lender['city'], lender['province'], lender['zip_code']].where((e) => e != null && e.toString().isNotEmpty).join(', ')),
-                  const Divider(height: 20),
                   // 00128: financial details are declared per LOAN and are no
                   // longer part of the account-upgrade (lender profile) review.
                   _InfoRow('Gender', lender['gender'] ?? '—'),
                   _InfoRow('Civil Status', lender['civil_status'] ?? '—'),
                   _InfoRow('Date of Birth', lender['date_of_birth'] ?? '—'),
                 ]),
-              ),
-              const SizedBox(height: 16),
-              _PremiumSectionCard(
-                title: 'Submitted Documents',
+            );
+            final docsCard = _PremiumSectionCard(
+              title: 'Submitted Documents',
                 subtitle: '',
                 icon: Icons.folder_copy_rounded,
                 accent: const Color(0xFF00838F),
                 child: docs.isEmpty
                     ? const Text('No documents submitted.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13))
-                    : Column(
-                        children: [
-                          for (int i = 0; i < docs.length; i++) ...[
-                            Builder(builder: (context) {
-                              final d = docs[i] as Map<String, dynamic>;
-                              final docStatus = (d['status'] ?? 'pending').toString();
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
+                    : LayoutBuilder(builder: (context, grid) {
+                        // 2 dokumento kada row kapag sapat ang lapad — puno na
+                        // kasi ang buong section ngayon, hindi na makitid.
+                        const gap = 16.0;
+                        final twoUp = grid.maxWidth >= 720;
+                        final tileWidth =
+                            twoUp ? (grid.maxWidth - gap) / 2 : grid.maxWidth;
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: [
+                            for (int i = 0; i < docs.length; i++)
+                              SizedBox(
+                                width: tileWidth,
+                                child: Builder(builder: (context) {
+                              final item = docs[i];
+                              final d = item.doc;
+                              final docStatus = (d?['status'] ?? 'pending').toString();
+                              final hasFile = d != null &&
+                                  [d['file_url'], d['signed_url']].any((v) =>
+                                      v != null && v.toString().trim().isNotEmpty);
+                              // Symmetric na padding (dati ay bottom-only) para may
+                              // hangin sa itaas at ibaba ng bawat dokumento.
+                              // Tile na may border (dati'y plain row na may
+                              // divider) — mas malinaw sa 2-kada-row na grid.
+                              // Grey + pulang border kapag wala sa DB (hal. Face
+                              // Recognition na hindi na-submit) para halata agad
+                              // ang kulang.
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: item.submitted
+                                      ? Colors.white
+                                      : AppColors.surfaceGray.withValues(alpha: 0.35),
+                                  border: Border.all(
+                                    color: item.submitted
+                                        ? AppColors.border
+                                        : AppColors.error.withValues(alpha: 0.4),
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Row(children: [
                                     SizedBox(
                                       width: 36,
                                       height: 36,
-                                      child: _docIcon(d['document_type']?.toString() ?? ''),
+                                      child: _docIcon(item.type),
                                     ),
                                     const SizedBox(width: 10),
-                                    Expanded(child: Text(_docLabel(d['document_type']?.toString() ?? 'Document'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
-                                    if (docStatus.toLowerCase() != 'submitted')
+                                    Expanded(child: Text(_docLabel(item.type), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: item.submitted ? null : AppColors.textSecondary))),
+                                    if (!item.submitted)
+                                      Text(
+                                        item.required
+                                            ? 'Not submitted'
+                                            : 'Not submitted · optional',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: item.required
+                                              ? AppColors.error
+                                              : AppColors.textTertiary,
+                                        ),
+                                      )
+                                    else if (docStatus.toLowerCase() != 'submitted')
                                       Text(docStatus, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: docStatus.toLowerCase() == 'verified' ? AppColors.success : AppColors.error)),
                                   ]),
                                   const SizedBox(height: 6),
                                   Row(children: [
                                     const Icon(Icons.schedule_rounded, size: 12, color: AppColors.textTertiary),
                                     const SizedBox(width: 4),
-                                    Text(d['created_at'] != null ? 'Submitted: ${d['created_at'].toString().substring(0, 19)}' : '—', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                    // `created_at` dito ay `uploaded_at` (TIMESTAMPTZ,
+                                    // totoong UTC) — dati ay hilaw na ISO slice
+                                    // (`2026-09-20T09:29:10`) at 8 oras mali.
+                                    Text(
+                                      d != null
+                                          ? 'Submitted: ${AppFormatters.dateTimeOr(d['created_at'])}'
+                                          : 'No upload found',
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary),
+                                    ),
                                   ]),
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8),
-                                    child: Builder(builder: (_) {
-                                      final hasFile = [d['file_url'], d['signed_url']]
-                                          .any((v) => v != null && v.toString().trim().isNotEmpty);
-                                      return Row(children: [
-                                        OutlinedButton(
-                                          onPressed: hasFile ? () => _openDocument(d, allDocs: _allDocs) : null,
-                                          style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12), side: BorderSide(color: hasFile ? AppColors.deepNavy : AppColors.border), shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero)),
-                                          child: Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: hasFile ? AppColors.deepNavy : AppColors.textTertiary)),
+                                    child: Row(children: [
+                                      // Redesigned: navy na rounded button na may
+                                      // eye icon (dati'y bare outlined button).
+                                      Material(
+                                        color: hasFile ? AppColors.deepNavy : AppColors.surfaceGray,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(8),
+                                          onTap: hasFile ? () => _openDocument(d, allDocs: _allDocs) : null,
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                              Icon(Icons.visibility_outlined, size: 15, color: hasFile ? Colors.white : AppColors.textTertiary),
+                                              const SizedBox(width: 6),
+                                              Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: hasFile ? Colors.white : AppColors.textTertiary)),
+                                            ]),
+                                          ),
                                         ),
-                                        const SizedBox(width: 10),
-                                        // Ipakitang malinaw sa tabi ng View kung may laman
-                                        // (na-upload) o walang laman ang dokumento.
-                                        Row(mainAxisSize: MainAxisSize.min, children: [
-                                          Icon(hasFile ? Icons.check_circle_rounded : Icons.error_outline_rounded, size: 14, color: hasFile ? AppColors.success : AppColors.error),
-                                          const SizedBox(width: 4),
-                                          Text(hasFile ? 'File uploaded' : 'Empty — no file', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: hasFile ? AppColors.success : AppColors.error)),
-                                        ]),
-                                      ]);
-                                    }),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      // Ipakitang malinaw sa tabi ng View kung may laman
+                                      // (na-upload) o walang laman ang dokumento.
+                                      Row(mainAxisSize: MainAxisSize.min, children: [
+                                        Icon(hasFile ? Icons.check_circle_rounded : Icons.error_outline_rounded, size: 14, color: hasFile ? AppColors.success : AppColors.error),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          hasFile
+                                              ? 'File uploaded'
+                                              : (d != null
+                                                  ? 'Empty — no file'
+                                                  : 'Not submitted'),
+                                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: hasFile ? AppColors.success : AppColors.error),
+                                        ),
+                                      ]),
+                                    ]),
                                   ),
                                 ]),
                               );
-                            }),
-                            if (i < docs.length - 1)
-                              const Divider(height: 1, color: AppColors.border),
+                                }),
+                              ),
                           ],
-                        ],
-                      ),
-              ),
-            ]);
+                        );
+                      }),
+            );
 
             final rightRail = SizedBox(
               width: isNarrow ? double.infinity : 340,
@@ -440,10 +498,19 @@ class _HmAccountUpgradeDetailsScreenState
               ]),
             );
 
-            if (isNarrow) {
-              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [leftColumn, const SizedBox(height: 16), rightRail]);
-            }
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 5, child: leftColumn), const SizedBox(width: 16), rightRail]);
+            final topRow = isNarrow
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [profileCard, const SizedBox(height: 16), rightRail])
+                : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 5, child: profileCard), const SizedBox(width: 16), rightRail]);
+            // Full width na ang Submitted Documents (dati'y nasa loob ng flex-5
+            // na column, kaya may sayang na espasyo sa kanan) at 2 kada row.
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                topRow,
+                const SizedBox(height: 16),
+                docsCard,
+              ],
+            );
           }),
         ],
       ),

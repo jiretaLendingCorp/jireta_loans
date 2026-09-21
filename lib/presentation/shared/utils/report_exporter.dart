@@ -2,8 +2,11 @@
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+
+import '../../../core/utils/timezone.dart';
 
 String _xmlEscape(String s) => s
     .replaceAll('&', '&amp;')
@@ -23,9 +26,43 @@ String _colLetter(int i) {
   return col;
 }
 
+/// Halagang ipapakita sa cell ng report — walang blangkong cell.
+///
+/// (a) `null` / `''` → `N/A` (dati ay blangko).
+/// (b) Ang em-dash (`—`, U+2014) na fallback ay HINDI kayang i-render ng
+///     built-in na Helvetica ng PDF (Latin-1 lang ang sakop): tahimik itong
+///     tinatanggal kaya blangkong cell ang lumalabas sa preview at sa PDF.
+///     Ang mga lumang report na naka-save na sa `reports.data` ay may ganitong
+///     halaga pa, kaya dito rin sila na-aayos.
+/// (c) Ang en-dash (`–`) na fallback ay `N/A` din.
+/// (d) Ang hilaw na timestamp (`2026-09-20T16:29:51.064065+00:00`) ay
+///     ginagawang "Sep 20, 2026 04:29 PM" (Manila) — kapareho ng bagong
+///     format ng `reports-generate`. Saklaw nito pati ang mga LUMANG report na
+///     naka-save na sa `reports.data` bago pa naayos ang server.
+String reportCellValue(dynamic v) {
+  if (v == null) return 'N/A';
+  final s = v.toString().trim();
+  if (s.isEmpty || s == '—' || s == '–') return 'N/A';
+  return _readableDate(v, s);
+}
+
+final _isoTimestamp = RegExp(r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}');
+final _isoDateOnly = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+/// ISO timestamp/date → Manila display string, o `s` kung hindi petsa.
+String _readableDate(dynamic raw, String s) {
+  if (_isoTimestamp.hasMatch(s)) {
+    final dt = parseManila(raw);
+    if (dt != null) return DateFormat('MMM dd, yyyy hh:mm a').format(dt);
+  } else if (_isoDateOnly.hasMatch(s)) {
+    final dt = DateTime.tryParse(s);
+    if (dt != null) return DateFormat('MMM dd, yyyy').format(dt);
+  }
+  return s;
+}
+
 String _cell(String ref, dynamic v) {
-  if (v == null) return '<c r="$ref"/>';
-  return '<c r="$ref" t="inlineStr"><is><t>${_xmlEscape(v.toString())}</t></is></c>';
+  return '<c r="$ref" t="inlineStr"><is><t>${_xmlEscape(reportCellValue(v))}</t></is></c>';
 }
 
 List<String> _columnsOf(List<Map<String, dynamic>> rows) {
@@ -109,7 +146,7 @@ Future<Uint8List> buildPdf({
   final cols = columns ?? _columnsOf(rows);
   final data = [
     for (final r in rows)
-      [for (final c in cols) r[c]?.toString() ?? ''],
+      [for (final c in cols) reportCellValue(r[c])],
   ];
 
   final doc = pw.Document();

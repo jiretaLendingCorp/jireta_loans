@@ -15,6 +15,7 @@ import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/filter_dropdown.dart';
+import '../../../../shared/widgets/tables/records_pagination.dart';
 import '../providers/hm_lender_provider.dart';
 import '../widgets/create_lender_modal.dart';
 
@@ -71,7 +72,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                 ? _shimmer()
                 : state.lenders.isEmpty
                     ? _empty()
-                    : _table(state.lenders),
+                    : _table(state),
           ),
         ],
       ),
@@ -98,7 +99,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
           ),
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            SearchResultsChip(count: state.lenders.length),
+            SearchResultsChip(count: state.total),
           FilterDropdown<String>(
             value: state.statusFilter,
             items: const [
@@ -113,19 +114,34 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
         ),
       );
 
-  Widget _table(List<UserModel> lenders) => SingleChildScrollView(
+  Widget _table(HmLenderState state) => SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: ResponsiveListCard(
-          minTableWidth: 820,
-          variant: ResponsiveListVariant.card,
-          columns: const [
-            ResponsiveCol('Name', flex: 3),
-            ResponsiveCol('Phone', flex: 2),
-            ResponsiveCol('Account Upgrade Status', flex: 2),
-            ResponsiveCol('Status', flex: 1),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ResponsiveListCard(
+              minTableWidth: 820,
+              variant: ResponsiveListVariant.card,
+              columns: const [
+                ResponsiveCol('Name', flex: 3),
+                ResponsiveCol('Phone', flex: 2),
+                ResponsiveCol('Account Upgrade Status', flex: 2),
+                ResponsiveCol('Status', flex: 1),
+              ],
+              actionsCol:
+                  const ResponsiveActionsCol(label: 'Actions', flex: 2),
+              rows: state.lenders.map((e) => _row(e)).toList(),
+            ),
+            // Pagination — kapareho ng nasa Loan Records (arrow buttons +
+            // navy na "1 / 2" pill), sa ilalim ng table at hindi footer bar.
+            const SizedBox(height: 16),
+            RecordsPagination(
+              currentPage: state.page,
+              totalPages: state.totalPages,
+              onPageChange: (p) =>
+                  ref.read(hmLenderProvider.notifier).setPage(p),
+            ),
           ],
-          actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
-          rows: lenders.map((e) => _row(e)).toList(),
         ),
       );
 

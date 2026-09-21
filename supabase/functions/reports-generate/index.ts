@@ -22,6 +22,7 @@ import {
   getLoanDisbursementsBatch,
 } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { MANILA_TZ } from '../_shared/timezone.ts';
 
 // ── Report filter whitelists ────────────────────────────────────────────────
 // Out-of-list values are dropped so a bad filter can never widen a report into
@@ -67,8 +68,79 @@ function bounds(params: Record<string, string>): { from: string; to: string } {
 
 type Db = ReturnType<typeof getAdminClient>;
 
+const NA = 'N/A';
+
 function name(first?: string | null, last?: string | null): string {
-  return [first, last].filter(Boolean).join(' ').trim() || '—';
+  return [first, last].filter(Boolean).join(' ').trim() || NA;
+}
+
+/**
+ * Ang kulang na halaga ay `N/A` — HINDI em-dash.
+ *
+ * Ang dating fallback na `'—'` (U+2014) ay hindi kayang i-render ng built-in
+ * na Helvetica ng PDF exporter (Latin-1 / U+00FF lang ang sakop), kaya
+ * tahimik itong tinatanggal at BLANGKONG cell ang lumalabas sa preview at sa
+ * na-download na PDF. Ang `null` naman ay nagiging `''` sa client, kaya blangko
+ * rin. ASCII na `N/A` ang tama: laging may nakikita ang nagbabasa at hindi na
+ * dumadaan sa font mapping.
+ */
+function na(value: unknown): unknown {
+  if (value === null || value === undefined) return NA;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed === '' || trimmed === '—' || trimmed === '–' ? NA : trimmed;
+  }
+  return value;
+}
+
+/** ISO string / calendar date → Date, o `null` kapag blangko o di-mabasa. */
+function asDate(value: unknown): Date | null {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  // `YYYY-MM-DD` (hal. `loan_schedules.due_date`) ay Manila calendar date na
+  // walang oras — i-anchor sa Manila midnight, hindi sa UTC.
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T00:00:00+08:00`)
+    : new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
+ * Timestamp → "Sep 20, 2026 04:29 PM" (Manila).
+ *
+ * Dati ay hilaw na ISO string ang lumalabas sa preview/PDF/Excel, hal.
+ * `2026-09-20T16:29:51.064065+00:00` — hindi mabasa ng staff. Ang format na
+ * ito ay kapareho ng `DateFormat('MMM dd, yyyy hh:mm a')` ng app.
+ */
+function fmtDateTime(value: unknown): string {
+  const parsed = asDate(value);
+  if (!parsed) return na(value) as string;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: MANILA_TZ,
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).formatToParts(parsed);
+  const part = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('month')} ${part('day')}, ${part('year')} ` +
+    `${part('hour')}:${part('minute')} ${part('dayPeriod').toUpperCase()}`;
+}
+
+/** Date-only (walang oras) → "Sep 20, 2026". */
+function fmtDate(value: unknown): string {
+  const parsed = asDate(value);
+  if (!parsed) return na(value) as string;
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: MANILA_TZ,
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  }).format(parsed);
 }
 
 // ══ ROW BUILDERS — one clean, flat, business-facing DTO per report ═════════
@@ -118,18 +190,18 @@ async function buildLoanSummary(
     const fin = finMap[r.id] ?? { total_payable: null, outstanding_balance: null };
     const disb = disbMap[r.id] ?? null;
     return {
-      loanNumber: r.loan_number,
+      loanNumber: na(r.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
-      phoneNumber: lenderUser?.phone_number ?? null,
-      principalAmount: r.principal_amount,
-      interestRate: r.interest_rate,
-      totalPayable: fin.total_payable ?? null,
-      outstandingBalance: fin.outstanding_balance ?? null,
-      paymentFrequency: r.payment_frequency,
-      installments: r.term_periods,
-      status: r.status,
-      appliedAt: r.created_at,
-      disbursedAt: disb?.disbursed_at ?? null,
+      phoneNumber: na(lenderUser?.phone_number),
+      principalAmount: na(r.principal_amount),
+      interestRate: na(r.interest_rate),
+      totalPayable: na(fin.total_payable),
+      outstandingBalance: na(fin.outstanding_balance),
+      paymentFrequency: na(r.payment_frequency),
+      installments: na(r.term_periods),
+      status: na(r.status),
+      appliedAt: fmtDateTime(r.created_at),
+      disbursedAt: fmtDateTime(disb?.disbursed_at),
     };
   });
 }
@@ -190,13 +262,13 @@ async function buildPaymentReport(
     const lender = loan ? embedAsObject<{ users?: { first_name?: string; last_name?: string } }>(loan.lender_profiles as any) : null;
     const lenderUser = lender ? embedAsObject(lender.users) : null;
     return {
-      referenceNumber: p.xendit_reference ?? null,
-      loanNumber: loan?.loan_number ?? '—',
+      referenceNumber: na(p.xendit_reference),
+      loanNumber: na(loan?.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
-      amount: p.amount,
-      paymentMethod: p.payment_method,
-      status: p.status,
-      paymentDate: p.paid_at ?? p.created_at,
+      amount: na(p.amount),
+      paymentMethod: na(p.payment_method),
+      status: na(p.status),
+      paymentDate: fmtDateTime(p.paid_at ?? p.created_at),
     };
   });
 }
@@ -234,15 +306,15 @@ async function buildCollectionReport(
     const lender = loan ? embedAsObject<{ users?: { first_name?: string; last_name?: string } }>(loan.lender_profiles as any) : null;
     const lenderUser = lender ? embedAsObject(lender.users) : null;
     return {
-      loanNumber: loan?.loan_number ?? '—',
+      loanNumber: na(loan?.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
       riderName: name(riderUser?.first_name, riderUser?.last_name),
       collectionType: r.collection_type === 'office' ? 'Office' : 'Rider',
-      amountCollected: r.amount_collected ?? null,
-      requestedAmount: r.requested_amount ?? null,
-      dueDate: schedule?.due_date ?? null,
-      status: r.status,
-      collectedAt: r.completed_at ?? null,
+      amountCollected: na(r.amount_collected),
+      requestedAmount: na(r.requested_amount),
+      dueDate: fmtDate(schedule?.due_date),
+      status: na(r.status),
+      collectedAt: fmtDateTime(r.completed_at),
     };
   });
 }
@@ -254,10 +326,18 @@ async function buildLenderReport(
 ): Promise<Record<string, unknown>[]> {
   const { from, to } = bounds(params);
 
+  // Sa Account Upgrade Report, `!inner` ang kailangan sa lender_profiles embed:
+  // kung hindi, ang `.not(...)` filter ay hindi nag-aalis ng parent row (null
+  // lang ang embedded profile na isinasauli), kaya lumalabas pa rin ang mga
+  // lender na 'not_submitted' — at puro blangko ang verificationStatus nila.
+  const profileEmbed = upgradeOnly
+    ? 'lender_profiles!lender_profiles_id_fkey!inner(account_upgrade_status)'
+    : 'lender_profiles!lender_profiles_id_fkey(account_upgrade_status)';
+
   let query = db.from('users').select(
     `first_name, last_name, phone_number, account_status, created_at,
      roles!users_role_id_fkey!inner(name),
-     lender_profiles!lender_profiles_id_fkey(account_upgrade_status)`,
+     ${profileEmbed}`,
   ).eq('roles.name', 'lender');
   if (upgradeOnly) {
     query = query.not('lender_profiles.account_upgrade_status', 'eq', 'not_submitted');
@@ -272,10 +352,10 @@ async function buildLenderReport(
     const profile = embedAsObject<{ account_upgrade_status?: string }>(r.lender_profiles);
     return {
       lenderName: name(r.first_name, r.last_name),
-      phoneNumber: r.phone_number ?? '—',
-      accountStatus: r.account_status,
-      verificationStatus: profile?.account_upgrade_status ?? '—',
-      registeredAt: r.created_at,
+      phoneNumber: na(r.phone_number),
+      accountStatus: na(r.account_status),
+      verificationStatus: na(profile?.account_upgrade_status),
+      registeredAt: fmtDateTime(r.created_at),
     };
   });
 }
@@ -328,11 +408,11 @@ async function buildRiderReport(
     const coll = collCounts[r.id] ?? { completed: 0, collected: 0 };
     return {
       riderName: name(r.first_name, r.last_name),
-      phoneNumber: r.phone_number ?? '—',
-      vehicle: profile?.vehicle_type ?? '—',
-      plateNumber: profile?.plate_number ?? '—',
+      phoneNumber: na(r.phone_number),
+      vehicle: na(profile?.vehicle_type),
+      plateNumber: na(profile?.plate_number),
       available: profile?.is_available ? 'Yes' : 'No',
-      accountStatus: r.account_status,
+      accountStatus: na(r.account_status),
       ciAssignments: ci.assigned,
       ciCompleted: ci.completed,
       collectionsCompleted: coll.completed,
@@ -380,8 +460,8 @@ async function buildEmployeeReport(
     const c = counts.get(String(r.id)) ?? { approved: 0, rejected: 0 };
     return {
       employeeName: name(r.first_name, r.last_name),
-      position: profile?.position ?? '—',
-      accountStatus: r.account_status,
+      position: na(profile?.position),
+      accountStatus: na(r.account_status),
       loansApproved: c.approved,
       loansRejected: c.rejected,
     };
@@ -420,13 +500,13 @@ async function buildOverdueReport(
       ? Math.max(0, Math.floor((today.getTime() - new Date(`${earliestDue}T00:00:00`).getTime()) / 86400000))
       : null;
     return {
-      loanNumber: r.loan_number,
+      loanNumber: na(r.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
-      phoneNumber: lenderUser?.phone_number ?? null,
-      outstandingBalance: finMap[String(r.id)]?.outstanding_balance ?? null,
-      dueDate: earliestDue,
-      daysOverdue,
-      status: r.status,
+      phoneNumber: na(lenderUser?.phone_number),
+      outstandingBalance: na(finMap[String(r.id)]?.outstanding_balance),
+      dueDate: fmtDate(earliestDue),
+      daysOverdue: na(daysOverdue),
+      status: na(r.status),
     };
   });
 }
@@ -482,7 +562,7 @@ async function buildFinancialRows(
     return months.map((m) => {
       const s = byMonth.get(m)!;
       return {
-        period: m === '' ? '—' : m,
+        period: m === '' ? NA : m,
         penaltiesTotal: Math.round(s.penalties * 100) / 100,
         penaltyCount: penalties.filter((p) => String(p.applied_at ?? '').startsWith(m)).length,
       };
@@ -492,7 +572,7 @@ async function buildFinancialRows(
     const s = byMonth.get(m)!;
     const revenue = s.payments + s.penalties;
     return {
-      period: m === '' ? '—' : m,
+      period: m === '' ? NA : m,
       paymentsTotal: Math.round(s.payments * 100) / 100,
       penaltiesTotal: Math.round(s.penalties * 100) / 100,
       revenue: Math.round(revenue * 100) / 100,
@@ -524,13 +604,13 @@ async function buildInterestReport(
     const lenderUser = lender ? embedAsObject(lender.users) : null;
     const fin = finMap[String(r.id)] ?? {};
     return {
-      loanNumber: r.loan_number,
+      loanNumber: na(r.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
-      principalAmount: r.principal_amount,
-      interestRate: r.interest_rate,
-      interestAmount: fin.interest_amount ?? null,
-      totalPayable: fin.total_payable ?? null,
-      outstandingBalance: fin.outstanding_balance ?? null,
+      principalAmount: na(r.principal_amount),
+      interestRate: na(r.interest_rate),
+      interestAmount: na(fin.interest_amount),
+      totalPayable: na(fin.total_payable),
+      outstandingBalance: na(fin.outstanding_balance),
     };
   });
 }
@@ -556,10 +636,10 @@ async function buildAuditReport(
   return ((data ?? []) as unknown as Array<Record<string, any>>).map((r) => {
     const actor = embedAsObject<{ first_name?: string; last_name?: string }>(r.actor);
     return {
-      performedAt: r.created_at,
+      performedAt: fmtDateTime(r.created_at),
       actorName: name(actor?.first_name, actor?.last_name),
-      action: r.action,
-      module: r.table_name,
+      action: na(r.action),
+      module: na(r.table_name),
     };
   });
 }
@@ -591,13 +671,13 @@ async function buildCiReport(
     const lender = loan ? embedAsObject<{ users?: { first_name?: string; last_name?: string } }>(loan.lender_profiles as any) : null;
     const lenderUser = lender ? embedAsObject(lender.users) : null;
     return {
-      loanNumber: loan?.loan_number ?? '—',
+      loanNumber: na(loan?.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
       riderName: name(riderUser?.first_name, riderUser?.last_name),
-      status: r.status,
-      findings: r.report_summary ?? '—',
-      assignedAt: r.created_at,
-      completedAt: r.completed_at,
+      status: na(r.status),
+      findings: na(r.report_summary),
+      assignedAt: fmtDateTime(r.created_at),
+      completedAt: fmtDateTime(r.completed_at),
     };
   });
 }
@@ -628,14 +708,14 @@ async function buildDisbursementReport(
     const lenderUser = lender ? embedAsObject(lender.users) : null;
     const authorizedBy = embedAsObject<{ first_name?: string; last_name?: string }>(r.authorized_by_user);
     return {
-      loanNumber: loan?.loan_number ?? '—',
+      loanNumber: na(loan?.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
-      method: r.method,
-      amount: r.amount,
-      status: r.status,
+      method: na(r.method),
+      amount: na(r.amount),
+      status: na(r.status),
       authorizedBy: name(authorizedBy?.first_name, authorizedBy?.last_name),
-      createdAt: r.created_at,
-      disbursedAt: r.disbursed_at,
+      createdAt: fmtDateTime(r.created_at),
+      disbursedAt: fmtDateTime(r.disbursed_at),
     };
   });
 }
