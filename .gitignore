@@ -49,6 +49,13 @@ assets/env/.env
 *.env
 !.env.example
 
+# Android signing (keystore + key.properties). Ginagawa ito ng
+# .github/workflows/android-apk-release.yml mula sa GitHub secrets.
+android/key.properties
+android/upload-keystore.jks
+*.jks
+*.keystore
+
 # Release APKs (~141 MB — lampas sa 100 MB na file limit ng GitHub, at sa
 # 50 MB na file limit ng Supabase Storage free plan). Naka-host ang APK sa
 # GitHub Releases — tingnan ang web/downloads/README.md.

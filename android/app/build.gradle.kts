@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -20,6 +22,27 @@ fun googleMapsApiKey(): String {
         ?.substringAfter("=")
         ?.trim()
         ?: ""
+}
+
+// ── Release signing (upload keystore) ────────────────────────────────────────
+// `android/key.properties` (git-ignored) points at the upload keystore. Ginagawa
+// ito ng `.github/workflows/android-apk-release.yml` mula sa GitHub secrets, at
+// manu-manong ginagawa sa local kapag gusto ng sariling keystore.
+// Kapag wala ang file (hal. fresh clone), babalik sa debug signing — tulad ng
+// dati — para hindi masira ang `flutter run --release`.
+// Tingnan ang web/downloads/README.md para sa setup.
+val keystoreProps: Properties? = rootProject.file("key.properties")
+    .takeIf { it.exists() }
+    ?.let { propsFile ->
+        Properties().apply { propsFile.inputStream().use { load(it) } }
+    }
+
+/** Resolve `storeFile` mula sa key.properties: absolute, `android/`, o `android/app/`. */
+fun resolveKeystore(path: String): File {
+    val raw = File(path)
+    if (raw.isAbsolute) return raw
+    return listOf(rootProject.file(path), file(path)).firstOrNull { it.exists() }
+        ?: rootProject.file(path)
 }
 
 android {
@@ -58,11 +81,33 @@ android {
         manifestPlaceholders["MAPS_API_KEY"] = googleMapsApiKey()
     }
 
+    signingConfigs {
+        keystoreProps?.let { props ->
+            create("release") {
+                val storePath = props.getProperty("storeFile")
+                val store = resolveKeystore(storePath)
+                check(store.exists()) {
+                    "android/key.properties -> storeFile '$storePath' not found " +
+                        "(looked in android/ and android/app/)."
+                }
+                storeFile = store
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Upload keystore kapag may `android/key.properties` (CI at local
+            // release builds); kung wala, debug keys para gumana pa rin ang
+            // `flutter run --release`.
+            signingConfig = if (keystoreProps != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

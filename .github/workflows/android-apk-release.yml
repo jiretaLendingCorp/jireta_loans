@@ -1,0 +1,207 @@
+name: Android APK (auto release)
+
+# Awtomatikong binubuo ang release APK at ipinapa-publish sa isang rolling
+# release (`apk-latest`), kaya laging updated ang download link na ito:
+#
+#   https://github.com/jiretaLendingCorp/jireta_loans/releases/latest/download/jireta-loans.apk
+#
+# Iyan ang URL ng "Download APK" button sa web login page
+# (AppConfig.apkDownloadUrl), kaya HINDI na kailangang baguhin ang code o
+# mag-drag ng file sa Releases kapag may bagong APK.
+#
+# Setup ng secrets: tingnan ang web/downloads/README.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "android/**"
+      - "assets/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/android-apk-release.yml"
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "versionCode (blangko = CI run number)"
+        required: false
+        default: ""
+
+# Isang build lang sa isang pagkakataon — kung hindi, maaaring ma-overwrite ng
+# lumang build ang bagong asset.
+concurrency:
+  group: android-apk-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  ASSET_NAME: jireta-loans.apk
+  RELEASE_TAG: apk-latest
+  # Fallback NDK version — kailangan ng AGP sa release build (native libs
+  # stripping). Ang aktwal na kailangan ay kinukuha mula sa Flutter SDK
+  # (`flutter.ndkVersion`); ito lang ang gamit kapag hindi ito mabasa.
+  NDK_VERSION: "28.2.13676358"
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Android NDK
+        run: |
+          set -euo pipefail
+          # `flutter.ndkVersion` ang kailangan ng project — basahin mula sa SDK
+          # imbes na i-hardcode, para hindi mabali kapag nag-update ang Flutter.
+          FLUTTER_NDK="$(grep -rhoE 'val ndkVersion: String = "[^"]+"' \
+            "$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt" \
+            2>/dev/null | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
+          NDK="${FLUTTER_NDK:-$NDK_VERSION}"
+          echo "NDK required by Flutter: $NDK"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ -d "$SDK_ROOT/ndk/$NDK" ]; then
+            echo "NDK $NDK already installed on the runner"
+          else
+            # `|| true` dahil nag-e-exit ng 141 (SIGPIPE) ang `yes` kapag tapos
+            # na ang sdkmanager — sasabog ang `set -o pipefail` kung wala ito.
+            # Sa baba na lang chine-check kung totoong na-install.
+            yes | "$SDKMANAGER" --install "ndk;$NDK" > /tmp/ndk-install.log 2>&1 || true
+            if [ ! -d "$SDK_ROOT/ndk/$NDK" ]; then
+              echo "::error::Failed to install NDK $NDK"
+              tail -30 /tmp/ndk-install.log
+              exit 1
+            fi
+            echo "Installed NDK $NDK"
+          fi
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.lock') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # assets/env/.env ay git-ignored (may API keys), kaya kailangang buuin dito
+      # mula sa repo secrets — pareho ang pangalan sa Vercel env vars para
+      # madaling kopyahin.
+      - name: Write assets/env/.env
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EDGE_FUNCTIONS_URL: ${{ secrets.EDGE_FUNCTIONS_URL }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          XENDIT_PUBLIC_KEY: ${{ secrets.XENDIT_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [[ "${SUPABASE_URL:-}" == *"your-project.supabase.co"* ]]; then
+            echo "::error::SUPABASE_URL repo secret is missing. Add it in Settings -> Secrets and variables -> Actions (same value as in Vercel)."
+            exit 1
+          fi
+          EDGE="${EDGE_FUNCTIONS_URL:-${SUPABASE_URL%/}/functions/v1}"
+          mkdir -p assets/env
+          cat > assets/env/.env <<EOF
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+          EDGE_FUNCTIONS_URL=$EDGE
+          GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+          XENDIT_PUBLIC_KEY=${XENDIT_PUBLIC_KEY:-}
+          APP_ENV=production
+          EOF
+          echo "Wrote assets/env/.env (values masked):"
+          sed -E 's/=(.{0,6}).*/=\1.../' assets/env/.env
+
+      # Release signing: android/key.properties + keystore galing sa secrets.
+      # Mahalaga ito para sa auto-update — kung bagong key bawat build (tulad ng
+      # debug keystore sa CI), hindi mai-install ng users ang bagong APK sa
+      # ibabaw ng luma ("App not installed").
+      - name: Configure release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEY_ALIAS ANDROID_KEYSTORE_PASSWORD; do
+            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repo secret(s):$missing"
+            echo "Generate the keystore and add the secrets — see web/downloads/README.md."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}
+          EOF
+          echo "Release signing configured (alias: $ANDROID_KEY_ALIAS)"
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Build release APK
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+        run: |
+          set -euo pipefail
+          # run_number bilang versionCode: tumataas sa bawat build kaya laging
+          # tinatanggap ng Android ang update (hindi "downgrade").
+          flutter build apk --release --build-number="$BUILD_NUMBER"
+
+      - name: Collect APK + checksum
+        id: apk
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          ls -lh "$APK"
+          cp "$APK" "$ASSET_NAME"
+          sha256sum "$ASSET_NAME" > "$ASSET_NAME.sha256"
+          VERSION="$(grep -m1 '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/\r//')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "$ASSET_NAME" | cut -f1)" >> "$GITHUB_OUTPUT"
+          echo "APK ready: $ASSET_NAME (pubspec version $VERSION)"
+
+      - name: Publish to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.apk.outputs.version }}
+          SIZE: ${{ steps.apk.outputs.size }}
+        run: |
+          set -euo pipefail
+          SHA_SHORT="${GITHUB_SHA:0:7}"
+          NOTES="Auto-built APK mula sa \`$SHA_SHORT\` (pubspec $VERSION) — $(date -u '+%Y-%m-%d %H:%M UTC'). Laki: $SIZE.
+
+          Ito ang asset na binabasa ng \`releases/latest/download/jireta-loans.apk\`, kaya awtomatikong updated ang Download APK button sa web app."
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$ASSET_NAME" "$ASSET_NAME.sha256" --clobber
+            gh release edit "$RELEASE_TAG" --latest --notes "$NOTES"
+          else
+            gh release create "$RELEASE_TAG" "$ASSET_NAME" "$ASSET_NAME.sha256" \
+              --title "Android APK (auto-updating)" \
+              --notes "$NOTES" \
+              --latest
+          fi
+          echo "Published: https://github.com/$GITHUB_REPOSITORY/releases/latest/download/$ASSET_NAME"
