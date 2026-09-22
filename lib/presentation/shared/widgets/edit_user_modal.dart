@@ -50,7 +50,10 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
   bool _loading = true;
   bool _saving = false;
   String? _error;
-  String? _email;
+
+  /// Ang identifier ng account (email, o para sa head manager: kahit pangalan
+  /// lang, hal. "juan").
+  final _emailCtrl = TextEditingController();
   // Staff-only fields (head_manager / employee live in employee_profiles).
   String? _gender;
   String? _civilStatus;
@@ -62,6 +65,11 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
   bool get _isStaff =>
       widget.initialRole == 'head_manager' ||
       widget.initialRole == 'employee';
+
+  /// Na-e-edit ang Email/identifier para sa HEAD MANAGER lang — at WALANG
+  /// @gmail.com / email-format validation (puwedeng pangalan lang, hal. "juan").
+  /// Ang ibang roles ay read-only pa rin (identidad ng pag-login nila).
+  bool get _canEditEmail => widget.initialRole == 'head_manager';
 
   String _label(String code) =>
       code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
@@ -100,7 +108,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         _initCity = data['city'] as String?;
         _initBarangay = data['barangay'] as String?;
         _zipCtrl.text = (data['zip_code'] as String?) ?? '';
-        _email = (data['email'] as String?) ?? '';
+        _emailCtrl.text = (data['email'] as String?) ?? '';
         _gender = _asKnownCode(data['gender'], _genders);
         _civilStatus = _asKnownCode(data['civil_status'], _civilStatuses);
         final dobRaw = (data['date_of_birth'] as String?)?.trim();
@@ -149,6 +157,10 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         'last_name': _lastCtrl.text.trim(),
         'suffix': _suffixCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
+        // Head manager lang: ipinapadala ang identifier (email o pangalan
+        // lang). Walang format validation dito — ang server ang humahawak ng
+        // duplicate at ng GoTrue credential.
+        if (_canEditEmail) 'email': _emailCtrl.text.trim(),
         if (_isStaff)
           'employee_profile': {
             if (_gender != null) 'gender': _gender,
@@ -193,6 +205,7 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
     _suffixCtrl.dispose();
     _phoneCtrl.dispose();
     _zipCtrl.dispose();
+    _emailCtrl.dispose();
     super.dispose();
   }
 
@@ -282,6 +295,25 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                           ],
                         ),
                         const SizedBox(height: 12),
+                        // HEAD MANAGER: editable ang identifier at walang
+                        // email-format validation — puwedeng pangalan lang
+                        // (hal. juan). Iba pang roles: read-only pa rin.
+                        TextFormField(
+                          controller: _emailCtrl,
+                          readOnly: !_canEditEmail,
+                          decoration: InputDecoration(
+                            labelText:
+                                _canEditEmail ? 'Email / Username' : 'Email',
+                            border: const OutlineInputBorder(
+                                borderRadius: BorderRadius.zero),
+                          ),
+                          validator: _canEditEmail
+                              ? (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Email is required'
+                                  : null
+                              : null,
+                        ),
+                        const SizedBox(height: 12),
                         _f('Phone Number', _phoneCtrl, maxLength: 11),
                         const SizedBox(height: 16),
                         const Text(
@@ -355,17 +387,6 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                             onChanged: (d) => setState(() => _dob = d),
                           ),
                         ],
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: TextEditingController(text: _email),
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.zero),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
                         // Role and Account Status removed per spec — only profile fields are editable.
                         const SizedBox(height: 24),
                         SizedBox(

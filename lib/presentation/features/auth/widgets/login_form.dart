@@ -76,7 +76,9 @@ class _LoginFormState extends State<LoginForm> {
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
             maxLength: 254,
-            validator: AppValidators.email,
+            // Walang email-format validation: ang head manager ay maaaring
+            // mag-login gamit ang pangalan lang (hal. "juan") — hindi email.
+            validator: AppValidators.required,
             decoration: const InputDecoration(
               labelText: 'Email Address',
               prefixIcon: Icon(Icons.email_outlined),

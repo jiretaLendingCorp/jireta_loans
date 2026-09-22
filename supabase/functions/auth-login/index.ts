@@ -10,8 +10,8 @@ import {
   getAnonClient,
 } from '../_shared/db.ts';
 import {
+  credentialEmailFor,
   sanitizeString,
-  validateEmail,
 } from '../_shared/validators.ts';
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
 import { guardRateLimit } from '../_shared/rate_limiter.ts';
@@ -101,10 +101,15 @@ serve(async (req) => {
       return errorResponse('Email and password are required', 400, 'VALIDATION_ERROR');
     }
 
+    // ── Identifier (HINDI kailangang email-format) ────────────────────────
+    // Ang HEAD MANAGER ay puwedeng mag-login gamit ang simpleng identifier —
+    // hal. pangalan lang ("juan") — kaya WALANG email-format validation dito.
+    // Ang tanging hinahanap natin ay may laman ito, tapos: (1) hahanapin ang
+    // account sa `public.users.email`, at (2) ang GoTrue credential na gagamitin
+    // ay ang `credentialEmailFor(...)` ng identifier (tingnan ang Step 7).
     const cleanEmail = sanitizeString(email).trim().toLowerCase();
-
-    if (!validateEmail(cleanEmail)) {
-      return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
+    if (!cleanEmail) {
+      return errorResponse('Email and password are required', 400, 'VALIDATION_ERROR');
     }
 
     // ── Step 2: create clients ────────────────────────────────────────────
@@ -228,8 +233,23 @@ serve(async (req) => {
     // ── Step 7: Supabase Auth sign-in ─────────────────────────────────────
     // This is where a wrong password, an unconfirmed email, or a missing
     // auth.users row will surface.
-    const { data: authData, error: authErr } =
-      await anonAuth.auth.signInWithPassword({ email: cleanEmail, password });
+    // Ang GoTrue ay may SARILING email-format validation, kaya ang credential
+    // ng head manager na pangalan-lang ang identifier ay ang
+    // `${identifier}@jireta.temp` (naka-save doon nang gawin ang account).
+    const authEmail = credentialEmailFor(user.email ?? cleanEmail);
+    let signInResult = await anonAuth.auth.signInWithPassword({
+      email: authEmail,
+      password,
+    });
+    // Legacy na account na ang auth.users.email ay ang hilaw na identifier
+    // mismo (o iba sa inaasahang credential): subukan din iyon bago sumuko.
+    if (signInResult.error && authEmail !== cleanEmail) {
+      const legacy =
+        await anonAuth.auth.signInWithPassword({ email: cleanEmail, password });
+      if (!legacy.error && legacy.data.session) signInResult = legacy;
+    }
+    const authData = signInResult.data;
+    const authErr = signInResult.error;
 
     if (authErr || !authData.session) {
       console.error('[auth-login] step=sign_in_password FAILED', {

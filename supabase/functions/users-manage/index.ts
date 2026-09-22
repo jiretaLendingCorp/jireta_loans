@@ -19,7 +19,7 @@ import {
 } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
+import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType, credentialEmailFor } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
@@ -134,7 +134,14 @@ async function handleUpdateProfile(req: Request) {
       }
     } else {
       const cleanEmail = rawEmail.toLowerCase();
-      if (!validateEmail(cleanEmail)) return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
+      // HEAD MANAGER lang: walang @gmail.com / format validation — puwedeng
+      // kahit pangalan lang (hal. "juan") ang identifier. Ang ibang roles ay
+      // nananatili sa email-format check. Ang GoTrue credential ay ang
+      // `credentialEmailFor(cleanEmail)` (tingnan ang sync sa ibaba).
+      const targetRole = existingRole?.name ?? '';
+      if (targetRole !== 'head_manager' && !validateEmail(cleanEmail)) {
+        return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
+      }
       // Skip duplicate check if the normalised value equals existing (case-only
       // change is still an update, but not a duplicate of another user).
       const existingNorm = (existing.email ?? '').trim().toLowerCase();
@@ -259,7 +266,9 @@ async function handleUpdateProfile(req: Request) {
         try {
           const { error: authEmailErr } = await db.auth.admin.updateUserById(
             targetId,
-            { email: newEmail, email_confirm: true },
+            // GoTrue-valid na credential — `${identifier}@jireta.temp` kapag
+            // hindi email-format ang bagong identifier ng head manager.
+            { email: credentialEmailFor(newEmail), email_confirm: true },
           );
           if (authEmailErr) {
             const msg = (authEmailErr.message ?? '').toLowerCase();

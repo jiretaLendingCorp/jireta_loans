@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/validators.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -495,11 +494,11 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                           const BorderSide(color: AppColors.error, width: 1.4),
                     ),
                   ),
+                  // Walang email-format validation: ang head manager ay
+                  // maaaring mag-login gamit ang pangalan lang (hal. "juan") —
+                  // hindi email — kaya required lang ang sinusuri dito.
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email is required';
-                    if (!AppValidators.isValidEmail(v)) {
-                      return 'Enter a valid email';
-                    }
                     return null;
                   },
                   onFieldSubmitted: (_) => widget.passFocus.requestFocus(),

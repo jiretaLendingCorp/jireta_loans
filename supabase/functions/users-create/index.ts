@@ -19,7 +19,7 @@ import {
 } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validateEmail, sanitizeString, validatePhone, normalizeVehicleType } from '../_shared/validators.ts';
+import { validateEmail, sanitizeString, validatePhone, normalizeVehicleType, credentialEmailFor } from '../_shared/validators.ts';
 import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
@@ -317,10 +317,16 @@ async function handleCreateHeadManager(req: Request) {
   if (cleanCivil && !STAFF_CIVIL_STATUSES.includes(cleanCivil)) {
     return errorResponse('Invalid civil status', 400, 'VALIDATION_ERROR');
   }
-  // ── Normalise + validate before any DB hit ──────────────────────────
+  // ── Normalise the identifier (HEAD MANAGER: walang email-format check) ──
+  // Para sa head manager role lang: puwedeng kahit PANGALAN LANG ang ilagay
+  // (hal. "juan") — walang @gmail.com / format validation. Ang GoTrue ay may
+  // sariling email-format validation, kaya `credentialEmailFor()` ang
+  // ginagamit na credential sa `auth.users`; ang TOTOONG identifier pa rin
+  // ang nasa `public.users.email`, at iyon ang hinahanap ng login. Kinukumpirma
+  // lang dito na may laman ang identifier.
   const cleanEmail = sanitizeString(email).trim().toLowerCase();
-  if (!validateEmail(cleanEmail)) {
-    return errorResponse('Invalid email format', 400, 'VALIDATION_ERROR');
+  if (!cleanEmail) {
+    return errorResponse('Email is required', 400, 'VALIDATION_ERROR');
   }
   const cleanPhone = sanitizeString(phone_number).trim();
   if (!validatePhone(cleanPhone)) {
@@ -357,7 +363,9 @@ async function handleCreateHeadManager(req: Request) {
   if (!roleRow) return errorResponse('Head Manager role not found', 500, 'SERVER_ERROR');
 
   const { data: authUser, error: createErr } = await db.auth.admin.createUser({
-    email: cleanEmail,
+    // GoTrue-valid na credential — `${identifier}@jireta.temp` kapag hindi
+    // email-format ang identifier ng head manager (hal. pangalan lang).
+    email: credentialEmailFor(cleanEmail),
     password: DEFAULT_PASSWORD,
     email_confirm: true,
     app_metadata: { role: 'head_manager' },

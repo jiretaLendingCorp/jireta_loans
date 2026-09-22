@@ -36,6 +36,34 @@ export function validateEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/** Totoong email-format ba (pareho ang rules sa [validateEmail])? */
+export function isEmailFormat(value: string): boolean {
+  return validateEmail((value ?? '').trim().toLowerCase());
+}
+
+/**
+ * Ang email na isusulat sa **GoTrue** (`auth.users.email`) para sa isang
+ * identifier.
+ *
+ * Bakit kailangan: ang HEAD MANAGER ay puwedeng mag-login gamit ang simpleng
+ * identifier — hal. pangalan lang ("juan") — kaya walang @gmail.com / format
+ * validation para sa kanila. Pero ang GoTrue ay may SARILING email-format
+ * validation: tatanggi ito sa `createUser({ email: 'juan' })`. Kaya ang nasa
+ * auth.users ay ang `${slug}@jireta.temp`, at ang TOTOONG identifier pa rin
+ * ang naka-save sa `public.users.email` (iyon ang hinahanap ng login).
+ *
+ * Ang `auth-login` at `users-manage` (email edit) ay gumagamit din nito, para
+ * iisa lang ang katumbas na credential sa lahat ng dako.
+ */
+export function credentialEmailFor(identifier: string): string {
+  const clean = (identifier ?? '').trim().toLowerCase();
+  if (isEmailFormat(clean)) return clean;
+  const slug = clean
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[.-]+|[.-]+$/g, '');
+  return `${slug || 'hm'}@jireta.temp`;
+}
+
 export function validateLoanAmount(amount: number): boolean {
   return amount >= 3000 && amount <= 500000;
 }
