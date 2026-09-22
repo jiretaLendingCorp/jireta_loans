@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/models/account_upgrade_document_model.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
@@ -272,6 +273,11 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     // nila: agad lumalabas ang Home, pagkatapos lang dumadagdag ang aktibidad.
     final paymentState = ref.watch(lenderPaymentProvider);
     final collectionState = ref.watch(lenderCollectionProvider);
+    // Account upgrade (submission / verification / rejection) ay kasama rin sa
+    // Recent Activity — kung hindi, "No recent activity yet" pa rin ang
+    // lumalabas sa lender na kaka-submit lang ng upgrade at wala pang loan.
+    final upgradeStatus =
+        ref.watch(lenderAccountUpgradeProvider).accountUpgradeStatus;
     final collectionItems = <Map<String, dynamic>>[];
     final collectionRaw = collectionState.valueOrNull;
     if (collectionRaw != null) {
@@ -381,6 +387,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                         activeLoanId: activeLoan?.id ?? '',
                         payments: paymentState.payments,
                         collections: collectionItems,
+                        upgrade: upgradeStatus,
                       ),
                       // HIDDEN: live rider tracking card — hindi na ipinapakita
                       // sa lender (request). Nasa code pa rin ang widget /
@@ -1250,12 +1257,14 @@ class _RecentActivitySection extends StatelessWidget {
   final String activeLoanId;
   final List<PaymentModel> payments;
   final List<Map<String, dynamic>> collections;
+  final AccountUpgradeStatusModel? upgrade;
 
   const _RecentActivitySection({
     required this.loans,
     required this.activeLoanId,
     this.payments = const [],
     this.collections = const [],
+    this.upgrade,
   });
 
   @override
@@ -1382,6 +1391,10 @@ class _RecentActivitySection extends StatelessWidget {
   List<_ActivityEntry> _buildEntries(BuildContext context) {
     final entries = <_ActivityEntry>[];
 
+    // ── Account upgrade (submission, verification, rejection) ─────────────
+    final upgradeEntry = _upgradeEntry(context);
+    if (upgradeEntry != null) entries.add(upgradeEntry);
+
     // ── Payments (bawat bayad na naitala / na-verify) ─────────────────────
     for (final p in payments) {
       final verified = p.status == 'verified';
@@ -1459,6 +1472,84 @@ class _RecentActivitySection extends StatelessWidget {
 
     entries.sort((a, b) => b.at.compareTo(a.at));
     return entries;
+  }
+
+  /// Timeline entry para sa account upgrade ng lender.
+  ///
+  /// Dati, loans + payments + collections lang ang pinagmumulan ng Recent
+  /// Activity, kaya ang lender na kaka-submit pa lang ng account upgrade (at
+  /// wala pang loan, bayad, o collection) ay "No recent activity yet" ang
+  /// nakikita — kahit may nangyari na sa account niya.
+  _ActivityEntry? _upgradeEntry(BuildContext context) {
+    final current = upgrade;
+    if (current == null) return null;
+    final status = current.accountUpgradeStatus.trim().toLowerCase();
+    if (status.isEmpty || status == 'not_submitted') return null;
+
+    final docs = current.documents;
+    DateTime? newest(DateTime? Function(AccountUpgradeDocumentModel d) pick) {
+      DateTime? found;
+      for (final d in docs) {
+        final value = pick(d);
+        if (value != null && (found == null || value.isAfter(found))) {
+          found = value;
+        }
+      }
+      return found;
+    }
+
+    final submittedAt = newest((d) => d.createdAt);
+    final reviewedAt = newest((d) => d.reviewedAt);
+    void openStatus() =>
+        context.push(RouteConstants.lenderAccountUpgradeStatus);
+
+    if (status == 'rejected') {
+      final at = current.rejectedAt ?? reviewedAt ?? submittedAt;
+      if (at == null) return null;
+      String? notes;
+      for (final d in docs) {
+        final n = d.rejectionNotes?.trim();
+        if (n != null && n.isNotEmpty) {
+          notes = n;
+          break;
+        }
+      }
+      return _ActivityEntry(
+        at: at,
+        icon: Icons.gpp_bad_outlined,
+        accent: AppColors.error,
+        title: 'Account upgrade rejected',
+        body: notes ?? 'You may resubmit after 1 month.',
+        onTap: openStatus,
+      );
+    }
+
+    if (status == 'verified' || status == 'approved') {
+      final at = reviewedAt ?? submittedAt;
+      if (at == null) return null;
+      return _ActivityEntry(
+        at: at,
+        icon: Icons.verified_rounded,
+        accent: AppColors.success,
+        title: 'Account upgrade verified',
+        body: 'You can now apply for a loan.',
+        onTap: openStatus,
+      );
+    }
+
+    // submitted / under review — nasa pipeline pa ang mga dokumento.
+    final at = submittedAt ?? reviewedAt;
+    if (at == null) return null;
+    return _ActivityEntry(
+      at: at,
+      icon: Icons.verified_user_outlined,
+      accent: AppColors.lenderBlue,
+      title: 'Account upgrade submitted',
+      body: docs.isEmpty
+          ? 'Pending review'
+          : '${docs.length} document${docs.length == 1 ? '' : 's'} • Pending review',
+      onTap: openStatus,
+    );
   }
 
   static DateTime? _parseActivityDate(dynamic value) {

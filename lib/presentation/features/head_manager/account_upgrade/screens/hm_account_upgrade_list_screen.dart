@@ -10,6 +10,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../providers/hm_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -204,29 +205,12 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
     // Yes => reject, No => cancel (do not reject).
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.cancel_rounded, color: AppColors.error)),
-                const SizedBox(width: 12),
-                const Expanded(child: Text('Reject Account Upgrade?', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16))),
-              ]),
-              const SizedBox(height: 12),
-              const Text('Do you want to reject this lender\'s account upgrade submission?', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: OutlinedButton(onPressed: () => Navigator.of(context).pop(false), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('No'))),
-                const SizedBox(width: 12),
-                Expanded(child: ElevatedButton(onPressed: () => Navigator.of(context).pop(true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('Yes', style: TextStyle(fontWeight: FontWeight.w700)))),
-              ]),
-            ]),
-          ),
-        ),
+      builder: (_) => const ConfirmationDialog(
+        title: 'Reject Account Upgrade?',
+        message: 'Do you want to reject this lender\'s account upgrade submission?',
+        confirmLabel: 'Yes',
+        cancelLabel: 'No',
+        confirmColor: AppColors.error,
       ),
     );
     if (confirmed == true) {
