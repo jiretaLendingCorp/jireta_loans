@@ -273,13 +273,19 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         return;
 
       case MpinStatus.notSet:
-        // Nabura na pala ang MPIN — bumalik sa OTP login.
+        // Nabura na pala ang MPIN — bumalik sa OTP login (doon siya dadalhin
+        // sa MPIN setup). Sabihan ito nang malinaw: kung hindi, parang
+        // hindi gumagana ang MPIN screen (wala palang MPIN ang account).
         setState(() {
           _mpinBusy = false;
           _mpinError = null;
           _hasMpin = false;
           _showMpin = false;
         });
+        _showError(
+          'No MPIN is set for this account yet. Log in with your mobile '
+          'number to create one.',
+        );
         return;
 
       case MpinStatus.offline:

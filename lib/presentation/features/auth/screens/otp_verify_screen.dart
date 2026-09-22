@@ -178,10 +178,11 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           role == AppConstants.roleLender;
       // ── Rider / lender (mobile): palaging dumadaan muna sa MPIN ──────────
       // Hindi ito deretsong pumapasok sa dashboard pagkatapos ng OTP:
-      //   * wala pang MPIN  → MPIN setup (ito na ang gagamitin sa susunod);
-      //   * may MPIN na     → "locked" state, kaya ang MPIN screen na may
-      //                       numerong ginamit ang lalabas (pagkatapos ng
-      //                       tamang MPIN pa lang makakapasok sa dashboard).
+      //   * TAHASANG wala pang MPIN → MPIN setup (ito na ang gagamitin sa
+      //                               susunod);
+      //   * may MPIN na / hindi matiyak → "locked" state, kaya ang MPIN screen
+      //                       na may numerong ginamit ang lalabas (pagkatapos
+      //                       ng tamang MPIN pa lang makakapasok sa dashboard).
       // Kapareho ito ng nangyayari sa pagbukas muli ng app pagkatapos itong
       // isara, kaya iisa ang takbo ng dalawang pagkakataon.
       if (isRiderOrLender) {
@@ -195,9 +196,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           } catch (_) {}
           if (!mounted) return;
         }
-        final hasMpin = await ref.read(mpinServiceProvider).isSet();
+        // TRI-STATE ang tsek dito (`true` / `false` / `null`) — hindi ang
+        // `isSet()` na nagiging `false` kahit "hindi matiyak" lang. Kapag
+        // nag-create ng MPIN ang isang account na mayroon na, tatanggi ang
+        // server (INVALID_CURRENT_MPIN) at hindi na makausad ang user.
+        final hasMpin = await ref.read(mpinServiceProvider).statusHasMpin();
         if (!mounted) return;
-        if (!hasMpin) {
+        // Tanging TAHASANG "wala pang MPIN" ang dumadaan sa create.
+        if (mpinStepAfterOtp(hasMpin) == MpinAfterOtpStep.create) {
           context.go(RouteConstants.mpinSetup);
           return;
         }

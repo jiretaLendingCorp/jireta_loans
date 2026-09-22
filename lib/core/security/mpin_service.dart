@@ -111,18 +111,40 @@ class MpinService {
 
   /// True kapag may naka-set nang MPIN ang ACCOUNT.
   ///
+  /// Best-effort lang ito: kapag hindi maabot ang server at wala ring local na
+  /// hint, `false` ang isinasagot. HUWAG gamitin ito para magpasya kung
+  /// "mag-create" o "mag-enter" ng MPIN — gamitin ang [statusHasMpin], dahil
+  /// ang `false` dito ay maaaring "hindi matiyak" lang (tingnan doon).
+  ///
   /// Sinusubukan muna ang server (auth-mpin `status`). Kapag hindi ito maabot
   /// (offline, o wala pang session), ibinabalik ang HULING nalalaman na
   /// kasagutan mula sa local na hint — hindi ito ang MPIN, flag lang.
-  Future<bool> isSet() async {
+  Future<bool> isSet() async => (await statusHasMpin()) ?? false;
+
+  /// Tulad ng [isSet] pero HINDI pinagsasama ang "wala pang MPIN" sa
+  /// "hindi matiyak":
+  ///
+  ///   * `true`  — may MPIN ang account (galing sa server, o sa lokal na hint);
+  ///   * `false` — TAHASANG wala pang MPIN ang account (server ang nagsabi);
+  ///   * `null`  — hindi maabot ang server at wala pang huling nalalaman na
+  ///               status. HINDI ito "wala pang MPIN".
+  ///
+  /// MAHALAGA sa pagpili ng susunod na screen pagkatapos ng OTP: dati, ang
+  /// isang bigong `status` call (o bagong account na walang naka-cache na hint)
+  /// ay nagiging `false` sa [isSet] — kaya ang account na MAY MPIN na ay
+  /// itinutulak sa "Create Your MPIN", at tanging ang server ang huling
+  /// tumatanggi (INVALID_CURRENT_MPIN) kapag sinubukan itong i-save.
+  Future<bool?> statusHasMpin() async {
     try {
       final status = await _remote.status();
       await _cacheExists(status.hasMpin);
       return status.hasMpin;
     } catch (e) {
       final cached = await _cachedExists();
-      AppLogger.w('[MPIN] isSet: hindi maabot ang server ($e) — cached=$cached');
-      return cached ?? false;
+      AppLogger.w(
+        '[MPIN] statusHasMpin: hindi maabot ang server ($e) — cached=$cached',
+      );
+      return cached;
     }
   }
 

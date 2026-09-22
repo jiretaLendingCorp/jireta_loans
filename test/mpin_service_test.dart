@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jireta_loans/core/security/mpin_login_gate.dart';
 import 'package:jireta_loans/core/security/mpin_service.dart';
 import 'package:jireta_loans/core/security/secure_storage.dart';
 import 'package:jireta_loans/data/datasources/remote/mpin_remote_datasource.dart';
@@ -332,6 +333,48 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final unknown = MpinService(ds: server);
       expect(await unknown.isSet(), isFalse);
+    });
+
+    test('statusHasMpin: true / false mula sa server', () async {
+      expect(await service.statusHasMpin(), isFalse,
+          reason: 'Tahasang wala pang MPIN sa account');
+      await service.setMpin('1234');
+      expect(await service.statusHasMpin(), isTrue);
+    });
+
+    test(
+        'statusHasMpin: null (HINDI false) kapag hindi maabot ang server at '
+        'walang local na hint', () async {
+      // Ito ang sanhi ng "nag-create ng MPIN kahit may MPIN na": sa
+      // change-number flow, wala pang local na hint ang BAGONG numero sa device
+      // na ito — kapag bigong makuha ang status, dapat "hindi matiyak" (null)
+      // ito at hindi "wala pang MPIN".
+      server.offline = true;
+      expect(await service.statusHasMpin(), isNull);
+      // Ang `isSet()` ay best-effort pa rin (false) — kaya hindi ito dapat
+      // gamitin sa "create vs enter" na desisyon.
+      expect(await service.isSet(), isFalse);
+    });
+
+    test('statusHasMpin: gamitin ang huling nalalaman kapag offline', () async {
+      await SecureStorage.saveUserInfo(userId: 'u-1', role: 'lender');
+      await service.setMpin('1234'); // naka-cache na: may MPIN ang account
+      server.offline = true;
+      expect(await service.statusHasMpin(), isTrue);
+    });
+  });
+
+  group('mpinStepAfterOtp (create vs enter pagkatapos ng OTP)', () {
+    test('tahasang wala pang MPIN → create', () {
+      expect(mpinStepAfterOtp(false), MpinAfterOtpStep.create);
+    });
+
+    test('may MPIN → enter (hindi na mag-create)', () {
+      expect(mpinStepAfterOtp(true), MpinAfterOtpStep.enter);
+    });
+
+    test('hindi matiyak (null) → enter, huwag ipilit ang create', () {
+      expect(mpinStepAfterOtp(null), MpinAfterOtpStep.enter);
     });
   });
 

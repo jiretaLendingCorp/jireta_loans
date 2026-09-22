@@ -25,6 +25,29 @@ import '../constants/app_constants.dart';
 import 'mpin_service.dart';
 import 'secure_storage.dart';
 
+/// Alin ang gagawin pagkatapos ng matagumpay na OTP ng rider / lender.
+enum MpinAfterOtpStep {
+  /// Wala pang MPIN ang account → mag-set muna ng 4-digit MPIN.
+  create,
+
+  /// May MPIN na (o HINDI matiyak) → dumaan sa "Enter MPIN" ng login page.
+  enter,
+}
+
+/// Pinipili ang hakbang pagkatapos ng OTP base sa resulta ng
+/// `MpinService.statusHasMpin()` (`bool?`).
+///
+/// Tanging ang TAHASANG `false` (sinabi ng server na wala pang MPIN) ang
+/// nagdadala sa "Create Your MPIN". Ang `true` at ang HINDI matiyak (`null` —
+/// offline / bigong status call) ay dumadaan sa "Enter MPIN".
+///
+/// BAKIT: ang account na may MPIN na ay dating napipilitang mag-create kapag
+/// hindi maabot ang status check (sinasamantala ang `isSet()` na nagiging
+/// `false`). Doon, tanging ang server ang huling tumatanggi — hindi na
+/// makausad ang user kahit tama naman ang MPIN niya.
+MpinAfterOtpStep mpinStepAfterOtp(bool? hasMpin) =>
+    hasMpin == false ? MpinAfterOtpStep.create : MpinAfterOtpStep.enter;
+
 /// Resulta ng [MpinLoginGate.resolve].
 class MpinLoginChoice {
   const MpinLoginChoice({required this.showMpin, this.phone});

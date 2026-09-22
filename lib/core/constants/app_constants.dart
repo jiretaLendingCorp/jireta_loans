@@ -71,6 +71,13 @@ class AppConstants {
   static const int sessionDurationMs = 600000;
   static const int sessionDurationSeconds = 600;
 
+  /// ABSOLUTE session lifetime: gaano katagal mananatiling wasto ang isang
+  /// login bago hilingin muli ang mobile number (OTP). Ang 10-minutong idle
+  /// window ay pag-lock lang ng app (MPIN ang mag-u-unlock) — HINDI ito
+  /// nagtatapos ng session. Dito lang (3 buwan) kailangan mag-login muli ng
+  /// numero ng rider / lender.
+  static const Duration absoluteSessionDuration = Duration(days: 90);
+
   /// Legacy 1-hour constant kept for migration only (old installs may still
   /// have a JWT-derived startedAt without last_activity_at).
   static const Duration legacySessionDuration = Duration(hours: 1);

@@ -52,30 +52,25 @@ class AuthInterceptor extends Interceptor {
     final isRefreshPath = path == AppConstants.authRefreshPath;
     final ownsNoSession = _noRefreshPaths.contains(path);
 
-    // ── Idle 10-minute expiry: if no activity for 10m, hard logout ────────
-    // Do NOT attempt soft refresh — idle window has been exceeded, must re-login.
-    // Grace already applied in isIdleExpired (10s leeway).
-    bool isIdleExpired = false;
+    // ── ABSOLUTE session lifetime (3 buwan) ───────────────────────────────
+    // Ang 10-minutong idle window ay PAG-LOCK lang ng app (MPIN ang mag-u-unlock)
+    // — HINDI ito nagtatapos ng session, kaya HINDI na binubura dito ang tokens
+    // (iyon ang dating dahilan ng paulit-ulit na "re-enter ng number"). Ang
+    // ABSOLUTE na tagal lang (3 buwan) ang nagpapatalsik para sa muling login.
+    bool absoluteExpired = false;
     try {
-      isIdleExpired = await SecureStorage.isIdleExpired();
-      final lastActivity = await SecureStorage.getLastActivity();
       final startedAt = await SecureStorage.getSessionStartedAt();
-      if (lastActivity == null && startedAt == null) isIdleExpired = false;
-    } catch (_) {
-      isIdleExpired = false;
-    }
-    if (isIdleExpired && !ownsNoSession && !isRefreshPath) {
-      bool isStale = false;
-      try {
-        if (token != null && token.isNotEmpty && !JwtParser.isExpired(token)) {
-          final remaining = await SecureStorage.getRemainingIdleTime();
-          if (remaining == null || remaining.inSeconds > 10) isStale = true;
-        }
-      } catch (_) {}
-      if (!isStale) {
-        await _dropDeadSession();
-        token = null;
+      if (startedAt != null &&
+          DateTime.now().toUtc().difference(startedAt) >=
+              AppConstants.absoluteSessionDuration) {
+        absoluteExpired = true;
       }
+    } catch (_) {
+      absoluteExpired = false;
+    }
+    if (absoluteExpired && !ownsNoSession && !isRefreshPath) {
+      await _dropDeadSession();
+      token = null;
     } else if (token != null &&
         token.isNotEmpty &&
         !ownsNoSession &&
@@ -220,22 +215,21 @@ class AuthInterceptor extends Interceptor {
         }
       } catch (_) {}
 
-      // Hard idle check before soft refresh: if idle expired, never refresh
-      bool idleExpired = false;
+      // ── ABSOLUTE session lifetime (3 buwan) → hard logout, number muli ──
+      // Ang 10-minutong idle ay HINDI humaharang sa refresh (pag-lock lang ito
+      // ng app para sa MPIN). Tanging ang absolute na tagal (3 buwan) ang
+      // nagpapatalsik — kasama na ang tunay na SESSION_REVOKED na nauna nang
+      // hinawakan sa itaas.
+      bool absoluteExpired = false;
       try {
         final startedAt = await SecureStorage.getSessionStartedAt();
-        final lastAct = await SecureStorage.getLastActivity();
-        if (startedAt != null || lastAct != null) {
-          idleExpired = await SecureStorage.isIdleExpired();
+        if (startedAt != null &&
+            DateTime.now().toUtc().difference(startedAt) >=
+                AppConstants.absoluteSessionDuration) {
+          absoluteExpired = true;
         }
       } catch (_) {}
-      if (idleExpired) {
-        try {
-          final remaining = await SecureStorage.getRemainingIdleTime();
-          if (remaining != null && remaining.inSeconds > 10) {
-            return handler.next(err);
-          }
-        } catch (_) {}
+      if (absoluteExpired) {
         await _dropDeadSession();
         return handler.next(err);
       }

@@ -17,7 +17,6 @@ import '../../../features/lender/profile/providers/lender_profile_provider.dart'
 import '../../../../core/security/secure_storage.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../providers/auth_provider.dart';
-import 'verify_email_screen.dart';
 
 class TermsConditionsScreen extends ConsumerStatefulWidget {
   const TermsConditionsScreen({super.key});
@@ -162,23 +161,12 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
           platform: platform,
           appVersion: AppConstants.appVersion,
         );
-    // ── Verification ng email: LINK ang ipinapadala (hindi OTP code) ────
-    // Habang "Continuing..." pa ang button ay ipinapadala na ang mail, para
-    // abot na ito pagdating sa Verify Your Email screen. Kapag nabigo, dinadala
-    // pa rin ang mensahe ng server papunta sa screen (hindi ito tahimik na
-    // nilalamon) — doon na lang ipapakita nang malinaw at mapipindot ang
-    // "Resend Email".
-    final sendError =
-        await ref.read(authProvider.notifier).sendEmailVerification(
-              email: email,
-            );
     if (!mounted) return;
-    // Hindi deretso sa home: kailangang kumpirmahin muna ang email sa
-    // pamamagitan ng link na ipinadala doon.
-    context.go(
-      RouteConstants.verifyEmail,
-      extra: VerifyEmailArgs(email: email, sendError: sendError),
-    );
+    // Deretso sa Home ng lender: pansamantalang hindi na ipinapakita ang Verify
+    // Your Email step ("muna"). Naka-save pa rin sa database ang lahat ng
+    // na-fill in na impormasyon (pangalan at email) bago ang paglipat —
+    // AWAITED ang mga save sa itaas kaya siguradong naka-record na ito.
+    context.go(RouteConstants.lenderDashboard);
   }
 
   /// Backing out of the "Fill In Information" modal (system back or the close

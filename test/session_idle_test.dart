@@ -1,7 +1,16 @@
 // test/session_idle_test.dart
-// Verifies the new 10-minute idle session contract:
-// - AppConstants.sessionDuration is 10 minutes
+// Verifies the 10-minute idle session contract AND the absolute (3-month)
+// session lifetime:
+// - AppConstants.sessionDuration is 10 minutes (idle → MPIN LOCK only)
+// - AppConstants.absoluteSessionDuration is 3 months (number re-entry only)
 // - SecureStorage idle helpers exist and behave
+//
+// BUG na sinasaklaw ng absolute-session tests: ang 10-minutong idle ay dati
+// nag-hahard-logout (binubura ang session) kaya ilang minuto/oras lang ay
+// kailangan nang mag-enter muli ng numero. Dapat LOCK lang ito (MPIN ang
+// mag-u-unlock) at ang numero ay hihilingin muli pagkalipas ng 3 buwan.
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jireta_loans/core/constants/app_constants.dart';
 import 'package:jireta_loans/core/security/secure_storage.dart';
@@ -13,6 +22,10 @@ void main() {
       expect(AppConstants.sessionDuration.inSeconds, 600);
       expect(AppConstants.sessionDurationMs, 600000);
       expect(AppConstants.sessionDurationSeconds, 600);
+    });
+
+    test('AppConstants.absoluteSessionDuration is 3 months (90 days)', () {
+      expect(AppConstants.absoluteSessionDuration, const Duration(days: 90));
     });
 
     test('SecureStorage has idle helpers', () {
@@ -33,6 +46,44 @@ void main() {
       expect(AppConstants.lastActivityKey, isNotEmpty);
       expect(AppConstants.lastActivityKey, isNot('session_started_at'));
       expect(AppConstants.sessionStartedAtKey, isNotEmpty);
+    });
+  });
+
+  group('Idle lock vs absolute session', () {
+    test('SessionRefresher hindi na nag-reject ng refresh dahil sa idle',
+        () async {
+      final src = await File('lib/core/security/session_refresher.dart').readAsString();
+      // Hindi na ito dapat mag-drop ng valid refresh token dahil lang lumampas
+      // ang 10-minutong idle — iyon ang nagpapabalik sa number/OTP form.
+      expect(src.contains('isIdleExpired'), isFalse,
+          reason: 'Ang idle ay pag-lock lang (MPIN), hindi session kill.');
+      expect(src.contains('getRemainingIdleTime'), isFalse);
+      // 3-buwan na absolute lifetime ang tanging nagpapatalsik.
+      expect(src.contains('absoluteSessionDuration'), isTrue);
+      expect(src.contains('getSessionStartedAt'), isTrue);
+    });
+
+    test('AuthInterceptor hindi na nag-hard-logout dahil sa idle', () async {
+      final src = await File(
+              'lib/core/network/interceptors/auth_interceptor.dart')
+          .readAsString();
+      expect(src.contains('isIdleExpired'), isFalse,
+          reason: 'Idle = MPIN lock, hindi dapat mag-clearAll ng session.');
+      expect(src.contains('absoluteSessionDuration'), isTrue);
+    });
+
+    test('MPIN unlock ay nagrereset ng idle bago ang initialize', () async {
+      final src = await File(
+              'lib/presentation/features/auth/screens/mobile_login_screen.dart')
+          .readAsString();
+      // Kapag tama ang MPIN, kailangang maging fresh ang idle bago ang
+      // initialize(unlockedByMpin: true) — kung hindi, block ang auto-login.
+      expect(
+        src.contains('saveLastActivity') &&
+            src.indexOf('saveLastActivity') <
+                src.indexOf('initialize(unlockedByMpin'),
+        isTrue,
+      );
     });
   });
 

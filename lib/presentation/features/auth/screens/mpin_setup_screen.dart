@@ -20,6 +20,7 @@ import '../../../../core/security/secure_storage.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/widgets/dialogs/loading_dialog.dart';
+import '../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../shared/widgets/security/mpin_keypad.dart';
 
 /// Hakbang ng setup: gumawa ng bagong MPIN, tapos kumpirmahin.
@@ -124,6 +125,16 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
       // Bahagyang paghinto para kitang-kita ang loading bago lumipat.
       await Future.delayed(const Duration(milliseconds: 900));
       hideLoading();
+      if (!mounted) return;
+      // Success modal — kailangan munang i-tap ng user ang button bago
+      // magpatuloy, para malinaw na tagumpay ang pag-create ng MPIN.
+      await SuccessDialog.show(
+        context,
+        title: 'Successfully Created PIN',
+        message: 'Your 4-digit MPIN has been created. '
+            'Use it to log in next time.',
+        buttonText: 'Continue',
+      );
       if (!mounted) return;
       // Naka-save na ang MPIN. Hindi deretso sa dashboard: inilalagay muna ang
       // app sa locked state at bumabalik sa login page, kung saan ipapakita ang

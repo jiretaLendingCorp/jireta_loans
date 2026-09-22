@@ -25,15 +25,19 @@ class SessionRefresher {
   }
 
   static Future<SessionRefreshResult> _refreshOnce() async {
-    // Idle 10-minute hard expiry: never refresh if idle session already expired.
-    // This enforces "after 10 min without activity must re-login".
-    // Grace +10s to avoid clock-skew false positives.
+    // ── ABSOLUTE session lifetime (3 buwan) ────────────────────────────────
+    // Ang 10-minutong idle window ay PAG-LOCK lang (MPIN ang mag-u-unlock) at
+    // HINDI dapat magpatalsik ng valid na refresh token. Dati, kapag lumampas
+    // ang idle ay `authRejected` agad dito — kaya binubura ang session at
+    // bumabalik ang rider/lender sa mobile-number (OTP) form makalipas lang
+    // ng ilang minuto. Ngayon, ang ABSOLUTE na tagal (3 buwan) lang ang
+    // nagtatapos ng session para sa muling pag-login ng numero.
     try {
-      final isExpired = await SecureStorage.isIdleExpired();
-      if (isExpired) {
-        // Confirm remaining to avoid false logout on web storage lag.
-        final remaining = await SecureStorage.getRemainingIdleTime();
-        if (remaining != null) return SessionRefreshResult.authRejected;
+      final startedAt = await SecureStorage.getSessionStartedAt();
+      if (startedAt != null &&
+          DateTime.now().toUtc().difference(startedAt) >=
+              AppConstants.absoluteSessionDuration) {
+        return SessionRefreshResult.authRejected;
       }
     } catch (_) {
       // If storage throws, proceed to normal refresh attempt
